@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "../Sync-AI-Metadata"
+		},
+		{
+			"path": "../DFX-AI-Metadata"
+		},
+		{
+			"path": "../../AI-Editor"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"powershell.cwd": "Sync-AI-Metadata"
+	}
+}
