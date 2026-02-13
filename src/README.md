@@ -99,6 +99,29 @@ npm test             # 21 integration tests (Extension Host)
 npm run lint
 ```
 
+### Lint monitoring (non-blocking warnings)
+
+Warnings are intentionally non-failing, but still monitored:
+
+- `npm run lint` — runs ESLint; warnings are allowed.
+- `npm run lint:monitor` — writes JSON report to `.eslint-report.json`.
+- `npm run lint:summary` — prints totals and top warning rule IDs.
+- `npm run lint:monitor:summary` — monitor + summary in one command.
+
+Example summary output:
+
+`[lint-summary] files=28 errors=0 warnings=5`
+
+`[lint-summary] top-warning-rules=@typescript-eslint/naming-convention:5`
+
+### VS Code tasks
+
+From **Terminal → Run Task**:
+
+- `Extension: Lint (Monitor Report)`
+- `Extension: Lint Summary`
+- `Extension: Lint (Monitor + Summary)`
+
 ## License
 
 MIT
