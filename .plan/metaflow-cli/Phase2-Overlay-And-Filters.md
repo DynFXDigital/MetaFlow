@@ -1,47 +1,43 @@
-# Phase 2 – Overlay Resolution + Filtering
+# Phase 2 – Extension Rewire
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
-Implement the deterministic layer-merging engine and the include/exclude filter evaluator. After this phase the system can resolve an effective file set from a stack of overlay layers.
+Rewire the VS Code extension (`src/`) to import from `@metaflow/engine` instead of its local `./engine/` and `./config/` directories. After this phase the extension behavior is identical but the engine code lives in a shared package.
 
 ## Tasks
 
-- [ ] Implement layer resolution:
-  - Scan each layer directory for `.github/`-structured content
-  - Merge layers in declared order (later wins on path collision)
-  - Produce a flat dict: `relative_path → source_layer`
-  - Handle missing layer directories gracefully (warn, skip)
-- [ ] Implement filter engine:
-  - Evaluate include patterns (allowlist, default `["**"]`)
-  - Evaluate exclude patterns (blocklist, default `[]`)
-  - Glob matching via `fnmatch` / `pathlib` patterns
-  - Exclude wins unless re-included at higher specificity
-- [ ] Implement profile activation:
-  - Apply the active profile's enable/disable patterns on the post-filter set
-  - `enable` acts as allowlist, `disable` acts as blocklist
-  - Default profile passes everything through
-- [ ] Implement artifact classification:
-  - Instructions / prompts → `live-ref` (reference in-place)
-  - Skills / agents → `materialize` (copy to `.github/`)
-  - Classification based on path prefix (`instructions/`, `prompts/`, `skills/`, `agents/`)
-- [ ] Write unit tests:
-  - Single-layer resolution
-  - Multi-layer override precedence
-  - Include-only filtering
-  - Exclude-only filtering
-  - Combined include + exclude
-  - Profile enable/disable
-  - Artifact classification mapping
-  - Edge cases: empty layers, no matching files, all files excluded
+- [ ] Update `src/package.json`:
+  - Add `"@metaflow/engine": "workspace:*"` to `dependencies`
+  - Remove engine/config source files from `src/src/engine/` and `src/src/config/`
+- [ ] Update all import paths in the extension:
+  - `src/src/commands/` — change `from '../engine/...'` → `from '@metaflow/engine'`
+  - `src/src/views/` — same import rewire
+  - `src/src/diagnostics/` — same import rewire
+  - `src/src/extension.ts` — same import rewire
+- [ ] Update `src/tsconfig.json`:
+  - Add path mapping or project reference to `packages/engine`
+  - Ensure `tsc` resolves `@metaflow/engine` correctly
+- [ ] Verify extension compiles:
+  - `cd src && npm run compile` succeeds
+- [ ] Verify extension tests pass:
+  - All 21 integration tests pass (Extension Host)
+  - No behavioral changes
+- [ ] Update `.vscodeignore`:
+  - Ensure `@metaflow/engine` built output is included in VSIX (or bundled)
+  - Test: `npm run package` produces working VSIX
+- [ ] Verify VSIX still works:
+  - Install VSIX in VS Code → extension activates, commands work
 
 ## Deliverables
 
-- `metaflow/engine.py` — overlay resolution, filtering, profile activation, classification.
-- ≥90% branch coverage on engine module.
+- Extension compiles and all tests pass using `@metaflow/engine` imports.
+- No engine/config source files remain in `src/src/engine/` or `src/src/config/`.
+- VSIX packages correctly with the engine included.
+- Zero behavioral changes from user perspective.
 
 ## Reference
 
-- [Overlay Model](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#overlay-model)
-- [Separation of Concerns](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#separation-of-concerns)
+- Existing imports: `src/src/commands/*.ts`, `src/src/views/*.ts`, `src/src/extension.ts`
+- Engine barrel: `packages/engine/src/index.ts`

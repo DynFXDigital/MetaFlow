@@ -579,10 +579,10 @@ MetaFlow is a strategic successor to the overlay subsystem in Sync-AI-Metadata. 
 
 | Aspect | Sync-AI-Metadata | MetaFlow |
 |---|---|---|
-| Runtime | Python CLI subprocess | Pure TypeScript in-extension |
+| Runtime | Legacy CLI subprocess | Pure TypeScript in-extension |
 | Config schema | Legacy + clean schema coexistence | Clean reference schema only |
-| Engine location | Python package (`sync_ai_metadata`) | TypeScript module (`src/engine/`) |
-| Testing | Retroactive; pytest | TDD per phase; Mocha + @vscode/test-electron |
+| Engine location | Legacy `sync_ai_metadata` package | TypeScript package (`packages/engine/`) |
+| Testing | Retroactive; mixed legacy tests | TDD per phase; Mocha + @vscode/test-electron |
 | Scope | Pack-sync + watchers + overlay + CLI | Overlay engine + extension only |
 
 The Sync-AI-Metadata extension source (`vscode-extension/`) serves as prior art for UI patterns (TreeViews, commands, status bar, diagnostics) and will be referenced but not directly ported.

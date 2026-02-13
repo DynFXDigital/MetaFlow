@@ -1,70 +1,53 @@
-# Phase 4 – CLI Commands
+# Phase 4 – Integration Tests + Polish
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
-Wire the config model, overlay engine, and rendering engine into user-facing CLI commands that cover the full reference architecture workflow.
-
-## Commands
-
-### `metaflow status`
-- Show: metadata repo URL, commit, active profile, layer list, file counts (live-ref vs materialized).
-- Requires: config loader (Phase 1).
-
-### `metaflow preview`
-- Show the effective file tree after composition + filtering + profile activation.
-- Indicate realization mode (live-ref / materialize) per file.
-- Optionally show diffs against current workspace state.
-- Requires: engine (Phase 2).
-
-### `metaflow apply`
-- Render materialized outputs to `.github/`.
-- Update managed-state tracking.
-- Print summary: files written, files removed, files unchanged.
-- Requires: render (Phase 3).
-
-### `metaflow clean`
-- Remove all managed files recorded in `.ai/.sync-state/managed.json`.
-- Clear managed-state file.
-- Print summary of removed files.
-
-### `metaflow profile set <name>`
-- Update `activeProfile` in `ai-sync.json`.
-- Show new effective file counts.
-
-### `metaflow promote`
-- Detect locally modified materialized files (via drift detection).
-- Present options per file: discard, save as repo override, promote to shared layer.
-- Detection only in v1 — no automated git operations.
-
-### `metaflow init`
-- Generate a starter `ai-sync.json` interactively or from defaults.
-- Validate metadata repo accessibility (if URL provided).
+Add end-to-end integration tests that exercise the full CLI workflow, polish help text and error handling, and ensure the complete system (engine + CLI + extension) works together.
 
 ## Tasks
 
-- [ ] Implement `metaflow status` command.
-- [ ] Implement `metaflow preview` command.
-- [ ] Implement `metaflow apply` command.
-- [ ] Implement `metaflow clean` command.
-- [ ] Implement `metaflow profile set` command.
-- [ ] Implement `metaflow promote` command (detection only).
-- [ ] Implement `metaflow init` command.
-- [ ] Integration tests:
-  - End-to-end: init → apply → status → modify file → promote detection → clean.
-  - Profile switch → re-apply produces different output set.
-  - Apply is idempotent.
-- [ ] CLI help text and `--help` for all commands.
-- [ ] Exit code conventions (0 = success, 1 = error, 2 = drift detected).
+### Integration Tests
+
+- [x] Full lifecycle test: `init → apply → status → modify → promote → clean`
+  - Create temp workspace + metadata repo
+  - Run each command in sequence
+  - Assert file system state at each step
+- [x] Multi-artifact test: apply with skills, agents, instructions, prompts
+- [x] Profile switch test: `profile set` → `apply` → verify different output sets
+- [x] Idempotency test: `apply` twice → identical results
+- [x] Drift protection test: modify managed file → `apply` skips → `promote` detects
+- [x] Error handling tests: missing config, invalid JSON, missing repo, bad profile name
+
+### CLI Polish
+
+- [x] Consistent `--help` text across all commands
+- [x] `--version` flag
+- [x] `--json` output option for machine-readable results (status, preview)
+- [x] Exit codes: 0=success, 1=error, 2=drift detected
+- [ ] Colorized output for terminal (deferred to Phase 5)
+
+### Cross-Package Validation
+
+- [x] Verify engine unit tests still pass: `npm -w metaflow run test:unit` (111 passing)
+- [x] Verify extension integration tests still pass: `npm -w metaflow test` (21 passing)
+- [x] Verify CLI tests pass: `npm -w @metaflow/cli test` (27 passing)
+- [x] Run all from root: `npm test` (138 passing)
+
+### Documentation
+
+- [x] CLI README with usage examples
+- [x] Updated repo AGENTS.md with CLI build/test commands
+- [x] Root package.json with combined test scripts
 
 ## Deliverables
 
-- `metaflow/cli.py` — Click-based CLI with all commands.
-- Integration test suite covering full workflow.
-- ≥90% branch coverage on CLI module.
+- Complete integration test suite covering full workflow.
+- Polished CLI with help text, exit codes, and error handling.
+- All tests passing across all three packages.
+- Updated documentation.
 
 ## Reference
 
-- [CLI Responsibilities](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#cli-responsibilities)
 - [Editing and Promotion Workflow](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#editing-and-promotion-workflow)

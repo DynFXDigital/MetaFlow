@@ -1,10 +1,10 @@
 # Phase 5 – Extensions
 
-**Status:** Not started (stretch / post-v1)
+**Status:** Complete — watch, validate, and promote --auto delivered
 
 ## Objective
 
-Extend the stable CLI core with optional capabilities that improve developer experience and organizational governance.
+Extend the stable engine + CLI with optional capabilities that improve developer experience and organizational governance.
 
 ## Potential Work Items
 
@@ -12,15 +12,11 @@ Extend the stable CLI core with optional capabilities that improve developer exp
 - File-system watcher on `ai-sync.json` and metadata repo directory.
 - Auto-re-render on config or metadata changes.
 - Debounced to avoid thrashing during rapid edits.
-
-### VS Code Extension Hooks
-- Expose engine functions as a library for a VS Code extension.
-- Extension provides tree views, status bar, and command palette integration.
-- Extension calls same engine — no separate logic.
+- Can be exposed both as `metaflow watch` CLI command and via VS Code extension.
 
 ### Promotion Automation
 - `metaflow promote --auto`: create branch, commit, and optionally open PR.
-- Requires git operations (libgit2 or subprocess).
+- Requires git operations (simple-git or subprocess).
 - Scoped promotion: target specific layer for the change.
 
 ### CI Policy Validation
@@ -37,11 +33,16 @@ Extend the stable CLI core with optional capabilities that improve developer exp
 - Central config that defines required layers per repo classification.
 - Audit mode: report repos not compliant with policy.
 
+### npm Publishing
+- Publish `@metaflow/engine` to npm for third-party consumers.
+- Publish `@metaflow/cli` as a global CLI tool.
+- Decide final package names (avoid conflicts).
+
 ## Notes
 
 - All items are non-blocking for v1 delivery.
 - Prioritize based on adoption feedback after Phase 4 is complete.
-- VS Code extension should be planned as a separate plan (`.plan/metaflow-vscode-extension/`).
+- The shared engine architecture makes all extensions straightforward — both CLI and extension access the same API.
 
 ## Reference
 

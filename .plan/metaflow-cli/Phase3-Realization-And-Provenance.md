@@ -1,57 +1,51 @@
-# Phase 3 – Realization + Provenance
+# Phase 3 – CLI Scaffold + Commands
 
-**Status:** Not started
+**Status:** Complete
 
 ## Objective
 
-Implement hybrid realization (live-ref vs materialization), provenance header injection, and managed-state tracking. After this phase the engine can produce the correct output files in `.github/` and track what it owns.
+Build the TypeScript CLI (`packages/cli/`) that imports `@metaflow/engine` and exposes all commands. After this phase the CLI is fully functional and can be run via `npx metaflow <command>`.
 
 ## Tasks
 
-- [ ] Implement live-reference output:
-  - For instructions/prompts: record the resolved source path (no file copy)
-  - Output path format: `.ai/ai-metadata/<resolved-path>`
-- [ ] Implement materialized output:
-  - For skills/agents: copy content to `.github/skills/_shared_<name>.md` (or `agents/`)
-  - Apply `_shared_` prefix per rendering rules
-  - Delete all previously managed files before re-render (clean-before-write)
-- [ ] Implement provenance injection:
-  - Inject HTML comment header into each materialized file:
-    ```
-    <!--
-    synced: true
-    source-repo: <url>
-    source-commit: <commit>
-    scope: <layers joined>
-    layers: [<layer list>]
-    profile: <active profile>
-    -->
-    ```
-  - Provenance must be machine-parseable for drift detection
-- [ ] Implement managed-state tracking:
-  - Record managed file paths + content hashes in `.ai/.sync-state/managed.json`
-  - On re-render: compare hashes to detect local modifications
-  - State file is deterministic (sorted keys, stable serialization)
-- [ ] Implement drift detection:
-  - Compare current file content hash against managed-state record
-  - Report: unmodified, locally-modified, missing, new-unmanaged
-- [ ] Write unit tests:
-  - Live-ref produces no file copies
-  - Materialization writes correct paths with prefix
-  - Provenance header is present and parseable
-  - Managed state creates/updates correctly
-  - Drift detection: clean, modified, missing, and new files
-  - Re-render is idempotent (same input → same output)
-  - Clean-before-write removes only managed files
+- [ ] Create `packages/cli/` package structure:
+  - `packages/cli/package.json` (name: `@metaflow/cli`, bin: `metaflow`, depends on `@metaflow/engine`)
+  - `packages/cli/tsconfig.json`
+  - `packages/cli/src/cli.ts` — Commander-based entry point
+  - `packages/cli/src/commands/` — one module per command
+- [ ] Implement `metaflow status`:
+  - Load config via engine → show repo, layers, profile, file counts (live-ref vs materialized)
+- [ ] Implement `metaflow preview`:
+  - Resolve overlay → display effective file tree with classification labels
+  - Show pending changes (what apply would do)
+- [ ] Implement `metaflow apply`:
+  - Resolve overlay → materialize files via engine → display summary (written/removed/skipped)
+  - Skip drifted files by default; `--force` to overwrite
+- [ ] Implement `metaflow clean`:
+  - Remove managed in-sync files → clear state → display summary
+- [ ] Implement `metaflow profile list|set`:
+  - List available profiles with active marker
+  - Set active profile → update ai-sync.json → show new file counts
+- [ ] Implement `metaflow promote`:
+  - Detect locally modified materialized files via drift detection
+  - Display list with actionable suggestions
+- [ ] Implement `metaflow init`:
+  - Generate starter `ai-sync.json` template
+  - Refuse overwrite unless `--force`
+- [ ] Write unit tests for each command:
+  - Use Commander test helpers or capture stdout
+  - Mock filesystem with temp directories
+  - Target ≥90% coverage
+- [ ] CLI help text, `--version`, `--help` for all commands
+- [ ] Exit code conventions: 0=success, 1=error, 2=drift
 
 ## Deliverables
 
-- `metaflow/render.py` — realization, provenance, managed-state.
-- `.ai/.sync-state/managed.json` schema and writer.
-- ≥90% branch coverage on render module.
+- `packages/cli/` compiles and all commands work.
+- `npx metaflow status`, `apply`, `preview`, etc. produce correct output.
+- Unit tests for all commands with ≥90% coverage.
 
 ## Reference
 
-- [Hybrid Realization Strategy](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#hybrid-realization-strategy)
-- [Provenance and Traceability](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#provenance-and-traceability)
-- [Rendering Rules](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#rendering-rules)
+- [CLI Responsibilities](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#cli-responsibilities)
+- Engine API: `@metaflow/engine` exports

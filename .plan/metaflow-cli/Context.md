@@ -1,46 +1,60 @@
 # MetaFlow CLI – Context
 
-- **Last updated:** 2026-02-05
-- **Status:** Planning – pre-implementation
+- **Last updated:** 2026-02-09
+- **Status:** Phase 1-5 complete — full CLI with watch mode, CI validation, and promotion automation
 - **Owner:** TBD
 
 ## Feature Overview
 
-MetaFlow is a clean-room CLI tool implementing the AI Metadata Overlay Sync System reference architecture. It provides deterministic composition, filtering, and realization of shared Copilot metadata (instructions, prompts, skills, agents) from a canonical repository into consuming repos. The project builds on lessons from Sync-AI-Metadata but targets a simpler, focused codebase with the overlay engine as the sole concern — no legacy sync, watcher, or pack-sync baggage.
+MetaFlow CLI provides a command-line interface for the AI Metadata Overlay Sync System. The VS Code extension already contains a **pure TypeScript engine** (zero vscode imports) that handles config loading, overlay resolution, filtering, profiling, materialization, provenance, and drift detection. The CLI plan now extracts that engine into a shared `packages/engine/` package so both the extension and CLI consume the same library — no subprocess calls, no code duplication.
 
 ## Current Focus
 
-1. Finalizing the phased implementation plan and architecture boundaries.
-2. Establishing the project skeleton (Python package, CLI entry point, test harness).
+1. **All phases complete.** All tests passing: 46 engine + 56 CLI + 111 extension unit + 21 extension integration = **234 total**.
+2. Phase 5 delivered: `validate` command (CI), `watch` command (auto-apply), `promote --auto` (branch + commit to repo), engine standalone tests, multi-repo tests.
+3. VSIX bundling verified: engine included via npm workspace symlink.
+4. **Coverage targets met**: Engine 95%+ stmts, CLI 92%+ stmts.
+
+## Completed (prior — now superseded)
+
+- ~~Python CLI Phases 1-4 (137 tests, 93.84% coverage)~~ — **SCRAPPED**: wrong technology stack. The engine already exists in TypeScript.
 
 ## Next Steps
 
-- [ ] Review and approve plan phases (README.md + phase docs).
-- [ ] Scaffold Python project: `pyproject.toml`, `metaflow/`, `tests/`, CLI entry point.
-- [ ] Implement Phase 1: config model + `ai-sync.json` loader/validator.
-- [ ] Implement Phase 2: overlay resolution engine + filter engine.
-- [ ] Implement Phase 3: hybrid realization + provenance injection.
-- [ ] Implement Phase 4: CLI commands (`status`, `preview`, `apply`, `clean`, `promote`).
-- [ ] Implement Phase 5: watch mode, VS Code extension hooks, CI validation.
+- [ ] npm scope decision before any public publish
+- [ ] Colorized terminal output (chalk or similar)
+- [ ] Metadata manifests and tagging (version-pinned layers)
 
 ## References
 
-- [Reference Architecture](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md)
-- [Plan README](.plan/metaflow-cli/README.md)
-- Sync-AI-Metadata overlay engine (prior art): `Sync-AI-Metadata/sync_ai_metadata/overlay_engine.py`
-- Sync-AI-Metadata CLI transition plan (prior art): `Sync-AI-Metadata/.plan/cli-reference-architecture-transition/`
+- [Plan README](README.md)
+- [Phase 1 — Engine Extraction](Phase1-Skeleton-And-Config.md)
+- [Phase 2 — Extension Rewire](Phase2-Overlay-And-Filters.md)
+- [Phase 3 — CLI Scaffold + Commands](Phase3-Realization-And-Provenance.md)
+- [Phase 4 — Integration Tests + Polish](Phase4-CLI-Commands.md)
+- [Phase 5 — Extensions](Phase5-Extensions.md)
+- [CLI README](../../packages/cli/README.md)
+- Current engine source: `packages/engine/src/` (config + engine modules, 111 unit tests via extension, 46 standalone tests)
+- CLI source: `packages/cli/src/` (10 commands, 56 integration tests)
 
 ## Decision Log
 
-- **2026-02-05** – MetaFlow is a clean-room project, not a fork of Sync-AI-Metadata. Reuse architecture patterns but rewrite code for clarity.
-- **2026-02-05** – CLI-first: no VS Code extension work until core engine is stable and tested.
-- **2026-02-05** – Python 3.10+ target; leverage dataclasses and `pathlib` throughout.
-- **2026-02-05** – Config file is `ai-sync.json` at repo root (or `.ai/ai-sync.json` fallback), matching the reference architecture.
-- **2026-02-05** – CLI namespace uses `metaflow` as the top-level command (e.g., `metaflow status`, `metaflow apply`).
+- **2026-02-05** – MetaFlow is a clean-room project, not a fork of Sync-AI-Metadata.
+- **2026-02-05** – CLI namespace uses `metaflow` as the top-level command.
+- **2026-02-05** – Config file is `ai-sync.json` at repo root (or `.ai/ai-sync.json` fallback).
+- **2026-02-07** – **REWORK**: Python CLI scrapped. The extension already has the full engine in pure TypeScript. New approach: extract engine into `packages/engine/`, build CLI in TypeScript, share engine as library. No subprocess calls between extension and CLI.
+- **2026-02-07** – Monorepo structure: `packages/engine/`, `packages/cli/`, `src/` (extension). npm workspaces for linking.
+- **2026-02-07** – Commander.js selected as CLI framework (lighter than Click equivalent in Node).
+- **2026-02-07** – Phase 1 complete: `packages/engine/` created with config + engine modules, Node typings added, build passes.
+- **2026-02-07** – Phase 2 complete: extension rewired to `@metaflow/engine`; unit + integration tests pass.
+- **2026-02-07** – Phase 3 complete: `packages/cli/` created with Commander and all commands wired to shared engine.
+- **2026-02-07** – Phase 4 complete: 27 CLI integration tests, `--json` output for status/preview, CLI README, root `npm test` covering 138 tests.
+- **2026-02-07** – Colorized output deferred to Phase 5 (chalk dependency not essential for MVP).
+
+- **2026-02-08** – Phase 5 partial: added `validate` command for CI pipelines (exit 0/1), engine standalone test suite (15 tests), multi-repo integration tests (2 tests). Total: 160 tests from root (`npm test`), 181 including extension integration.
+- **2026-02-08** – Phase 5 complete: added `watch` command (debounced FS watcher + auto-apply), `promote --auto` (git branch + commit to metadata repo with provenance stripping), VSIX bundling verified. Total: 170 tests from root (`npm test`), 191 including extension integration.
+- **2026-02-09** – Coverage hardening: engine 46 standalone tests (95%+ stmts), CLI 56 tests (92%+ stmts). Total: 213 tests from root (`npm test`), 234 including extension integration.
 
 ## Open Questions & Risks
 
-- Package name collision: "metaflow" conflicts with Netflix's MetaFlow ML library — may need a different PyPI name (e.g., `ai-metaflow`, `mf-sync`). Decide before first publish.
-- Determine minimum viable metadata repo layout to validate against.
-- Clarify whether `promote` should automate branch/commit/PR or remain detection-only for v1.
-- Copilot discovery rules for skills/agents: revalidate that alternate paths are still unsupported.
+- npm package naming: `@metaflow/engine` and `@metaflow/cli` may conflict with Netflix MetaFlow — decide scope before publish.
