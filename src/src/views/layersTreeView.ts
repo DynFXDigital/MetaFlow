@@ -7,19 +7,45 @@
 import * as vscode from 'vscode';
 import { ExtensionState } from '../commands/commandHandlers';
 
+class RepoSourceItem extends vscode.TreeItem {
+    constructor(
+        label: string,
+        public readonly repoId: string,
+        enabled: boolean,
+        localPath?: string
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'repoSource';
+        this.iconPath = enabled
+            ? new vscode.ThemeIcon('check')
+            : new vscode.ThemeIcon('circle-outline');
+        this.description = localPath ? localPath : '';
+        this.command = {
+            command: 'metaflow.toggleRepoSource',
+            title: 'Toggle Repo Source',
+            arguments: [repoId],
+        };
+    }
+}
+
 class LayerItem extends vscode.TreeItem {
     constructor(
         label: string,
         public readonly layerIndex: number,
         enabled: boolean,
-        repoId?: string
+        repoId?: string,
+        repoDisabled?: boolean
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.contextValue = 'layer';
         this.iconPath = enabled
             ? new vscode.ThemeIcon('check')
             : new vscode.ThemeIcon('circle-outline');
-        this.description = repoId ? `(${repoId})` : '';
+        if (repoId) {
+            this.description = repoDisabled ? `(${repoId}, repo disabled)` : `(${repoId})`;
+        } else {
+            this.description = '';
+        }
         this.command = {
             command: 'metaflow.toggleLayer',
             title: 'Toggle Layer',
@@ -28,29 +54,41 @@ class LayerItem extends vscode.TreeItem {
     }
 }
 
-export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerItem> {
-    private _onDidChangeTreeData = new vscode.EventEmitter<LayerItem | undefined>();
+type LayerTreeItem = RepoSourceItem | LayerItem;
+
+export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTreeItem> {
+    private _onDidChangeTreeData = new vscode.EventEmitter<LayerTreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
     constructor(private state: ExtensionState) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
     }
 
-    getTreeItem(element: LayerItem): vscode.TreeItem {
+    getTreeItem(element: LayerTreeItem): vscode.TreeItem {
         return element;
     }
 
-    getChildren(): LayerItem[] {
+    getChildren(): LayerTreeItem[] {
         const config = this.state.config;
         if (!config) {
             return [];
         }
 
         // Multi-repo mode
-        if (config.layerSources) {
-            return config.layerSources.map((ls, i) =>
-                new LayerItem(ls.path, i, ls.enabled !== false, ls.repoId)
+        if (config.metadataRepos && config.layerSources) {
+            const repoEnabled = new Map(config.metadataRepos.map(repo => [repo.id, repo.enabled !== false]));
+
+            const repoItems = config.metadataRepos.map(repo =>
+                new RepoSourceItem(repo.name?.trim() || repo.id, repo.id, repo.enabled !== false, repo.localPath)
             );
+
+            const layerItems = config.layerSources.map((ls, i) => {
+                const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
+                const isLayerEnabled = ls.enabled !== false;
+                return new LayerItem(ls.path, i, isRepoEnabled && isLayerEnabled, ls.repoId, !isRepoEnabled);
+            });
+
+            return [...repoItems, ...layerItems];
         }
 
         // Single-repo mode

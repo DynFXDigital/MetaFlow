@@ -2,7 +2,7 @@
  * Extension activation integration tests.
  *
  * Validates:
- * - Extension activates when ai-sync.json is present.
+ * - Extension activates when .ai-sync.json is present.
  * - All commands are registered after activation.
  * - Extension context is set correctly.
  */
@@ -18,6 +18,7 @@ const EXPECTED_COMMANDS = [
     'metaflow.status',
     'metaflow.switchProfile',
     'metaflow.toggleLayer',
+    'metaflow.toggleRepoSource',
     'metaflow.openConfig',
     'metaflow.initConfig',
     'metaflow.promote',

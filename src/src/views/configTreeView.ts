@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
 
 class ConfigItem extends vscode.TreeItem {
@@ -27,6 +28,28 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigIte
         return element;
     }
 
+    /**
+     * Prefer workspace-relative display paths for readability.
+     * Falls back to the original value when outside the workspace.
+     */
+    private toDisplayPath(pathValue: string): string {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot || !path.isAbsolute(pathValue)) {
+            return pathValue;
+        }
+
+        const relativePath = path.relative(workspaceRoot, pathValue);
+        const isWithinWorkspace =
+            relativePath === '' ||
+            (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+
+        if (!isWithinWorkspace) {
+            return pathValue;
+        }
+
+        return relativePath === '' ? '.' : relativePath.replace(/\\/g, '/');
+    }
+
     getChildren(): ConfigItem[] {
         const config = this.state.config;
         if (!config) {
@@ -36,11 +59,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigIte
         const items: ConfigItem[] = [];
 
         if (this.state.configPath) {
-            items.push(new ConfigItem('Config', this.state.configPath, 'configPath'));
+            items.push(new ConfigItem('Config', this.toDisplayPath(this.state.configPath), 'configPath'));
         }
 
         if (config.metadataRepo) {
-            items.push(new ConfigItem('Repo', config.metadataRepo.localPath));
+            items.push(new ConfigItem('Repo', this.toDisplayPath(config.metadataRepo.localPath)));
             if (config.metadataRepo.url) {
                 items.push(new ConfigItem('URL', config.metadataRepo.url));
             }
@@ -51,7 +74,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigIte
 
         if (config.metadataRepos) {
             for (const repo of config.metadataRepos) {
-                items.push(new ConfigItem(`Repo: ${repo.id}`, repo.localPath));
+                items.push(new ConfigItem(`Repo: ${repo.id}`, this.toDisplayPath(repo.localPath)));
             }
         }
 

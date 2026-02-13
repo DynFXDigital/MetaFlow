@@ -34,6 +34,23 @@ suite('overlayEngine', () => {
     });
 
     suite('resolveLayers — single repo', () => {
+        test('normalizes .github-prefixed files to artifact-relative paths', () => {
+            const repoDir = path.join(tmpDir, 'repo');
+            createLayer(repoDir, 'company/core', [
+                '.github/instructions/test.instructions.md',
+            ]);
+
+            const config: MetaFlowConfig = {
+                metadataRepo: { localPath: repoDir },
+                layers: ['company/core'],
+            };
+
+            const layers = resolveLayers(config, tmpDir);
+            const fileMap = buildEffectiveFileMap(layers);
+            assert.ok(fileMap.has('instructions/test.instructions.md'));
+            assert.ok(!fileMap.has('.github/instructions/test.instructions.md'));
+        });
+
         test('single layer with all files', () => {
             // Create repo with one layer
             const repoDir = path.join(tmpDir, 'repo');
@@ -172,6 +189,23 @@ suite('overlayEngine', () => {
                 ],
                 layerSources: [
                     { repoId: 'invalid', path: 'core' },
+                ],
+            };
+
+            const layers = resolveLayers(config, tmpDir);
+            assert.strictEqual(layers.length, 0);
+        });
+
+        test('disabled repo source is skipped even when layer source is enabled', () => {
+            const repo1 = path.join(tmpDir, 'repo1');
+            createLayer(repo1, 'core', ['instructions/a.md']);
+
+            const config: MetaFlowConfig = {
+                metadataRepos: [
+                    { id: 'standards', localPath: repo1, enabled: false },
+                ],
+                layerSources: [
+                    { repoId: 'standards', path: 'core', enabled: true },
                 ],
             };
 

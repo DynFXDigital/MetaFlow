@@ -29,7 +29,7 @@ suite('Command Execution', () => {
 
     test('refresh loads config from test workspace', async function () {
         this.timeout(10000);
-        // Execute refresh — should find ai-sync.json in test-workspace
+        // Execute refresh — should find .ai-sync.json in test-workspace
         await vscode.commands.executeCommand('metaflow.refresh');
         // If it reaches here without throwing, the command succeeded
     });
@@ -39,12 +39,12 @@ suite('Command Execution', () => {
         await vscode.commands.executeCommand('metaflow.refresh');
         await vscode.commands.executeCommand('metaflow.openConfig');
 
-        // Verify an editor is open with ai-sync.json
+        // Verify an editor is open with .ai-sync.json
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             assert.ok(
-                editor.document.fileName.endsWith('ai-sync.json'),
-                'Active editor should be ai-sync.json'
+                editor.document.fileName.endsWith('.ai-sync.json'),
+                'Active editor should be .ai-sync.json'
             );
         }
     });

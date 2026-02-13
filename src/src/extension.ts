@@ -2,7 +2,7 @@
  * MetaFlow VS Code Extension — entry point.
  *
  * Activation:
- * - On workspace containing `ai-sync.json` or `.ai/ai-sync.json`.
+ * - On workspace containing `.ai-sync.json` or `.ai/.ai-sync.json`.
  * - On any `metaflow.*` command invocation.
  *
  * Follows the disposable pattern: all subscriptions tracked for cleanup.
@@ -64,6 +64,38 @@ export function activate(context: vscode.ExtensionContext): void {
             }
         })
     );
+
+    // Watch config file create/change/delete and auto-refresh state/UI.
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    for (const folder of workspaceFolders) {
+        const rootConfigWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, '.ai-sync.json')
+        );
+        const fallbackConfigWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, '.ai/.ai-sync.json')
+        );
+
+        const registerWatcher = (watcher: vscode.FileSystemWatcher, label: string) => {
+            context.subscriptions.push(
+                watcher,
+                watcher.onDidCreate(() => {
+                    logInfo(`Config created (${label}); refreshing MetaFlow.`);
+                    vscode.commands.executeCommand('metaflow.refresh');
+                }),
+                watcher.onDidChange(() => {
+                    logInfo(`Config changed (${label}); refreshing MetaFlow.`);
+                    vscode.commands.executeCommand('metaflow.refresh');
+                }),
+                watcher.onDidDelete(() => {
+                    logInfo(`Config deleted (${label}); refreshing MetaFlow.`);
+                    vscode.commands.executeCommand('metaflow.refresh');
+                })
+            );
+        };
+
+        registerWatcher(rootConfigWatcher, '.ai-sync.json');
+        registerWatcher(fallbackConfigWatcher, '.ai/.ai-sync.json');
+    }
 
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);

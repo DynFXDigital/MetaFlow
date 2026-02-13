@@ -16,19 +16,19 @@ suite('Config Path Utils', () => {
 
     suite('discoverConfigPath()', () => {
 
-        test('finds ai-sync.json at workspace root', () => {
+        test('finds .ai-sync.json at workspace root', () => {
             const result = discoverConfigPath(FIXTURES_ROOT);
             assert.ok(result);
-            assert.ok(result!.endsWith('ai-sync.json'));
-            assert.ok(!result!.includes('.ai'));
+            assert.ok(result!.endsWith('.ai-sync.json'));
+            assert.ok(!result!.includes(`${path.sep}.ai${path.sep}`));
         });
 
-        test('finds fallback .ai/ai-sync.json when root is absent', () => {
-            // Create a temp dir with only .ai/ai-sync.json
+        test('finds fallback .ai/.ai-sync.json when root is absent', () => {
+            // Create a temp dir with only .ai/.ai-sync.json
             const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
             const aiDir = path.join(tmpDir, '.ai');
             fs.mkdirSync(aiDir, { recursive: true });
-            fs.writeFileSync(path.join(aiDir, 'ai-sync.json'), '{}');
+            fs.writeFileSync(path.join(aiDir, '.ai-sync.json'), '{}');
 
             try {
                 const result = discoverConfigPath(tmpDir);

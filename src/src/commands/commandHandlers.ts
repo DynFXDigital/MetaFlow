@@ -99,6 +99,8 @@ export function registerCommands(
                 publishConfigDiagnostics(diagnosticCollection, result);
                 updateStatusBar('error');
                 state.config = undefined;
+                state.configPath = undefined;
+                state.activeProfile = undefined;
                 state.effectiveFiles = [];
                 state.onDidChange.fire();
                 return;
@@ -312,6 +314,41 @@ export function registerCommands(
             } else {
                 logWarn('Toggle layer requires a multi-repo config with layerSources.');
             }
+        })
+    );
+
+    // ── metaflow.toggleRepoSource ──────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.toggleRepoSource', async (repoId?: string) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            if (!state.config.metadataRepos || typeof repoId !== 'string' || repoId.length === 0) {
+                logWarn('Toggle repo source requires a multi-repo config and a valid repo id.');
+                return;
+            }
+
+            const repo = state.config.metadataRepos.find(r => r.id === repoId);
+            if (!repo) {
+                logWarn(`Toggle repo source failed: repoId "${repoId}" not found.`);
+                return;
+            }
+
+            repo.enabled = repo.enabled === false ? true : false;
+
+            if (state.configPath) {
+                fs.writeFileSync(
+                    state.configPath,
+                    JSON.stringify(state.config, null, 2),
+                    'utf-8'
+                );
+            }
+
+            logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
+            await vscode.commands.executeCommand('metaflow.refresh');
         })
     );
 

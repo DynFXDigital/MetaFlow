@@ -26,7 +26,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepo?.localPath, '.ai/ai-metadata');
                 assert.strictEqual(result.config.activeProfile, 'baseline');
-                assert.ok(result.configPath?.endsWith('ai-sync.json'));
+                assert.ok(result.configPath?.endsWith('.ai-sync.json'));
             }
         });
 
@@ -34,7 +34,7 @@ suite('Config Loader', () => {
             const result = loadConfig(path.join(FIXTURES_ROOT, 'nonexistent'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
-                assert.ok(result.errors[0].message.includes('No ai-sync.json'));
+                assert.ok(result.errors[0].message.includes('No .ai-sync.json'));
             }
         });
     });
@@ -42,7 +42,7 @@ suite('Config Loader', () => {
     suite('loadConfigFromPath()', () => {
 
         test('loads valid single-repo config', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'ai-sync.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, '.ai-sync.json'));
             assert.strictEqual(result.ok, true);
             if (result.ok) {
                 assert.deepStrictEqual(result.config.layers, ['company/core', 'standards/sdlc']);
@@ -51,7 +51,7 @@ suite('Config Loader', () => {
         });
 
         test('loads valid multi-repo config', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'multi-repo', 'ai-sync.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'multi-repo', '.ai-sync.json'));
             assert.strictEqual(result.ok, true);
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
@@ -60,7 +60,7 @@ suite('Config Loader', () => {
         });
 
         test('returns parse errors for invalid JSON', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'invalid-config', 'ai-sync.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'invalid-config', '.ai-sync.json'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
                 assert.ok(result.errors.length > 0);
@@ -69,7 +69,7 @@ suite('Config Loader', () => {
         });
 
         test('returns errors for missing metadataRepo', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'missing-repo', 'ai-sync.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'missing-repo', '.ai-sync.json'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
                 assert.ok(result.errors.some(e => e.message.includes('metadataRepo')));
@@ -132,6 +132,20 @@ suite('Config Loader', () => {
             const config: MetaFlowConfig = {
                 metadataRepos: [
                     { id: 'primary', localPath: '.ai/metadata' },
+                    { id: 'team', localPath: '../team-meta' },
+                ],
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'team', path: 'overlays/team' },
+                ],
+            };
+            assert.deepStrictEqual(validateConfig(config), []);
+        });
+
+        test('valid multi-repo config allows disabled repos', () => {
+            const config: MetaFlowConfig = {
+                metadataRepos: [
+                    { id: 'primary', localPath: '.ai/metadata', enabled: false },
                     { id: 'team', localPath: '../team-meta' },
                 ],
                 layerSources: [

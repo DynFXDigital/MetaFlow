@@ -7,6 +7,8 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as os from 'os';
 import { ConfigTreeViewProvider } from '../../views/configTreeView';
 import { ProfilesTreeViewProvider } from '../../views/profilesTreeView';
 import { LayersTreeViewProvider } from '../../views/layersTreeView';
@@ -59,11 +61,31 @@ suite('TreeView Providers', () => {
             },
             activeProfile: 'baseline',
         };
-        state.configPath = '/fake/ai-sync.json';
+        state.configPath = '/fake/.ai-sync.json';
 
         const provider = new ConfigTreeViewProvider(state);
         const items = provider.getChildren();
         assert.ok(items.length >= 3, 'Should return config, repo, URL items at minimum');
+    });
+
+    test('ConfigTreeView shows workspace-relative config path when inside workspace', () => {
+        const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        assert.ok(wsRoot, 'Workspace root should be available');
+
+        state.config = {
+            metadataRepo: {
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['core'],
+        };
+        state.configPath = path.join(wsRoot!, '.ai-sync.json');
+
+        const provider = new ConfigTreeViewProvider(state);
+        const items = provider.getChildren();
+        const configItem = items.find(i => i.label === 'Config');
+
+        assert.ok(configItem, 'Config item should exist');
+        assert.strictEqual(configItem!.description, '.ai-sync.json');
     });
 
     // ── ProfilesTreeView ───────────────────────────────────────
@@ -127,6 +149,32 @@ suite('TreeView Providers', () => {
         assert.strictEqual(items.length, 2, 'Should return 2 layers');
     });
 
+    test('LayersTreeView includes repo sources and reflects disabled repos', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
+                { id: 'secondary', name: 'TeamMeta', localPath: '.ai/team-meta', enabled: false },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: 'secondary', path: 'team/social', enabled: true },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(state);
+        const items = provider.getChildren();
+
+        assert.strictEqual(items.length, 4, 'Should return repo sources + layers');
+
+        const repoItem = items.find(i => String(i.label) === 'TeamMeta');
+        assert.ok(repoItem, 'Should include repo source item');
+        assert.strictEqual(repoItem?.description, '.ai/team-meta');
+
+        const disabledLayer = items.find(i => String(i.label) === 'team/social');
+        assert.ok(disabledLayer, 'Should include layer item for disabled repo');
+        assert.strictEqual(disabledLayer?.description, '(secondary, repo disabled)');
+    });
+
     // ── FilesTreeView ──────────────────────────────────────────
 
     test('FilesTreeView returns empty when no files', () => {
@@ -135,17 +183,27 @@ suite('TreeView Providers', () => {
         assert.strictEqual(items.length, 0, 'Should return no items without files');
     });
 
-    test('FilesTreeView groups by classification', () => {
+    test('FilesTreeView uses a unified hierarchy with realization annotations', () => {
+        const repoRoot = path.join(os.tmpdir(), 'metaflow-source-core');
+
+        state.config = {
+            metadataRepo: {
+                name: 'CoreMeta',
+                localPath: repoRoot,
+            },
+            layers: ['company/core'],
+        };
+
         state.effectiveFiles = [
             {
-                relativePath: 'instructions/coding.md',
-                sourcePath: '/fake/instructions/coding.md',
+                relativePath: 'instructions/policies/coding.md',
+                sourcePath: path.join(repoRoot, 'company', 'core', 'instructions', 'policies', 'coding.md'),
                 sourceLayer: 'company/core',
                 classification: 'live-ref',
             },
             {
                 relativePath: 'agents/test.agent.md',
-                sourcePath: '/fake/agents/test.agent.md',
+                sourcePath: path.join(repoRoot, 'company', 'core', 'agents', 'test.agent.md'),
                 sourceLayer: 'standards/sdlc',
                 classification: 'materialized',
             },
@@ -153,6 +211,29 @@ suite('TreeView Providers', () => {
 
         const provider = new FilesTreeViewProvider(state);
         const items = provider.getChildren();
-        assert.strictEqual(items.length, 2, 'Should return 2 groups');
+        const instructionsFolder = items.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Should preserve top-level folder hierarchy');
+        assert.strictEqual(instructionsFolder?.command?.command, 'revealInExplorer');
+
+        const instructionsChildren = provider.getChildren(instructionsFolder as never);
+        const policiesFolder = instructionsChildren.find(i => String(i.label) === 'policies');
+        assert.ok(policiesFolder, 'Should preserve nested folder hierarchy');
+        assert.strictEqual(policiesFolder?.command?.command, 'revealInExplorer');
+
+        const policyChildren = provider.getChildren(policiesFolder as never);
+        const codingFile = policyChildren.find(i => String(i.label) === 'coding.md');
+        assert.ok(codingFile, 'Should contain leaf file');
+        assert.strictEqual(codingFile?.description, 'CoreMeta (settings)');
+        assert.strictEqual(codingFile?.command?.command, 'vscode.open');
+
+        const agentsFolder = items.find(i => String(i.label) === 'agents');
+        assert.ok(agentsFolder, 'Should show folder for materialized files');
+        assert.strictEqual(agentsFolder?.command?.command, 'revealInExplorer');
+
+        const agentChildren = provider.getChildren(agentsFolder as never);
+        const agentFile = agentChildren.find(i => String(i.label) === 'test.agent.md');
+        assert.ok(agentFile, 'Should show materialized file leaf');
+        assert.strictEqual(agentFile?.description, 'CoreMeta (materialized)');
+        assert.strictEqual(agentFile?.command?.command, 'vscode.open');
     });
 });
