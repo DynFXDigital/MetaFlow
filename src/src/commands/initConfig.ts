@@ -41,7 +41,7 @@ const TEMPLATE = `{
  * @param workspaceFolder The workspace folder to create the config in.
  */
 export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promise<void> {
-  const configPath = path.join(workspaceFolder.uri.fsPath, '.ai-sync.json');
+    const configPath = path.join(workspaceFolder.uri.fsPath, '.ai-sync.json');
 
     if (fs.existsSync(configPath)) {
         const overwrite = await vscode.window.showWarningMessage(
@@ -54,10 +54,15 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
         }
     }
 
-    fs.writeFileSync(configPath, TEMPLATE, 'utf-8');
+      try {
+        fs.writeFileSync(configPath, TEMPLATE, 'utf-8');
 
-    const doc = await vscode.workspace.openTextDocument(configPath);
-    await vscode.window.showTextDocument(doc);
+        const doc = await vscode.workspace.openTextDocument(configPath);
+        await vscode.window.showTextDocument(doc);
 
-    vscode.window.showInformationMessage('MetaFlow: Configuration initialized.');
+        vscode.window.showInformationMessage(`MetaFlow: Configuration initialized at ${workspaceFolder.name}/.ai-sync.json.`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`MetaFlow: Failed to initialize configuration: ${message}`);
+      }
 }

@@ -76,12 +76,21 @@ export function registerCommands(
     diagnosticCollection: vscode.DiagnosticCollection
 ): void {
     const getWorkspace = () => {
-        const ws = vscode.workspace.workspaceFolders?.[0];
-        if (!ws) {
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders || folders.length === 0) {
             vscode.window.showErrorMessage('MetaFlow: No workspace folder open.');
             return undefined;
         }
-        return ws;
+
+        const activeUri = vscode.window.activeTextEditor?.document?.uri;
+        if (activeUri) {
+            const activeFolder = vscode.workspace.getWorkspaceFolder(activeUri);
+            if (activeFolder) {
+                return activeFolder;
+            }
+        }
+
+        return folders[0];
     };
 
     // ── metaflow.refresh ───────────────────────────────────────────
