@@ -61,7 +61,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M001 — Extension Activation with Valid Config
 
-**Preconditions**: Workspace contains `ai-sync.json` with valid config; metadata repo clone exists at configured `localPath`.
+**Preconditions**: Workspace contains `.ai-sync.json` with valid config; metadata repo clone exists at configured `localPath`.
 
 **Steps**:
 1. Open workspace in VS Code with MetaFlow extension installed.
@@ -77,12 +77,12 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M002 — Extension Graceful Degradation
 
-**Preconditions**: Workspace has no `ai-sync.json`.
+**Preconditions**: Workspace has no `.ai-sync.json`.
 
 **Steps**:
 1. Open workspace without config file.
 2. Run `MetaFlow: Init Config` from command palette.
-3. Verify `ai-sync.json` created and opened in editor.
+3. Verify `.ai-sync.json` created and opened in editor.
 4. Verify TreeViews show welcome content.
 
 **Expected**: No errors on activation; init command creates valid config scaffold.
@@ -204,7 +204,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 **Preconditions**: Config file with validation errors.
 
 **Steps**:
-1. Create `ai-sync.json` with missing required field.
+1. Create `.ai-sync.json` with missing required field.
 2. Run `MetaFlow: Refresh`.
 3. Open Problems panel.
 4. Verify MetaFlow diagnostics appear with error messages and locations.
@@ -215,11 +215,11 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M012 — Init Config Scaffolding
 
-**Preconditions**: No existing `ai-sync.json`.
+**Preconditions**: No existing `.ai-sync.json`.
 
 **Steps**:
 1. Run `MetaFlow: Init Config`.
-2. Verify `ai-sync.json` created with JSONC template.
+2. Verify `.ai-sync.json` created with JSONC template.
 3. Verify file opens in editor.
 4. Verify template contains all required fields.
 

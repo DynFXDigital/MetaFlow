@@ -9,7 +9,7 @@ Extend the stable engine + CLI with optional capabilities that improve developer
 ## Potential Work Items
 
 ### Watch Mode
-- File-system watcher on `ai-sync.json` and metadata repo directory.
+- File-system watcher on `.ai-sync.json` and metadata repo directory.
 - Auto-re-render on config or metadata changes.
 - Debounced to avoid thrashing during rapid edits.
 - Can be exposed both as `metaflow watch` CLI command and via VS Code extension.
@@ -26,7 +26,7 @@ Extend the stable engine + CLI with optional capabilities that improve developer
 
 ### Metadata Manifests & Tagging
 - Version-tagged metadata releases (git tags on canonical repo).
-- `ai-sync.json` can pin to a tag instead of a commit.
+- `.ai-sync.json` can pin to a tag instead of a commit.
 - Manifest file listing available layers and their descriptions.
 
 ### Organization-Wide Enforcement

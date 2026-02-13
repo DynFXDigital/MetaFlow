@@ -93,7 +93,7 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
          │                                    │
          ▼                                    ▼
 ┌─────────────────┐              ┌─────────────────────┐
-│  ai-sync.json   │              │  .github/            │
+│  .ai-sync.json   │              │  .github/            │
 │  (config)       │              │  (materialized out)  │
 └─────────────────┘              └─────────────────────┘
          │
@@ -109,7 +109,7 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 
 | Component | Responsibility |
 |---|---|
-| **Config Loader** | Parse `ai-sync.json`, validate schema, resolve paths, emit diagnostics |
+| **Config Loader** | Parse `.ai-sync.json`, validate schema, resolve paths, emit diagnostics |
 | **Config Diagnostics** | Report JSON parse errors and schema violations via VS Code diagnostics API |
 | **Overlay Engine** | Deterministic layer resolution, filter evaluation, profile activation, artifact classification |
 | **Materializer** | Write materialized files to `.github/`, inject provenance headers, maintain managed-state |
@@ -120,7 +120,7 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 
 ### 3.3 Data Flow
 
-1. **Load** — Config Loader reads `ai-sync.json` and resolves one or more metadata repository paths.
+1. **Load** — Config Loader reads `.ai-sync.json` and resolves one or more metadata repository paths.
 2. **Resolve** — Overlay Engine walks layers in precedence order, applies include/exclude filters, then activates the current profile's enable/disable patterns.
 3. **Classify** — Each effective file is classified as either live-referenced (instructions, prompts, skills, agents, hooks) or materialized (when configured to materialize).
 4. **Render** — Materializer writes classified files: live-referenced paths (including hook file paths) are injected into VS Code settings; materialized files are written to `.github/` with provenance headers and `_shared_` prefix.
@@ -189,7 +189,7 @@ Profiles are reversible—switching profiles re-renders the effective state.
 
 ## 5. Configuration Schema
 
-The extension uses `ai-sync.json` as the single repo-local configuration file. It can target a single metadata repository or multiple repositories layered together (superlays) so teams can maintain their own overlays while still inheriting from the primary repository.
+The extension uses `.ai-sync.json` as the single repo-local configuration file. It can target a single metadata repository or multiple repositories layered together (superlays) so teams can maintain their own overlays while still inheriting from the primary repository.
 
 ```jsonc
 {
@@ -269,8 +269,8 @@ When `metadataRepos` is configured:
 ```
 
 **Config discovery precedence:**
-1. `ai-sync.json` (workspace root)
-2. `.ai/ai-sync.json` (fallback)
+1. `.ai-sync.json` (workspace root)
+2. `.ai/.ai-sync.json` (fallback)
 
 ---
 
@@ -327,7 +327,7 @@ Before overwriting, the materializer:
 ### 7.1 Activation
 
 The extension activates when:
-- A workspace contains `ai-sync.json` or `.ai/ai-sync.json`.
+- A workspace contains `.ai-sync.json` or `.ai/.ai-sync.json`.
 - A MetaFlow command is invoked from the command palette.
 
 ### 7.2 Activity Bar & Sidebar
@@ -352,8 +352,8 @@ A dedicated activity-bar icon opens the MetaFlow sidebar containing four TreeVie
 | `metaflow.status` | MetaFlow: Status | Show layer/profile/commit state |
 | `metaflow.switchProfile` | MetaFlow: Switch Profile | Quick-pick to change active profile |
 | `metaflow.toggleLayer` | MetaFlow: Toggle Layer | Enable/disable a layer |
-| `metaflow.openConfig` | MetaFlow: Open Configuration | Open `ai-sync.json` in editor |
-| `metaflow.initConfig` | MetaFlow: Initialize Configuration | Scaffold a new `ai-sync.json` |
+| `metaflow.openConfig` | MetaFlow: Open Configuration | Open `.ai-sync.json` in editor |
+| `metaflow.initConfig` | MetaFlow: Initialize Configuration | Scaffold a new `.ai-sync.json` |
 | `metaflow.promote` | MetaFlow: Promote Changes | Detect local edits to managed files |
 
 ### 7.4 Status Bar
@@ -396,7 +396,7 @@ These keys should be pinned to the Insiders setting names once confirmed:
 
 ### 8.2 Test Infrastructure
 
-- **Test workspace fixture** (`test-workspace/`) containing a minimal `ai-sync.json` and mock metadata directory.
+- **Test workspace fixture** (`test-workspace/`) containing a minimal `.ai-sync.json` and mock metadata directory.
 - **`@vscode/test-cli`** + **`@vscode/test-electron`** for integration tests.
 - **c8** for code coverage reporting.
 - **`.vscode-test.mjs`** configuration separating unit and integration test runs.
@@ -507,7 +507,7 @@ VSRS (VREQ-*) → VTC → VTP → VTR
 
 - The metadata repository (e.g., DFX-AI-Metadata) is cloned locally or accessible via a shared path before extension activation.
 - When multiple repositories are configured, at least one repo is designated as the primary source of truth.
-- The consumer repository has a valid `ai-sync.json` configuration file.
+- The consumer repository has a valid `.ai-sync.json` configuration file.
 - The user has read access to the metadata repository clone.
 - Git operations (branch/commit/push) for promotion are handled outside the extension in v1.
 

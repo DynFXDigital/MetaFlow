@@ -12,7 +12,7 @@
 
 **In scope**
 - `src/commands/commandHandlers.ts` — handlers for all `metaflow.*` commands
-- `src/commands/initConfig.ts` — scaffold a new `ai-sync.json`
+- `src/commands/initConfig.ts` — scaffold a new `.ai-sync.json`
 - `src/views/configTreeView.ts` — config summary TreeView
 - `src/views/profilesTreeView.ts` — profiles list with active indicator
 - `src/views/layersTreeView.ts` — layers with enable/disable checkboxes
@@ -41,11 +41,11 @@
    - `metaflow.status` — show status in output channel.
    - `metaflow.switchProfile` — quick-pick profile selector; update config file.
    - `metaflow.toggleLayer` — toggle layer enabled/disabled; update config file.
-   - `metaflow.openConfig` — open `ai-sync.json` in editor.
+   - `metaflow.openConfig` — open `.ai-sync.json` in editor.
    - `metaflow.initConfig` — scaffold new config file.
    - `metaflow.promote` — detect drifted files, show drift report.
 2. Register all commands in `package.json` contributions.
-3. Register activation events: `workspaceContains:**/ai-sync.json` and per-command.
+3. Register activation events: `workspaceContains:**/.ai-sync.json` and per-command.
 
 ### T4.2 — TreeView Providers
 
@@ -82,7 +82,7 @@ All providers implement `TreeDataProvider<T>` with `onDidChangeTreeData` event.
 ### T4.7 — Integration Tests
 
 1. **Activation tests:**
-   - Extension activates when `ai-sync.json` present.
+   - Extension activates when `.ai-sync.json` present.
    - Extension activates when `metaflow.initConfig` invoked.
    - Commands are registered after activation.
 2. **Command execution tests:**

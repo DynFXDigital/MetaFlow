@@ -16,6 +16,12 @@
 - **Fixture**: DFX-AI-Metadata local clone with hierarchical layers
 - **Hardware**: Standard development workstation
 
+## Companion Manual Checklist
+
+For human-centric, non-E2E validation (UX clarity, interactive command feedback, and environment-sensitive behavior), use:
+
+- `doc/validation/ftd/MANUAL-VALIDATION-CHECKLIST-metaflow-ext.md`
+
 ## Validation Procedures
 
 | VTP-ID | Title | Type | How to run | Evidence / Artifacts | Notes |
@@ -31,7 +37,7 @@
 
 ### VTP-0001 — Activation with DFX Config
 
-**Preconditions**: Workspace with `ai-sync.json` pointing to local DFX-AI-Metadata clone.
+**Preconditions**: Workspace with `.ai-sync.json` pointing to local DFX-AI-Metadata clone.
 
 **Steps**:
 1. Open workspace in VS Code.

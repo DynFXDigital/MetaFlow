@@ -22,7 +22,7 @@
 
 | TC-ID | Title | Preconditions | Steps (brief) | Expected Result | Type | Priority | Status | Location / Implementation | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| TC-0001 | Config loads from workspace root | Valid `ai-sync.json` at root | Call `loadConfig(workspaceRoot)` | `ok: true`, config parsed | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
+| TC-0001 | Config loads from workspace root | Valid `.ai-sync.json` at root | Call `loadConfig(workspaceRoot)` | `ok: true`, config parsed | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
 | TC-0002 | Config returns error when missing | No config file | Call `loadConfig(emptyDir)` | `ok: false`, error message | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
 | TC-0003 | Single-repo config parsed | Valid single-repo JSON | Call `loadConfigFromPath(path)` | Config with `metadataRepo`, `layers` | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
 | TC-0004 | Multi-repo config parsed | Valid multi-repo JSON | Call `loadConfigFromPath(path)` | Config with `metadataRepos`, `layerSources` | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
@@ -35,8 +35,8 @@
 | TC-0011 | Duplicate repo IDs detected | Multi-repo with duplicate `id` | `validateConfig(config)` | Error: duplicate IDs | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
 | TC-0012 | Invalid repoId in layerSources | LayerSource references non-existent repo | `validateConfig(config)` | Error: unknown repoId | Unit | High | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
 | TC-0013 | activeProfile must exist in profiles | activeProfile key not in profiles map | `validateConfig(config)` | Error: profile not found | Unit | Medium | Pass | `test/unit/configLoader.test.ts` | Phase 1 |
-| TC-0014 | Config discovered at workspace root | `ai-sync.json` at root | `discoverConfigPath(root)` | Returns root path | Unit | High | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
-| TC-0015 | Config discovered at .ai fallback | `.ai/ai-sync.json` only | `discoverConfigPath(root)` | Returns .ai path | Unit | High | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
+| TC-0014 | Config discovered at workspace root | `.ai-sync.json` at root | `discoverConfigPath(root)` | Returns root path | Unit | High | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
+| TC-0015 | Config discovered at .ai fallback | `.ai/.ai-sync.json` only | `discoverConfigPath(root)` | Returns .ai path | Unit | High | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
 | TC-0016 | No config returns undefined | No config files | `discoverConfigPath(root)` | `undefined` | Unit | High | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
 | TC-0017 | Path resolution | Relative path | `resolvePathFromWorkspace(ws, rel)` | Absolute joined path | Unit | Medium | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
 | TC-0018 | Boundary check inside | Path under boundary | `isWithinBoundary(path, boundary)` | `true` | Unit | Medium | Pass | `test/unit/configPathUtils.test.ts` | Phase 1 |
@@ -112,8 +112,8 @@
 | TC-0303 | Refresh executes | Extension active | `executeCommand('metaflow.refresh')` | No error thrown | Integration | High | Pass | `test/integration/extension.test.ts` | Phase 4 |
 | TC-0304 | Status executes | Extension active | `executeCommand('metaflow.status')` | No error thrown | Integration | Medium | Pass | `test/integration/extension.test.ts` | Phase 4 |
 | TC-0305 | Preview executes | Extension active | `executeCommand('metaflow.preview')` | No error thrown | Integration | Medium | Pass | `test/integration/extension.test.ts` | Phase 4 |
-| TC-0310 | Refresh loads config | Test workspace with ai-sync.json | `executeCommand('metaflow.refresh')` | Config loaded | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
-| TC-0311 | openConfig opens editor | Config loaded | `executeCommand('metaflow.openConfig')` | ai-sync.json in active editor | Integration | Medium | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0310 | Refresh loads config | Test workspace with .ai-sync.json | `executeCommand('metaflow.refresh')` | Config loaded | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0311 | openConfig opens editor | Config loaded | `executeCommand('metaflow.openConfig')` | .ai-sync.json in active editor | Integration | Medium | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0312 | Apply creates files | Config loaded | `executeCommand('metaflow.apply')` | .github dir populated | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0313 | Clean removes managed | Config loaded | `executeCommand('metaflow.clean')` | Managed files removed | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0314 | Status logs info | Config loaded | `executeCommand('metaflow.status')` | No error | Integration | Medium | Pass | `test/integration/commands.test.ts` | Phase 4 |
@@ -126,7 +126,7 @@
 | TC-0325 | LayersTreeView: empty | No config | `getChildren()` | Empty array | Integration | Medium | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0326 | LayersTreeView: single-repo | 2 layers | `getChildren()` | 2 items | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0327 | FilesTreeView: empty | No files | `getChildren()` | Empty array | Integration | Medium | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
-| TC-0328 | FilesTreeView: groups | 1 live-ref + 1 materialized | `getChildren()` | 2 groups | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
+| TC-0328 | FilesTreeView: groups + hierarchy | 1 settings-linked + 1 materialized with nested paths | `getChildren()` recursively | 2 groups; folder hierarchy preserved; file description includes source label + realization | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 
 ## Traceability Matrix (TC → REQ)
 

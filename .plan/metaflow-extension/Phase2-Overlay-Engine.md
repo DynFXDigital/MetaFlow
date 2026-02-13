@@ -36,7 +36,7 @@
 
 ### T2.1 — Define TypeScript Interfaces
 
-1. `OverlayConfig` — mirrors `ai-sync.json` schema.
+1. `OverlayConfig` — mirrors `.ai-sync.json` schema.
 2. `LayerContent` — represents files within a resolved layer.
 3. `EffectiveFile` — a file after overlay resolution with source-layer info.
 4. `ArtifactClassification` — `live-ref | materialized` with reasoning.

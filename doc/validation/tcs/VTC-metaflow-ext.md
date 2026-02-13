@@ -20,7 +20,7 @@
 
 | VTC-ID | Title | Preconditions | Steps (brief) | Expected Result | Validates VREQ-ID(s) | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| VTC-0001 | Activation with DFX config | Workspace with ai-sync.json pointing to DFX-AI-Metadata | Open workspace; observe activation | Extension active; views populated; no errors | VREQ-0001 | P1 | Ready |
+| VTC-0001 | Activation with DFX config | Workspace with .ai-sync.json pointing to DFX-AI-Metadata | Open workspace; observe activation | Extension active; views populated; no errors | VREQ-0001 | P1 | Ready |
 | VTC-0002 | Apply produces expected files | VTC-0001 passed | Run Apply; inspect .github/ | Expected materialized files with provenance headers | VREQ-0002 | P1 | Ready |
 | VTC-0003 | Profile switching changes files | VTC-0001 passed; 2+ profiles in config | Switch profile via command; observe files | File count changes; TreeView updates | VREQ-0003 | P1 | Ready |
 | VTC-0004 | Clean removes managed files | VTC-0002 passed | Run Clean; confirm; inspect .github/ | No managed files remain; state cleared | VREQ-0004 | P1 | Ready |

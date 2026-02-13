@@ -22,7 +22,7 @@ code --install-extension metaflow-0.1.0.vsix
 
 ## Configuration
 
-Create `ai-sync.json` in your workspace root (or run `MetaFlow: Init Config`):
+Create `.ai-sync.json` in your workspace root (or run `MetaFlow: Init Config`):
 
 ```jsonc
 {
@@ -62,8 +62,8 @@ Create `ai-sync.json` in your workspace root (or run `MetaFlow: Init Config`):
 | `MetaFlow: Status` | Show current status in output channel | |
 | `MetaFlow: Switch Profile` | Select active profile | |
 | `MetaFlow: Toggle Layer` | Enable/disable a layer | |
-| `MetaFlow: Open Config` | Open `ai-sync.json` in editor | |
-| `MetaFlow: Init Config` | Scaffold new `ai-sync.json` | |
+| `MetaFlow: Open Config` | Open `.ai-sync.json` in editor | |
+| `MetaFlow: Init Config` | Scaffold new `.ai-sync.json` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |
 
 ## Settings

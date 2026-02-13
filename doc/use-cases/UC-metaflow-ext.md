@@ -20,15 +20,15 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 **Actor:** Developer  
 **Goal:** Set up MetaFlow in a new repository.  
-**Preconditions:** Workspace is open in VS Code; no `ai-sync.json` exists.  
+**Preconditions:** Workspace is open in VS Code; no `.ai-sync.json` exists.  
 **Related REQ:** REQ-0408, REQ-0302
 
 ### Main Flow
 
 1. Developer invokes `MetaFlow: Initialize Configuration` from the command palette.
-2. Extension creates a starter `ai-sync.json` at the workspace root with scaffold content (metadata repo placeholder, empty layers, default profile).
+2. Extension creates a starter `.ai-sync.json` at the workspace root with scaffold content (metadata repo placeholder, empty layers, default profile).
 3. Extension activates fully and displays the sidebar with welcome guidance.
-4. Developer edits `ai-sync.json` to configure their metadata repository path and layers.
+4. Developer edits `.ai-sync.json` to configure their metadata repository path and layers.
 5. Developer invokes `MetaFlow: Refresh` to validate and load the configuration.
 
 ### Alternate Flows
@@ -38,7 +38,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 ### Postconditions
 
-- `ai-sync.json` exists at workspace root.
+- `.ai-sync.json` exists at workspace root.
 - Extension is activated with sidebar views populated.
 
 ---
@@ -47,7 +47,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 **Actor:** Developer  
 **Goal:** See what files would be materialized/live-referenced before making changes.  
-**Preconditions:** Valid `ai-sync.json` exists; metadata repo is accessible.  
+**Preconditions:** Valid `.ai-sync.json` exists; metadata repo is accessible.  
 **Related REQ:** REQ-0209, REQ-0401
 
 ### Main Flow
@@ -149,7 +149,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 1. Developer invokes `MetaFlow: Switch Profile`.
 2. Quick-pick displays all available profiles with the current one marked.
 3. Developer selects a new profile.
-4. Extension updates `activeProfile` in `ai-sync.json`.
+4. Extension updates `activeProfile` in `.ai-sync.json`.
 5. Extension re-resolves overlay and refreshes all views.
 
 ### Alternate Flows
@@ -159,7 +159,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 ### Postconditions
 
-- `ai-sync.json` reflects the new active profile.
+- `.ai-sync.json` reflects the new active profile.
 - TreeViews show the effective file set for the new profile.
 - Status bar shows the new profile name.
 
@@ -243,7 +243,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 **Actor:** Developer  
 **Goal:** Fix configuration problems using diagnostics guidance.  
-**Preconditions:** `ai-sync.json` exists but contains errors.  
+**Preconditions:** `.ai-sync.json` exists but contains errors.  
 **Related REQ:** REQ-0003, REQ-0004, REQ-0302
 
 ### Main Flow

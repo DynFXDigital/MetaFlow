@@ -93,7 +93,7 @@ Testing is distributed across phases, not deferred:
 
 ## Success Criteria
 
-- Extension activates on `ai-sync.json` and exposes all commands + views.
+- Extension activates on `.ai-sync.json` and exposes all commands + views.
 - `Preview`, `Apply`, `Clean`, and `Promote` (detect-only) work against DFX-AI-Metadata fixtures.
 - Managed state reliably prevents overwrites of local edits.
 - ≥80% code coverage on core engine modules.
