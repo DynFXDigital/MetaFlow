@@ -1,7 +1,7 @@
 /**
  * MetaFlow configuration schema interfaces.
  *
- * These types model the `ai-sync.json` configuration file defined by
+ * These types model the `.ai-sync.json` configuration file defined by
  * the AI Metadata Overlay Sync System Reference Architecture.
  *
  * Pure TypeScript — no VS Code imports.
@@ -11,6 +11,8 @@
 
 /** A single metadata repository reference. */
 export interface MetadataRepo {
+    /** Optional display name for this metadata source (used in UI). */
+    name?: string;
     /** Git remote URL (informational; clone expected to exist). */
     url?: string;
     /** Local path to the repo clone (absolute or relative to workspace). */
@@ -23,6 +25,8 @@ export interface MetadataRepo {
 export interface NamedMetadataRepo extends MetadataRepo {
     /** Unique identifier for this repo. */
     id: string;
+    /** Whether this repo source is enabled (default: true). */
+    enabled?: boolean;
 }
 
 // ── Layer configuration ────────────────────────────────────────────
@@ -82,7 +86,7 @@ export interface HooksConfig {
 // ── Top-level config ───────────────────────────────────────────────
 
 /**
- * The full `ai-sync.json` configuration.
+ * The full `.ai-sync.json` configuration.
  *
  * Supports both single-repo (`metadataRepo` + `layers`) and
  * multi-repo (`metadataRepos` + `layerSources`) modes.

@@ -101,13 +101,13 @@ describe('Engine package: config loading', () => {
     beforeEach(() => { tmpDir = createTmpDir(); });
     afterEach(() => cleanupDir(tmpDir));
 
-    it('loadConfig finds and parses ai-sync.json', () => {
+    it('loadConfig finds and parses .ai-sync.json', () => {
         const config = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
             layers: ['company/core'],
         };
         fs.writeFileSync(
-            path.join(tmpDir, 'ai-sync.json'),
+            path.join(tmpDir, '.ai-sync.json'),
             JSON.stringify(config),
             'utf-8'
         );
@@ -127,20 +127,20 @@ describe('Engine package: config loading', () => {
 
     it('discoverConfigPath finds root config', () => {
         fs.writeFileSync(
-            path.join(tmpDir, 'ai-sync.json'),
+            path.join(tmpDir, '.ai-sync.json'),
             '{}',
             'utf-8'
         );
         const found = discoverConfigPath(tmpDir);
         assert.ok(found);
-        assert.ok(found!.endsWith('ai-sync.json'));
+        assert.ok(found!.endsWith('.ai-sync.json'));
     });
 
     it('discoverConfigPath finds .ai/ fallback', () => {
         const aiDir = path.join(tmpDir, '.ai');
         fs.mkdirSync(aiDir, { recursive: true });
         fs.writeFileSync(
-            path.join(aiDir, 'ai-sync.json'),
+            path.join(aiDir, '.ai-sync.json'),
             '{}',
             'utf-8'
         );
@@ -203,6 +203,33 @@ describe('Engine package: overlay pipeline', () => {
         const instr = files.find(f => f.relativePath.includes('instructions'));
         assert.strictEqual(skill?.classification, 'materialized');
         assert.strictEqual(instr?.classification, 'live-ref');
+    });
+
+    it('normalizes .github-prefixed paths before classification', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'instructions', 'test.instructions.md'),
+            '# Test instruction'
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: {
+                instructions: 'settings',
+            },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+
+        assert.ok(files.some(f => f.relativePath === 'instructions/test.instructions.md'));
+
+        classifyFiles(files, config.injection);
+        const instruction = files.find(f => f.relativePath === 'instructions/test.instructions.md');
+        assert.strictEqual(instruction?.classification, 'live-ref');
     });
 });
 
@@ -574,6 +601,24 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.strictEqual(layers.length, 0);
     });
 
+    it('multi-repo skips layer sources from disabled repos', () => {
+        const repoA = path.join(tmpDir, 'repos', 'company');
+        fs.mkdirSync(path.join(repoA, 'core', 'skills'), { recursive: true });
+        fs.writeFileSync(path.join(repoA, 'core', 'skills', 'a.md'), '# A');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                { id: 'company', localPath: 'repos/company', enabled: false },
+            ],
+            layerSources: [
+                { repoId: 'company', path: 'core', enabled: true },
+            ],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 0);
+    });
+
     it('multi-repo skips invalid repoId', () => {
         const config: MetaFlowConfig = {
             metadataRepos: [
@@ -622,7 +667,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath rejects non-object JSON', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, '"just a string"', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -631,7 +676,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath rejects array JSON', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, '[1, 2, 3]', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -640,7 +685,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath catches JSONC parse errors', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, '{ invalid {{', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -652,7 +697,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates single-repo mode requires localPath', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: {},
             layers: ['core'],
@@ -664,7 +709,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates single-repo mode requires layers', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: { localPath: '.ai/metadata' },
         }), 'utf-8');
@@ -675,7 +720,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo unique IDs', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'dup', localPath: 'a' },
@@ -692,7 +737,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo requires layerSources', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'r1', localPath: 'a' },
@@ -705,7 +750,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo repoId references', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'r1', localPath: 'a' },
@@ -721,7 +766,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo missing repo fields', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: '', localPath: '' },
@@ -737,7 +782,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates active profile must exist in profiles', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: { localPath: '.ai/metadata' },
             layers: ['core'],
@@ -751,7 +796,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates config must have at least one repo mode', () => {
-        const configPath = path.join(tmpDir, 'ai-sync.json');
+        const configPath = path.join(tmpDir, '.ai-sync.json');
         fs.writeFileSync(configPath, JSON.stringify({}), 'utf-8');
 
         const result = loadConfigFromPath(configPath);

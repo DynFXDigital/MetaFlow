@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     MetadataRepo,
     NamedMetadataRepo,
+    LayerSource,
 } from '../config/configSchema';
 import { resolvePathFromWorkspace, isWithinBoundary } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
@@ -95,11 +96,14 @@ function resolveSingleRepoLayers(
 
 function resolveMultiRepoLayers(
     repos: NamedMetadataRepo[],
-    layerSources: { repoId: string; path: string; enabled?: boolean }[],
+    layerSources: LayerSource[],
     workspaceRoot: string
 ): LayerContent[] {
     const repoMap = new Map<string, string>();
     for (const repo of repos) {
+        if (repo.enabled === false) {
+            continue;
+        }
         repoMap.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
     }
 
@@ -148,7 +152,7 @@ function walkDirectory(dirPath: string, layerRoot: string): LayerFile[] {
         if (entry.isDirectory()) {
             files.push(...walkDirectory(fullPath, layerRoot));
         } else if (entry.isFile()) {
-            const relativePath = path.relative(layerRoot, fullPath);
+            const relativePath = normalizeLayerRelativePath(path.relative(layerRoot, fullPath));
             files.push({
                 relativePath,
                 absolutePath: fullPath,
@@ -157,4 +161,20 @@ function walkDirectory(dirPath: string, layerRoot: string): LayerFile[] {
     }
 
     return files;
+}
+
+/**
+ * Normalize layer-relative paths into artifact-relative paths.
+ *
+ * Metadata packs commonly nest artifacts under `.github/`.
+ * The overlay/classifier pipeline expects paths rooted at artifact dirs
+ * (e.g., `instructions/**`, `skills/**`), so we strip an optional leading
+ * `.github/` prefix here.
+ */
+function normalizeLayerRelativePath(relativePath: string): string {
+    const posixPath = relativePath.replace(/\\/g, '/');
+    if (posixPath.startsWith('.github/')) {
+        return posixPath.slice('.github/'.length);
+    }
+    return posixPath;
 }
