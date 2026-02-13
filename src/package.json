@@ -1,0 +1,214 @@
+{
+  "name": "metaflow",
+  "displayName": "MetaFlow",
+  "description": "AI metadata overlay management for GitHub Copilot — deterministic overlay resolution, materialization with provenance, and profile/layer management",
+  "version": "0.1.0",
+  "publisher": "metaflow",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiates/MetaFlow.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "metadata",
+    "overlay",
+    "metaflow"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/ai-sync.json",
+    "workspaceContains:**/.ai/ai-sync.json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "metaflow.refresh",
+        "title": "MetaFlow: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "metaflow.preview",
+        "title": "MetaFlow: Preview Overlay",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "metaflow.apply",
+        "title": "MetaFlow: Apply Overlay",
+        "icon": "$(check)"
+      },
+      {
+        "command": "metaflow.clean",
+        "title": "MetaFlow: Clean Managed Files",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "metaflow.status",
+        "title": "MetaFlow: Status",
+        "icon": "$(info)"
+      },
+      {
+        "command": "metaflow.switchProfile",
+        "title": "MetaFlow: Switch Profile",
+        "icon": "$(symbol-enum)"
+      },
+      {
+        "command": "metaflow.toggleLayer",
+        "title": "MetaFlow: Toggle Layer",
+        "icon": "$(check)"
+      },
+      {
+        "command": "metaflow.openConfig",
+        "title": "MetaFlow: Open Configuration",
+        "icon": "$(settings)"
+      },
+      {
+        "command": "metaflow.initConfig",
+        "title": "MetaFlow: Initialize Configuration",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "metaflow.promote",
+        "title": "MetaFlow: Promote Changes",
+        "icon": "$(git-pull-request)"
+      }
+    ],
+    "views": {
+      "metaflow-container": [
+        {
+          "id": "metaflow-config",
+          "name": "Configuration"
+        },
+        {
+          "id": "metaflow-profiles",
+          "name": "Profiles"
+        },
+        {
+          "id": "metaflow-layers",
+          "name": "Layers"
+        },
+        {
+          "id": "metaflow-files",
+          "name": "Effective Files"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "metaflow-container",
+          "title": "MetaFlow",
+          "icon": "$(layers)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "metaflow-config",
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/kiates/MetaFlow)"
+      },
+      {
+        "view": "metaflow-profiles",
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "metaflow.refresh",
+          "when": "view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "metaflow.switchProfile",
+          "when": "view == metaflow-profiles && viewItem == profile",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.openConfig",
+          "when": "view == metaflow-config && viewItem == configPath",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MetaFlow",
+      "properties": {
+        "metaflow.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable MetaFlow extension features"
+        },
+        "metaflow.autoApply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically apply overlay when configuration changes"
+        },
+        "metaflow.logLevel": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "description": "Output channel log verbosity"
+        },
+        "metaflow.hooksEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable hook path injection into VS Code settings"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "metaflow.refresh",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "metaflow.active"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "precompile": "npm -C ../packages/engine run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts || exit 0",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "node ./out/test/runTest.js --unit",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node ./out/test/runTest.js",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@metaflow/engine": "file:../packages/engine",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^3.7.1",
+    "c8": "^10.1.2",
+    "eslint": "^8.54.0",
+    "glob": "^10.3.10",
+    "minimatch": "^9.0.3",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.2"
+  }
+}

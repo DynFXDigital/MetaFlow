@@ -1,0 +1,16 @@
+{
+  "name": "metaflow-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "src"
+  ],
+  "scripts": {
+    "build": "npm -w @metaflow/engine run build && npm -w @metaflow/cli run build && npm -w metaflow run compile",
+    "test:engine": "npm -w @metaflow/engine test",
+    "test:cli": "npm -w @metaflow/cli test",
+    "test:unit": "npm -w metaflow run test:unit",
+    "test:integration": "npm -w metaflow test",
+    "test": "npm run test:engine && npm run test:cli && npm run test:unit"
+  }
+}
