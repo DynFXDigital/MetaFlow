@@ -13,7 +13,7 @@ npm run build
 ## Usage
 
 ```bash
-# From workspace root (where ai-sync.json lives):
+# From workspace root (where .ai-sync.json lives):
 node packages/cli/out/src/cli.js <command> [options]
 
 # Or with npm link:
@@ -32,7 +32,7 @@ metaflow <command> [options]
 
 #### `init`
 
-Generate a starter `ai-sync.json` configuration file.
+Generate a starter `.ai-sync.json` configuration file.
 
 ```bash
 metaflow init                  # create config
