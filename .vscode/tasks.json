@@ -2,6 +2,20 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Workspace: Install Dependencies",
+            "type": "npm",
+            "script": "install",
+            "path": ".",
+            "problemMatcher": []
+        },
+        {
+            "label": "Workspace: Build (All)",
+            "type": "npm",
+            "script": "build",
+            "path": ".",
+            "problemMatcher": []
+        },
+        {
             "label": "Extension: Watch",
             "type": "npm",
             "script": "watch",
@@ -20,6 +34,92 @@
             "path": "src",
             "problemMatcher": "$tsc",
             "group": "build"
+        },
+        {
+            "label": "Extension: Lint",
+            "type": "npm",
+            "script": "lint",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Lint (Monitor Report)",
+            "type": "npm",
+            "script": "lint:monitor",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Lint Summary",
+            "type": "npm",
+            "script": "lint:summary",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Lint (Monitor + Summary)",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Extension: Lint (Monitor Report)",
+                "Extension: Lint Summary"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Test Unit",
+            "type": "npm",
+            "script": "test:unit",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Test Integration",
+            "type": "npm",
+            "script": "test",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Package VSIX",
+            "type": "npm",
+            "script": "package",
+            "path": "src",
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Build + Package VSIX",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Extension: Compile",
+                "Extension: Package VSIX"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Install Latest VSIX (code)",
+            "type": "shell",
+            "command": "& { $vsix = Get-ChildItem -Path \"${workspaceFolder}/src\" -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $vsix) { throw 'No VSIX found under src/. Run Extension: Package VSIX first.' }; if (Get-Command code -ErrorAction SilentlyContinue) { code --install-extension $vsix.FullName --force } elseif (Get-Command code-insiders -ErrorAction SilentlyContinue) { code-insiders --install-extension $vsix.FullName --force } else { throw 'Neither code nor code-insiders CLI is available in PATH. Install from VS Code: Shell Command: Install ''code'' command in PATH.' } }",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Install Latest VSIX (MetaFlow)",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Extension: Install Latest VSIX (code)"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Extension: Build, Package & Install",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Extension: Build + Package VSIX",
+                "Extension: Install Latest VSIX (MetaFlow)"
+            ],
+            "problemMatcher": []
         }
     ]
 }
