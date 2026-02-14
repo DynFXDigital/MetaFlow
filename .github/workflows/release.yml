@@ -92,12 +92,15 @@ jobs:
       - name: Ensure publish secrets are configured
         if: steps.ref.outputs.should_publish == 'true'
         shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
-          if [ -z "${{ secrets.VSCE_PAT }}" ]; then
+          if [ -z "$VSCE_PAT" ]; then
             echo "Missing required secret: VSCE_PAT"
             exit 1
           fi
-          if [ -z "${{ secrets.OVSX_PAT }}" ]; then
+          if [ -z "$OVSX_PAT" ]; then
             echo "Missing required secret: OVSX_PAT"
             exit 1
           fi
@@ -175,19 +178,23 @@ jobs:
       - name: Publish to VS Code Marketplace
         if: steps.ref.outputs.should_publish == 'true'
         shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           npx @vscode/vsce publish \
             --packagePath "$VSIX_PATH" \
             --skip-duplicate \
-            -p "${{ secrets.VSCE_PAT }}"
+            -p "$VSCE_PAT"
 
       - name: Publish to Open VSX
         if: steps.ref.outputs.should_publish == 'true'
         shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           npx ovsx publish "$VSIX_PATH" \
             --skip-duplicate \
-            -p "${{ secrets.OVSX_PAT }}"
+            -p "$OVSX_PAT"
 
       - name: Create GitHub release
         if: steps.ref.outputs.release_tag != '' && steps.ref.outputs.should_publish == 'true'
