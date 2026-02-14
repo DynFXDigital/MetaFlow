@@ -1,0 +1,212 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to release (branch, tag, or SHA)
+        required: true
+        default: main
+      publish:
+        description: Publish to marketplaces (false = package/dry-run only)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  checks: read
+  actions: read
+
+concurrency:
+  group: release-${{ github.event_name }}-${{ github.ref_name || inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Resolve and validate release ref
+        id: ref
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REF_INPUT="${{ inputs.ref }}"
+          else
+            REF_INPUT="${{ github.ref }}"
+          fi
+
+          if [[ "$REF_INPUT" == refs/tags/v* ]]; then
+            REF_NAME="${REF_INPUT#refs/tags/}"
+            RELEASE_TAG="$REF_NAME"
+            SHOULD_PUBLISH="true"
+          elif [[ "$REF_INPUT" == v* ]]; then
+            REF_NAME="$REF_INPUT"
+            RELEASE_TAG="$REF_NAME"
+            SHOULD_PUBLISH="${{ inputs.publish }}"
+          elif [[ "$REF_INPUT" == "main" || "$REF_INPUT" == "refs/heads/main" ]]; then
+            REF_NAME="main"
+            RELEASE_TAG=""
+            SHOULD_PUBLISH="false"
+          else
+            echo "Unsupported ref '$REF_INPUT'. Allowed: refs/tags/v*, v*, or main."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_TAG" =~ -alpha|-beta|-rc|-preview ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          echo "ref_to_build=$REF_INPUT" >> "$GITHUB_OUTPUT"
+          echo "ref_name=$REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "should_publish=$SHOULD_PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref_to_build }}
+
+      - name: Capture release commit SHA
+        id: sha
+        shell: bash
+        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure publish secrets are configured
+        if: steps.ref.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.VSCE_PAT }}" ]; then
+            echo "Missing required secret: VSCE_PAT"
+            exit 1
+          fi
+          if [ -z "${{ secrets.OVSX_PAT }}" ]; then
+            echo "Missing required secret: OVSX_PAT"
+            exit 1
+          fi
+
+      - name: Wait for CI checks to pass
+        if: steps.ref.outputs.should_publish == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = '${{ steps.sha.outputs.commit_sha }}';
+            const required = ['Build and unit tests', 'Extension integration tests'];
+
+            for (let i = 0; i < 40; i++) {
+              const { data } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref,
+                per_page: 100,
+              });
+
+              const relevant = data.check_runs.filter((c) =>
+                required.some((prefix) => c.name.startsWith(prefix)),
+              );
+
+              const completed = relevant.filter((c) => c.status === 'completed');
+              const pending = relevant.length < required.length || completed.length < relevant.length;
+              const failed = completed.find((c) => c.conclusion !== 'success');
+
+              if (!pending && !failed) {
+                core.info('Required CI checks are successful.');
+                return;
+              }
+
+              if (failed) {
+                core.setFailed(`Required CI check failed: ${failed.name} (${failed.conclusion})`);
+                return;
+              }
+
+              core.info('Waiting for CI checks to complete...');
+              await new Promise((resolve) => setTimeout(resolve, 30000));
+            }
+
+            core.setFailed('Timed out waiting for required CI checks.');
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Resolve VSIX path
+        id: vsix
+        shell: bash
+        run: |
+          VSIX_PATH="$(find src -maxdepth 1 -type f -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found under src/."
+            exit 1
+          fi
+          VSIX_NAME="$(basename "$VSIX_PATH")"
+          echo "VSIX_PATH=$VSIX_PATH" >> "$GITHUB_ENV"
+          echo "vsix_path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
+          echo "vsix_name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vsix.outputs.vsix_name }}
+          path: ${{ steps.vsix.outputs.vsix_path }}
+          retention-days: 30
+
+      - name: Publish to VS Code Marketplace
+        if: steps.ref.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          npx @vscode/vsce publish \
+            --packagePath "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "${{ secrets.VSCE_PAT }}"
+
+      - name: Publish to Open VSX
+        if: steps.ref.outputs.should_publish == 'true'
+        shell: bash
+        run: |
+          npx ovsx publish "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "${{ secrets.OVSX_PAT }}"
+
+      - name: Create GitHub release
+        if: steps.ref.outputs.release_tag != '' && steps.ref.outputs.should_publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ steps.ref.outputs.is_prerelease }}" = "true" ]; then
+            EXTRA_ARGS="--prerelease"
+          fi
+
+          if gh release view "${{ steps.ref.outputs.release_tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.ref.outputs.release_tag }}" "$VSIX_PATH" --clobber
+          else
+            gh release create "${{ steps.ref.outputs.release_tag }}" \
+              "$VSIX_PATH" \
+              --verify-tag \
+              --title "${{ steps.ref.outputs.release_tag }}" \
+              --generate-notes \
+              $EXTRA_ARGS
+          fi

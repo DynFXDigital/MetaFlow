@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a reproducible problem in MetaFlow.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please include a minimal reproduction.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include exact steps, sample config, and commands.
+      placeholder: |
+        1. Open workspace ...
+        2. Run command ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, VS Code version, extension version, Node version.
+    validations:
+      required: true

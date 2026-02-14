@@ -1,0 +1,85 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - root
+    reviewers:
+      - kiates
+    groups:
+      root-dev-dependencies:
+        dependency-type: development
+      root-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /src
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - extension
+    reviewers:
+      - kiates
+    groups:
+      extension-dev-dependencies:
+        dependency-type: development
+      extension-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /packages/engine
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - engine
+    reviewers:
+      - kiates
+    groups:
+      engine-dev-dependencies:
+        dependency-type: development
+      engine-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /packages/cli
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - cli
+    reviewers:
+      - kiates
+    groups:
+      cli-dev-dependencies:
+        dependency-type: development
+      cli-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    reviewers:
+      - kiates
+    groups:
+      github-actions:
+        patterns:
+          - "*"

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+      - ".plan/**"
+  push:
+    branches:
+      - main
+    tags:
+      - v*
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+      - ".plan/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-unit:
+    name: Build and unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify lockfiles unchanged
+        run: git diff --exit-code
+
+      - name: Lint extension
+        if: matrix.os == 'ubuntu-latest'
+        run: npm -w metaflow run lint
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  integration-tests:
+    name: Extension integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: build-and-unit
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Run extension integration tests
+        run: npm run test:integration
+
+  package-vsix:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: integration-tests
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metaflow-vsix
+          path: src/*.vsix
+          retention-days: 30

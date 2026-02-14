@@ -122,6 +122,22 @@ From **Terminal → Run Task**:
 - `Extension: Lint Summary`
 - `Extension: Lint (Monitor + Summary)`
 
+## GitHub CI and Release
+
+This repository uses GitHub Actions to validate and publish the extension:
+
+- `.github/workflows/ci.yml` runs build, tests, integration tests, and VSIX packaging on PRs and pushes to `main`.
+- `.github/workflows/release.yml` packages and publishes on `v*` tags, and can also be triggered manually.
+
+### Publishing secrets
+
+Set these repository secrets before publishing:
+
+- `VSCE_PAT` — VS Code Marketplace Personal Access Token
+- `OVSX_PAT` — Open VSX token
+
+If one secret is missing, the workflow will skip publishing to that marketplace.
+
 ## License
 
 MIT
