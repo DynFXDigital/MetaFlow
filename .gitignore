@@ -32,6 +32,11 @@ coverage/
 test-results/
 **/.eslint-report.json
 
+# Integration test workspace runtime artifacts
+src/test-workspace/.github/
+src/test-workspace/.vscode/
+src/test-workspace/.ai/.sync-state/
+
 # Local env
 .env
 .env.*
