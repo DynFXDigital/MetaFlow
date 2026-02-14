@@ -14,7 +14,7 @@ Build the TypeScript CLI (`packages/cli/`) that imports `@metaflow/engine` and e
   - `packages/cli/src/cli.ts` — Commander-based entry point
   - `packages/cli/src/commands/` — one module per command
 - [ ] Implement `metaflow status`:
-  - Load config via engine → show repo, layers, profile, file counts (live-ref vs materialized)
+  - Load config via engine → show repo, layers, profile, file counts (settings vs materialized)
 - [ ] Implement `metaflow preview`:
   - Resolve overlay → display effective file tree with classification labels
   - Show pending changes (what apply would do)

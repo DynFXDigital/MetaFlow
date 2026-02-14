@@ -4,7 +4,7 @@
 
 - Wire the overlay engine + materializer into VS Code commands.
 - Deliver TreeView providers, status bar, and output channel for operational visibility.
-- Implement Copilot settings injection for live-referenced artifacts.
+- Implement Copilot settings injection for settings-backed artifacts.
 - Deliver integration tests running in the Extension Host.
 - Update SDD and TCS with UI design elements and test cases.
 
@@ -52,7 +52,7 @@
 1. **ConfigTreeView** — display metadata repo URL, commit, injection modes.
 2. **ProfilesTreeView** — list profiles with `$(check)` icon on active; click to switch.
 3. **LayersTreeView** — ordered layers with checkbox state (enabled/disabled); `onDidChangeCheckboxState` handler.
-4. **FilesTreeView** — two groups: "Live-Referenced" and "Materialized"; each file shows source layer.
+4. **FilesTreeView** — two groups: "Settings" and "Materialized"; each file shows source layer.
 
 All providers implement `TreeDataProvider<T>` with `onDidChangeTreeData` event.
 

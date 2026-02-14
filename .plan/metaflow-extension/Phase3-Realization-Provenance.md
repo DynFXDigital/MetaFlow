@@ -15,7 +15,7 @@
 - `src/engine/provenanceHeader.ts` — generate/parse provenance comment blocks
 - `src/engine/managedState.ts` — load/save managed-state JSON, compute content hashes
 - `src/engine/driftDetector.ts` — compare file content against managed-state hashes
-- `src/engine/settingsInjector.ts` — inject/remove VS Code settings for live-ref directories and hook file paths
+- `src/engine/settingsInjector.ts` — inject/remove VS Code settings for settings-classified directories and hook file paths
 - `src/test/unit/materializer.test.ts`
 - `src/test/unit/provenanceHeader.test.ts`
 - `src/test/unit/managedState.test.ts`
@@ -82,7 +82,7 @@
 
 ### T3.5 — Settings Injector
 
-1. For live-referenced content, compute VS Code settings paths for:
+1. For settings-backed content, compute VS Code settings paths for:
    - Instructions directory
    - Prompts directory
    - Skills directory (Insiders)
@@ -133,7 +133,7 @@
 - Deterministic materialization with provenance headers
 - Safe cleanup with drift protection
 - Managed-state tracking
-- Settings injection for live-referenced artifacts
+- Settings injection for settings-backed artifacts
 - Comprehensive unit tests
 - Updated SDD and TCS
 

@@ -14,7 +14,7 @@
 - `src/engine/overlayEngine.ts` — layer resolution with deterministic precedence
 - `src/engine/filterEngine.ts` — include/exclude glob pattern evaluation
 - `src/engine/profileEngine.ts` — profile enable/disable pattern application
-- `src/engine/classifier.ts` — classify artifacts as live-ref vs materialized
+- `src/engine/classifier.ts` — classify artifacts as settings vs materialized
 - `src/engine/globMatcher.ts` — glob matching utility (using minimatch or custom)
 - `src/test/unit/overlayEngine.test.ts`
 - `src/test/unit/filterEngine.test.ts`
@@ -39,7 +39,7 @@
 1. `OverlayConfig` — mirrors `.ai-sync.json` schema.
 2. `LayerContent` — represents files within a resolved layer.
 3. `EffectiveFile` — a file after overlay resolution with source-layer info.
-4. `ArtifactClassification` — `live-ref | materialized` with reasoning.
+4. `ArtifactClassification` — `settings | materialized` with reasoning.
 5. `OverlayResult` — the complete resolution result (effective files + classification + metadata).
 
 ### T2.2 — Implement Layer Resolution
@@ -65,11 +65,11 @@
 ### T2.5 — Implement Classifier
 
 1. Default rules per updated Copilot capabilities:
-   - `instructions/**` → live-ref
-   - `prompts/**` → live-ref
-   - `skills/**` → live-ref (Insiders) or materialized when configured
-   - `agents/**` → live-ref (Insiders) or materialized when configured
-   - `hooks/**` → live-ref (path to hook files)
+   - `instructions/**` → settings
+   - `prompts/**` → settings
+   - `skills/**` → settings (Insiders) or materialized when configured
+   - `agents/**` → settings (Insiders) or materialized when configured
+   - `hooks/**` → settings (path to hook files)
 2. Support override via `injection` config field.
 
 ### T2.6 — Unit Tests

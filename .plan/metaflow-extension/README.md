@@ -54,7 +54,7 @@ See [CONCEPT.md](../../doc/concept/CONCEPT.md) for the full concept document inc
 
 - Clean reference-architecture config schema only.
 - Deterministic output: same config + same metadata commit yields identical results (per repo).
-- Copilot constraints respected (skills/agents can be live-referenced via settings; hooks via file paths).
+- Copilot constraints respected (skills/agents can be settings-backed via settings; hooks via file paths).
 - VS Code engine ≥1.80.0.
 - TypeScript strict mode (`strict: true`).
 
