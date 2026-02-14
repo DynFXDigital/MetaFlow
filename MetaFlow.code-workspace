@@ -5,6 +5,8 @@
 		}
 	],
 	"settings": {
-		"powershell.cwd": "MetaFlow"
+		"powershell.cwd": "MetaFlow",
+		"debug.onTaskErrors": "debugAnyway",
+		"metaflow.installProfile": "AI-Editor"
 	}
 }

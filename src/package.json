@@ -23,21 +23,11 @@
     "metaflow"
   ],
   "activationEvents": [
-    "onCommand:metaflow.refresh",
-    "onCommand:metaflow.preview",
-    "onCommand:metaflow.apply",
-    "onCommand:metaflow.clean",
-    "onCommand:metaflow.status",
-    "onCommand:metaflow.switchProfile",
-    "onCommand:metaflow.toggleLayer",
-    "onCommand:metaflow.toggleRepoSource",
-    "onCommand:metaflow.openConfig",
-    "onCommand:metaflow.initConfig",
-    "onCommand:metaflow.promote",
+    "onStartupFinished",
     "workspaceContains:**/.ai-sync.json",
     "workspaceContains:**/.ai/.ai-sync.json"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -132,11 +122,18 @@
     "viewsWelcome": [
       {
         "view": "metaflow-config",
-        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/kiates/MetaFlow)"
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/kiates/MetaFlow)",
+        "when": "workspaceFolderCount > 0"
+      },
+      {
+        "view": "metaflow-config",
+        "contents": "Open a folder or workspace to get started with MetaFlow.\n[Open Folder](command:vscode.openFolder)",
+        "when": "workspaceFolderCount == 0"
       },
       {
         "view": "metaflow-profiles",
-        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)"
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)",
+        "when": "workspaceFolderCount > 0"
       }
     ],
     "menus": {
@@ -201,10 +198,13 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run bundle",
     "precompile": "npm -C ../packages/engine run build",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "bundle": "npm run precompile && node esbuild.js --production",
+    "bundle:dev": "npm run precompile && node esbuild.js",
+    "watch:esbuild": "npm run precompile && node esbuild.js --watch",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts --max-warnings=-1",
     "lint:monitor": "eslint src --ext ts --max-warnings=-1 --format json --output-file .eslint-report.json",
@@ -228,6 +228,7 @@
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^3.7.1",
     "c8": "^10.1.2",
+    "esbuild": "^0.27.3",
     "eslint": "^8.54.0",
     "glob": "^10.3.10",
     "minimatch": "^9.0.3",

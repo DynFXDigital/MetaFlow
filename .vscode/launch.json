@@ -12,7 +12,7 @@
                 "--extensionDevelopmentPath=${workspaceFolder}/src"
             ],
             "outFiles": [
-                "${workspaceFolder}/src/out/**/*.js"
+                "${workspaceFolder}/src/dist/**/*.js"
             ],
             "preLaunchTask": "Extension: Watch"
         },
@@ -24,7 +24,7 @@
                 "--extensionDevelopmentPath=${workspaceFolder}/src"
             ],
             "outFiles": [
-                "${workspaceFolder}/src/out/**/*.js"
+                "${workspaceFolder}/src/dist/**/*.js"
             ],
             "preLaunchTask": "Extension: Compile"
         }

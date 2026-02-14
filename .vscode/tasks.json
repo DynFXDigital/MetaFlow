@@ -18,9 +18,19 @@
         {
             "label": "Extension: Watch",
             "type": "npm",
-            "script": "watch",
+            "script": "watch:esbuild",
             "path": "src",
-            "problemMatcher": "$tsc-watch",
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^✘ \\[ERROR\\] (.+)$",
+                    "message": 1
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "^\\[watch\\] build started$",
+                    "endsPattern": "^\\[watch\\] build finished$"
+                }
+            },
             "isBackground": true,
             "presentation": {
                 "reveal": "never"
@@ -30,7 +40,7 @@
         {
             "label": "Extension: Compile",
             "type": "npm",
-            "script": "compile",
+            "script": "bundle:dev",
             "path": "src",
             "problemMatcher": "$tsc",
             "group": "build"
@@ -98,7 +108,7 @@
         {
             "label": "Extension: Install Latest VSIX (code)",
             "type": "shell",
-            "command": "& { $vsix = Get-ChildItem -Path \"${workspaceFolder}/src\" -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $vsix) { throw 'No VSIX found under src/. Run Extension: Package VSIX first.' }; if (Get-Command code -ErrorAction SilentlyContinue) { code --install-extension $vsix.FullName --force } elseif (Get-Command code-insiders -ErrorAction SilentlyContinue) { code-insiders --install-extension $vsix.FullName --force } else { throw 'Neither code nor code-insiders CLI is available in PATH. Install from VS Code: Shell Command: Install ''code'' command in PATH.' } }",
+            "command": "& { $vsix = Get-ChildItem -Path \"${workspaceFolder}/src\" -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $vsix) { throw 'No VSIX found under src/. Run Extension: Package VSIX first.' }; & \"${workspaceFolder}/src/scripts/install-vsix.ps1\" -VsixPath $vsix.FullName -Cli code-insiders -ProfileName \"${config:metaflow.installProfile}\" }",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
