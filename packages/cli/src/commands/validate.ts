@@ -1,6 +1,42 @@
 import { Command } from 'commander';
-import { checkAllDrift, loadManagedState, loadConfig } from '@metaflow/engine';
+import * as path from 'path';
+import { checkAllDrift, loadManagedState, EffectiveFile } from '@metaflow/engine';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+
+function slugToken(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-+/g, '-');
+}
+
+function getLayerToken(file: EffectiveFile): string {
+    const sourceLayer = file.sourceLayer.replace(/\\/g, '/');
+    const sourceRepo = (file.sourceRepo ?? '').replace(/\\/g, '/');
+
+    if (sourceRepo && sourceLayer.startsWith(`${sourceRepo}/`)) {
+        return sourceLayer.slice(sourceRepo.length + 1);
+    }
+
+    return sourceLayer;
+}
+
+function toMaterializedRelativePath(file: EffectiveFile): string {
+    const normalizedPath = file.relativePath.replace(/\\/g, '/');
+    const dirName = path.posix.dirname(normalizedPath);
+    const baseName = path.posix.basename(normalizedPath);
+
+    const repoToken = slugToken(file.sourceRepo ?? 'default') || 'default';
+    const layerToken = slugToken(getLayerToken(file)) || 'layer';
+    const prefixedBaseName = `_${repoToken}-${layerToken}__${baseName}`;
+
+    if (dirName === '.' || dirName === '') {
+        return prefixedBaseName;
+    }
+
+    return `${dirName}/${prefixedBaseName}`;
+}
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -20,7 +56,9 @@ export function registerValidateCommand(program: Command): void {
             // Resolve expected overlay state
             const files = resolveEffectiveFiles(config, workspaceRoot);
             const expectedMaterialized = new Set(
-                files.filter(f => f.classification === 'materialized').map(f => f.relativePath)
+                files
+                    .filter(f => f.classification === 'materialized')
+                    .map(f => toMaterializedRelativePath(f))
             );
 
             // Load current managed state

@@ -14,7 +14,7 @@ export function registerStatusCommand(program: Command): void {
             }
             const { config, configPath } = loaded;
             const files = resolveEffectiveFiles(config, workspaceRoot);
-            const liveRef = files.filter(f => f.classification === 'live-ref').length;
+            const settings = files.filter(f => f.classification === 'settings').length;
             const materialized = files.filter(f => f.classification === 'materialized').length;
 
             if (options.json) {
@@ -24,7 +24,7 @@ export function registerStatusCommand(program: Command): void {
                     repos: config.metadataRepos?.map(r => ({ id: r.id, localPath: r.localPath })),
                     layers: config.layers ?? config.layerSources?.map(ls => `${ls.repoId}/${ls.path}`),
                     activeProfile: config.activeProfile ?? null,
-                    files: { total: files.length, liveRef, materialized },
+                    files: { total: files.length, settings, materialized },
                 };
                 console.log(JSON.stringify(data, null, 2));
                 return;
@@ -54,6 +54,6 @@ export function registerStatusCommand(program: Command): void {
             }
 
             console.log(`Profile: ${config.activeProfile ?? '(none)'}`);
-            console.log(`Files:  ${files.length} total (${liveRef} live-ref, ${materialized} materialized)`);
+            console.log(`Files:  ${files.length} total (${settings} settings, ${materialized} materialized)`);
         });
 }

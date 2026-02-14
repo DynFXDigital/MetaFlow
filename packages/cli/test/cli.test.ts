@@ -29,6 +29,15 @@ const STANDARD_LAYERS = {
     ],
 };
 
+function materializedPath(relativePath: string, layer = 'company/core', repo = 'default'): string {
+    const normalized = relativePath.replace(/\\/g, '/');
+    const dir = path.posix.dirname(normalized);
+    const base = path.posix.basename(normalized);
+    const layerToken = layer.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    const prefixed = `_${repo}-${layerToken}__${base}`;
+    return dir === '.' ? prefixed : `${dir}/${prefixed}`;
+}
+
 // ── Init command ───────────────────────────────────────────────────
 
 describe('CLI: init', () => {
@@ -116,9 +125,9 @@ describe('CLI: preview', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Effective files:'));
         // materialized files should show up
-        assert.ok(result.stdout.includes('skills/testing/SKILL.md'));
-        assert.ok(result.stdout.includes('agents/reviewer.agent.md'));
-        // live-ref files should appear too (they're in effective list)
+        assert.ok(result.stdout.includes(materializedPath('skills/testing/SKILL.md')));
+        assert.ok(result.stdout.includes(materializedPath('agents/reviewer.agent.md')));
+        // settings files should appear too (they're in effective list)
         assert.ok(result.stdout.includes('instructions/coding.md'));
     });
 
@@ -154,8 +163,8 @@ describe('CLI: apply', () => {
         assert.ok(result.stdout.includes('Done:'));
 
         // Materialized files should exist in .github/
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
-        const agentPath = path.join(ws.root, '.github', 'agents', 'reviewer.agent.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
+        const agentPath = path.join(ws.root, '.github', materializedPath('agents/reviewer.agent.md'));
         assert.ok(fs.existsSync(skillPath), 'skill file should be materialized');
         assert.ok(fs.existsSync(agentPath), 'agent file should be materialized');
 
@@ -164,9 +173,9 @@ describe('CLI: apply', () => {
         assert.ok(skillContent.includes('metaflow:provenance'), 'should have provenance header');
         assert.ok(skillContent.includes('# Testing Skill'), 'should preserve original content');
 
-        // Live-ref files should NOT be materialized
+        // Settings files should NOT be materialized
         const instrPath = path.join(ws.root, '.github', 'instructions', 'coding.md');
-        assert.ok(!fs.existsSync(instrPath), 'live-ref file should not be materialized');
+        assert.ok(!fs.existsSync(instrPath), 'settings file should not be materialized');
     });
 
     it('should create managed state after apply', async () => {
@@ -182,8 +191,8 @@ describe('CLI: apply', () => {
 
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         assert.strictEqual(state.version, 1);
-        assert.ok(state.files['skills/testing/SKILL.md'], 'state should track skill file');
-        assert.ok(state.files['agents/reviewer.agent.md'], 'state should track agent file');
+        assert.ok(state.files[materializedPath('skills/testing/SKILL.md')], 'state should track skill file');
+        assert.ok(state.files[materializedPath('agents/reviewer.agent.md')], 'state should track agent file');
     });
 
     it('should be idempotent — second apply produces same output', async () => {
@@ -197,7 +206,7 @@ describe('CLI: apply', () => {
         assert.strictEqual(r1.exitCode, 0);
 
         // Read file content after first apply
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         const contentAfterFirst = fs.readFileSync(skillPath, 'utf-8');
 
         // Second apply (updates the provenance timestamp, but body is same)
@@ -240,14 +249,14 @@ describe('CLI: drift and promote', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Manually edit a managed file
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'I was locally modified by the user.\n');
 
         // Promote should detect drift
         const result = await runCli(['promote', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 2);
         assert.ok(result.stdout.includes('locally modified'));
-        assert.ok(result.stdout.includes('skills/testing/SKILL.md'));
+        assert.ok(result.stdout.includes(materializedPath('skills/testing/SKILL.md')));
     });
 
     it('should skip drifted files on re-apply (without --force)', async () => {
@@ -259,7 +268,7 @@ describe('CLI: drift and promote', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Manually edit
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'Locally modified.\n');
 
         // Re-apply should skip the drifted file
@@ -281,7 +290,7 @@ describe('CLI: drift and promote', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Manually edit
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'Locally modified.\n');
 
         // Force apply should overwrite
@@ -310,7 +319,7 @@ describe('CLI: clean', () => {
         // Apply first
         await runCli(['apply', '-w', ws.root]);
 
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         assert.ok(fs.existsSync(skillPath), 'file should exist after apply');
 
         // Clean
@@ -329,7 +338,7 @@ describe('CLI: clean', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Modify a file to cause drift
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'User content.\n');
 
         // Clean should skip the drifted file
@@ -398,7 +407,7 @@ describe('CLI: profile', () => {
 
         // Apply with default profile (all files)
         await runCli(['apply', '-w', ws.root]);
-        const agentPath = path.join(ws.root, '.github', 'agents', 'reviewer.agent.md');
+        const agentPath = path.join(ws.root, '.github', materializedPath('agents/reviewer.agent.md'));
         assert.ok(fs.existsSync(agentPath), 'agent file should exist with default profile');
 
         // Switch to lean profile (disables agents/**) and re-apply
@@ -478,7 +487,7 @@ describe('CLI: --json output', () => {
         assert.ok(data.configPath);
         assert.strictEqual(data.activeProfile, 'default');
         assert.ok(typeof data.files.total === 'number');
-        assert.ok(typeof data.files.liveRef === 'number');
+        assert.ok(typeof data.files.settings === 'number');
         assert.ok(typeof data.files.materialized === 'number');
     });
 
@@ -577,7 +586,7 @@ describe('CLI: validate', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Manually modify a managed file
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'User edits.\n');
 
         const result = await runCli(['validate', '-w', ws.root]);
@@ -626,7 +635,7 @@ describe('CLI: validate', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Drift a file
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, 'Drifted!\n');
 
         const result = await runCli(['validate', '--json', '-w', ws.root]);
@@ -635,7 +644,7 @@ describe('CLI: validate', () => {
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.valid, false);
         assert.strictEqual(data.summary.drifted, 1);
-        assert.ok(data.drifted.includes('skills/testing/SKILL.md'));
+        assert.ok(data.drifted.includes(materializedPath('skills/testing/SKILL.md')));
     });
 });
 
@@ -696,8 +705,16 @@ describe('CLI: multi-repo', () => {
         const applyResult = await runCli(['apply', '-w', ws.root]);
         assert.strictEqual(applyResult.exitCode, 0);
 
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing.md');
-        const agentPath = path.join(ws.root, '.github', 'agents', 'reviewer.md');
+        const skillPath = path.join(
+            ws.root,
+            '.github',
+            materializedPath('skills/testing.md', 'core', 'company')
+        );
+        const agentPath = path.join(
+            ws.root,
+            '.github',
+            materializedPath('agents/reviewer.md', 'team', 'team')
+        );
         assert.ok(fs.existsSync(skillPath), 'company skill should be materialized');
         assert.ok(fs.existsSync(agentPath), 'team agent should be materialized');
 
@@ -745,7 +762,11 @@ describe('CLI: multi-repo', () => {
         await runCli(['apply', '-w', ws.root]);
 
         const content = fs.readFileSync(
-            path.join(ws.root, '.github', 'skills', 'shared.md'),
+            path.join(
+                ws.root,
+                '.github',
+                materializedPath('skills/shared.md', 'layer', 'override')
+            ),
             'utf-8'
         );
         assert.ok(content.includes('Override version'), 'later layer should win');
@@ -768,7 +789,7 @@ describe('CLI: coverage - validate edge cases', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Delete a managed file from .github/
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.unlinkSync(skillPath);
 
         const result = await runCli(['validate', '-w', ws.root]);
@@ -860,7 +881,7 @@ describe('CLI: coverage - promote edge cases', () => {
 
         // Apply, then drift a file
         await runCli(['apply', '-w', ws.root]);
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Modified');
 
         // Don't init git — promote --auto should fail with "not a git repo"
@@ -878,7 +899,7 @@ describe('CLI: coverage - promote edge cases', () => {
         });
 
         await runCli(['apply', '-w', ws.root]);
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Modified');
 
         // No git init — should fail
@@ -901,7 +922,7 @@ describe('CLI: coverage - promote edge cases', () => {
         execSync('git commit -m "initial" --allow-empty', { cwd: ws.metadataRepo, stdio: 'pipe' });
 
         await runCli(['apply', '-w', ws.root]);
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Updated Skill');
 
         const result = await runCli(['promote', '--auto', '--branch', 'display-test', '-w', ws.root]);
@@ -1154,7 +1175,7 @@ describe('CLI: promote --auto', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Drift a file
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Improved Testing Skill\nUpdated locally.');
 
         const result = promoteAuto(ws.root, {
@@ -1165,12 +1186,15 @@ describe('CLI: promote --auto', () => {
         assert.strictEqual(result.committed, true);
         assert.strictEqual(result.branch, 'test-promote');
         assert.ok(result.filesPromoted.length > 0);
-        assert.ok(result.filesPromoted.includes('skills/testing/SKILL.md'));
+        assert.ok(result.filesPromoted.includes(materializedPath('skills/testing/SKILL.md')));
         assert.strictEqual(result.error, undefined);
 
         // Verify the file was written to the source layer in the repo
         const promotedFile = path.join(
-            ws.metadataRepo, 'company', 'core', 'skills', 'testing', 'SKILL.md'
+            ws.metadataRepo,
+            'company',
+            'core',
+            materializedPath('skills/testing/SKILL.md').replace(/\//g, path.sep)
         );
         assert.ok(fs.existsSync(promotedFile), 'promoted file should exist in repo');
 
@@ -1197,7 +1221,7 @@ describe('CLI: promote --auto', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Drift
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Updated Skill');
 
         const result = promoteAuto(ws.root, { noBranch: true });
@@ -1224,7 +1248,7 @@ describe('CLI: promote --auto', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Drift
-        const skillPath = path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md');
+        const skillPath = path.join(ws.root, '.github', materializedPath('skills/testing/SKILL.md'));
         fs.writeFileSync(skillPath, '# Modified');
 
         const result = promoteAuto(ws.root, {});
@@ -1243,7 +1267,7 @@ describe('CLI: promote --auto', () => {
         await runCli(['apply', '-w', ws.root]);
 
         // Drift
-        const agentPath = path.join(ws.root, '.github', 'agents', 'reviewer.agent.md');
+        const agentPath = path.join(ws.root, '.github', materializedPath('agents/reviewer.agent.md'));
         fs.writeFileSync(agentPath, '# Updated Agent');
 
         const result = await runCli(['promote', '--auto', '--json', '--branch', 'json-test', '-w', ws.root]);

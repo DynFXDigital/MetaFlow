@@ -12,7 +12,7 @@ export {
     getStateDirPath,
 } from './managedState';
 export { checkDrift, checkAllDrift } from './driftDetector';
-export { apply, clean, preview } from './materializer';
+export { apply, clean, preview, toMaterializedRelativePath } from './materializer';
 export { computeSettingsEntries, computeSettingsKeysToRemove } from './settingsInjector';
 export type {
     LayerFile,

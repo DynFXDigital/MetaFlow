@@ -26,8 +26,8 @@ export interface LayerContent {
 
 // ── Effective file model ───────────────────────────────────────────
 
-/** Classification of an artifact: live-referenced or materialized. */
-export type ArtifactClassification = 'live-ref' | 'materialized';
+/** Classification of an artifact: settings-injected or materialized. */
+export type ArtifactClassification = 'settings' | 'materialized';
 
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {

@@ -23,6 +23,41 @@ import { checkDrift } from './driftDetector';
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
 
+function slugToken(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-+/g, '-');
+}
+
+function getLayerToken(file: EffectiveFile): string {
+    const sourceLayer = file.sourceLayer.replace(/\\/g, '/');
+    const sourceRepo = (file.sourceRepo ?? '').replace(/\\/g, '/');
+
+    if (sourceRepo && sourceLayer.startsWith(`${sourceRepo}/`)) {
+        return sourceLayer.slice(sourceRepo.length + 1);
+    }
+
+    return sourceLayer;
+}
+
+export function toMaterializedRelativePath(file: EffectiveFile): string {
+    const normalizedPath = file.relativePath.replace(/\\/g, '/');
+    const dirName = path.posix.dirname(normalizedPath);
+    const baseName = path.posix.basename(normalizedPath);
+
+    const repoToken = slugToken(file.sourceRepo ?? 'default') || 'default';
+    const layerToken = slugToken(getLayerToken(file)) || 'layer';
+    const prefixedBaseName = `_${repoToken}-${layerToken}__${baseName}`;
+
+    if (dirName === '.' || dirName === '') {
+        return prefixedBaseName;
+    }
+
+    return `${dirName}/${prefixedBaseName}`;
+}
+
 /** Options for an apply operation. */
 export interface ApplyOptions {
     /** Workspace root path. */
@@ -63,10 +98,10 @@ export function apply(options: ApplyOptions): ApplyResult {
 
     for (const file of options.effectiveFiles) {
         if (file.classification !== 'materialized') {
-            continue; // live-ref files are not materialized
+            continue; // settings-classified files are not materialized
         }
 
-        const relPath = file.relativePath;
+        const relPath = toMaterializedRelativePath(file);
         currentFiles.add(relPath);
 
         // Check drift
@@ -197,10 +232,10 @@ export function preview(
             continue;
         }
 
-        const relPath = file.relativePath;
-        currentFiles.add(relPath);
+        const materializedRelPath = toMaterializedRelativePath(file);
+        currentFiles.add(materializedRelPath);
 
-        const drift = checkDrift(workspaceRoot, outDir, relPath, state);
+        const drift = checkDrift(workspaceRoot, outDir, materializedRelPath, state);
         let action: PendingAction;
         let reason: string | undefined;
 
@@ -210,7 +245,7 @@ export function preview(
                 reason = 'drifted';
                 break;
             case 'missing':
-                action = state.files[relPath] ? 'add' : 'add';
+                action = state.files[materializedRelPath] ? 'add' : 'add';
                 break;
             case 'in-sync':
                 action = 'update';
@@ -223,7 +258,7 @@ export function preview(
         }
 
         changes.push({
-            relativePath: relPath,
+            relativePath: materializedRelPath,
             action,
             reason,
             classification: file.classification,

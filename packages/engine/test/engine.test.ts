@@ -59,6 +59,18 @@ function cleanupDir(dir: string): void {
     fs.rmSync(dir, { recursive: true, force: true });
 }
 
+function expectedMaterializedPath(
+    relativePath: string,
+    sourceLayer = 'core',
+    sourceRepo = 'default'
+): string {
+    const normalized = relativePath.replace(/\\/g, '/');
+    const dir = path.posix.dirname(normalized);
+    const base = path.posix.basename(normalized);
+    const prefixed = `_${sourceRepo}-${sourceLayer.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()}__${base}`;
+    return dir === '.' ? prefixed : `${dir}/${prefixed}`;
+}
+
 // ── Public API smoke tests ─────────────────────────────────────────
 
 describe('Engine package: public API', () => {
@@ -202,7 +214,7 @@ describe('Engine package: overlay pipeline', () => {
         const skill = files.find(f => f.relativePath.includes('skills'));
         const instr = files.find(f => f.relativePath.includes('instructions'));
         assert.strictEqual(skill?.classification, 'materialized');
-        assert.strictEqual(instr?.classification, 'live-ref');
+        assert.strictEqual(instr?.classification, 'settings');
     });
 
     it('normalizes .github-prefixed paths before classification', () => {
@@ -229,7 +241,7 @@ describe('Engine package: overlay pipeline', () => {
 
         classifyFiles(files, config.injection);
         const instruction = files.find(f => f.relativePath === 'instructions/test.instructions.md');
-        assert.strictEqual(instruction?.classification, 'live-ref');
+        assert.strictEqual(instruction?.classification, 'settings');
     });
 });
 
@@ -272,11 +284,12 @@ describe('Engine package: materialization', () => {
             force: false,
         });
         assert.ok(result.written.length > 0);
-        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'agents', 'review.md')));
+        const reviewPath = expectedMaterializedPath('agents/review.md');
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', reviewPath)));
 
         // Verify provenance header
         const content = fs.readFileSync(
-            path.join(tmpDir, '.github', 'agents', 'review.md'),
+            path.join(tmpDir, '.github', reviewPath),
             'utf-8'
         );
         assert.ok(content.includes('metaflow:provenance'));
@@ -284,7 +297,7 @@ describe('Engine package: materialization', () => {
         // Clean
         const cleanResult = clean(tmpDir);
         assert.ok(cleanResult.removed.length > 0);
-        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'agents', 'review.md')));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', reviewPath)));
     });
 });
 
@@ -326,8 +339,9 @@ describe('Engine package: drift detection', () => {
         assert.ok(results.every(r => r.status === 'in-sync'));
 
         // Manually edit
+        const testPath = expectedMaterializedPath('skills/test.md');
         fs.writeFileSync(
-            path.join(tmpDir, '.github', 'skills', 'test.md'),
+            path.join(tmpDir, '.github', testPath),
             'User modified content'
         );
 
@@ -425,25 +439,25 @@ describe('Engine: settings injector', () => {
     beforeEach(() => { tmpDir = createTmpDir(); });
     afterEach(() => cleanupDir(tmpDir));
 
-    it('computeSettingsEntries maps live-ref instructions and prompts', () => {
+    it('computeSettingsEntries maps settings instructions and prompts', () => {
         const files: EffectiveFile[] = [
             {
                 relativePath: 'instructions/coding.md',
                 sourcePath: path.join(tmpDir, 'repo', 'core', 'instructions', 'coding.md'),
                 sourceLayer: 'core',
-                classification: 'live-ref',
+                classification: 'settings',
             },
             {
                 relativePath: 'prompts/review.prompt.md',
                 sourcePath: path.join(tmpDir, 'repo', 'core', 'prompts', 'review.prompt.md'),
                 sourceLayer: 'core',
-                classification: 'live-ref',
+                classification: 'settings',
             },
             {
                 relativePath: 'skills/test.md',
                 sourcePath: path.join(tmpDir, 'repo', 'core', 'skills', 'test.md'),
                 sourceLayer: 'core',
-                classification: 'materialized', // not live-ref — should be ignored
+                classification: 'materialized', // not settings — should be ignored
             },
         ];
 
@@ -453,15 +467,20 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries(files, tmpDir, config);
-        assert.ok(entries.length >= 2, `expected >=2 entries, got ${entries.length}`);
+        assert.ok(entries.length >= 4, `expected >=4 entries, got ${entries.length}`);
 
-        const instrEntry = entries.find(e => e.key.includes('instructionFiles'));
-        const promptEntry = entries.find(e => e.key.includes('promptFiles'));
+        const instrEntry = entries.find(e => e.key === 'chat.instructionsFilesLocations');
+        const promptEntry = entries.find(e => e.key === 'chat.promptFilesLocations');
         assert.ok(instrEntry, 'should have instructions settings entry');
         assert.ok(promptEntry, 'should have prompts settings entry');
+
+        const instrLocations = instrEntry!.value as Record<string, boolean>;
+        const promptLocations = promptEntry!.value as Record<string, boolean>;
+        assert.ok(instrLocations['repo/core/instructions']);
+        assert.ok(promptLocations['repo/core/prompts']);
     });
 
-    it('computeSettingsEntries includes hooks when configured', () => {
+    it('computeSettingsEntries includes hook file locations when configured', () => {
         const config: MetaFlowConfig = {
             metadataRepo: { localPath: 'repo' },
             layers: ['core'],
@@ -472,11 +491,11 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries([], tmpDir, config);
-        const preApply = entries.find(e => e.key === 'metaflow.hooks.preApply');
-        const postApply = entries.find(e => e.key === 'metaflow.hooks.postApply');
-        assert.ok(preApply, 'should have preApply hook');
-        assert.strictEqual(preApply!.value, 'scripts/pre.sh');
-        assert.ok(postApply, 'should have postApply hook');
+        const hookLocations = entries.find(e => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookLocations, 'should have hook file locations');
+        const locations = hookLocations!.value as Record<string, boolean>;
+        assert.ok(locations['scripts/pre.sh']);
+        assert.ok(locations['scripts/post.sh']);
     });
 
     it('computeSettingsEntries skips hooks when not configured', () => {
@@ -492,6 +511,11 @@ describe('Engine: settings injector', () => {
     it('computeSettingsKeysToRemove returns all managed keys', () => {
         const keys = computeSettingsKeysToRemove();
         assert.ok(keys.length > 0);
+        assert.ok(keys.includes('chat.instructionsFilesLocations'));
+        assert.ok(keys.includes('chat.promptFilesLocations'));
+        assert.ok(keys.includes('chat.agentFilesLocations'));
+        assert.ok(keys.includes('chat.agentSkillsLocations'));
+        assert.ok(keys.includes('chat.hookFilesLocations'));
         assert.ok(keys.includes('github.copilot.chat.codeGeneration.instructionFiles'));
         assert.ok(keys.includes('github.copilot.chat.promptFiles'));
     });
@@ -502,7 +526,7 @@ describe('Engine: profile engine advanced', () => {
         const files: EffectiveFile[] = [
             { relativePath: 'skills/a.md', sourcePath: '/x', sourceLayer: 'l', classification: 'materialized' },
             { relativePath: 'agents/b.md', sourcePath: '/x', sourceLayer: 'l', classification: 'materialized' },
-            { relativePath: 'instructions/c.md', sourcePath: '/x', sourceLayer: 'l', classification: 'live-ref' },
+            { relativePath: 'instructions/c.md', sourcePath: '/x', sourceLayer: 'l', classification: 'settings' },
         ];
 
         const profile: ProfileConfig = { disable: ['agents/**'] };
@@ -515,7 +539,7 @@ describe('Engine: profile engine advanced', () => {
         const files: EffectiveFile[] = [
             { relativePath: 'skills/a.md', sourcePath: '/x', sourceLayer: 'l', classification: 'materialized' },
             { relativePath: 'agents/b.md', sourcePath: '/x', sourceLayer: 'l', classification: 'materialized' },
-            { relativePath: 'instructions/c.md', sourcePath: '/x', sourceLayer: 'l', classification: 'live-ref' },
+            { relativePath: 'instructions/c.md', sourcePath: '/x', sourceLayer: 'l', classification: 'settings' },
         ];
 
         const profile: ProfileConfig = { enable: ['skills/**'] };
@@ -838,15 +862,16 @@ describe('Engine: materializer advanced', () => {
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
 
         // Drift a file
-        fs.writeFileSync(path.join(tmpDir, '.github', 'skills', 'test.md'), 'drifted');
+        const skillsPath = expectedMaterializedPath('skills/test.md');
+        fs.writeFileSync(path.join(tmpDir, '.github', skillsPath), 'drifted');
 
         // Apply without force — should skip
         const r1 = apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
-        assert.ok(r1.skipped.includes('skills/test.md'));
+        assert.ok(r1.skipped.includes(skillsPath));
 
         // Apply with force — should overwrite
         const r2 = apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: true });
-        assert.ok(r2.written.includes('skills/test.md'));
+        assert.ok(r2.written.includes(skillsPath));
         assert.strictEqual(r2.skipped.length, 0);
     });
 
@@ -860,8 +885,9 @@ describe('Engine: materializer advanced', () => {
         const skillsOnly = files.filter(f => f.relativePath.includes('skills'));
         const r = apply({ workspaceRoot: tmpDir, effectiveFiles: skillsOnly, force: false });
 
-        assert.ok(r.removed.includes('agents/review.md'));
-        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'agents', 'review.md')));
+        const reviewPath = expectedMaterializedPath('agents/review.md');
+        assert.ok(r.removed.includes(reviewPath));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', reviewPath)));
     });
 
     it('apply warns about drifted stale files', () => {
@@ -871,7 +897,8 @@ describe('Engine: materializer advanced', () => {
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
 
         // Drift the agents file
-        fs.writeFileSync(path.join(tmpDir, '.github', 'agents', 'review.md'), 'user content');
+        const reviewPath = expectedMaterializedPath('agents/review.md');
+        fs.writeFileSync(path.join(tmpDir, '.github', reviewPath), 'user content');
 
         // Re-apply with only skills — agents is stale AND drifted
         const skillsOnly = files.filter(f => f.relativePath.includes('skills'));
@@ -879,7 +906,7 @@ describe('Engine: materializer advanced', () => {
 
         assert.ok(r.warnings.some(w => w.includes('Drifted file not removed')));
         // Drifted stale file should NOT be removed
-        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'agents', 'review.md')));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', reviewPath)));
     });
 
     it('preview shows drifted files as skip', () => {
@@ -888,10 +915,11 @@ describe('Engine: materializer advanced', () => {
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
 
         // Drift a file
-        fs.writeFileSync(path.join(tmpDir, '.github', 'skills', 'test.md'), 'drifted');
+        const skillsPath = expectedMaterializedPath('skills/test.md');
+        fs.writeFileSync(path.join(tmpDir, '.github', skillsPath), 'drifted');
 
         const pending = preview(tmpDir, files);
-        const drifted = pending.find(p => p.relativePath === 'skills/test.md');
+        const drifted = pending.find(p => p.relativePath === skillsPath);
         assert.strictEqual(drifted?.action, 'skip');
         assert.strictEqual(drifted?.reason, 'drifted');
     });
@@ -905,7 +933,8 @@ describe('Engine: materializer advanced', () => {
         const skillsOnly = files.filter(f => f.relativePath.includes('skills'));
         const pending = preview(tmpDir, skillsOnly);
 
-        const stale = pending.find(p => p.relativePath === 'agents/review.md');
+        const reviewPath = expectedMaterializedPath('agents/review.md');
+        const stale = pending.find(p => p.relativePath === reviewPath);
         assert.ok(stale, 'should have stale entry');
         assert.strictEqual(stale!.action, 'remove');
     });
@@ -916,13 +945,14 @@ describe('Engine: materializer advanced', () => {
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
 
         // Drift the agents file
-        fs.writeFileSync(path.join(tmpDir, '.github', 'agents', 'review.md'), 'user stuff');
+        const reviewPath = expectedMaterializedPath('agents/review.md');
+        fs.writeFileSync(path.join(tmpDir, '.github', reviewPath), 'user stuff');
 
         // Preview with only skills — drifted agents should be skip
         const skillsOnly = files.filter(f => f.relativePath.includes('skills'));
         const pending = preview(tmpDir, skillsOnly);
 
-        const stale = pending.find(p => p.relativePath === 'agents/review.md');
+        const stale = pending.find(p => p.relativePath === reviewPath);
         assert.ok(stale);
         assert.strictEqual(stale!.action, 'skip');
     });

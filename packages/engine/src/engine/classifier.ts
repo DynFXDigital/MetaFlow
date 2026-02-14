@@ -1,15 +1,15 @@
 /**
  * Artifact classifier.
  *
- * Classifies each effective file as `live-ref` or `materialized` based on
+ * Classifies each effective file as `settings` or `materialized` based on
  * artifact type and injection config overrides.
  *
  * Default rules:
- * - instructions/** → live-ref
- * - prompts/** → live-ref
- * - skills/** → materialized (or live-ref when injection override is set)
- * - agents/** → materialized (or live-ref when injection override is set)
- * - hooks/** → live-ref
+ * - instructions/** → settings
+ * - prompts/** → settings
+ * - skills/** → materialized (or settings when injection override is set)
+ * - agents/** → materialized (or settings when injection override is set)
+ * - hooks/** → settings
  * - unknown → materialized
  *
  * Pure TypeScript — no VS Code imports.
@@ -20,11 +20,11 @@ import { ArtifactClassification, EffectiveFile } from './types';
 
 /** Default classification rules per artifact type directory prefix. */
 const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
-    'instructions': 'live-ref',
-    'prompts': 'live-ref',
+    'instructions': 'settings',
+    'prompts': 'settings',
     'skills': 'materialized',
     'agents': 'materialized',
-    'hooks': 'live-ref',
+    'hooks': 'settings',
 };
 
 /**
@@ -62,7 +62,7 @@ export function classifySingle(
     if (injection) {
         const mode = (injection as Record<string, string | undefined>)[topDir];
         if (mode === 'settings') {
-            return 'live-ref';
+            return 'settings';
         }
         if (mode === 'materialize') {
             return 'materialized';
