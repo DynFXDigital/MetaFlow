@@ -47,5 +47,5 @@ Build the TypeScript CLI (`packages/cli/`) that imports `@metaflow/engine` and e
 
 ## Reference
 
-- [CLI Responsibilities](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#cli-responsibilities)
+- [CLI Responsibilities](../../doc/concept/metaflow_reference_architecture.md#cli-responsibilities)
 - Engine API: `@metaflow/engine` exports

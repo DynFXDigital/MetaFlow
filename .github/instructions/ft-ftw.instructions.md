@@ -1,76 +1,50 @@
 ---
-description: Template for Functional Test Write-ups (FTW) - implemented pytest tests.
-applyTo: "**/tests/test_*.py"
+description: Template for Functional Test Write-ups (FTW) - implemented automated tests.
+applyTo: "**/*.test.ts"
 ---
 
 # FTW Template
 
-Guidelines for implementing TCS test cases as pytest tests.
+Guidelines for implementing TCS test cases as automated TypeScript tests.
 
 ## File Layout
 
 ```
-tests/
-├── test_{component}.py
-├── test_{component}_integration.py
-├── conftest.py
+test/
+├── {component}.test.ts
+├── {component}.integration.test.ts
 └── fixtures/
 ```
 
 ## Function Format
 
-```python
-def test_{what}_{scenario}_{expected}():
-    """TC-FN-001: {description}.
-
-    Verifies: REQ-FN-001
-    """
-    # Arrange
-    # Act
-    # Assert
+```ts
+it('TC-FN-001: {description} (Verifies: REQ-FN-001)', () => {
+    // Arrange
+    // Act
+    // Assert
+});
 ```
 
 ## Naming
 
-`test_{what}_{scenario}_{outcome}`
+`{what}_{scenario}_{outcome}`
 
-- `test_extraction_empty_file_returns_empty`
-- `test_report_markdown_includes_summary`
-- `test_config_invalid_raises_error`
+- `extracts_empty_file_returns_empty`
+- `report_markdown_includes_summary`
+- `config_invalid_throws_error`
 
 ## Patterns
 
-**Fixtures:**
+**Fixtures:** create reusable builders/helpers under `test/fixtures/`.
 
-```python
-@pytest.fixture
-def sample_chapter():
-    return "Chapter text..."
-```
+**Parameterized tests:** use table-driven `for ... of` loops or framework parameterization helpers.
 
-**Parametrized:**
-
-```python
-@pytest.mark.parametrize("input,expected", [("a", 1), ("b", 2)])
-def test_func(input, expected): ...
-```
-
-**Mocking:**
-
-```python
-def test_api_retry(mocker):
-    mock = mocker.patch("module.api_call", side_effect=[Error(), ok])
-    result = func()
-    assert mock.call_count == 2
-```
+**Mocking:** use Sinon/test doubles or dependency injection according to local test conventions.
 
 ## Markers
 
-```python
-@pytest.mark.slow        # >5s
-@pytest.mark.integration # external services
-@pytest.mark.unit        # fast, isolated
-```
+Use suite names or tags to differentiate `unit`, `integration`, and `slow` cases.
 
 ## Assertions
 
@@ -80,38 +54,32 @@ def test_api_retry(mocker):
 
 ## Coverage
 
-- Each TCS case → pytest function
+- Each TCS case → automated test case
 - Critical paths → multiple scenarios
 - Error paths tested
 - Target ≥80% for new code
 
 ## Traceability
 
-Every test function docstring must include:
+Every automated test should include:
 
 - **TC-xxx ID** from TCS
 - **REQ-xxx ID** being verified
 
 Example:
 
-```python
-def test_extract_named_characters():
-    """TC-FN-001: Extract characters from chapter.
+```ts
+it('TC-FN-001: Extract characters from chapter (Verifies: REQ-FN-001)', () => {
+    // ...
+});
 
-    Verifies: REQ-FN-001
-    """
-    ...
-
-def test_extract_empty_chapter_returns_empty():
-    """TC-ERR-001: Handle empty input gracefully.
-
-    Verifies: REQ-FN-001, REQ-NF-003
-    """
-    ...
+it('TC-ERR-001: Handle empty input gracefully (Verifies: REQ-FN-001, REQ-NF-003)', () => {
+    // ...
+});
 ```
 
 ## Validation
 
-- `grep -r "TC-" tests/` lists all implemented test cases
+- `grep -r "TC-" test/` lists all implemented test cases
 - Every TC-xxx in TCS should appear in test docstrings
-- No orphan tests (pytest without TC reference)
+- No orphan tests (automated tests without TC reference)

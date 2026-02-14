@@ -6,7 +6,7 @@
 
 ## Feature Overview
 
-MetaFlow CLI provides a command-line interface for the AI Metadata Overlay Sync System. The VS Code extension already contains a **pure TypeScript engine** (zero vscode imports) that handles config loading, overlay resolution, filtering, profiling, materialization, provenance, and drift detection. The CLI plan now extracts that engine into a shared `packages/engine/` package so both the extension and CLI consume the same library — no subprocess calls, no code duplication.
+MetaFlow CLI provides a command-line interface for MetaFlow overlay management. The VS Code extension already contains a **pure TypeScript engine** (zero vscode imports) that handles config loading, overlay resolution, filtering, profiling, materialization, provenance, and drift detection. The CLI plan now extracts that engine into a shared `packages/engine/` package so both the extension and CLI consume the same library — no subprocess calls, no code duplication.
 
 ## Current Focus
 
@@ -17,7 +17,7 @@ MetaFlow CLI provides a command-line interface for the AI Metadata Overlay Sync 
 
 ## Completed (prior — now superseded)
 
-- ~~Python CLI Phases 1-4 (137 tests, 93.84% coverage)~~ — **SCRAPPED**: wrong technology stack. The engine already exists in TypeScript.
+- ~~Early CLI Phases 1-4 (137 tests, 93.84% coverage)~~ — **SCRAPPED**: wrong technology stack. The engine already exists in TypeScript.
 
 ## Next Steps
 
@@ -39,10 +39,10 @@ MetaFlow CLI provides a command-line interface for the AI Metadata Overlay Sync 
 
 ## Decision Log
 
-- **2026-02-05** – MetaFlow is a clean-room project, not a fork of Sync-AI-Metadata.
+- **2026-02-05** – MetaFlow is a clean-room project, not a fork of predecessor tooling.
 - **2026-02-05** – CLI namespace uses `metaflow` as the top-level command.
 - **2026-02-05** – Config file is `.ai-sync.json` at repo root (or `.ai/.ai-sync.json` fallback).
-- **2026-02-07** – **REWORK**: Python CLI scrapped. The extension already has the full engine in pure TypeScript. New approach: extract engine into `packages/engine/`, build CLI in TypeScript, share engine as library. No subprocess calls between extension and CLI.
+- **2026-02-07** – **REWORK**: earlier CLI approach scrapped. The extension already has the full engine in pure TypeScript. New approach: extract engine into `packages/engine/`, build CLI in TypeScript, share engine as library. No subprocess calls between extension and CLI.
 - **2026-02-07** – Monorepo structure: `packages/engine/`, `packages/cli/`, `src/` (extension). npm workspaces for linking.
 - **2026-02-07** – Commander.js selected as CLI framework (lighter than Click equivalent in Node).
 - **2026-02-07** – Phase 1 complete: `packages/engine/` created with config + engine modules, Node typings added, build passes.

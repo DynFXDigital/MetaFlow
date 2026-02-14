@@ -16,7 +16,7 @@ Every plugin/component maintains a `doc/` folder with core documents linked by t
 | **TCS**  | Test Case Specification – test definitions                 | `doc/tcs/*.md`           |
 | **FTD**  | Functional Test Document – executable procedures           | `doc/ftd/*.md`           |
 | **FTR**  | Functional Test Results – execution evidence               | `doc/ftr/*.md`           |
-| **FTW**  | Functional Test Write-up – pytest implementations          | `tests/test_*.py`        |
+| **FTW**  | Functional Test Write-up – automated test implementations  | `**/*.test.ts`           |
 | **VSRS** | Validation requirements (user intent)                      | `doc/validation/srs/*.md` |
 | **VTCS** | Validation test cases                                      | `doc/validation/tcs/*.md` |
 | **VFTD** | Validation procedures                                      | `doc/validation/ftd/*.md` |
@@ -79,11 +79,12 @@ Each document includes a traceability section:
 | REQ-0001  | TC-FN-001, TC-FN-002, TC-ERR-001 |
 ```
 
-**FTW** – docstrings reference both:
+**FTW** – tests reference both:
 
-```python
-def test_extract_named_characters():
-    """TC-FN-001: Verifies REQ-0001."""
+```ts
+it('TC-FN-001: verifies REQ-0001', () => {
+    // test body
+});
 ```
 
 ## Workflow
@@ -99,7 +100,7 @@ Before release:
 
 - Every REQ-xxx appears in SDD traceability
 - Every REQ-xxx has at least one TC-xxx
-- Every TC-xxx has a corresponding pytest function
+- Every TC-xxx has a corresponding automated test case
 - No orphan test cases (TC without REQ)
 
 ## Related Instructions
@@ -107,4 +108,4 @@ Before release:
 - [product-srs.instructions.md](product-srs.instructions.md) – SRS template and policy
 - [dev-sdd.instructions.md](dev-sdd.instructions.md) – SDD template and policy
 - [ft-tcs.instructions.md](ft-tcs.instructions.md) – TCS template
-- [ft-ftw.instructions.md](ft-ftw.instructions.md) – FTW/pytest template
+- [ft-ftw.instructions.md](ft-ftw.instructions.md) – FTW automated test template

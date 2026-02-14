@@ -1,6 +1,6 @@
 # MetaFlow CLI
 
-Command-line interface for the AI Metadata Overlay Sync System. Shares the same TypeScript engine (`@metaflow/engine`) as the VS Code extension.
+Command-line interface for MetaFlow overlay management. Shares the same TypeScript engine (`@metaflow/engine`) as the VS Code extension.
 
 ## Install
 

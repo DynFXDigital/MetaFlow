@@ -1,6 +1,6 @@
 ---
 name: copilot-pack-sync
-description: Use this skill to bootstrap, apply, watch, status-check, and promote the shared Copilot Pack (.ai/ai-metadata <-> .github) using sync-ai-metadata.
+description: Use this skill to bootstrap, apply, watch, status-check, and promote the shared Copilot Pack (.ai/ai-metadata <-> .github) using metaflow.
 ---
 
 # Copilot Pack Sync
@@ -26,13 +26,13 @@ This skill standardizes the workflow for managing shared Copilot artifacts acros
 
 Clones (or updates) the Common Pack into `.ai/ai-metadata/`.
 
-- Run: `sync-ai-metadata bootstrap`
+- Run: `metaflow bootstrap`
 
 ### Apply
 
 Materializes `.ai/ai-metadata/.github/**` into `.github/**`.
 
-- Run: `sync-ai-metadata apply`
+- Run: `metaflow apply`
 
 Expected behavior (composition):
 
@@ -44,13 +44,13 @@ Expected behavior (composition):
 
 Reports drift between `.ai/ai-metadata/.github/**`, `.github/**`, and the managed-state stamp.
 
-- Run: `sync-ai-metadata status`
+- Run: `metaflow status`
 
 ### Watch
 
 Starts bidirectional sync between `.ai/ai-metadata/.github/**` and `.github/**`.
 
-- Run: `sync-ai-metadata watch`
+- Run: `metaflow watch`
 
 Notes:
 
@@ -61,7 +61,7 @@ Notes:
 
 Creates a new branch and commit inside `.ai/ai-metadata/` to prepare a PR upstream.
 
-- Run: `sync-ai-metadata promote -m "<commit message>"`
+- Run: `metaflow promote -m "<commit message>"`
 
 ## Recommended Resolution Playbook (Conflicts)
 

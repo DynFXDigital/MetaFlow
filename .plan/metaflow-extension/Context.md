@@ -34,7 +34,7 @@ MetaFlow is a pure TypeScript VS Code extension that implements the AI metadata 
 
 - `.plan/metaflow-extension/README.md` – main plan (6 phases: 0–5)
 - `doc/concept/CONCEPT.md` – full concept document with architecture and testing strategy
-- `doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md` – reference architecture
+- `doc/concept/metaflow_reference_architecture.md` – reference architecture
 - `doc/srs/SRS-metaflow-ext.md` – requirements (REQ-0001–REQ-0603)
 - `doc/sdd/SDD-metaflow-ext.md` – design (DES-0001–DES-0308)
 - `doc/tcs/TCS-metaflow-ext.md` – test cases (TC-0001–TC-0328)
@@ -44,7 +44,7 @@ MetaFlow is a pure TypeScript VS Code extension that implements the AI metadata 
 
 ## Decision Log
 
-- **2026-02-07** – Use pure TypeScript (no Python CLI) for the MetaFlow extension.
+- **2026-02-07** – Use pure TypeScript (no external-runtime CLI) for the MetaFlow extension.
 - **2026-02-07** – Use clean reference-architecture config schema only.
 - **2026-02-07** – Added Phase 0 for requirements and design foundation before implementation.
 - **2026-02-07** – Distributed testing across all phases (TDD per phase) instead of deferring to Phase 5.

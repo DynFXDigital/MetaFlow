@@ -2,7 +2,7 @@
  * MetaFlow configuration schema interfaces.
  *
  * These types model the `.ai-sync.json` configuration file defined by
- * the AI Metadata Overlay Sync System Reference Architecture.
+ * the MetaFlow Reference Architecture.
  *
  * Pure TypeScript — no VS Code imports.
  */

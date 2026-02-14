@@ -2,7 +2,7 @@
 
 ## Overview
 
-MetaFlow implements the [AI Metadata Overlay Sync System Reference Architecture](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md) as a standalone CLI tool. It replaces the overlay subsystem prototyped in Sync-AI-Metadata with a focused, clean codebase.
+MetaFlow implements the [MetaFlow Reference Architecture](../../doc/concept/metaflow_reference_architecture.md) as a standalone CLI tool. It replaces earlier overlay prototypes with a focused, clean codebase.
 
 ## Architecture
 
@@ -44,10 +44,10 @@ src/               ← VS Code extension (imports packages/engine as dependency)
 
 ## Non-Goals
 
-- Python implementation (the engine is TypeScript-native).
+- Non-TypeScript implementation (the engine is TypeScript-native).
 - Organization-wide CI policy enforcement.
 - Server-side services or remote APIs.
-- Backward compatibility with Sync-AI-Metadata's `pack-sync` workflow.
+- Backward compatibility with legacy `pack-sync` workflows.
 
 ## Scope Boundaries
 

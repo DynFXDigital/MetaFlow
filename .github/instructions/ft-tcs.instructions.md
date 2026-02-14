@@ -15,7 +15,7 @@ Define test cases that verify SRS requirements.
 
 ### 2. Environment
 
-- Python version, fixtures, mocks
+- Runtime/tool versions, fixtures, mocks
 
 ### 3. Test Cases
 

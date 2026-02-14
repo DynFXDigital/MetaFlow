@@ -2,7 +2,7 @@
 
 ## Overview
 
-MetaFlow is a VS Code extension that implements the AI Metadata Overlay Sync System Reference Architecture as a pure TypeScript extension. It provides deterministic overlay resolution, materialization with provenance, and profile/layer management for AI coding agent metadata.
+MetaFlow is a VS Code extension that implements the MetaFlow Reference Architecture as a pure TypeScript extension. It provides deterministic overlay resolution, materialization with provenance, and profile/layer management for AI coding agent metadata.
 
 ## Quick Start
 

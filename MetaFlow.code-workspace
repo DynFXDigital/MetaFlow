@@ -5,6 +5,6 @@
 		}
 	],
 	"settings": {
-		"powershell.cwd": "Sync-AI-Metadata"
+		"powershell.cwd": "MetaFlow"
 	}
 }

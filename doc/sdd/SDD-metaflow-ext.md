@@ -12,8 +12,8 @@
 
 ## Design Summary
 
-- **Primary intent**: Implement the AI Metadata Overlay Sync System Reference Architecture as a pure TypeScript VS Code extension with deterministic overlay resolution, materialization with provenance, and profile/layer management UI.
-- **Key constraints**: Pure TypeScript (no Python/CLI); strict mode; engine modules must not import `vscode`; deterministic output; JSONC tolerant config parsing.
+- **Primary intent**: Implement the MetaFlow Reference Architecture as a pure TypeScript VS Code extension with deterministic overlay resolution, materialization with provenance, and profile/layer management UI.
+- **Key constraints**: Pure TypeScript (no external-runtime CLI); strict mode; engine modules must not import `vscode`; deterministic output; JSONC tolerant config parsing.
 - **Non-goals**: File-watcher auto-sync; git promotion automation; multi-root workspace support.
 
 ## Architecture Diagram
@@ -105,7 +105,7 @@ graph TD
 
 | Decision ID | Statement | Rationale | Status |
 |---|---|---|---|
-| DEC-0001 | Pure TypeScript engine (no Python/CLI) | Eliminates subprocess overhead and external runtime dependency. | Accepted |
+| DEC-0001 | Pure TypeScript engine (no external-runtime CLI) | Eliminates subprocess overhead and external runtime dependency. | Accepted |
 | DEC-0002 | Engine modules must not import `vscode` | Enables fast unit testing without Extension Host. | Accepted |
 | DEC-0003 | Use `jsonc-parser` for config files | Supports comments and trailing commas in `.ai-sync.json`. | Accepted |
 | DEC-0004 | Clean reference-architecture schema only | No legacy format support; simplifies validation. | Accepted |

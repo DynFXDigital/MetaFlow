@@ -89,7 +89,7 @@ Ensure the following directory tree exists:
 doc/
 ├── concept/
 │   ├── CONCEPT.md
-│   └── ai_metadata_overlay_sync_system_reference_architecture.md
+│   └── metaflow_reference_architecture.md
 ├── srs/
 │   └── SRS-metaflow-ext.md
 ├── sdd/

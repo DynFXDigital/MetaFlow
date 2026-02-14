@@ -12,13 +12,13 @@
 
 ## Executive Summary
 
-MetaFlow is a pure TypeScript VS Code extension that brings deterministic AI metadata overlay management directly into the editor. It implements the [AI Metadata Overlay Sync System Reference Architecture](ai_metadata_overlay_sync_system_reference_architecture.md) without any external runtime dependencies (no Python, no CLI subprocess).
+MetaFlow is a pure TypeScript VS Code extension that brings deterministic AI metadata overlay management directly into the editor. It implements the [MetaFlow Reference Architecture](metaflow_reference_architecture.md) without any external runtime dependencies (no external runtime, no CLI subprocess).
 
 The extension enables teams to manage hierarchical, policy-driven AI metadata (GitHub Copilot instructions, prompts, skills, and custom agents) from a centralized canonical repository and selectively realize that metadata into consuming repositories. It provides a complete in-editor workflow: configuration, layer/profile management, preview, apply, clean, drift detection, and promotion awareness—all from VS Code's sidebar, command palette, and status bar.
 
 **Key differentiators:**
 
-- **Zero external dependencies** — pure TypeScript overlay engine embedded in the extension; no Python or subprocess calls.
+- **Zero external dependencies** — pure TypeScript overlay engine embedded in the extension; no extra runtime or subprocess calls.
 - **Deterministic rendering** — same config + same metadata commit always produces identical outputs.
 - **Hybrid realization** — live-references for artifacts Copilot can load from alternate paths; materialization only where Copilot requires `.github/`.
 - **Flexible repository sourcing** — support a single authoritative metadata repo or multiple layered repos (superlays) accessible across projects.
@@ -59,7 +59,7 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 
 | ID | Non-Goal | Rationale |
 |---|---|---|
-| NG-01 | Python CLI or subprocess integration | Eliminated by design; TypeScript-native engine |
+| NG-01 | External-runtime CLI or subprocess integration | Eliminated by design; TypeScript-native engine |
 | NG-02 | File-watcher auto-sync in v1 | Scope control; deferred to follow-up |
 | NG-03 | Git automation for promotion | Detection-only in v1 (branch/commit/PR deferred) |
 | NG-04 | Marketplace publishing in v1 | Local VSIX distribution first |
@@ -497,7 +497,7 @@ VSRS (VREQ-*) → VTC → VTP → VTR
 
 ### 12.1 Constraints
 
-- **Clean config schema only** — the extension uses the reference architecture config schema, not legacy Sync-AI-Metadata formats.
+- **Clean config schema only** — the extension uses the reference architecture config schema, not legacy predecessor formats.
 - **Determinism is non-negotiable** — same config + same metadata commit must yield identical outputs.
 - **Copilot artifact rules respected** — skills and agents must be materialized to `.github/`.
 - **VS Code engine ≥1.80.0** — minimum compatible VS Code version.
@@ -573,19 +573,19 @@ VSRS (VREQ-*) → VTC → VTP → VTR
 
 ---
 
-## Appendix A: Relationship to Sync-AI-Metadata
+## Appendix A: Relationship to Legacy Predecessor
 
-MetaFlow is a strategic successor to the overlay subsystem in Sync-AI-Metadata. Key differences:
+MetaFlow is a strategic successor to earlier overlay tooling. Key differences:
 
-| Aspect | Sync-AI-Metadata | MetaFlow |
+| Aspect | Legacy predecessor | MetaFlow |
 |---|---|---|
 | Runtime | Legacy CLI subprocess | Pure TypeScript in-extension |
 | Config schema | Legacy + clean schema coexistence | Clean reference schema only |
-| Engine location | Legacy `sync_ai_metadata` package | TypeScript package (`packages/engine/`) |
+| Engine location | Legacy package | TypeScript package (`packages/engine/`) |
 | Testing | Retroactive; mixed legacy tests | TDD per phase; Mocha + @vscode/test-electron |
 | Scope | Pack-sync + watchers + overlay + CLI | Overlay engine + extension only |
 
-The Sync-AI-Metadata extension source (`vscode-extension/`) serves as prior art for UI patterns (TreeViews, commands, status bar, diagnostics) and will be referenced but not directly ported.
+The predecessor extension source (`vscode-extension/`) serves as prior art for UI patterns (TreeViews, commands, status bar, diagnostics) and will be referenced but not directly ported.
 
 ---
 

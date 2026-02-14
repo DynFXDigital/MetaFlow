@@ -1,4 +1,4 @@
-# AI Metadata Overlay Sync System
+# MetaFlow
 ## Reference Architecture (CLI‑First)
 
 ---
@@ -312,12 +312,12 @@ This file must be sufficient to fully reproduce the effective state.
 
 ### Commands
 
-- `sync preview` — show effective tree and diffs
-- `sync apply` — render required artifacts
-- `sync clean` — remove managed outputs
-- `sync status` — show layers, profile, commit
-- `sync profile set <name>`
-- `sync promote` — guided promotion workflow
+- `metaflow preview` — show effective tree and diffs
+- `metaflow apply` — render required artifacts
+- `metaflow clean` — remove managed outputs
+- `metaflow status` — show layers, profile, commit
+- `metaflow profile set <name>`
+- `metaflow promote` — guided promotion workflow
 
 ---
 

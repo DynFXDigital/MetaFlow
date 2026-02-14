@@ -32,10 +32,6 @@ coverage/
 test-results/
 **/.eslint-report.json
 
-# Python caches (in case of tooling scripts)
-__pycache__/
-.pytest_cache/
-
 # Local env
 .env
 .env.*

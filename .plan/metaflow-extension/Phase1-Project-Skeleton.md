@@ -36,7 +36,7 @@
 2. Create `tsconfig.json` with `strict: true`, target `ES2022`, module `commonjs`.
 3. Create `.eslintrc.json` with TypeScript ESLint rules.
 4. Create `.vscodeignore` excluding test and source files from VSIX.
-5. Add compile/lint/test scripts matching Sync-AI-Metadata extension patterns.
+5. Add compile/lint/test scripts matching predecessor extension patterns.
 6. Create `.vscode-test.mjs` separating unit and integration test configurations.
 
 ### T1.2 — Config Schema & Loader

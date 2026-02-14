@@ -50,4 +50,4 @@ Add end-to-end integration tests that exercise the full CLI workflow, polish hel
 
 ## Reference
 
-- [Editing and Promotion Workflow](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md#editing-and-promotion-workflow)
+- [Editing and Promotion Workflow](../../doc/concept/metaflow_reference_architecture.md#editing-and-promotion-workflow)

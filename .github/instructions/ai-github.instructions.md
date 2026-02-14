@@ -1,7 +1,7 @@
 # GitHub Repository Ownership
 
 ## Default Owner
-- Unless otherwise specified, the owner of the sync-ai-metadata repository is:
+- Unless otherwise specified, the owner of the MetaFlow repository is:
   - **GitHub user:** `kiates`
 
 ## Notes

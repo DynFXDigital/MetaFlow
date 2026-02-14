@@ -17,7 +17,7 @@ All ephemeral items go ONLY under `.ai/temp/` (git‑ignored).
 Recommended optional subfolders (create on demand):
 ```
 .ai/temp/
-	scripts/        # One-off automation (Python, Bash, awk, etc.)
+	scripts/        # One-off automation (TypeScript/Node, Bash, awk, etc.)
 	tests/          # Scratch / provisional test code (not part of official suites)
 	data/           # Small sample inputs (sanitized)
 	logs/           # Generated logs / traces from debug runs
@@ -28,7 +28,7 @@ Do NOT create peer directories directly under `.ai/` unless they are part of the
 ## 3. Naming Conventions
 Pattern: `<purpose>__<yyyyMMdd-HHmmss>[__tag].<ext>`
 Examples:
-- `deadband_probe__20250920-143210.py`
+- `deadband_probe__20250920-143210.ts`
 - `mv_edge_case_gen__20250920-151000__v2.cpp`
 - `proto_cov_scan__20250920-153322.sh`
 
@@ -49,7 +49,7 @@ Examples:
 
 ## 7. Execution Rules
 - Scripts here are experimental; they MUST NOT be invoked from production build scripts, CMake, or committed test harnesses.
-- If executing, prefer explicit absolute paths (avoid accidental PATH injection): `python .ai/temp/scripts/deadband_probe__...py`.
+- If executing, prefer explicit absolute paths (avoid accidental PATH injection): `node .ai/temp/scripts/deadband_probe__...js`.
 - Do not rely on these artifacts for deterministic CI outcomes.
 
 ## 8. Promotion Checklist (temp → repository)
@@ -72,7 +72,7 @@ If an artifact proves valuable:
 ## 11. Tooling Expectations for AI
 When AI needs a helper script:
 - Create inside `.ai/temp/scripts/` with clear header comment (purpose, author = AI, timestamp).
-- Prefer portable Bash / Python; avoid adding new dependencies unless justified.
+- Prefer portable Bash / Node.js scripts; avoid adding new dependencies unless justified.
 - Delete after use if no longer needed in subsequent steps.
 
 ## 12. Git & CI Interaction

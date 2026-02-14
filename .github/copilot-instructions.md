@@ -1,4 +1,4 @@
-# Sync-AI-Metadata Copilot Instructions
+# MetaFlow Copilot Instructions
 
 ## Testing Workflow (Required)
 
@@ -9,4 +9,4 @@
 
 ## Commands
 
-- Run tests: `pytest -v`
+- Run tests: `npm run test:unit`

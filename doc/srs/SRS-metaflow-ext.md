@@ -12,7 +12,7 @@
 
 ## Purpose
 
-This document is the source of truth for `REQ-####` requirements for the MetaFlow VS Code extension. MetaFlow implements the AI Metadata Overlay Sync System Reference Architecture as a pure TypeScript VS Code extension, providing deterministic overlay resolution, materialization with provenance, and a focused UI for profile/layer management.
+This document is the source of truth for `REQ-####` requirements for the MetaFlow VS Code extension. MetaFlow implements the MetaFlow Reference Architecture as a pure TypeScript VS Code extension, providing deterministic overlay resolution, materialization with provenance, and a focused UI for profile/layer management.
 
 Traceability is maintained in downstream docs (SDD/TCS/FTD/FTR) via back-links to `REQ-*`.
 
@@ -29,7 +29,7 @@ Traceability is maintained in downstream docs (SDD/TCS/FTD/FTR) via back-links t
 ## Non-goals
 
 - Out of scope:
-  - Python CLI or subprocess integration
+  - External-runtime CLI or subprocess integration
   - File-watcher auto-sync (deferred to v2)
   - Git automation for promotion (detection only in v1)
   - Multi-root workspace support (v1 assumes single root)

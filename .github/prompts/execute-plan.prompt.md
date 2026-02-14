@@ -113,7 +113,7 @@ Update `Context.md` continuously:
 
 4. Write tests for each error path
 
-5. Run tests: pytest tests/plugins/test_synopsis.py -v
+5. Run tests: npm run test:unit
 
 6. Update Phase1-Synopsis.md: - [x] Add error path tests
 

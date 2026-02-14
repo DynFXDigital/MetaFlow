@@ -36,7 +36,7 @@
 ### Extension Metadata & Agent Instructions
 - `AGENTS.md` — contributor/agent instructions for the extension
 - `.github/copilot-instructions.md` — MetaFlow-specific Copilot instructions
-- `.github/instructions/` — lifecycle instructions (adapted from Sync-AI-Metadata)
+- `.github/instructions/` — lifecycle instructions (adapted from predecessor tooling)
 - `README.md` — user-facing documentation
 - `CHANGELOG.md` — version history
 
@@ -119,7 +119,7 @@ Each procedure includes:
 
 1. Create `AGENTS.md` with build/test commands, architecture overview, conventions.
 2. Create `.github/copilot-instructions.md` with MetaFlow-specific guidance.
-3. Port relevant lifecycle instructions from Sync-AI-Metadata `.github/instructions/`.
+3. Port relevant lifecycle instructions from predecessor tooling `.github/instructions/`.
 4. Update `README.md` with installation, usage, configuration, and command reference.
 5. Create `CHANGELOG.md` with v0.1.0 initial release notes.
 

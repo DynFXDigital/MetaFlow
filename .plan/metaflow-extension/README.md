@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan defines the phased implementation of a **pure TypeScript** MetaFlow VS Code extension that implements the [AI Metadata Overlay Sync System Reference Architecture](../../doc/concept/ai_metadata_overlay_sync_system_reference_architecture.md) directly in the extension (no Python/CLI dependency). The extension provides configuration management, overlay preview/apply/clean, profile/layer toggling, provenance-aware materialization, and Copilot settings injection.
+This plan defines the phased implementation of a **pure TypeScript** MetaFlow VS Code extension that implements the [MetaFlow Reference Architecture](../../doc/concept/metaflow_reference_architecture.md) directly in the extension (no external-runtime CLI dependency). The extension provides configuration management, overlay preview/apply/clean, profile/layer toggling, provenance-aware materialization, and Copilot settings injection.
 
 See [CONCEPT.md](../../doc/concept/CONCEPT.md) for the full concept document including architecture, testing strategy, and traceability model.
 
@@ -44,7 +44,7 @@ See [CONCEPT.md](../../doc/concept/CONCEPT.md) for the full concept document inc
 
 ## Non-Goals
 
-- Python CLI or subprocess integration (explicitly out of scope).
+- External-runtime CLI or subprocess integration (explicitly out of scope).
 - Watcher-based auto-sync in v1 (defer to follow-up plan).
 - Git automation for promotion (detect-only in v1).
 - Multi-root workspace support in v1.
