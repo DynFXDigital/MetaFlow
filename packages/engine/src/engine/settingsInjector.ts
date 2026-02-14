@@ -90,7 +90,8 @@ export function computeSettingsEntries(
             const paths = Array.from(dirs).map(d => toWorkspaceRelative(workspaceRoot, d));
             const locationMap = toLocationMap(paths);
             for (const settingKey of settingKeys) {
-                entries.push({ key: settingKey, value: locationMap });
+                const value = settingKey.startsWith('chat.') ? locationMap : paths;
+                entries.push({ key: settingKey, value });
             }
         }
     }
