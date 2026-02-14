@@ -47,7 +47,9 @@ suite('driftDetector', () => {
         };
         const content = generateProvenanceHeader(provenance) + body;
         writeFile('instructions/coding.md', content);
-        const state = makeState({ 'instructions/coding.md': hash });
+        const trackedFiles: Record<string, string> = {};
+        trackedFiles['instructions/coding.md'] = hash;
+        const state = makeState(trackedFiles);
 
         const result = checkDrift(tmpDir, outputDir, 'instructions/coding.md', state);
         assert.strictEqual(result.status, 'in-sync');
@@ -58,14 +60,18 @@ suite('driftDetector', () => {
         const hash = computeContentHash(originalBody);
         // Write with different body
         writeFile('instructions/coding.md', '# Modified by user');
-        const state = makeState({ 'instructions/coding.md': hash });
+        const trackedFiles: Record<string, string> = {};
+        trackedFiles['instructions/coding.md'] = hash;
+        const state = makeState(trackedFiles);
 
         const result = checkDrift(tmpDir, outputDir, 'instructions/coding.md', state);
         assert.strictEqual(result.status, 'drifted');
     });
 
     test('missing file', () => {
-        const state = makeState({ 'instructions/gone.md': 'sha256:abc' });
+        const trackedFiles: Record<string, string> = {};
+        trackedFiles['instructions/gone.md'] = 'sha256:abc';
+        const state = makeState(trackedFiles);
         const result = checkDrift(tmpDir, outputDir, 'instructions/gone.md', state);
         assert.strictEqual(result.status, 'missing');
     });
@@ -80,10 +86,10 @@ suite('driftDetector', () => {
     test('checkAllDrift returns results for all tracked files', () => {
         const hash = computeContentHash('body');
         writeFile('a.md', 'body');
-        const state = makeState({
-            'a.md': hash, // but file on disk won't have provenance, so it'll be content 'body' -> strip returns 'body' -> hash matches? Actually strip without header returns the same content.
-            'b.md': 'sha256:xxx', // missing
-        });
+        const trackedFiles: Record<string, string> = {};
+        trackedFiles['a.md'] = hash; // but file on disk won't have provenance, so it'll be content 'body' -> strip returns 'body' -> hash matches? Actually strip without header returns the same content.
+        trackedFiles['b.md'] = 'sha256:xxx'; // missing
+        const state = makeState(trackedFiles);
 
         const results = checkAllDrift(tmpDir, outputDir, state);
         assert.strictEqual(results.length, 2);
