@@ -23,27 +23,25 @@ suite('Config Path Utils', () => {
             assert.ok(!result!.includes(`${path.sep}.ai${path.sep}`));
         });
 
-        test('finds fallback .ai/.ai-sync.json when root is absent', () => {
-            // Create a temp dir with only .ai/.ai-sync.json
-            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
-            const aiDir = path.join(tmpDir, '.ai');
-            fs.mkdirSync(aiDir, { recursive: true });
-            fs.writeFileSync(path.join(aiDir, '.ai-sync.json'), '{}');
-
-            try {
-                const result = discoverConfigPath(tmpDir);
-                assert.ok(result);
-                assert.ok(result!.includes('.ai'));
-            } finally {
-                fs.rmSync(tmpDir, { recursive: true, force: true });
-            }
-        });
-
         test('returns undefined when no config exists', () => {
             const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
             try {
                 const result = discoverConfigPath(tmpDir);
                 assert.strictEqual(result, undefined);
+            } finally {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            }
+        });
+
+        test('falls back to .ai/.ai-sync.json when root config is absent', () => {
+            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
+            const aiDir = path.join(tmpDir, '.ai');
+            fs.mkdirSync(aiDir);
+            fs.writeFileSync(path.join(aiDir, '.ai-sync.json'), '{}');
+            try {
+                const result = discoverConfigPath(tmpDir);
+                assert.ok(result);
+                assert.ok(result!.endsWith(path.join('.ai', '.ai-sync.json')));
             } finally {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             }

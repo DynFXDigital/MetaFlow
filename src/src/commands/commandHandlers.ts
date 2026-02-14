@@ -6,6 +6,7 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import {
     loadConfig,
     MetaFlowConfig,
@@ -26,6 +27,7 @@ import { publishConfigDiagnostics, clearDiagnostics } from '../diagnostics/confi
 import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig } from './initConfig';
+import { pickWorkspaceFolder } from './workspaceSelection';
 
 /** Cached state for the current workspace. */
 export interface ExtensionState {
@@ -83,14 +85,14 @@ export function registerCommands(
         }
 
         const activeUri = vscode.window.activeTextEditor?.document?.uri;
-        if (activeUri) {
-            const activeFolder = vscode.workspace.getWorkspaceFolder(activeUri);
-            if (activeFolder) {
-                return activeFolder;
-            }
-        }
+        const activeFolder = activeUri ? vscode.workspace.getWorkspaceFolder(activeUri) : undefined;
 
-        return folders[0];
+        return pickWorkspaceFolder(
+            folders,
+            activeFolder,
+            folder => fs.existsSync(path.join(folder.uri.fsPath, '.ai-sync.json'))
+                || fs.existsSync(path.join(folder.uri.fsPath, '.ai', '.ai-sync.json'))
+        );
     };
 
     // ── metaflow.refresh ───────────────────────────────────────────
@@ -106,6 +108,25 @@ export function registerCommands(
             if (!result.ok) {
                 logError(`Config errors: ${result.errors.map(e => e.message).join('; ')}`);
                 publishConfigDiagnostics(diagnosticCollection, result);
+                if (result.configPath) {
+                    vscode.window.showWarningMessage('MetaFlow: Found config file, but it is invalid. Check Problems for details.');
+                } else {
+                    const nearMissNames = [
+                        '.ai-sync_json',
+                        '.ai-sync-json',
+                        '.ai.sync.json',
+                    ];
+
+                    const nearMiss = nearMissNames.find(name =>
+                        fs.existsSync(path.join(ws.uri.fsPath, name))
+                    );
+
+                    if (nearMiss) {
+                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Rename it to ".ai-sync.json".`;
+                        logWarn(message);
+                        vscode.window.showWarningMessage(message);
+                    }
+                }
                 updateStatusBar('error');
                 state.config = undefined;
                 state.configPath = undefined;
@@ -376,10 +397,46 @@ export function registerCommands(
     // ── metaflow.initConfig ────────────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.initConfig', async () => {
-            const ws = getWorkspace();
-            if (!ws) { return; }
-            await initConfig(ws);
-            await vscode.commands.executeCommand('metaflow.refresh');
+            showOutputChannel();
+            logInfo('metaflow.initConfig invoked.');
+
+            try {
+                const folders = vscode.workspace.workspaceFolders;
+                if (!folders || folders.length === 0) {
+                    const openAction = 'Open Folder';
+                    const choice = await vscode.window.showWarningMessage(
+                        'MetaFlow: Open a folder or workspace before initializing configuration.',
+                        openAction
+                    );
+                    if (choice === openAction) {
+                        await vscode.commands.executeCommand('vscode.openFolder');
+                    }
+                    return;
+                }
+
+                let ws: vscode.WorkspaceFolder;
+                if (folders.length === 1) {
+                    ws = folders[0];
+                } else {
+                    const picked = await vscode.window.showWorkspaceFolderPick({
+                        placeHolder: 'Select the workspace folder to initialize MetaFlow in',
+                    });
+                    if (!picked) { return; }
+                    ws = picked;
+                }
+
+                await vscode.window.withProgress(
+                    { location: vscode.ProgressLocation.Notification, title: 'MetaFlow: Initializing configuration…' },
+                    async () => {
+                        await initConfig(ws);
+                        await vscode.commands.executeCommand('metaflow.refresh');
+                    }
+                );
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                logError(`initConfig failed: ${msg}`);
+                vscode.window.showErrorMessage(`MetaFlow: Initialize Configuration failed — ${msg}`);
+            }
         })
     );
 
