@@ -12,12 +12,12 @@ function makeFile(relativePath: string): EffectiveFile {
 
 suite('classifier', () => {
     suite('classifySingle', () => {
-        test('instructions → live-ref', () => {
-            assert.strictEqual(classifySingle('instructions/coding.md', undefined), 'live-ref');
+        test('instructions → settings', () => {
+              assert.strictEqual(classifySingle('instructions/coding.md', undefined), 'settings');
         });
 
-        test('prompts → live-ref', () => {
-            assert.strictEqual(classifySingle('prompts/gen.prompt.md', undefined), 'live-ref');
+        test('prompts → settings', () => {
+              assert.strictEqual(classifySingle('prompts/gen.prompt.md', undefined), 'settings');
         });
 
         test('skills → materialized (default)', () => {
@@ -28,8 +28,8 @@ suite('classifier', () => {
             assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'materialized');
         });
 
-        test('hooks → live-ref', () => {
-            assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'live-ref');
+        test('hooks → settings', () => {
+              assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'settings');
         });
 
         test('unknown file type → materialized', () => {
@@ -42,17 +42,17 @@ suite('classifier', () => {
     });
 
     suite('injection config override', () => {
-        test('skills override to settings → live-ref', () => {
+        test('skills override to settings → settings', () => {
             assert.strictEqual(
                 classifySingle('skills/build/SKILL.md', { skills: 'settings' }),
-                'live-ref'
+                'settings'
             );
         });
 
-        test('agents override to settings → live-ref', () => {
+        test('agents override to settings → settings', () => {
             assert.strictEqual(
                 classifySingle('agents/coder.agent.md', { agents: 'settings' }),
-                'live-ref'
+                'settings'
             );
         });
 
@@ -63,10 +63,10 @@ suite('classifier', () => {
             );
         });
 
-        test('non-matching injection key falls to default', () => {
+        test('non-matching injection key falls to default settings', () => {
             assert.strictEqual(
                 classifySingle('prompts/gen.prompt.md', { skills: 'settings' }),
-                'live-ref'
+                'settings'
             );
         });
     });
@@ -79,7 +79,7 @@ suite('classifier', () => {
                 makeFile('random/c.txt'),
             ];
             const result = classifyFiles(files, undefined);
-            assert.strictEqual(result[0].classification, 'live-ref');
+                assert.strictEqual(result[0].classification, 'settings');
             assert.strictEqual(result[1].classification, 'materialized');
             assert.strictEqual(result[2].classification, 'materialized');
         });
@@ -87,7 +87,7 @@ suite('classifier', () => {
         test('backslash paths are normalized', () => {
             const files = [makeFile('instructions\\coding.md')];
             const result = classifyFiles(files, undefined);
-            assert.strictEqual(result[0].classification, 'live-ref');
+                assert.strictEqual(result[0].classification, 'settings');
         });
     });
 });

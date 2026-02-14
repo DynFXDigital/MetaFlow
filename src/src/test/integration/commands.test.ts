@@ -93,6 +93,26 @@ suite('Command Execution', () => {
         }
     });
 
+    test('apply injects workspace settings for settings-backed locations', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        await wsConfig.update('chat.instructionsFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.promptFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+
+        await vscode.commands.executeCommand('metaflow.refresh');
+        await vscode.commands.executeCommand('metaflow.apply');
+
+        const instructionLocations = wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations')?.workspaceValue;
+        const promptLocations = wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations')?.workspaceValue;
+
+        assert.ok(instructionLocations && Object.keys(instructionLocations).length > 0, 'Instruction locations should be injected at workspace scope');
+        assert.ok(promptLocations && Object.keys(promptLocations).length > 0, 'Prompt locations should be injected at workspace scope');
+    });
+
     test('clean removes managed files', async function () {
         this.timeout(15000);
         // First apply, then clean
@@ -102,6 +122,37 @@ suite('Command Execution', () => {
         // Clean requires user confirmation — skip interactive confirmation in tests
         // This tests that the command doesn't throw; actual clean logic is tested in unit tests
         // await vscode.commands.executeCommand('metaflow.clean');
+    });
+
+    test('clean removes injected workspace settings keys', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        await vscode.commands.executeCommand('metaflow.refresh');
+        await vscode.commands.executeCommand('metaflow.apply');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        windowAny.showWarningMessage = async () => 'Yes';
+
+        try {
+            await vscode.commands.executeCommand('metaflow.clean');
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+        }
+
+        const instructionLocations = wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations')?.workspaceValue;
+        const promptLocations = wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations')?.workspaceValue;
+        const hookLocations = wsConfig.inspect<Record<string, boolean>>('chat.hookFilesLocations')?.workspaceValue;
+
+        assert.strictEqual(instructionLocations, undefined, 'Instruction locations should be removed by clean');
+        assert.strictEqual(promptLocations, undefined, 'Prompt locations should be removed by clean');
+        assert.strictEqual(hookLocations, undefined, 'Hook file locations should be removed by clean');
     });
 
     test('status executes and logs', async function () {

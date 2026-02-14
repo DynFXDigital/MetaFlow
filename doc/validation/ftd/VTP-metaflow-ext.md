@@ -122,7 +122,7 @@ For human-centric, non-E2E validation (UX clarity, interactive command feedback,
 2. Verify `github.copilot.chat.codeGeneration.instructionFiles` contains paths.
 3. Verify `github.copilot.chat.codeGeneration.promptFiles` contains paths (if prompts exist).
 
-**Expected**: Settings contain correct paths to live-referenced artifact directories.
+**Expected**: Settings contain correct paths to settings-backed artifact directories.
 
 ---
 

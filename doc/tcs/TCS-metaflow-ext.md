@@ -69,10 +69,10 @@
 | TC-0132 | Selective enable | Profile enabling instructions only | `applyProfile(files, profile)` | Only instructions | Unit | High | Pass | `test/unit/profileEngine.test.ts` | Phase 2 |
 | TC-0133 | Disable wins over enable | Profile enabling + disabling same pattern | `applyProfile(files, profile)` | Disable wins | Unit | High | Pass | `test/unit/profileEngine.test.ts` | Phase 2 |
 | TC-0134 | Disable everything | Profile disabling `**/*` | `applyProfile(files, profile)` | Empty result | Unit | Medium | Pass | `test/unit/profileEngine.test.ts` | Phase 2 |
-| TC-0140 | Instructions classified live-ref | `instructions/x.md` | `classifySingle(path, undefined)` | `live-ref` | Unit | High | Pass | `test/unit/classifier.test.ts` | Phase 2 |
+| TC-0140 | Instructions classified settings | `instructions/x.md` | `classifySingle(path, undefined)` | `settings` | Unit | High | Pass | `test/unit/classifier.test.ts` | Phase 2 |
 | TC-0141 | Skills classified materialized | `skills/x/SKILL.md` | `classifySingle(path, undefined)` | `materialized` | Unit | High | Pass | `test/unit/classifier.test.ts` | Phase 2 |
 | TC-0142 | Unknown type materialized | `random/file.txt` | `classifySingle(path, undefined)` | `materialized` | Unit | Medium | Pass | `test/unit/classifier.test.ts` | Phase 2 |
-| TC-0143 | Injection override to settings | Skills + `{skills: 'settings'}` | `classifySingle(path, injection)` | `live-ref` | Unit | High | Pass | `test/unit/classifier.test.ts` | Phase 2 |
+| TC-0143 | Injection override to settings | Skills + `{skills: 'settings'}` | `classifySingle(path, injection)` | `settings` | Unit | High | Pass | `test/unit/classifier.test.ts` | Phase 2 |
 | TC-0144 | Injection override to materialize | Instructions + `{instructions: 'materialize'}` | `classifySingle(path, injection)` | `materialized` | Unit | Medium | Pass | `test/unit/classifier.test.ts` | Phase 2 |
 | TC-0145 | Batch classification | Multiple files | `classifyFiles(files, undefined)` | Correct per-file classification | Unit | Medium | Pass | `test/unit/classifier.test.ts` | Phase 2 |
 | TC-0200 | Provenance round-trip (all fields) | Full provenance data | Write → parse | Identity | Unit | High | Pass | `test/unit/provenanceHeader.test.ts` | Phase 3 |
@@ -95,9 +95,9 @@
 | TC-0234 | Clean in-sync only | Mixed drift states | `clean(ws)` | Only in-sync removed | Unit | High | Pass | `test/unit/materializer.test.ts` | Phase 3 |
 | TC-0235 | Preview pending changes | New files | `preview(ws, files)` | Action=add | Unit | Medium | Pass | `test/unit/materializer.test.ts` | Phase 3 |
 | TC-0236 | Preview detects drift | Drifted file | `preview(ws, files)` | Action=skip, reason=drifted | Unit | Medium | Pass | `test/unit/materializer.test.ts` | Phase 3 |
-| TC-0237 | Live-ref not materialized | Classification=live-ref | `apply(options)` | Not written | Unit | High | Pass | `test/unit/materializer.test.ts` | Phase 3 |
-| TC-0240 | Settings: instructions paths | Live-ref instructions | `computeSettingsEntries()` | instructionFiles key | Unit | High | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
-| TC-0241 | Settings: prompts paths | Live-ref prompts | `computeSettingsEntries()` | promptFiles key | Unit | High | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
+| TC-0237 | Settings-classified not materialized | Classification=settings | `apply(options)` | Not written | Unit | High | Pass | `test/unit/materializer.test.ts` | Phase 3 |
+| TC-0240 | Settings: instructions paths | Settings-classified instructions | `computeSettingsEntries()` | instructionFiles key | Unit | High | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
+| TC-0241 | Settings: prompts paths | Settings-classified prompts | `computeSettingsEntries()` | promptFiles key | Unit | High | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
 | TC-0242 | Settings: ignores materialized | Materialized files | `computeSettingsEntries()` | No entries | Unit | Medium | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
 | TC-0243 | Settings: hook paths | Config with hooks | `computeSettingsEntries()` | Hook entries | Unit | Medium | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
 | TC-0244 | Settings: keys to remove | N/A | `computeSettingsKeysToRemove()` | Expected keys | Unit | Low | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |

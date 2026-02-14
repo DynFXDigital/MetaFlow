@@ -9,7 +9,7 @@ AI metadata overlay management for GitHub Copilot — deterministic overlay reso
 - **Profile Management**: Switch between profiles to enable/disable artifact subsets.
 - **Layer Management**: Toggle individual layers on/off; multi-repo support.
 - **Drift Detection**: Detect locally-edited managed files; protect from overwrite.
-- **Settings Injection**: Configure Copilot alternate-path settings for live-referenced artifacts.
+- **Settings Injection**: Configure Copilot alternate-path settings for settings-backed artifacts.
 - **TreeView UI**: Visual tree views for config summary, profiles, layers, and effective files.
 
 ## Installation
@@ -75,6 +75,16 @@ Create `.ai-sync.json` in your workspace root (or run `MetaFlow: Init Config`):
 | `metaflow.logLevel` | `info` | Log verbosity (debug/info/warn/error) |
 | `metaflow.hooksEnabled` | `true` | Enable Copilot hooks injection |
 
+### Copilot settings injected by `MetaFlow: Apply`
+
+- `chat.instructionsFilesLocations` (and legacy `github.copilot.chat.codeGeneration.instructionFiles`)
+- `chat.promptFilesLocations` (and legacy `github.copilot.chat.promptFiles`)
+- `chat.agentFilesLocations`
+- `chat.agentSkillsLocations`
+- `chat.hookFilesLocations` (file-based hook entries from `hooks.preApply` / `hooks.postApply`)
+
+`MetaFlow: Clean` removes the above injected keys from workspace settings.
+
 ## Architecture
 
 The extension uses a pure TypeScript engine (no VS Code imports) for overlay resolution, enabling fast unit testing. The engine modules live in `src/engine/` and handle:
@@ -82,7 +92,7 @@ The extension uses a pure TypeScript engine (no VS Code imports) for overlay res
 - Layer resolution and file-map building
 - Include/exclude filter evaluation
 - Profile enable/disable pattern application
-- Artifact classification (live-ref vs materialized)
+- Artifact classification (settings vs materialized)
 - Provenance header generation and drift detection
 - Materialization with managed state tracking
 

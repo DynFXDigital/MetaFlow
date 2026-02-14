@@ -46,7 +46,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 ## UC-02: Preview Effective Overlay
 
 **Actor:** Developer  
-**Goal:** See what files would be materialized/live-referenced before making changes.  
+**Goal:** See what files would be materialized/settings-backed before making changes.  
 **Preconditions:** Valid `.ai-sync.json` exists; metadata repo is accessible.  
 **Related REQ:** REQ-0209, REQ-0401
 
@@ -55,7 +55,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 1. Developer invokes `MetaFlow: Preview Overlay`.
 2. Extension resolves the overlay (layers, filters, profile) without writing files.
 3. Output channel displays the effective file list grouped by classification:
-   - Live-Referenced: files that will have settings injected.
+   - Settings-backed: files that will have settings injected.
    - Materialized: files that will be written to `.github/`.
 4. Each file shows its source layer and pending action (add, update, skip, remove).
 
@@ -74,7 +74,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 ## UC-03: Apply Overlay
 
 **Actor:** Developer  
-**Goal:** Materialize required files and inject settings for live-referenced artifacts.  
+**Goal:** Materialize required files and inject settings for settings-backed artifacts.  
 **Preconditions:** Valid config; metadata repo accessible; no unresolved config errors.  
 **Related REQ:** REQ-0200, REQ-0201, REQ-0203, REQ-0206, REQ-0211, REQ-0402
 
@@ -88,7 +88,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
    b. If in-sync or new: write file to `.github/` with `_shared_` prefix and provenance header.
    c. If drifted: skip and emit warning.
 5. Update managed state at `.ai/.sync-state/overlay_managed.json`.
-6. Inject VS Code settings for live-referenced artifact directories.
+6. Inject VS Code settings for settings-backed artifact directories.
 7. Refresh all TreeViews and status bar.
 
 ### Alternate Flows
@@ -100,7 +100,7 @@ This document describes the primary use cases for the MetaFlow VS Code extension
 
 - Materialized files exist in `.github/` with provenance.
 - Managed state is up to date.
-- Live-ref settings are injected.
+- Settings-backed paths are injected.
 
 ---
 

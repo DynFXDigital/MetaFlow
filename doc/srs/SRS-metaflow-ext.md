@@ -23,7 +23,7 @@ Traceability is maintained in downstream docs (SDD/TCS/FTD/FTR) via back-links t
   - Overlay engine (layer resolution, filtering, profiles, classification)
   - Materialization (apply, clean, provenance, managed state, drift detection)
   - Extension UI (TreeViews, status bar, output channel, commands)
-  - Settings injection (Copilot alternate paths for live-referenced artifacts)
+  - Settings injection (Copilot alternate paths for settings-backed artifacts)
   - Determinism guarantees
 
 ## Non-goals
@@ -66,8 +66,8 @@ Notes:
 | REQ-0105 | Profile activation | Apply the active profile's `enable`/`disable` patterns to the filtered file set. | Phase-2 | Switching from `baseline` (enable all) to `lean` (disable `agents/**`) removes agent files from effective set. | | P1 | Draft |
 | REQ-0106 | Profile disable wins | When a file matches both `enable` and `disable` in the same profile, `disable` wins. | Phase-2 | A file matching both `enable: ["*"]` and `disable: ["agents/**"]` is disabled. | | P1 | Draft |
 | REQ-0107 | No profile = all enabled | When no profile is active or the active profile is empty, all filtered files are enabled. | Phase-2 | With `activeProfile` unset, the full filtered file set is the effective set. | | P1 | Draft |
-| REQ-0108 | Artifact classification | Classify each effective file as `live-ref` or `materialized` based on artifact type and injection config. | Phase-2 | Instructions classify as `live-ref`; skills classify as `materialized` (or `live-ref` if injection override is set). | | P1 | Draft |
-| REQ-0109 | Classification override | Support per-artifact-type injection mode override via `injection` config field. | Phase-2 | Setting `injection.skills: "settings"` changes skills classification from `materialized` to `live-ref`. | | P2 | Draft |
+| REQ-0108 | Artifact classification | Classify each effective file as `settings` or `materialized` based on artifact type and injection config. | Phase-2 | Instructions classify as `settings`; skills classify as `materialized` (or `settings` if injection override is set). | | P1 | Draft |
+| REQ-0109 | Classification override | Support per-artifact-type injection mode override via `injection` config field. | Phase-2 | Setting `injection.skills: "settings"` changes skills classification from `materialized` to `settings`. | | P2 | Draft |
 | REQ-0110 | Deterministic resolution | Same config + same metadata file set always produces identical `OverlayResult`. | Phase-2 | Running resolution twice with identical inputs produces byte-identical output. | | P1 | Draft |
 | REQ-0111 | Empty layer handling | An empty layer directory contributes no files but does not cause errors. | Phase-2 | A layer pointing to an empty directory produces no effective files from that layer. | | P2 | Draft |
 | REQ-0112 | Nested directory support | Layer resolution preserves the relative directory structure within each layer. | Phase-2 | A layer containing `instructions/sub/foo.md` produces an effective file at `instructions/sub/foo.md`. | | P1 | Draft |
@@ -76,7 +76,7 @@ Notes:
 
 | REQ-ID | Title | Description | Enforcement | Acceptance (testable) | Notes | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| REQ-0200 | Apply materialized files | Write files classified as `materialized` to `.github/` with `_shared_` prefix. | Phase-3 | After apply, `.github/skills/_shared_foo.md` exists for a materialized skill. | | P1 | Draft |
+| REQ-0200 | Apply materialized files | Write files classified as `materialized` to `.github/` with source-scoped prefix `_<repo>-<layer>__`. | Phase-3 | After apply, `.github/skills/_default-company-core__foo.md` exists for a materialized skill. | | P1 | Draft |
 | REQ-0201 | Provenance header injection | Inject machine-readable provenance comment into every materialized file. | Phase-3 | Every materialized file starts with an HTML comment containing `synced: true`, `source-repo`, `source-commit`, `content-hash`. | | P1 | Draft |
 | REQ-0202 | Provenance round-trip | Provenance headers can be written and parsed back; write → parse → compare yields identity. | Phase-3 | Parsing a written provenance header returns the same field values. | | P1 | Draft |
 | REQ-0203 | Managed state tracking | After apply, persist a managed-state JSON recording file paths and content hashes. | Phase-3 | `.ai/.sync-state/overlay_managed.json` exists after apply with entries for all materialized files. | | P1 | Draft |
@@ -87,7 +87,7 @@ Notes:
 | REQ-0208 | Clean warns about drift | During clean, drifted files are not deleted; a warning is emitted. | Phase-3 | A drifted managed file survives clean and a warning names it. | | P1 | Draft |
 | REQ-0209 | Preview without writing | Preview returns the effective file list and pending changes (add/update/skip/remove) without modifying the file system. | Phase-3 | Preview produces a diff summary; no files are created or deleted. | | P1 | Draft |
 | REQ-0210 | Deterministic apply | Running apply twice with identical inputs produces identical file system state. | Phase-3 | Two consecutive applies with no config change result in identical managed files and state. | | P1 | Draft |
-| REQ-0211 | Settings injection for live-ref | Inject VS Code settings entries pointing to live-referenced directories (instructions, prompts, skills, agents, hooks). | Phase-3 | After apply, VS Code settings contain alternate-path entries for live-ref artifact directories. | | P2 | Draft |
+| REQ-0211 | Settings injection for settings artifacts | Inject VS Code settings entries pointing to settings-backed directories (instructions, prompts, skills, agents, hooks). | Phase-3 | After apply, VS Code settings contain alternate-path entries for settings-classified artifact directories. | | P2 | Draft |
 | REQ-0212 | Settings removal on clean | Remove injected VS Code settings entries during clean. | Phase-3 | After clean, previously injected settings entries are removed. | | P2 | Draft |
 
 ### Extension UI (REQ-0300 – REQ-0399)
@@ -125,8 +125,8 @@ Notes:
 
 | REQ-ID | Title | Description | Enforcement | Acceptance (testable) | Notes | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| REQ-0500 | Instruction path injection | Inject Copilot instruction alternate-path setting pointing to live-ref instructions directory. | Phase-3 | After apply, the relevant VS Code setting contains the instructions directory path. | | P2 | Draft |
-| REQ-0501 | Prompt path injection | Inject Copilot prompt alternate-path setting pointing to live-ref prompts directory. | Phase-3 | After apply, the relevant VS Code setting contains the prompts directory path. | | P2 | Draft |
+| REQ-0500 | Instruction path injection | Inject Copilot instruction alternate-path setting pointing to the settings-classified instructions directory. | Phase-3 | After apply, the relevant VS Code setting contains the instructions directory path. | | P2 | Draft |
+| REQ-0501 | Prompt path injection | Inject Copilot prompt alternate-path setting pointing to the settings-classified prompts directory. | Phase-3 | After apply, the relevant VS Code setting contains the prompts directory path. | | P2 | Draft |
 | REQ-0502 | Skills path injection | Inject Copilot skills alternate-path setting when injection mode is `settings`. | Phase-3 | After apply with `injection.skills: "settings"`, the skills path setting is populated. | Insiders only | P3 | Draft |
 | REQ-0503 | Agents path injection | Inject Copilot agents alternate-path setting when injection mode is `settings`. | Phase-3 | After apply with `injection.agents: "settings"`, the agents path setting is populated. | Insiders only | P3 | Draft |
 | REQ-0504 | Hooks path injection | Inject hook file paths into VS Code settings when hooks are configured and enabled. | Phase-3 | After apply with hooks configured, hook file paths are set in VS Code settings. | Insiders only | P3 | Draft |

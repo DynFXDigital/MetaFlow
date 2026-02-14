@@ -43,6 +43,14 @@ suite('materializer', () => {
         };
     }
 
+    function expectedMaterializedPath(relativePath: string): string {
+        const normalized = relativePath.replace(/\\/g, '/');
+        const dir = path.posix.dirname(normalized);
+        const base = path.posix.basename(normalized);
+        const prefixed = `_default-test-layer__${base}`;
+        return dir === '.' ? prefixed : `${dir}/${prefixed}`;
+    }
+
     test('apply with no conflicts writes files and creates state', () => {
         const files = [
             makeEffectiveFile('instructions/coding.md', '# Coding'),
@@ -59,7 +67,8 @@ suite('materializer', () => {
         assert.strictEqual(result.skipped.length, 0);
 
         // Verify file on disk has provenance
-        const outPath = path.join(tmpDir, outputDir, 'instructions/coding.md');
+        const codingPath = expectedMaterializedPath('instructions/coding.md');
+        const outPath = path.join(tmpDir, outputDir, codingPath);
         const content = fs.readFileSync(outPath, 'utf-8');
         const prov = parseProvenanceHeader(content);
         assert.ok(prov, 'Provenance header should be present');
@@ -67,8 +76,8 @@ suite('materializer', () => {
 
         // Verify managed state
         const state = loadManagedState(tmpDir);
-        assert.ok(state.files['instructions/coding.md']);
-        assert.ok(state.files['agents/coder.agent.md']);
+        assert.ok(state.files[expectedMaterializedPath('instructions/coding.md')]);
+        assert.ok(state.files[expectedMaterializedPath('agents/coder.agent.md')]);
     });
 
     test('apply skips drifted files', () => {
@@ -77,7 +86,7 @@ suite('materializer', () => {
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
 
         // Simulate drift by rewriting the file
-        const outPath = path.join(tmpDir, outputDir, 'instructions/coding.md');
+        const outPath = path.join(tmpDir, outputDir, expectedMaterializedPath('instructions/coding.md'));
         fs.writeFileSync(outPath, '# Modified by user\nLocal edits here.', 'utf-8');
 
         // Apply again
@@ -107,9 +116,9 @@ suite('materializer', () => {
 
         // Apply with only file1 — file2 should be removed
         const result = apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: [file1] });
-        assert.ok(result.removed.includes('instructions/b.md'));
+        assert.ok(result.removed.includes(expectedMaterializedPath('instructions/b.md')));
 
-        const outPath = path.join(tmpDir, outputDir, 'instructions/b.md');
+        const outPath = path.join(tmpDir, outputDir, expectedMaterializedPath('instructions/b.md'));
         assert.ok(!fs.existsSync(outPath));
     });
 
@@ -121,16 +130,18 @@ suite('materializer', () => {
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
 
         // Drift file b
-        const bPath = path.join(tmpDir, outputDir, 'instructions/b.md');
+        const aRelPath = expectedMaterializedPath('instructions/a.md');
+        const bRelPath = expectedMaterializedPath('instructions/b.md');
+        const bPath = path.join(tmpDir, outputDir, bRelPath);
         fs.writeFileSync(bPath, '# Drifted B', 'utf-8');
 
         const result = clean(tmpDir, outputDir);
-        assert.ok(result.removed.includes('instructions/a.md'));
-        assert.ok(result.skipped.includes('instructions/b.md'));
+        assert.ok(result.removed.includes(aRelPath));
+        assert.ok(result.skipped.includes(bRelPath));
         assert.ok(result.warnings.some(w => w.includes('drifted')));
 
         // a.md should be gone, b.md should remain
-        assert.ok(!fs.existsSync(path.join(tmpDir, outputDir, 'instructions/a.md')));
+        assert.ok(!fs.existsSync(path.join(tmpDir, outputDir, aRelPath)));
         assert.ok(fs.existsSync(bPath));
     });
 
@@ -140,7 +151,7 @@ suite('materializer', () => {
         const changes = preview(tmpDir, files, outputDir);
         assert.strictEqual(changes.length, 1);
         assert.strictEqual(changes[0].action, 'add');
-        assert.strictEqual(changes[0].relativePath, 'instructions/new.md');
+        assert.strictEqual(changes[0].relativePath, expectedMaterializedPath('instructions/new.md'));
     });
 
     test('preview detects drifted files as skip', () => {
@@ -148,22 +159,23 @@ suite('materializer', () => {
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
 
         // Drift
-        const outPath = path.join(tmpDir, outputDir, 'instructions/coding.md');
+        const relPath = expectedMaterializedPath('instructions/coding.md');
+        const outPath = path.join(tmpDir, outputDir, relPath);
         fs.writeFileSync(outPath, '# Drifted', 'utf-8');
 
         const changes = preview(tmpDir, files, outputDir);
-        const change = changes.find(c => c.relativePath === 'instructions/coding.md');
+        const change = changes.find(c => c.relativePath === relPath);
         assert.ok(change);
         assert.strictEqual(change!.action, 'skip');
         assert.strictEqual(change!.reason, 'drifted');
     });
 
-    test('live-ref files are not materialized', () => {
+    test('settings files are not materialized', () => {
         const file: EffectiveFile = {
             relativePath: 'prompts/gen.prompt.md',
             sourcePath: createSourceFile('prompts/gen.prompt.md', '# Prompt'),
             sourceLayer: 'test',
-            classification: 'live-ref',
+            classification: 'settings',
         };
 
         const result = apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: [file] });

@@ -20,7 +20,7 @@ The extension enables teams to manage hierarchical, policy-driven AI metadata (G
 
 - **Zero external dependencies** — pure TypeScript overlay engine embedded in the extension; no extra runtime or subprocess calls.
 - **Deterministic rendering** — same config + same metadata commit always produces identical outputs.
-- **Hybrid realization** — live-references for artifacts Copilot can load from alternate paths; materialization only where Copilot requires `.github/`.
+- **Hybrid realization** — settings-based references for artifacts Copilot can load from alternate paths; materialization only where Copilot requires `.github/`.
 - **Flexible repository sourcing** — support a single authoritative metadata repo or multiple layered repos (superlays) accessible across projects.
 - **Provenance tracking** — every materialized file carries machine-readable provenance headers enabling audit, drift detection, and safe re-render.
 - **Non-destructive by design** — managed state prevents overwriting local edits; promotion is always explicit.
@@ -50,7 +50,7 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 | G-01 | Deliver a VS Code extension that fully implements the reference overlay engine | All reference architecture commands functional |
 | G-02 | Deterministic overlay application and managed-state tracking | Same inputs produce identical outputs across runs |
 | G-03 | Core UI surfaces for profiles, layers, and effective files | TreeViews + status bar + command palette operational |
-| G-04 | Hybrid realization respecting Copilot artifact discovery rules | Instructions/prompts live-referenced; skills/agents live-ref or materialized; hooks via file paths |
+| G-04 | Hybrid realization respecting Copilot artifact discovery rules | Instructions/prompts settings-backed; skills/agents settings or materialized; hooks via file paths |
 | G-05 | Full traceability documentation (SRS → SDD → TCS → FTD → FTR) | Every REQ mapped to TC; every TC to procedure and result |
 | G-06 | Comprehensive automated test suite alongside manual test procedures | ≥80% code coverage; manual procedures for UI validation |
 | G-07 | Validation testing for end-to-end acceptance | VREQ/VTC/VTP/VTR documented |
@@ -122,8 +122,8 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 
 1. **Load** — Config Loader reads `.ai-sync.json` and resolves one or more metadata repository paths.
 2. **Resolve** — Overlay Engine walks layers in precedence order, applies include/exclude filters, then activates the current profile's enable/disable patterns.
-3. **Classify** — Each effective file is classified as either live-referenced (instructions, prompts, skills, agents, hooks) or materialized (when configured to materialize).
-4. **Render** — Materializer writes classified files: live-referenced paths (including hook file paths) are injected into VS Code settings; materialized files are written to `.github/` with provenance headers and `_shared_` prefix.
+3. **Classify** — Each effective file is classified as either settings-backed (instructions, prompts, skills, agents, hooks) or materialized (when configured to materialize).
+4. **Render** — Materializer writes classified files: settings-backed paths (including hook file paths) are injected into VS Code settings; materialized files are written to `.github/` with provenance headers and source-scoped prefixes.
 5. **Track** — Managed-state file records content hashes for all materialized outputs.
 6. **Display** — TreeViews and status bar reflect the current effective state.
 
@@ -179,11 +179,11 @@ Profiles are reversible—switching profiles re-renders the effective state.
 
 | Artifact Type | Copilot Alternate Path? | Realization Strategy |
 |---|---|---|
-| Instructions | Yes | Live-referenced via VS Code settings |
-| Prompts | Yes | Live-referenced via VS Code settings |
-| Skills | Yes (Insiders) | Live-referenced via VS Code settings or materialized |
-| Custom Agents | Yes (Insiders) | Live-referenced via VS Code settings or materialized |
-| Hooks | File paths (Insiders) | Live-referenced via VS Code settings (paths to hook files) |
+| Instructions | Yes | Settings-backed via VS Code settings |
+| Prompts | Yes | Settings-backed via VS Code settings |
+| Skills | Yes (Insiders) | Settings-backed via VS Code settings or materialized |
+| Custom Agents | Yes (Insiders) | Settings-backed via VS Code settings or materialized |
+| Hooks | File paths (Insiders) | Settings-backed via VS Code settings (paths to hook files) |
 
 ---
 
@@ -339,7 +339,7 @@ A dedicated activity-bar icon opens the MetaFlow sidebar containing four TreeVie
 | **Configuration** | Config path, metadata repo info, injection modes |
 | **Profiles** | List of named profiles with active indicator; click to switch |
 | **Layers** | Ordered layer list with enable/disable checkboxes |
-| **Effective Files** | Fully resolved file list grouped by classification (live-ref vs materialized) |
+| **Effective Files** | Fully resolved file list grouped by classification (settings vs materialized) |
 
 ### 7.3 Commands
 
@@ -563,9 +563,9 @@ VSRS (VREQ-*) → VTC → VTP → VTR
 | **Layer** | A directory subtree within the metadata repo representing an organizational scope |
 | **Overlay** | The composed result of merging all applicable layers |
 | **Profile** | A named activation configuration that enables/disables subsets of the overlay |
-| **Realization** | The act of making overlay content available to Copilot (live-reference or materialization) |
+| **Realization** | The act of making overlay content available to Copilot (settings-based reference or materialization) |
 | **Materialization** | Copying overlay files into `.github/` with provenance headers |
-| **Live-Reference** | Pointing VS Code settings at overlay files without copying them |
+| **Settings-Based Reference** | Pointing VS Code settings at overlay files without copying them |
 | **Provenance** | Machine-readable metadata in materialized files tracking their origin |
 | **Managed State** | Extension-maintained record of materialized file hashes for drift detection |
 | **Drift** | A materialized file whose content no longer matches the managed-state hash |

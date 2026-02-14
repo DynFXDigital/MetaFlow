@@ -123,7 +123,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 **Steps**:
 1. Open Files TreeView.
-2. Verify two groups: "Live-Referenced" and "Materialized".
+2. Verify two groups: "Settings" and "Materialized".
 3. Expand each group; verify files show source layer.
 
 **Expected**: Files correctly classified and grouped.

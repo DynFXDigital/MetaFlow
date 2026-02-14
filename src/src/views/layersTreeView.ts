@@ -34,7 +34,8 @@ class LayerItem extends vscode.TreeItem {
         public readonly layerIndex: number,
         enabled: boolean,
         repoId?: string,
-        repoDisabled?: boolean
+        repoDisabled?: boolean,
+        toggleable = true
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.contextValue = 'layer';
@@ -43,14 +44,18 @@ class LayerItem extends vscode.TreeItem {
             : new vscode.ThemeIcon('circle-outline');
         if (repoId) {
             this.description = repoDisabled ? `(${repoId}, repo disabled)` : `(${repoId})`;
+        } else if (!toggleable) {
+            this.description = '(single-repo, fixed order)';
         } else {
             this.description = '';
         }
-        this.command = {
-            command: 'metaflow.toggleLayer',
-            title: 'Toggle Layer',
-            arguments: [layerIndex],
-        };
+        if (toggleable) {
+            this.command = {
+                command: 'metaflow.toggleLayer',
+                title: 'Toggle Layer',
+                arguments: [layerIndex],
+            };
+        }
     }
 }
 
@@ -94,7 +99,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         // Single-repo mode
         if (config.layers) {
             return config.layers.map((layer, i) =>
-                new LayerItem(layer, i, true)
+                new LayerItem(layer, i, true, undefined, undefined, false)
             );
         }
 

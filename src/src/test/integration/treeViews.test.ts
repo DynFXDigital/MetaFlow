@@ -147,6 +147,8 @@ suite('TreeView Providers', () => {
         const provider = new LayersTreeViewProvider(state);
         const items = provider.getChildren();
         assert.strictEqual(items.length, 2, 'Should return 2 layers');
+        assert.strictEqual(items[0].command, undefined, 'Single-repo layers should not be toggleable');
+        assert.strictEqual(items[0].description, '(single-repo, fixed order)');
     });
 
     test('LayersTreeView includes repo sources and reflects disabled repos', () => {
@@ -199,7 +201,7 @@ suite('TreeView Providers', () => {
                 relativePath: 'instructions/policies/coding.md',
                 sourcePath: path.join(repoRoot, 'company', 'core', 'instructions', 'policies', 'coding.md'),
                 sourceLayer: 'company/core',
-                classification: 'live-ref',
+                classification: 'settings',
             },
             {
                 relativePath: 'agents/test.agent.md',

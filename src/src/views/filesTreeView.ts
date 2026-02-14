@@ -24,7 +24,7 @@ const sortByLabel = <T extends vscode.TreeItem>(items: T[]): T[] =>
     [...items].sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }));
 
 function getClassificationLabel(classification: EffectiveFile['classification']): string {
-    return classification === 'live-ref' ? 'settings' : 'materialized';
+    return classification === 'settings' ? 'settings' : 'materialized';
 }
 
 type FileTreeNode = FolderItem | FileItem;
@@ -55,7 +55,7 @@ class FileItem extends vscode.TreeItem {
         super(path.posix.basename(toPosixPath(file.relativePath)), vscode.TreeItemCollapsibleState.None);
         this.description = `${sourceLabel} (${getClassificationLabel(file.classification)})`;
         this.contextValue = 'effectiveFile';
-        this.iconPath = file.classification === 'live-ref'
+        this.iconPath = file.classification === 'settings'
             ? new vscode.ThemeIcon('symbol-reference')
             : new vscode.ThemeIcon('file');
         this.command = {

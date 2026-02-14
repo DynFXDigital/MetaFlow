@@ -9,7 +9,7 @@ import {
 suite('settingsInjector', () => {
     const workspaceRoot = '/workspace';
 
-    function makeFile(relativePath: string, classification: 'live-ref' | 'materialized', sourcePath?: string): EffectiveFile {
+    function makeFile(relativePath: string, classification: 'settings' | 'materialized', sourcePath?: string): EffectiveFile {
         return {
             relativePath,
             sourcePath: sourcePath ?? path.join('/repo', relativePath),
@@ -20,24 +20,48 @@ suite('settingsInjector', () => {
 
     test('computes settings for instructions paths', () => {
         const files = [
-            makeFile('instructions/coding.md', 'live-ref', '/repo/instructions/coding.md'),
-            makeFile('instructions/testing.md', 'live-ref', '/repo/instructions/testing.md'),
+            makeFile('instructions/coding.md', 'settings', '/repo/instructions/coding.md'),
+            makeFile('instructions/testing.md', 'settings', '/repo/instructions/testing.md'),
         ];
 
         const entries = computeSettingsEntries(files, workspaceRoot, {});
-        const instrEntry = entries.find(e => e.key.includes('instructionFiles'));
+        const instrEntry = entries.find(e => e.key === 'chat.instructionsFilesLocations');
         assert.ok(instrEntry);
-        assert.ok(Array.isArray(instrEntry!.value));
+        assert.strictEqual(typeof instrEntry!.value, 'object');
+        assert.ok((instrEntry!.value as Record<string, boolean>)['../repo/instructions']);
+
+        const legacyInstrEntry = entries.find(e => e.key === 'github.copilot.chat.codeGeneration.instructionFiles');
+        assert.ok(legacyInstrEntry);
     });
 
     test('computes settings for prompts paths', () => {
         const files = [
-            makeFile('prompts/gen.prompt.md', 'live-ref', '/repo/prompts/gen.prompt.md'),
+            makeFile('prompts/gen.prompt.md', 'settings', '/repo/prompts/gen.prompt.md'),
         ];
 
         const entries = computeSettingsEntries(files, workspaceRoot, {});
-        const promptEntry = entries.find(e => e.key.includes('promptFiles'));
+        const promptEntry = entries.find(e => e.key === 'chat.promptFilesLocations');
         assert.ok(promptEntry);
+        assert.ok((promptEntry!.value as Record<string, boolean>)['../repo/prompts']);
+
+        const legacyPromptEntry = entries.find(e => e.key === 'github.copilot.chat.promptFiles');
+        assert.ok(legacyPromptEntry);
+    });
+
+    test('computes settings for agents and skills paths', () => {
+        const files = [
+            makeFile('agents/reviewer.agent.md', 'settings', '/repo/agents/reviewer.agent.md'),
+            makeFile('skills/testing/SKILL.md', 'settings', '/repo/skills/testing/SKILL.md'),
+        ];
+
+        const entries = computeSettingsEntries(files, workspaceRoot, {});
+        const agentEntry = entries.find(e => e.key === 'chat.agentFilesLocations');
+        const skillEntry = entries.find(e => e.key === 'chat.agentSkillsLocations');
+
+        assert.ok(agentEntry);
+        assert.ok(skillEntry);
+        assert.ok((agentEntry!.value as Record<string, boolean>)['../repo/agents']);
+        assert.ok((skillEntry!.value as Record<string, boolean>)['../repo/skills/testing']);
     });
 
     test('ignores materialized files', () => {
@@ -57,11 +81,14 @@ suite('settingsInjector', () => {
             },
         });
 
-        assert.ok(entries.some(e => e.key === 'metaflow.hooks.preApply'));
-        assert.ok(entries.some(e => e.key === 'metaflow.hooks.postApply'));
+        const hookEntry = entries.find(e => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookEntry);
+        const locations = hookEntry!.value as Record<string, boolean>;
+        assert.ok(locations['scripts/pre-apply.sh']);
+        assert.ok(locations['scripts/post-apply.sh']);
     });
 
-    test('no-op when no live-ref files and no hooks', () => {
+    test('no-op when no settings files and no hooks', () => {
         const entries = computeSettingsEntries([], workspaceRoot, {});
         assert.strictEqual(entries.length, 0);
     });
@@ -69,6 +96,11 @@ suite('settingsInjector', () => {
     test('computeSettingsKeysToRemove returns expected keys', () => {
         const keys = computeSettingsKeysToRemove();
         assert.ok(keys.length >= 4);
+        assert.ok(keys.includes('chat.instructionsFilesLocations'));
+        assert.ok(keys.includes('chat.promptFilesLocations'));
+        assert.ok(keys.includes('chat.agentFilesLocations'));
+        assert.ok(keys.includes('chat.agentSkillsLocations'));
+        assert.ok(keys.includes('chat.hookFilesLocations'));
         assert.ok(keys.includes('github.copilot.chat.codeGeneration.instructionFiles'));
         assert.ok(keys.includes('github.copilot.chat.promptFiles'));
     });

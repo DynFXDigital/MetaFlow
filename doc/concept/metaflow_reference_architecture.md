@@ -30,14 +30,14 @@ Copilot artifact types differ in their ability to load from alternate locations:
 |---------------|------------------------|------|
 | Instructions | Yes | Configurable via VS Code settings |
 | Prompts | Yes | Same as above |
-| Skills | No | Must reside under `.github/` |
-| Custom Agents | No | Must reside under `.github/` |
+| Skills | Yes (newer VS Code builds) | Configurable via chat settings; materialize fallback remains supported |
+| Custom Agents | Yes (newer VS Code builds) | Configurable via chat settings; materialize fallback remains supported |
 
 **Implication:**
 
 The system must support a **hybrid realization model**:
 
-- Live-referenced metadata where supported
+- Settings-backed metadata where supported
 - Materialized metadata where required
 
 ---
@@ -154,12 +154,14 @@ Profiles enable reversible experimentation without modifying overlays.
 
 ## Hybrid Realization Strategy
 
-### Live-Referenced Metadata
+### Settings-Backed Metadata
 
 Used when Copilot supports alternate locations:
 
 - Instructions
 - Prompts
+- Skills (when configured)
+- Custom Agents (when configured)
 
 These are referenced directly from the local metadata clone, e.g.:
 
@@ -177,7 +179,7 @@ Benefits:
 
 ### Materialized Metadata
 
-Required when Copilot enforces `.github/` locations:
+Used when configured or when compatibility requires `.github/` locations:
 
 - Skills
 - Custom Agents
@@ -201,7 +203,7 @@ These are treated as **build artifacts**, not sources of truth.
 All materialized files use a fixed prefix:
 
 ```
-_shared_<name>.md
+_<repo>-<layer>__<name>.md
 ```
 
 Purpose:

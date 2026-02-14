@@ -28,7 +28,7 @@ This document defines validation requirements (VREQ-*) for end-to-end acceptance
 | VREQ-0003 | Profile switching changes files | Switching the active profile changes the effective file set. | After switching from `baseline` to a restrictive profile, the file count decreases; TreeView updates. | P1 | Draft |
 | VREQ-0004 | Clean removes managed files | Clean command removes all materialized files and settings. | After clean, no `_shared_*` files remain in `.github/`; managed state is cleared; settings removed. | P1 | Draft |
 | VREQ-0005 | Drift detection works | Locally editing a managed file is detected as drifted. | After editing a managed file, promote command reports it as drifted; apply skips it with warning. | P1 | Draft |
-| VREQ-0006 | Settings injection works | Apply injects Copilot alternate-path settings for live-referenced artifacts. | After apply, VS Code settings contain instruction/prompt directory paths pointing to metadata repo. | P2 | Draft |
+| VREQ-0006 | Settings injection works | Apply injects Copilot alternate-path settings for settings-backed artifacts. | After apply, VS Code settings contain instruction/prompt directory paths pointing to metadata repo. | P2 | Draft |
 
 ## Traceability (Policy)
 

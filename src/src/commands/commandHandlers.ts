@@ -20,6 +20,7 @@ import {
     clean,
     preview,
     computeSettingsEntries,
+    computeSettingsKeysToRemove,
     checkAllDrift,
     loadManagedState,
 } from '@metaflow/engine';
@@ -192,16 +193,25 @@ export function registerCommands(
                         activeProfile: state.activeProfile,
                     });
 
-                    // Inject settings for live-ref files (may fail if Copilot extension not present)
+                    // Inject settings for settings-backed files (may fail if Copilot extension not present)
                     try {
+                        const hooksEnabled = vscode.workspace
+                            .getConfiguration('metaflow', ws.uri)
+                            .get<boolean>('hooksEnabled', true);
+                        const configForSettings = hooksEnabled
+                            ? state.config!
+                            : { ...state.config!, hooks: undefined };
                         const entries = computeSettingsEntries(
                             state.effectiveFiles,
                             ws.uri.fsPath,
-                            state.config!
+                            configForSettings
                         );
                         const wsConfig = vscode.workspace.getConfiguration(undefined, ws.uri);
                         for (const entry of entries) {
                             await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
+                        }
+                        if (!hooksEnabled) {
+                            await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
                         }
                     } catch (err: unknown) {
                         const msg = err instanceof Error ? err.message : String(err);
@@ -237,18 +247,34 @@ export function registerCommands(
             );
             if (confirm !== 'Yes') { return; }
 
-            const result = clean(ws.uri.fsPath);
+            await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title: 'MetaFlow: Cleaning managed files...' },
+                async () => {
+                    const result = clean(ws.uri.fsPath);
 
-            logInfo(`Clean complete: ${result.removed.length} removed, ${result.skipped.length} skipped.`);
-            for (const w of result.warnings) {
-                logWarn(w);
-            }
+                    try {
+                        const wsConfig = vscode.workspace.getConfiguration(undefined, ws.uri);
+                        const keysToRemove = computeSettingsKeysToRemove();
+                        for (const key of keysToRemove) {
+                            await wsConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+                        }
+                    } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        logWarn(`Settings cleanup skipped: ${msg}`);
+                    }
 
-            vscode.window.showInformationMessage(
-                `MetaFlow: Cleaned ${result.removed.length} files.`
+                    logInfo(`Clean complete: ${result.removed.length} removed, ${result.skipped.length} skipped.`);
+                    for (const w of result.warnings) {
+                        logWarn(w);
+                    }
+
+                    vscode.window.showInformationMessage(
+                        `MetaFlow: Cleaned ${result.removed.length} files.`
+                    );
+
+                    await vscode.commands.executeCommand('metaflow.refresh');
+                }
             );
-
-            await vscode.commands.executeCommand('metaflow.refresh');
         })
     );
 
