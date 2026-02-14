@@ -208,7 +208,12 @@ export function registerCommands(
                         );
                         const wsConfig = vscode.workspace.getConfiguration(undefined, ws.uri);
                         for (const entry of entries) {
-                            await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
+                            try {
+                                await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
+                            } catch (entryErr: unknown) {
+                                const entryMsg = entryErr instanceof Error ? entryErr.message : String(entryErr);
+                                logWarn(`Settings key update skipped (${entry.key}): ${entryMsg}`);
+                            }
                         }
                         if (!hooksEnabled) {
                             await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
