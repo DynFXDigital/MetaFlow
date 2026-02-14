@@ -5,7 +5,7 @@
  */
 
 import * as vscode from 'vscode';
-import { logInfo, logError } from '../views/outputChannel';
+import { logInfo } from '../views/outputChannel';
 
 const TEMPLATE = `{
   "metadataRepo": {

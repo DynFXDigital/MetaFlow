@@ -205,7 +205,7 @@
     "bundle": "npm run precompile && node esbuild.js --production",
     "bundle:dev": "npm run precompile && node esbuild.js",
     "watch:esbuild": "npm run precompile && node esbuild.js --watch",
-    "pretest": "npm run compile && npm run lint",
+    "pretest": "npm run compile && npm run bundle:dev && npm run lint",
     "lint": "eslint src --ext ts --max-warnings=-1",
     "lint:monitor": "eslint src --ext ts --max-warnings=-1 --format json --output-file .eslint-report.json",
     "lint:summary": "node ./scripts/lint-summary.js",

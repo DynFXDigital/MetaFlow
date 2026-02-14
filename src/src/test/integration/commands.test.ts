@@ -34,6 +34,37 @@ suite('Command Execution', () => {
         // If it reaches here without throwing, the command succeeded
     });
 
+    test('refresh falls back to .ai/.ai-sync.json when root config is absent', async function () {
+        this.timeout(15000);
+
+        const rootConfigPath = path.join(workspaceRoot, '.ai-sync.json');
+        const fallbackConfigPath = path.join(workspaceRoot, '.ai', '.ai-sync.json');
+        const backupRootConfigPath = path.join(workspaceRoot, '.ai-sync.json.bak');
+
+        assert.ok(fs.existsSync(rootConfigPath), 'Root config should exist in test fixture');
+        assert.ok(fs.existsSync(fallbackConfigPath), 'Fallback config should exist in test fixture');
+
+        fs.renameSync(rootConfigPath, backupRootConfigPath);
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.openConfig');
+
+            const editor = vscode.window.activeTextEditor;
+            assert.ok(editor, 'Open config should open an editor');
+            assert.strictEqual(
+                path.normalize(editor!.document.uri.fsPath),
+                path.normalize(fallbackConfigPath),
+                'Expected openConfig to resolve to .ai/.ai-sync.json fallback'
+            );
+        } finally {
+            if (fs.existsSync(backupRootConfigPath)) {
+                fs.renameSync(backupRootConfigPath, rootConfigPath);
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('openConfig opens the config file', async function () {
         this.timeout(10000);
         await vscode.commands.executeCommand('metaflow.refresh');
