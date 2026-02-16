@@ -70,6 +70,41 @@ function resolveOverlay(
     return files;
 }
 
+async function injectWorkspaceSettings(
+    workspace: vscode.WorkspaceFolder,
+    config: MetaFlowConfig,
+    effectiveFiles: EffectiveFile[]
+): Promise<void> {
+    try {
+        const hooksEnabled = vscode.workspace
+            .getConfiguration('metaflow', workspace.uri)
+            .get<boolean>('hooksEnabled', true);
+        const configForSettings = hooksEnabled
+            ? config
+            : { ...config, hooks: undefined };
+        const entries = computeSettingsEntries(
+            effectiveFiles,
+            workspace.uri.fsPath,
+            configForSettings
+        );
+        const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
+        for (const entry of entries) {
+            try {
+                await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
+            } catch (entryErr: unknown) {
+                const entryMsg = entryErr instanceof Error ? entryErr.message : String(entryErr);
+                logWarn(`Settings key update skipped (${entry.key}): ${entryMsg}`);
+            }
+        }
+        if (!hooksEnabled) {
+            await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+        }
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logWarn(`Settings injection skipped: ${msg}`);
+    }
+}
+
 /**
  * Register all MetaFlow command handlers.
  */
@@ -194,34 +229,7 @@ export function registerCommands(
                     });
 
                     // Inject settings for settings-backed files (may fail if Copilot extension not present)
-                    try {
-                        const hooksEnabled = vscode.workspace
-                            .getConfiguration('metaflow', ws.uri)
-                            .get<boolean>('hooksEnabled', true);
-                        const configForSettings = hooksEnabled
-                            ? state.config!
-                            : { ...state.config!, hooks: undefined };
-                        const entries = computeSettingsEntries(
-                            state.effectiveFiles,
-                            ws.uri.fsPath,
-                            configForSettings
-                        );
-                        const wsConfig = vscode.workspace.getConfiguration(undefined, ws.uri);
-                        for (const entry of entries) {
-                            try {
-                                await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
-                            } catch (entryErr: unknown) {
-                                const entryMsg = entryErr instanceof Error ? entryErr.message : String(entryErr);
-                                logWarn(`Settings key update skipped (${entry.key}): ${entryMsg}`);
-                            }
-                        }
-                        if (!hooksEnabled) {
-                            await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
-                        }
-                    } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : String(err);
-                        logWarn(`Settings injection skipped: ${msg}`);
-                    }
+                    await injectWorkspaceSettings(ws, state.config!, state.effectiveFiles);
 
                     logInfo(`Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed.`);
                     for (const w of result.warnings) {
@@ -461,6 +469,9 @@ export function registerCommands(
                     async () => {
                         await initConfig(ws);
                         await vscode.commands.executeCommand('metaflow.refresh');
+                        if (state.config) {
+                            await injectWorkspaceSettings(ws, state.config, state.effectiveFiles);
+                        }
                     }
                 );
             } catch (err: unknown) {
