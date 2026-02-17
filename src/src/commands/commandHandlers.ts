@@ -363,7 +363,7 @@ export function registerCommands(
             if (!refreshOptions.skipAutoApply) {
                 const autoApply = vscode.workspace
                     .getConfiguration('metaflow', ws.uri)
-                    .get<boolean>('autoApply', false);
+                    .get<boolean>('autoApply', true);
                 if (autoApply) {
                     logInfo('Auto-apply enabled; applying overlay after refresh.');
                     await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
@@ -461,7 +461,7 @@ export function registerCommands(
                         `MetaFlow: Cleaned ${result.removed.length} files.`
                     );
 
-                    await vscode.commands.executeCommand('metaflow.refresh');
+                    await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
                 }
             );
         })
