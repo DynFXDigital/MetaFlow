@@ -20,12 +20,12 @@ suite('classifier', () => {
               assert.strictEqual(classifySingle('prompts/gen.prompt.md', undefined), 'settings');
         });
 
-        test('skills → materialized (default)', () => {
-            assert.strictEqual(classifySingle('skills/build/SKILL.md', undefined), 'materialized');
+        test('skills → settings (default)', () => {
+            assert.strictEqual(classifySingle('skills/build/SKILL.md', undefined), 'settings');
         });
 
-        test('agents → materialized (default)', () => {
-            assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'materialized');
+        test('agents → settings (default)', () => {
+            assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'settings');
         });
 
         test('hooks → settings', () => {
@@ -80,7 +80,7 @@ suite('classifier', () => {
             ];
             const result = classifyFiles(files, undefined);
                 assert.strictEqual(result[0].classification, 'settings');
-            assert.strictEqual(result[1].classification, 'materialized');
+            assert.strictEqual(result[1].classification, 'settings');
             assert.strictEqual(result[2].classification, 'materialized');
         });
 
