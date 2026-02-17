@@ -30,7 +30,7 @@ export interface RepoFile {
 }
 
 export interface WorkspaceOptions {
-    /** Config object to write as .metaflow.json. If undefined, no config is created. */
+    /** Config object to write as .metaflow/config.jsonc. If undefined, no config is created. */
     config?: Record<string, unknown>;
     /** Layer files to populate in the metadata repo. Key is layer path. */
     layers?: Record<string, RepoFile[]>;
@@ -44,6 +44,7 @@ export interface WorkspaceOptions {
 export function createTestWorkspace(options: WorkspaceOptions = {}): TestWorkspace {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-cli-test-'));
     const metadataRepo = path.join(root, '.ai', 'ai-metadata');
+    fs.mkdirSync(path.join(root, '.metaflow'), { recursive: true });
 
     // Create metadata repo with layers
     if (!options.noRepo && options.layers) {
@@ -58,7 +59,8 @@ export function createTestWorkspace(options: WorkspaceOptions = {}): TestWorkspa
 
     // Write config
     if (options.config) {
-        const configPath = path.join(root, '.metaflow.json');
+        const configPath = path.join(root, '.metaflow', 'config.jsonc');
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
         fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf-8');
     }
 

@@ -26,7 +26,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepo?.localPath, '.ai/ai-metadata');
                 assert.strictEqual(result.config.activeProfile, 'baseline');
-                assert.ok(result.configPath?.endsWith('.metaflow.json'));
+                assert.ok(result.configPath?.endsWith(path.join('.metaflow', 'config.jsonc')));
             }
         });
 
@@ -34,7 +34,7 @@ suite('Config Loader', () => {
             const result = loadConfig(path.join(FIXTURES_ROOT, 'nonexistent'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
-                assert.ok(result.errors[0].message.includes('No .metaflow.json'));
+                assert.ok(result.errors[0].message.includes('No .metaflow/config.jsonc'));
             }
         });
     });
@@ -42,7 +42,7 @@ suite('Config Loader', () => {
     suite('loadConfigFromPath()', () => {
 
         test('loads valid single-repo config', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, '.metaflow.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, '.metaflow', 'config.jsonc'));
             assert.strictEqual(result.ok, true);
             if (result.ok) {
                 assert.deepStrictEqual(result.config.layers, ['company/core', 'standards/sdlc']);
@@ -51,7 +51,7 @@ suite('Config Loader', () => {
         });
 
         test('loads valid multi-repo config', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'multi-repo', '.metaflow.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'multi-repo', '.metaflow', 'config.jsonc'));
             assert.strictEqual(result.ok, true);
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
@@ -60,7 +60,7 @@ suite('Config Loader', () => {
         });
 
         test('returns parse errors for invalid JSON', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'invalid-config', '.metaflow.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'invalid-config', '.metaflow', 'config.jsonc'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
                 assert.ok(result.errors.length > 0);
@@ -69,7 +69,7 @@ suite('Config Loader', () => {
         });
 
         test('returns errors for missing metadataRepo', () => {
-            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'missing-repo', '.metaflow.json'));
+            const result = loadConfigFromPath(path.join(FIXTURES_ROOT, 'missing-repo', '.metaflow', 'config.jsonc'));
             assert.strictEqual(result.ok, false);
             if (!result.ok) {
                 assert.ok(result.errors.some(e => e.message.includes('metadataRepo')));

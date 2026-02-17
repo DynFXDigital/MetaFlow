@@ -52,7 +52,9 @@ import {
 // ── Helpers ────────────────────────────────────────────────────────
 
 function createTmpDir(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'engine-test-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-test-'));
+    fs.mkdirSync(path.join(dir, '.metaflow'), { recursive: true });
+    return dir;
 }
 
 function cleanupDir(dir: string): void {
@@ -113,13 +115,13 @@ describe('Engine package: config loading', () => {
     beforeEach(() => { tmpDir = createTmpDir(); });
     afterEach(() => cleanupDir(tmpDir));
 
-    it('loadConfig finds and parses .metaflow.json', () => {
+    it('loadConfig finds and parses .metaflow/config.jsonc', () => {
         const config = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
             layers: ['company/core'],
         };
         fs.writeFileSync(
-            path.join(tmpDir, '.metaflow.json'),
+            path.join(tmpDir, '.metaflow', 'config.jsonc'),
             JSON.stringify(config),
             'utf-8'
         );
@@ -139,26 +141,31 @@ describe('Engine package: config loading', () => {
 
     it('discoverConfigPath finds root config', () => {
         fs.writeFileSync(
-            path.join(tmpDir, '.metaflow.json'),
+            path.join(tmpDir, '.metaflow', 'config.jsonc'),
             '{}',
             'utf-8'
         );
         const found = discoverConfigPath(tmpDir);
         assert.ok(found);
-        assert.ok(found!.endsWith('.metaflow.json'));
+        assert.ok(found!.endsWith(path.join('.metaflow', 'config.jsonc')));
     });
 
-    it('discoverConfigPath finds .ai/ fallback', () => {
-        const aiDir = path.join(tmpDir, '.ai');
-        fs.mkdirSync(aiDir, { recursive: true });
+    it('discoverConfigPath returns undefined when config is absent', () => {
+        const found = discoverConfigPath(tmpDir);
+        assert.strictEqual(found, undefined);
+    });
+
+    it('discoverConfigPath resolves .metaflow/config.jsonc', () => {
+        const configDir = path.join(tmpDir, '.metaflow');
+        fs.mkdirSync(configDir, { recursive: true });
         fs.writeFileSync(
-            path.join(aiDir, '.metaflow.json'),
+            path.join(configDir, 'config.jsonc'),
             '{}',
             'utf-8'
         );
         const found = discoverConfigPath(tmpDir);
         assert.ok(found);
-        assert.ok(found!.includes('.ai'));
+        assert.ok(found!.endsWith(path.join('.metaflow', 'config.jsonc')));
     });
 });
 
@@ -750,7 +757,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath rejects non-object JSON', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, '"just a string"', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -759,7 +766,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath rejects array JSON', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, '[1, 2, 3]', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -768,7 +775,7 @@ describe('Engine: config validation', () => {
     });
 
     it('loadConfigFromPath catches JSONC parse errors', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, '{ invalid {{', 'utf-8');
 
         const result = loadConfigFromPath(configPath);
@@ -780,7 +787,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates single-repo mode requires localPath', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: {},
             layers: ['core'],
@@ -792,7 +799,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates single-repo mode requires layers', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: { localPath: '.ai/metadata' },
         }), 'utf-8');
@@ -803,7 +810,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo unique IDs', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'dup', localPath: 'a' },
@@ -820,7 +827,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo requires layerSources', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'r1', localPath: 'a' },
@@ -833,7 +840,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo repoId references', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: 'r1', localPath: 'a' },
@@ -849,7 +856,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates multi-repo missing repo fields', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepos: [
                 { id: '', localPath: '' },
@@ -865,7 +872,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates active profile must exist in profiles', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({
             metadataRepo: { localPath: '.ai/metadata' },
             layers: ['core'],
@@ -879,7 +886,7 @@ describe('Engine: config validation', () => {
     });
 
     it('validates config must have at least one repo mode', () => {
-        const configPath = path.join(tmpDir, '.metaflow.json');
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(configPath, JSON.stringify({}), 'utf-8');
 
         const result = loadConfigFromPath(configPath);

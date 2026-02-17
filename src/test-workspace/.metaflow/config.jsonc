@@ -1,0 +1,28 @@
+{
+  "metadataRepo": {
+    "url": "git@github.com:org/ai-metadata.git",
+    "localPath": ".ai/ai-metadata",
+    "commit": "abc1234"
+  },
+  "layers": [
+    "company/core",
+    "standards/sdlc"
+  ],
+  "filters": {
+    "include": ["**"],
+    "exclude": ["agents/experimental/**"]
+  },
+  "profiles": {
+    "baseline": {},
+    "lean": {
+      "disable": ["agents/**"]
+    }
+  },
+  "activeProfile": "baseline",
+  "injection": {
+    "instructions": "settings",
+    "prompts": "settings",
+    "skills": "materialize",
+    "agents": "materialize"
+  }
+}

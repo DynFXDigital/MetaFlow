@@ -11,7 +11,7 @@ suite('Workspace Selection', () => {
         assert.strictEqual(selected, undefined);
     });
 
-    test('prefers the only folder containing .metaflow.json', () => {
+    test('prefers the only folder containing .metaflow/config.jsonc', () => {
         const alpha = folder('/workspace/alpha');
         const beta = folder('/workspace/beta');
 
@@ -24,7 +24,7 @@ suite('Workspace Selection', () => {
         assert.strictEqual(selected?.uri.fsPath, beta.uri.fsPath);
     });
 
-    test('prefers active folder when multiple folders contain .metaflow.json', () => {
+    test('prefers active folder when multiple folders contain .metaflow/config.jsonc', () => {
         const alpha = folder('/workspace/alpha');
         const beta = folder('/workspace/beta');
 
@@ -51,7 +51,7 @@ suite('Workspace Selection', () => {
         assert.strictEqual(selected?.uri.fsPath, alpha.uri.fsPath);
     });
 
-    test('uses active folder when no folders contain .metaflow.json', () => {
+    test('uses active folder when no folders contain .metaflow/config.jsonc', () => {
         const alpha = folder('/workspace/alpha');
         const beta = folder('/workspace/beta');
 

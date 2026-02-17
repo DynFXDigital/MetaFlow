@@ -52,9 +52,9 @@ suite('managedState', () => {
     });
 
     test('load from corrupted state returns empty', () => {
-        const stateDir = path.join(tmpDir, '.ai', '.sync-state');
+        const stateDir = path.join(tmpDir, '.metaflow');
         fs.mkdirSync(stateDir, { recursive: true });
-        fs.writeFileSync(path.join(stateDir, 'overlay_managed.json'), 'not json', 'utf-8');
+        fs.writeFileSync(path.join(stateDir, 'state.json'), 'not json', 'utf-8');
         const loaded = loadManagedState(tmpDir);
         assert.strictEqual(loaded.version, 1);
         assert.deepStrictEqual(loaded.files, {});

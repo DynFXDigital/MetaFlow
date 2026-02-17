@@ -20,7 +20,7 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(packageJson.main, './dist/extension.js');
     });
 
-    test('activation events include both supported config locations', () => {
+    test('activation events include unified config location', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8')
@@ -28,8 +28,7 @@ suite('Extension Packaging Regression Guards', () => {
 
         const activationEvents = packageJson.activationEvents ?? [];
         assert.ok(activationEvents.includes('onStartupFinished'));
-        assert.ok(activationEvents.includes('workspaceContains:**/.metaflow.json'));
-        assert.ok(activationEvents.includes('workspaceContains:**/.ai/.metaflow.json'));
+        assert.ok(activationEvents.includes('workspaceContains:**/.metaflow/config.jsonc'));
     });
 
     test('vscode prepublish uses bundle script', () => {
