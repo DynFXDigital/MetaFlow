@@ -3,7 +3,7 @@
   "displayName": "MetaFlow",
   "description": "AI metadata overlay management for GitHub Copilot — deterministic overlay resolution, materialization with provenance, and profile/layer management",
   "version": "0.1.0",
-  "publisher": "metaflow",
+  "publisher": "kiates",
   "license": "MIT",
   "repository": {
     "type": "git",

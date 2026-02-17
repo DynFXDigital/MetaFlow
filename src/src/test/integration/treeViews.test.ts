@@ -23,7 +23,7 @@ suite('TreeView Providers', () => {
         this.timeout(15000);
 
         // Ensure extension is active
-        const ext = vscode.extensions.getExtension('metaflow.metaflow');
+        const ext = vscode.extensions.getExtension('kiates.metaflow');
         if (ext && !ext.isActive) {
             await ext.activate();
         }

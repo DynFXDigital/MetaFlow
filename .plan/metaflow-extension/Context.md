@@ -51,7 +51,7 @@ MetaFlow is a pure TypeScript VS Code extension that implements the AI metadata 
 - **2026-02-07** – Added full traceability model including validation testing (VREQ/VTC/VTP/VTR).
 - **2026-02-07** – Engine modules must be pure TS (no `vscode` imports) for fast unit testing.
 - **2026-02-07** – Target ≥80% code coverage on core engine modules.
-- **2026-02-07** – Extension ID = `metaflow.metaflow` (publisher.name).
+- **2026-02-07** – Extension ID = `kiates.metaflow` (publisher.name).
 - **2026-02-07** – `.vscodeignore` excludes `out/test/**` after removing the `!out/**/*.js` negation; test files no longer leak into VSIX.
 - **2026-02-07** – Added `@vscode/vsce` as devDependency + `package` npm script for reproducible VSIX builds.
 

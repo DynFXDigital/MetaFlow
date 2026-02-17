@@ -29,19 +29,19 @@ suite('Extension Activation', () => {
     suiteSetup(async function () {
         this.timeout(15000);
         // Ensure the extension is activated
-        const ext = vscode.extensions.getExtension('metaflow.metaflow');
+        const ext = vscode.extensions.getExtension('kiates.metaflow');
         if (ext && !ext.isActive) {
             await ext.activate();
         }
     });
 
     test('extension is present', () => {
-        const ext = vscode.extensions.getExtension('metaflow.metaflow');
+        const ext = vscode.extensions.getExtension('kiates.metaflow');
         assert.ok(ext, 'Extension should be found in extensions list');
     });
 
     test('extension activates successfully', async () => {
-        const ext = vscode.extensions.getExtension('metaflow.metaflow');
+        const ext = vscode.extensions.getExtension('kiates.metaflow');
         assert.ok(ext, 'Extension not found');
         if (!ext.isActive) {
             await ext.activate();
