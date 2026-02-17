@@ -1,22 +1,33 @@
 # MetaFlow
 
-MetaFlow is an open-source monorepo for AI metadata overlay tooling:
+MetaFlow helps teams manage AI coding metadata in a deterministic, auditable way across local repos, CI, and editor workflows.
 
-- VS Code extension (`src/`)
-- Shared core engine (`packages/engine`)
-- Command-line interface (`packages/cli`)
+It combines:
 
-The system provides deterministic overlay resolution, materialization with provenance, profile/layer management, and drift-safe workflows for AI coding metadata.
+- a VS Code extension (`src/`)
+- a shared engine (`packages/engine`)
+- a CLI (`packages/cli`)
 
-## Repository layout
+If you want reliable metadata layering (profiles, overlays, provenance, drift detection) instead of ad-hoc copy/paste config, MetaFlow is built for that.
 
-- `src/` — VS Code extension package (`metaflow`)
-- `packages/engine/` — pure TypeScript engine (`@metaflow/engine`)
-- `packages/cli/` — CLI (`@metaflow/cli`)
-- `doc/` — traceability and validation documentation
-- `.github/` — CI, release workflows, issue/PR templates, governance docs
+## Why MetaFlow
+
+- **Deterministic outcomes**: same inputs produce the same materialized output.
+- **Traceable changes**: provenance headers make generated files easy to audit.
+- **Safer automation**: drift-aware workflows reduce accidental config clobbering.
+- **Editor + CLI parity**: run the same model in VS Code and automation scripts.
+
+## How MetaFlow works (simple)
+
+1. You define your metadata setup in `.metaflow.json` (layers, filters, profile, injection mode).
+2. MetaFlow reads those inputs and builds one effective view of what files/settings should exist.
+3. When you apply, it writes managed outputs and adds provenance so generated content is traceable.
+4. If a managed file was manually changed, drift detection warns before overwrite.
+5. The same logic is used by both the VS Code extension and the CLI, so local and CI behavior stay aligned.
 
 ## Quick start
+
+From repository root:
 
 ```bash
 npm ci
@@ -24,45 +35,48 @@ npm run build
 npm test
 ```
 
-## Common commands
+`npm test` runs engine tests, CLI tests, and extension unit tests.
+Run `npm run test:integration` to execute extension-host integration tests.
+
+For extension-specific usage and local install details, see `src/README.md`.
+
+## What’s in this repo
+
+- `src/` — VS Code extension package (`metaflow`)
+- `packages/engine/` — pure TypeScript core (`@metaflow/engine`)
+- `packages/cli/` — CLI (`@metaflow/cli`)
+- `doc/` — requirements, design, test, and validation artifacts
+- `.github/` — workflows, templates, governance, and maintenance automation
+
+## Common developer commands
 
 From repository root:
 
 ```bash
-# Build engine + cli + extension
+# Build engine + CLI + extension
 npm run build
 
-# Engine tests
+# Package-specific tests
 npm run test:engine
-
-# CLI tests
 npm run test:cli
 
-# Extension unit tests (fast)
+# Extension tests
 npm run test:unit
-
-# Extension integration tests (Extension Host)
 npm run test:integration
 ```
 
-## VS Code extension docs
+Note: root `npm test` does not include `test:integration`.
 
-See `src/README.md` for extension usage, commands, settings, and local VSIX install steps.
+## CI and release automation
 
-## Open source maintenance and release
-
-This repository includes GitHub automation for extension lifecycle:
-
-- `.github/workflows/ci.yml` — build/test/package checks on PRs and `main`
+- `.github/workflows/ci.yml` — build/test/package checks for PRs and `main`
 - `.github/workflows/release.yml` — package + publish on `v*` tags (and manual dispatch)
-- `.github/dependabot.yml` — weekly npm/actions dependency updates
+- `.github/dependabot.yml` — scheduled dependency updates
 
 ### Release secrets
 
-Set repository secrets before publishing:
-
-- `VSCE_PAT` — VS Code Marketplace token
-- `OVSX_PAT` — Open VSX token
+- `VSCE_PAT` — Visual Studio Marketplace publish token
+- `OVSX_PAT` — Open VSX publish token
 
 ## Contributing
 
