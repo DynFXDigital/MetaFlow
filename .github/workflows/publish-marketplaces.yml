@@ -6,7 +6,6 @@ on:
       tag:
         description: Release tag to publish (example: v0.1.0)
         required: true
-        type: string
 
 permissions:
   contents: read
