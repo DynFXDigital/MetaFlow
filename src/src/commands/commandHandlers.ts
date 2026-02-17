@@ -42,8 +42,7 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
     hooks: 'settings',
 };
 
-const INJECTION_GLOBAL_SETTING_KEY = 'metaflow.injection.defaultMode';
-const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.defaultModes';
+const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -53,14 +52,8 @@ const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     hooks: 'metaflow.injection.hooksMode',
 };
 
-type InjectionOverrideMode = 'inherit' | 'settings' | 'materialize';
-
 function isInjectionMode(value: unknown): value is 'settings' | 'materialize' {
     return value === 'settings' || value === 'materialize';
-}
-
-function isInjectionOverrideMode(value: unknown): value is InjectionOverrideMode {
-    return value === 'inherit' || isInjectionMode(value);
 }
 
 /** Cached state for the current workspace. */
@@ -206,10 +199,6 @@ function extractRepoId(arg: unknown): string | undefined {
 
 function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaFlowConfig): InjectionConfig {
     const workspaceConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
-    const globalSettingMode = workspaceConfig.get<unknown>(
-        INJECTION_GLOBAL_SETTING_KEY,
-        'settings'
-    );
     const modes = workspaceConfig.get<Record<string, unknown>>(
         INJECTION_OVERRIDE_SETTING_KEY,
         {}
@@ -220,22 +209,17 @@ function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaF
 
     for (const key of INJECTION_KEYS) {
         const overrideMode = modes?.[key];
-        if (isInjectionOverrideMode(overrideMode) && overrideMode !== 'inherit') {
+        if (isInjectionMode(overrideMode)) {
             injection[key] = overrideMode;
             continue;
         }
 
         const legacySettingMode = workspaceConfig.get<unknown>(
             LEGACY_INJECTION_SETTING_KEYS[key],
-            'inherit'
+            undefined
         );
-        if (isInjectionOverrideMode(legacySettingMode) && legacySettingMode !== 'inherit') {
+        if (isInjectionMode(legacySettingMode)) {
             injection[key] = legacySettingMode;
-            continue;
-        }
-
-        if (isInjectionMode(globalSettingMode)) {
-            injection[key] = globalSettingMode;
             continue;
         }
 

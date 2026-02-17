@@ -226,80 +226,64 @@
           "order": 3,
           "description": "Enable hook path injection into VS Code settings"
         },
-        "metaflow.injection.defaultMode": {
-          "type": "string",
-          "default": "settings",
-          "order": 4,
-          "title": "Default Injection Mode",
-          "enum": [
-            "settings",
-            "materialize"
-          ],
-          "description": "Default injection mode for all artifact types"
-        },
-        "metaflow.injection.defaultModes": {
+        "metaflow.injection.modes": {
           "type": "object",
-          "order": 5,
+          "order": 4,
           "title": "Injection Modes",
           "default": {
-            "instructions": "inherit",
-            "prompts": "inherit",
-            "skills": "inherit",
-            "agents": "inherit",
-            "hooks": "inherit"
+            "instructions": "settings",
+            "prompts": "settings",
+            "skills": "settings",
+            "agents": "settings",
+            "hooks": "settings"
           },
-          "description": "Injection mode overrides by artifact type (Item = artifact type, Value = mode)",
+          "description": "Injection mode by artifact type (Item = artifact type, Value = mode)",
           "additionalProperties": false,
           "properties": {
             "instructions": {
               "type": "string",
               "enum": [
-                "inherit",
                 "settings",
                 "materialize"
               ],
-              "default": "inherit",
-              "description": "Injection mode override for instructions artifacts"
+              "default": "settings",
+              "description": "Injection mode for instructions artifacts"
             },
             "prompts": {
               "type": "string",
               "enum": [
-                "inherit",
                 "settings",
                 "materialize"
               ],
-              "default": "inherit",
-              "description": "Injection mode override for prompts artifacts"
+              "default": "settings",
+              "description": "Injection mode for prompts artifacts"
             },
             "skills": {
               "type": "string",
               "enum": [
-                "inherit",
                 "settings",
                 "materialize"
               ],
-              "default": "inherit",
-              "description": "Injection mode override for skills artifacts"
+              "default": "settings",
+              "description": "Injection mode for skills artifacts"
             },
             "agents": {
               "type": "string",
               "enum": [
-                "inherit",
                 "settings",
                 "materialize"
               ],
-              "default": "inherit",
-              "description": "Injection mode override for agents artifacts"
+              "default": "settings",
+              "description": "Injection mode for agents artifacts"
             },
             "hooks": {
               "type": "string",
               "enum": [
-                "inherit",
                 "settings",
                 "materialize"
               ],
-              "default": "inherit",
-              "description": "Injection mode override for hooks artifacts"
+              "default": "settings",
+              "description": "Injection mode for hooks artifacts"
             }
           }
         }
