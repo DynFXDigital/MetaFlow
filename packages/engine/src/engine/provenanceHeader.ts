@@ -28,6 +28,18 @@ export interface ProvenanceData {
 const HEADER_START = '<!-- metaflow:provenance';
 const HEADER_END = '-->';
 
+function encodeValue(value: string): string {
+    return encodeURIComponent(value);
+}
+
+function decodeValue(value: string): string {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+}
+
 /**
  * Generate a provenance header comment block.
  *
@@ -35,26 +47,24 @@ const HEADER_END = '-->';
  * @returns The provenance comment block string (with trailing newline).
  */
 export function generateProvenanceHeader(data: ProvenanceData): string {
-    const lines: string[] = [HEADER_START];
-    lines.push(`synced: ${data.synced}`);
+    const fields: string[] = [`synced=${encodeValue(data.synced)}`];
     if (data.sourceRepo) {
-        lines.push(`source-repo: ${data.sourceRepo}`);
+        fields.push(`source-repo=${encodeValue(data.sourceRepo)}`);
     }
     if (data.sourceCommit) {
-        lines.push(`source-commit: ${data.sourceCommit}`);
+        fields.push(`source-commit=${encodeValue(data.sourceCommit)}`);
     }
     if (data.scope) {
-        lines.push(`scope: ${data.scope}`);
+        fields.push(`scope=${encodeValue(data.scope)}`);
     }
     if (data.layers && data.layers.length > 0) {
-        lines.push(`layers: ${data.layers.join(', ')}`);
+        fields.push(`layers=${encodeValue(data.layers.join(','))}`);
     }
     if (data.profile) {
-        lines.push(`profile: ${data.profile}`);
+        fields.push(`profile=${encodeValue(data.profile)}`);
     }
-    lines.push(`content-hash: ${data.contentHash}`);
-    lines.push(HEADER_END);
-    return lines.join('\n') + '\n';
+    fields.push(`content-hash=${encodeValue(data.contentHash)}`);
+    return `${HEADER_START} ${fields.join(' ')} ${HEADER_END}\n`;
 }
 
 /**
@@ -73,40 +83,76 @@ export function parseProvenanceHeader(content: string): ProvenanceData | null {
         return null;
     }
 
-    const block = content.substring(startIdx + HEADER_START.length, endIdx).trim();
-    const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
     const data: Partial<ProvenanceData> = {};
-    for (const line of lines) {
-        const colonIdx = line.indexOf(':');
-        if (colonIdx === -1) {
-            continue;
-        }
-        const key = line.substring(0, colonIdx).trim();
-        const value = line.substring(colonIdx + 1).trim();
+    const block = content.substring(startIdx + HEADER_START.length, endIdx).trim();
 
-        switch (key) {
-            case 'synced':
-                data.synced = value;
-                break;
-            case 'source-repo':
-                data.sourceRepo = value;
-                break;
-            case 'source-commit':
-                data.sourceCommit = value;
-                break;
-            case 'scope':
-                data.scope = value;
-                break;
-            case 'layers':
-                data.layers = value.split(',').map(s => s.trim());
-                break;
-            case 'profile':
-                data.profile = value;
-                break;
-            case 'content-hash':
-                data.contentHash = value;
-                break;
+    if (block.includes('=')) {
+        const tokens = block.split(/\s+/).filter(t => t.length > 0);
+        for (const token of tokens) {
+            const eqIdx = token.indexOf('=');
+            if (eqIdx === -1) {
+                continue;
+            }
+            const key = token.substring(0, eqIdx).trim();
+            const value = decodeValue(token.substring(eqIdx + 1).trim());
+
+            switch (key) {
+                case 'synced':
+                    data.synced = value;
+                    break;
+                case 'source-repo':
+                    data.sourceRepo = value;
+                    break;
+                case 'source-commit':
+                    data.sourceCommit = value;
+                    break;
+                case 'scope':
+                    data.scope = value;
+                    break;
+                case 'layers':
+                    data.layers = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    break;
+                case 'profile':
+                    data.profile = value;
+                    break;
+                case 'content-hash':
+                    data.contentHash = value;
+                    break;
+            }
+        }
+    } else {
+        const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        for (const line of lines) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx === -1) {
+                continue;
+            }
+            const key = line.substring(0, colonIdx).trim();
+            const value = line.substring(colonIdx + 1).trim();
+
+            switch (key) {
+                case 'synced':
+                    data.synced = value;
+                    break;
+                case 'source-repo':
+                    data.sourceRepo = value;
+                    break;
+                case 'source-commit':
+                    data.sourceCommit = value;
+                    break;
+                case 'scope':
+                    data.scope = value;
+                    break;
+                case 'layers':
+                    data.layers = value.split(',').map(s => s.trim()).filter(s => s.length > 0);
+                    break;
+                case 'profile':
+                    data.profile = value;
+                    break;
+                case 'content-hash':
+                    data.contentHash = value;
+                    break;
+            }
         }
     }
 
@@ -132,11 +178,19 @@ export function stripProvenanceHeader(content: string): string {
     if (endIdx === -1) {
         return content;
     }
-    // Remove from start of header through end marker + newline
-    const afterEnd = endIdx + HEADER_END.length;
-    const suffix = content.substring(afterEnd);
-    const prefix = content.substring(0, startIdx);
-    // Trim leading newline from body
-    const body = (prefix + suffix).replace(/^\n/, '');
-    return body;
+    let removalEnd = endIdx + HEADER_END.length;
+    if (removalEnd < content.length && content[removalEnd] === '\n') {
+        removalEnd += 1;
+    }
+
+    let prefix = content.substring(0, startIdx);
+    const suffix = content.substring(removalEnd);
+
+    // If provenance is a footer and we inserted a blank separator line,
+    // remove one separator newline so body hashing stays stable.
+    if (suffix.length === 0 && prefix.endsWith('\n\n')) {
+        prefix = prefix.slice(0, -1);
+    }
+
+    return prefix + suffix;
 }

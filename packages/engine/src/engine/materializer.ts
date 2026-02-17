@@ -121,7 +121,8 @@ export function apply(options: ApplyOptions): ApplyResult {
             continue;
         }
 
-        const contentHash = computeContentHash(sourceContent);
+        const materializedBody = sourceContent.endsWith('\n') ? sourceContent : `${sourceContent}\n`;
+        const contentHash = computeContentHash(materializedBody);
 
         // Generate provenance header
         const provenance: ProvenanceData = {
@@ -134,7 +135,7 @@ export function apply(options: ApplyOptions): ApplyResult {
         };
 
         const header = generateProvenanceHeader(provenance);
-        const fullContent = header + sourceContent;
+        const fullContent = materializedBody + '\n' + header;
 
         // Write file
         const destPath = path.join(outPath, relPath);
