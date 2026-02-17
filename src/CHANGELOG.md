@@ -6,13 +6,13 @@ All notable changes to the MetaFlow extension will be documented in this file.
 
 ### Added
 
-- **Config Model**: JSONC-tolerant config loading, discovery, and validation for `.metaflow.json`.
+- **Config Model**: JSONC-tolerant config loading, discovery, and validation for `.metaflow/config.jsonc`.
 - **Overlay Engine**: Deterministic layer resolution with later-wins precedence; single-repo and multi-repo modes.
 - **Filter Engine**: Include/exclude glob pattern evaluation (exclude wins).
 - **Profile Engine**: Enable/disable pattern application per profile.
 - **Classifier**: Artifact classification as `settings` or `materialized` per injection mode.
 - **Provenance Header**: Machine-readable HTML comment blocks with SHA-256 content hashing.
-- **Managed State**: Persistent `.ai/.sync-state/overlay_managed.json` for tracking applied files.
+- **Managed State**: Persistent `.metaflow/state.json` for tracking applied files.
 - **Drift Detector**: Content-hash comparison for in-sync/drifted/missing/untracked classification.
 - **Materializer**: Apply/clean/preview workflows with drift protection and stale-file removal.
 - **Settings Injector**: Computes VS Code settings entries for Copilot alternate-path injection.

@@ -22,7 +22,7 @@ code --install-extension metaflow-0.1.0.vsix
 
 ## Configuration
 
-Create `.metaflow.json` in your workspace root (or run `MetaFlow: Init Config`):
+Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Init Config`):
 
 ```jsonc
 {
@@ -62,8 +62,8 @@ Create `.metaflow.json` in your workspace root (or run `MetaFlow: Init Config`):
 | `MetaFlow: Status` | Show current status in output channel | |
 | `MetaFlow: Switch Profile` | Select active profile | |
 | `MetaFlow: Toggle Layer` | Enable/disable a layer | |
-| `MetaFlow: Open Config` | Open `.metaflow.json` in editor | |
-| `MetaFlow: Init Config` | Scaffold new `.metaflow.json` | |
+| `MetaFlow: Open Config` | Open `.metaflow/config.jsonc` in editor | |
+| `MetaFlow: Init Config` | Scaffold new `.metaflow/config.jsonc` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |
 
 ## Settings

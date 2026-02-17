@@ -13,7 +13,7 @@ npm run build
 ## Usage
 
 ```bash
-# From workspace root (where .metaflow.json lives):
+# From workspace root (where .metaflow/config.jsonc lives):
 node packages/cli/out/src/cli.js <command> [options]
 
 # Or with npm link:
@@ -32,7 +32,7 @@ metaflow <command> [options]
 
 #### `init`
 
-Generate a starter `.metaflow.json` configuration file.
+Generate a starter `.metaflow/config.jsonc` configuration file.
 
 ```bash
 metaflow init                  # create config

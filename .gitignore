@@ -35,8 +35,8 @@ test-results/
 # Integration test workspace runtime artifacts
 src/test-workspace/.github/
 src/test-workspace/.vscode/
-src/test-workspace/.ai/.sync-state/
-.ai/.sync-state/
+src/test-workspace/.metaflow/state.json
+.metaflow/state.json
 .ai/temp/
 
 # Local env

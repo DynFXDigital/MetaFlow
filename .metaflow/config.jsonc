@@ -1,0 +1,46 @@
+{
+  "filters": {
+    "include": [],
+    "exclude": []
+  },
+  "profiles": {
+    "default": {
+      "enable": [
+        "**/*"
+      ],
+      "disable": []
+    }
+  },
+  "activeProfile": "default",
+  "injection": {
+    "instructions": "settings",
+    "prompts": "materialize",
+    "skills": "settings",
+    "agents": "settings",
+    "hooks": "settings"
+  },
+  "metadataRepos": [
+    {
+      "id": "primary",
+      "localPath": "c:\\Users\\cyates\\gitwork\\AI\\DFX-AI-Metadata",
+      "enabled": false
+    }
+  ],
+  "layerSources": [
+    {
+      "repoId": "primary",
+      "path": "company",
+      "enabled": true
+    },
+    {
+      "repoId": "primary",
+      "path": "standards/devtools",
+      "enabled": true
+    },
+    {
+      "repoId": "primary",
+      "path": "standards/sdlc",
+      "enabled": true
+    }
+  ]
+}

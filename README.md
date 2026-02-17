@@ -23,11 +23,13 @@ If you want reliable metadata layering (profiles, overlays, provenance, drift de
 
 ## How MetaFlow works (simple)
 
-1. You define your metadata setup in `.metaflow.json` (layers, filters, profile, injection mode).
+1. You define your metadata setup in `.metaflow/config.jsonc` (layers, filters, profile, injection mode).
 2. MetaFlow reads those inputs and builds one effective view of what files/settings should exist.
 3. When you apply, it writes managed outputs and adds provenance so generated content is traceable.
 4. If a managed file was manually changed, drift detection warns before overwrite.
 5. The same logic is used by both the VS Code extension and the CLI, so local and CI behavior stay aligned.
+
+`.metaflow/config.jsonc` can be either checked in (team-shared behavior) or kept local/untracked (user-isolated behavior). Runtime state stays in `.metaflow/state.json` and is typically ignored.
 
 ## Quick start
 
