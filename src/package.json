@@ -212,7 +212,7 @@
         },
         "metaflow.autoApply": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Automatically apply overlay when configuration changes"
         },
         "metaflow.logLevel": {
