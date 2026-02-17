@@ -75,19 +75,14 @@
         "icon": "$(add)"
       },
       {
-        "command": "metaflow.toggleInjectionMode",
-        "title": "MetaFlow: Toggle Injection Mode",
-        "icon": "$(settings-gear)"
-      },
-      {
         "command": "metaflow.removeRepoSource",
         "title": "MetaFlow: Remove Repo Source",
         "icon": "$(trash)"
       },
       {
         "command": "metaflow.openConfig",
-        "title": "MetaFlow: Open Configuration",
-        "icon": "$(settings)"
+        "title": "MetaFlow: Open Config File",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "metaflow.initConfig",
@@ -104,8 +99,8 @@
       "metaflow-container": [
         {
           "id": "metaflow-config",
-          "name": "Configuration",
-          "icon": "$(settings-gear)"
+          "name": "AI Metadata",
+          "icon": "$(repo)"
         },
         {
           "id": "metaflow-profiles",
@@ -151,27 +146,24 @@
       }
     ],
     "menus": {
+      "viewContainer/title": [
+        {
+          "command": "metaflow.openConfig",
+          "when": "viewContainer == workbench.view.extension.metaflow-container",
+          "group": "navigation"
+        }
+      ],
       "view/title": [
         {
           "command": "metaflow.refresh",
           "when": "view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
           "group": "navigation"
-        },
-        {
-          "command": "metaflow.addRepoSource",
-          "when": "view == metaflow-config",
-          "group": "navigation@2"
         }
       ],
       "view/item/context": [
         {
           "command": "metaflow.switchProfile",
           "when": "view == metaflow-profiles && viewItem == profile",
-          "group": "inline"
-        },
-        {
-          "command": "metaflow.openConfig",
-          "when": "view == metaflow-config && viewItem == configPath",
           "group": "inline"
         },
         {
@@ -192,11 +184,6 @@
         {
           "command": "metaflow.addRepoSource",
           "when": "view == metaflow-config && viewItem == configRepoSection",
-          "group": "inline"
-        },
-        {
-          "command": "metaflow.toggleInjectionMode",
-          "when": "view == metaflow-config && viewItem == injectionMode",
           "group": "inline"
         }
       ]
@@ -229,6 +216,51 @@
           "type": "boolean",
           "default": true,
           "description": "Enable hook path injection into VS Code settings"
+        },
+        "metaflow.injection.instructionsMode": {
+          "type": "string",
+          "default": "settings",
+          "enum": [
+            "settings",
+            "materialize"
+          ],
+          "description": "Injection mode override for instructions artifacts"
+        },
+        "metaflow.injection.promptsMode": {
+          "type": "string",
+          "default": "settings",
+          "enum": [
+            "settings",
+            "materialize"
+          ],
+          "description": "Injection mode override for prompts artifacts"
+        },
+        "metaflow.injection.skillsMode": {
+          "type": "string",
+          "default": "settings",
+          "enum": [
+            "settings",
+            "materialize"
+          ],
+          "description": "Injection mode override for skills artifacts"
+        },
+        "metaflow.injection.agentsMode": {
+          "type": "string",
+          "default": "settings",
+          "enum": [
+            "settings",
+            "materialize"
+          ],
+          "description": "Injection mode override for agents artifacts"
+        },
+        "metaflow.injection.hooksMode": {
+          "type": "string",
+          "default": "settings",
+          "enum": [
+            "settings",
+            "materialize"
+          ],
+          "description": "Injection mode override for hooks artifacts"
         }
       }
     },

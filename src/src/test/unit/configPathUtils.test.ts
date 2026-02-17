@@ -46,6 +46,17 @@ suite('Config Path Utils', () => {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             }
         });
+
+        test('does not discover legacy .ai-sync.json', () => {
+            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
+            fs.writeFileSync(path.join(tmpDir, '.ai-sync.json'), '{}');
+            try {
+                const result = discoverConfigPath(tmpDir);
+                assert.strictEqual(result, undefined);
+            } finally {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            }
+        });
     });
 
     suite('resolvePathFromWorkspace()', () => {

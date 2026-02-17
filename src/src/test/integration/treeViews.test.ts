@@ -65,7 +65,8 @@ suite('TreeView Providers', () => {
 
         const provider = new ConfigTreeViewProvider(state);
         const items = provider.getChildren();
-        assert.ok(items.length >= 3, 'Should return config, repo, URL items at minimum');
+        assert.strictEqual(items.length, 1, 'Should return only the Repositories section');
+        assert.strictEqual(items[0].label, 'Repositories');
     });
 
     test('ConfigTreeView shows workspace-relative config path when inside workspace', () => {
@@ -82,10 +83,8 @@ suite('TreeView Providers', () => {
 
         const provider = new ConfigTreeViewProvider(state);
         const items = provider.getChildren();
-        const configItem = items.find(i => i.label === 'Config');
-
-        assert.ok(configItem, 'Config item should exist');
-        assert.strictEqual(configItem!.description, path.join('.metaflow', 'config.jsonc'));
+        assert.strictEqual(items.length, 1, 'Should still only return the Repositories section');
+        assert.strictEqual(items[0].label, 'Repositories');
     });
 
     // ── ProfilesTreeView ───────────────────────────────────────

@@ -10,6 +10,7 @@ import * as path from 'path';
 import {
     loadConfig,
     MetaFlowConfig,
+    InjectionConfig,
     resolveLayers,
     buildEffectiveFileMap,
     applyFilters,
@@ -39,6 +40,14 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
     skills: 'settings',
     agents: 'settings',
     hooks: 'settings',
+};
+
+const INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
+    instructions: 'metaflow.injection.instructionsMode',
+    prompts: 'metaflow.injection.promptsMode',
+    skills: 'metaflow.injection.skillsMode',
+    agents: 'metaflow.injection.agentsMode',
+    hooks: 'metaflow.injection.hooksMode',
 };
 
 /** Cached state for the current workspace. */
@@ -74,7 +83,8 @@ export function createState(): ExtensionState {
  */
 function resolveOverlay(
     config: MetaFlowConfig,
-    workspaceRoot: string
+    workspaceRoot: string,
+    injection: InjectionConfig
 ): EffectiveFile[] {
     const layers = resolveLayers(config, workspaceRoot);
     const fileMap = buildEffectiveFileMap(layers);
@@ -85,7 +95,7 @@ function resolveOverlay(
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
     files = applyProfile(files, profile);
 
-    classifyFiles(files, config.injection);
+    classifyFiles(files, injection);
     return files;
 }
 
@@ -181,17 +191,25 @@ function extractRepoId(arg: unknown): string | undefined {
     return undefined;
 }
 
-function extractInjectionKey(arg: unknown): InjectionKey | undefined {
-    if (typeof arg === 'string' && INJECTION_KEYS.includes(arg as InjectionKey)) {
-        return arg as InjectionKey;
-    }
-    if (typeof arg === 'object' && arg !== null && 'injectionKey' in arg) {
-        const injectionKey = (arg as { injectionKey?: unknown }).injectionKey;
-        if (typeof injectionKey === 'string' && INJECTION_KEYS.includes(injectionKey as InjectionKey)) {
-            return injectionKey as InjectionKey;
+function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaFlowConfig): InjectionConfig {
+    const workspaceConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
+    const injection: InjectionConfig = {
+        ...(config.injection ?? {}),
+    };
+
+    for (const key of INJECTION_KEYS) {
+        const settingMode = workspaceConfig.get<'settings' | 'materialize'>(INJECTION_SETTING_KEYS[key]);
+        if (settingMode) {
+            injection[key] = settingMode;
+            continue;
+        }
+
+        if (injection[key] === undefined) {
+            injection[key] = DEFAULT_INJECTION_MODE[key];
         }
     }
-    return undefined;
+
+    return injection;
 }
 
 function extractRefreshCommandOptions(arg: unknown): RefreshCommandOptions {
@@ -317,21 +335,9 @@ export function registerCommands(
                 if (result.configPath) {
                     vscode.window.showWarningMessage('MetaFlow: Found config file, but it is invalid. Check Problems for details.');
                 } else {
-                    const nearMissNames = [
-                        '.ai-sync_json',
-                        '.ai-sync-json',
-                        '.ai.sync.json',
-                    ];
-
-                    const nearMiss = nearMissNames.find(name =>
-                        fs.existsSync(path.join(ws.uri.fsPath, name))
-                    );
-
-                    if (nearMiss) {
-                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Move it to ".metaflow/config.jsonc".`;
-                        logWarn(message);
-                        vscode.window.showWarningMessage(message);
-                    }
+                    const message = 'MetaFlow: No .metaflow/config.jsonc found at workspace root.';
+                    logWarn(message);
+                    vscode.window.showWarningMessage(message);
                 }
                 updateStatusBar('error');
                 state.config = undefined;
@@ -348,7 +354,8 @@ export function registerCommands(
             state.activeProfile = result.config.activeProfile;
 
             try {
-                state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath);
+                const injectionConfig = resolveInjectionConfig(ws, result.config);
+                state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig);
                 logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
                 updateStatusBar('idle', state.activeProfile, state.effectiveFiles.length);
             } catch (err: unknown) {
@@ -669,35 +676,6 @@ export function registerCommands(
 
             persistConfig(state.configPath, state.config);
             logInfo(`Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`);
-            await vscode.commands.executeCommand('metaflow.refresh');
-        })
-    );
-
-    // ── metaflow.toggleInjectionMode ───────────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.toggleInjectionMode', async (arg?: unknown) => {
-            const ws = getWorkspace();
-            if (!ws || !state.config || !state.configPath) {
-                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
-                return;
-            }
-
-            const injectionKey = extractInjectionKey(arg);
-            if (!injectionKey) {
-                logWarn('Toggle injection mode requires a valid injection key.');
-                return;
-            }
-
-            const currentMode = state.config.injection?.[injectionKey] ?? DEFAULT_INJECTION_MODE[injectionKey];
-            const nextMode = currentMode === 'settings' ? 'materialize' : 'settings';
-
-            if (!state.config.injection) {
-                state.config.injection = {};
-            }
-            state.config.injection[injectionKey] = nextMode;
-
-            persistConfig(state.configPath, state.config);
-            logInfo(`Injection mode updated: ${injectionKey} -> ${nextMode}`);
             await vscode.commands.executeCommand('metaflow.refresh');
         })
     );

@@ -62,6 +62,9 @@ export function activate(context: vscode.ExtensionContext): void {
                 const enabled = vscode.workspace.getConfiguration('metaflow').get<boolean>('enabled', true);
                 vscode.commands.executeCommand('setContext', 'metaflow.active', enabled);
             }
+            if (e.affectsConfiguration('metaflow.injection')) {
+                vscode.commands.executeCommand('metaflow.refresh');
+            }
         })
     );
 
