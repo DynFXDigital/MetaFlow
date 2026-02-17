@@ -256,7 +256,7 @@
     "lint:summary": "node ./scripts/lint-summary.js",
     "lint:monitor:summary": "npm run lint:monitor && npm run lint:summary",
     "test": "node ./out/test/runTest.js",
-    "test:unit": "node ./out/test/runTest.js --unit",
+    "test:unit": "npm run compile && node ./out/test/runTest.js --unit",
     "test:coverage": "c8 --reporter=text --reporter=lcov node ./out/test/runTest.js",
     "package": "vsce package --no-dependencies"
   },
