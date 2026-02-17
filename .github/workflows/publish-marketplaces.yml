@@ -10,10 +10,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: publish-marketplaces-${{ github.workflow }}-${{ github.run_id }}
-  cancel-in-progress: false
-
 jobs:
   publish:
     name: Publish VSIX to VS Code Marketplace and Open VSX
@@ -24,15 +20,16 @@ jobs:
       - name: Validate tag format
         shell: bash
         run: |
-          if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
-            echo "Invalid tag '${{ inputs.tag }}'. Use semver-like tags such as v1.2.3 or v1.2.3-rc.1"
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "Invalid tag '$TAG'. Use semver-like tags such as v1.2.3 or v1.2.3-rc.1"
             exit 1
           fi
 
       - name: Checkout tag
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ inputs.tag }}
+          ref: refs/tags/${{ github.event.inputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
