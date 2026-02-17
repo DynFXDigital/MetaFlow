@@ -32,6 +32,10 @@ suite('classifier', () => {
               assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'settings');
         });
 
+        test('chatmodes → materialized (deprecated)', () => {
+            assert.strictEqual(classifySingle('chatmodes/legacy.chatmode.md', undefined), 'materialized');
+        });
+
         test('unknown file type → materialized', () => {
             assert.strictEqual(classifySingle('random/file.txt', undefined), 'materialized');
         });
@@ -67,6 +71,13 @@ suite('classifier', () => {
             assert.strictEqual(
                 classifySingle('prompts/gen.prompt.md', { skills: 'settings' }),
                 'settings'
+            );
+        });
+
+        test('chatmodes ignore settings override and remain materialized', () => {
+            assert.strictEqual(
+                classifySingle('chatmodes/legacy.chatmode.md', { chatmodes: 'settings' }),
+                'materialized'
             );
         });
     });

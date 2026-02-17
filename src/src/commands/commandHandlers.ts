@@ -51,6 +51,14 @@ export interface ExtensionState {
     onDidChange: vscode.EventEmitter<void>;
 }
 
+interface RefreshCommandOptions {
+    skipAutoApply?: boolean;
+}
+
+interface ApplyCommandOptions {
+    skipRefresh?: boolean;
+}
+
 /**
  * Create a fresh state with an event emitter.
  */
@@ -186,6 +194,28 @@ function extractInjectionKey(arg: unknown): InjectionKey | undefined {
     return undefined;
 }
 
+function extractRefreshCommandOptions(arg: unknown): RefreshCommandOptions {
+    if (typeof arg !== 'object' || arg === null) {
+        return {};
+    }
+
+    const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
+    return {
+        skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
+    };
+}
+
+function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
+    if (typeof arg !== 'object' || arg === null) {
+        return {};
+    }
+
+    const skipRefresh = (arg as { skipRefresh?: unknown }).skipRefresh;
+    return {
+        skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
+    };
+}
+
 function persistConfig(configPath: string, config: MetaFlowConfig): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
 }
@@ -271,9 +301,11 @@ export function registerCommands(
 
     // ── metaflow.refresh ───────────────────────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refresh', async () => {
+        vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
             const ws = getWorkspace();
             if (!ws) { return; }
+
+            const refreshOptions = extractRefreshCommandOptions(arg);
 
             logInfo('Refreshing overlay...');
             updateStatusBar('loading');
@@ -327,6 +359,16 @@ export function registerCommands(
             }
 
             state.onDidChange.fire();
+
+            if (!refreshOptions.skipAutoApply) {
+                const autoApply = vscode.workspace
+                    .getConfiguration('metaflow', ws.uri)
+                    .get<boolean>('autoApply', false);
+                if (autoApply) {
+                    logInfo('Auto-apply enabled; applying overlay after refresh.');
+                    await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+                }
+            }
         })
     );
 
@@ -351,12 +393,14 @@ export function registerCommands(
 
     // ── metaflow.apply ─────────────────────────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.apply', async () => {
+        vscode.commands.registerCommand('metaflow.apply', async (arg?: unknown) => {
             const ws = getWorkspace();
             if (!ws || !state.config) {
                 vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
                 return;
             }
+
+            const applyOptions = extractApplyCommandOptions(arg);
 
             await vscode.window.withProgress(
                 { location: vscode.ProgressLocation.Notification, title: 'MetaFlow: Applying overlay...' },
@@ -380,7 +424,9 @@ export function registerCommands(
                     );
 
                     // Refresh views
-                    await vscode.commands.executeCommand('metaflow.refresh');
+                    if (!applyOptions.skipRefresh) {
+                        await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+                    }
                 }
             );
         })

@@ -243,6 +243,33 @@ describe('Engine package: overlay pipeline', () => {
         const instruction = files.find(f => f.relativePath === 'instructions/test.instructions.md');
         assert.strictEqual(instruction?.classification, 'settings');
     });
+
+    it('classifies deprecated chatmodes as materialized-only', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'chatmodes', 'legacy.chatmode.md'),
+            '# Legacy chatmode'
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: {
+                chatmodes: 'settings',
+            },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+
+        assert.ok(files.some(f => f.relativePath === 'chatmodes/legacy.chatmode.md'));
+
+        classifyFiles(files, config.injection);
+        const chatmode = files.find(f => f.relativePath === 'chatmodes/legacy.chatmode.md');
+        assert.strictEqual(chatmode?.classification, 'materialized');
+    });
 });
 
 describe('Engine package: materialization', () => {

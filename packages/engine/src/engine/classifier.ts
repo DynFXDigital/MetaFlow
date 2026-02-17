@@ -10,6 +10,7 @@
  * - skills/** → settings
  * - agents/** → settings
  * - hooks/** → settings
+ * - chatmodes/** → materialized (deprecated, no settings injection)
  * - unknown → materialized
  *
  * Pure TypeScript — no VS Code imports.
@@ -25,6 +26,7 @@ const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
     'skills': 'settings',
     'agents': 'settings',
     'hooks': 'settings',
+    'chatmodes': 'materialized',
 };
 
 /**
@@ -57,6 +59,11 @@ export function classifySingle(
 ): ArtifactClassification {
     const normalized = relativePath.replace(/\\/g, '/');
     const topDir = normalized.split('/')[0];
+
+    // Deprecated chatmodes remain materialized-only.
+    if (topDir === 'chatmodes') {
+        return 'materialized';
+    }
 
     // Check injection override first
     if (injection) {

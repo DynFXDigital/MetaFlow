@@ -113,6 +113,30 @@ suite('Command Execution', () => {
         assert.ok(promptLocations && Object.keys(promptLocations).length > 0, 'Prompt locations should be injected at workspace scope');
     });
 
+    test('refresh auto-applies when metaflow.autoApply is enabled', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        await wsConfig.update('metaflow.autoApply', true, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.instructionsFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.promptFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const instructionLocations = wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations')?.workspaceValue;
+            const promptLocations = wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations')?.workspaceValue;
+
+            assert.ok(instructionLocations && Object.keys(instructionLocations).length > 0, 'Instruction locations should be injected during refresh when autoApply=true');
+            assert.ok(promptLocations && Object.keys(promptLocations).length > 0, 'Prompt locations should be injected during refresh when autoApply=true');
+        } finally {
+            await wsConfig.update('metaflow.autoApply', undefined, vscode.ConfigurationTarget.Workspace);
+        }
+    });
+
     test('clean removes managed files', async function () {
         this.timeout(15000);
         // First apply, then clean

@@ -73,6 +73,7 @@ export interface InjectionConfig {
     skills?: InjectionMode;
     agents?: InjectionMode;
     hooks?: InjectionMode;
+    chatmodes?: InjectionMode;
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────
