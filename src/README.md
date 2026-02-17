@@ -12,6 +12,16 @@ AI metadata overlay management for GitHub Copilot — deterministic overlay reso
 - **Settings Injection**: Configure Copilot alternate-path settings for settings-backed artifacts.
 - **TreeView UI**: Visual tree views for config summary, profiles, layers, and effective files.
 
+## Recommended mode (automatic)
+
+MetaFlow works best in automatic mode, which is the default.
+
+- Set up `.metaflow/config.jsonc` once.
+- Save config changes.
+- MetaFlow refreshes and applies automatically.
+
+Use command palette actions for diagnostics and explicit control, not as the primary day-to-day workflow.
+
 ## Installation
 
 Install from VSIX:
@@ -71,7 +81,7 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Init C
 | Setting | Default | Description |
 |---|---|---|
 | `metaflow.enabled` | `true` | Enable/disable the extension |
-| `metaflow.autoApply` | `false` | Auto-apply on config change |
+| `metaflow.autoApply` | `true` | Auto-apply on config change (recommended) |
 | `metaflow.logLevel` | `info` | Log verbosity (debug/info/warn/error) |
 | `metaflow.hooksEnabled` | `true` | Enable Copilot hooks injection |
 

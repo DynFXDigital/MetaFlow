@@ -4,94 +4,112 @@
 [![Release](https://github.com/kiates/MetaFlow/actions/workflows/release.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/kiates/MetaFlow?display_name=tag)](https://github.com/kiates/MetaFlow/releases)
 
-MetaFlow helps teams manage AI coding metadata in a deterministic, auditable way across local repos, CI, and editor workflows.
+MetaFlow helps teams manage GitHub Copilot metadata in a deterministic, auditable way across local repos, CI, and editor workflows.
 
-It combines:
+MetaFlow gives you one consistent way to compose and apply layered AI metadata (instructions, prompts, skills, agents) without ad-hoc copy/paste.
 
-- a VS Code extension (`src/`)
-- a shared engine (`packages/engine`)
-- a CLI (`packages/cli`)
+## Why teams use MetaFlow
 
-If you want reliable metadata layering (profiles, overlays, provenance, drift detection) instead of ad-hoc copy/paste config, MetaFlow is built for that.
+- **Deterministic output**: same config + same metadata input = same result.
+- **Safe updates**: drift detection helps avoid overwriting local edits.
+- **Auditability**: materialized files include provenance headers.
+- **Editor + automation parity**: VS Code and CLI share the same engine behavior.
 
-## Why MetaFlow
+## What it manages
 
-- **Deterministic outcomes**: same inputs produce the same materialized output.
-- **Traceable changes**: provenance headers make generated files easy to audit.
-- **Safer automation**: drift-aware workflows reduce accidental config clobbering.
-- **Editor + CLI parity**: run the same model in VS Code and automation scripts.
-
-## How MetaFlow works (simple)
-
-1. You define your metadata setup in `.metaflow/config.jsonc` (layers, filters, profile, injection mode).
-2. MetaFlow reads those inputs and builds one effective view of what files/settings should exist.
-3. When you apply, it writes managed outputs and adds provenance so generated content is traceable.
-4. If a managed file was manually changed, drift detection warns before overwrite.
-5. The same logic is used by both the VS Code extension and the CLI, so local and CI behavior stay aligned.
-
-`.metaflow/config.jsonc` can be either checked in (team-shared behavior) or kept local/untracked (user-isolated behavior). Runtime state stays in `.metaflow/state.json` and is typically ignored.
+- Instructions and prompts
+- Skills and custom agents
+- Layered policy/profile composition
+- Settings-backed and materialized artifact routing
 
 ## Quick start
 
-From repository root:
+### 1) Install
+
+Install a release VSIX from the [Releases](https://github.com/kiates/MetaFlow/releases) page.
 
 ```bash
-npm ci
-npm run build
-npm test
+code --install-extension <metaflow-release>.vsix
 ```
 
-`npm test` runs engine tests, CLI tests, and extension unit tests.
-Run `npm run test:integration` to execute extension-host integration tests.
+### 2) Initialize config
 
-For extension-specific usage and local install details, see `src/README.md`.
+In VS Code, run:
 
-## What’s in this repo
+- `MetaFlow: Init Config`
 
-- `src/` — VS Code extension package (`metaflow`)
-- `packages/engine/` — pure TypeScript core (`@metaflow/engine`)
-- `packages/cli/` — CLI (`@metaflow/cli`)
-- `doc/` — requirements, design, test, and validation artifacts
-- `.github/` — workflows, templates, governance, and maintenance automation
+Then edit `.metaflow/config.jsonc` and set at least:
 
-## Common developer commands
+- `metadataRepo.localPath`
+- `layers`
+- `activeProfile` (optional; defaults can be used)
 
-From repository root:
+### 3) Use automatic mode (default)
 
-```bash
-# Build engine + CLI + extension
-npm run build
+Automatic mode is the recommended workflow and is enabled by default (`metaflow.autoApply: true`).
 
-# Package-specific tests
-npm run test:engine
-npm run test:cli
+After saving config changes, MetaFlow automatically refreshes and applies overlay results.
 
-# Extension tests
-npm run test:unit
-npm run test:integration
-```
+In normal use, you do not need to run apply commands manually.
 
-Note: root `npm test` does not include `test:integration`.
+### 4) Optional manual controls
 
-## CI and release automation
+Run:
 
-- `.github/workflows/ci.yml` — minimal build + unit test checks for PRs and `main`
-- `.github/workflows/version-packages.yml` — Changesets automation that opens/updates the version bump PR on `main`
-- `.github/workflows/release.yml` — package VSIX + create GitHub Release on `v*` tags, with optional manual marketplace publish (`publish_to_marketplaces`)
-- `.github/dependabot.yml` — scheduled dependency updates
+- `MetaFlow: Preview`
+- `MetaFlow: Apply`
 
-### Release secrets
+Use manual commands when you want explicit control (for example, checking pending changes before writing).
 
-- `VSCE_PAT` — required when `publish_to_marketplaces` is enabled
-- `OVSX_PAT` — required when `publish_to_marketplaces` is enabled
+## Typical workflow
 
-## Contributing
+1. Adjust layers/profiles in `.metaflow/config.jsonc`.
+2. Save config; MetaFlow auto-refreshes and auto-applies.
+3. Check status/output if you need to verify results.
+4. Use preview/apply only when you want explicit manual control.
+5. Use promote/drift workflows when local edits should move upstream.
 
-See `.github/CONTRIBUTING.md`.
+`.metaflow/config.jsonc` can be either checked in (team-shared behavior) or kept local/untracked (user-isolated behavior). Runtime state stays in `.metaflow/state.json` and is typically ignored.
 
-## Security
+## Command overview
 
-See `.github/SECURITY.md`.
+Core VS Code commands (manual controls and diagnostics):
+
+- `MetaFlow: Refresh`
+- `MetaFlow: Preview`
+- `MetaFlow: Apply`
+- `MetaFlow: Clean`
+- `MetaFlow: Status`
+- `MetaFlow: Switch Profile`
+- `MetaFlow: Toggle Layer`
+- `MetaFlow: Open Config`
+- `MetaFlow: Init Config`
+- `MetaFlow: Promote`
+
+For full command and setting details, see [src/README.md](src/README.md).
+
+## Troubleshooting
+
+- Use `MetaFlow: Status` and the MetaFlow output channel first.
+- Validate your metadata repo path and layer names in `.metaflow/config.jsonc`.
+- In automatic mode, save config and inspect output; use `Preview`/`Apply` only for explicit control.
+- If files are skipped, check drift output and decide whether to promote or force overwrite via CLI.
+
+## Support
+
+- Usage help and troubleshooting: [SUPPORT.md](SUPPORT.md)
+- Bug reports and feature requests: GitHub Issues
+- Security reporting: [.github/SECURITY.md](.github/SECURITY.md)
+
+## For contributors and maintainers
+
+Developer and project operations docs are intentionally separated from this user-focused README:
+
+- Contributing guide: [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)
+- Architecture and contributor workflow: [AGENTS.md](AGENTS.md)
+- Release process: [RELEASING.md](RELEASING.md)
+- CLI deep usage: [packages/cli/README.md](packages/cli/README.md)
+- Formal requirements/design/test docs: [doc/](doc/)
 
 ## License
 

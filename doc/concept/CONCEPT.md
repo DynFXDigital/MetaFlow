@@ -365,7 +365,7 @@ Shows: `MetaFlow: <profile> (<N> files)` with state indicator (synced / drift / 
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `metaflow.enabled` | boolean | `true` | Enable/disable extension |
-| `metaflow.autoApply` | boolean | `false` | Auto-apply on config change |
+| `metaflow.autoApply` | boolean | `true` | Auto-apply on config change (default/recommended) |
 | `metaflow.logLevel` | enum | `info` | Output channel verbosity |
 | `metaflow.hooksEnabled` | boolean | `true` | Enable/disable hook path injection |
 
