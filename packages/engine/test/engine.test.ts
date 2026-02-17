@@ -270,6 +270,38 @@ describe('Engine package: overlay pipeline', () => {
         const chatmode = files.find(f => f.relativePath === 'chatmodes/legacy.chatmode.md');
         assert.strictEqual(chatmode?.classification, 'materialized');
     });
+
+    it('ignores unknown .github directories when resolving layers', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'ISSUE_TEMPLATE'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'components'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'chatmodes', 'legacy.chatmode.md'),
+            '# Legacy chatmode'
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'ISSUE_TEMPLATE', 'bug.yml'),
+            'name: Bug'
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'components', 'widget.md'),
+            '# Widget'
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+
+        assert.ok(files.some(f => f.relativePath === 'chatmodes/legacy.chatmode.md'));
+        assert.ok(!files.some(f => f.relativePath.startsWith('ISSUE_TEMPLATE/')));
+        assert.ok(!files.some(f => f.relativePath.startsWith('components/')));
+    });
 });
 
 describe('Engine package: materialization', () => {

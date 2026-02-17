@@ -18,6 +18,15 @@ import {
 import { resolvePathFromWorkspace, isWithinBoundary } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 
+const KNOWN_ARTIFACT_ROOTS = new Set([
+    'instructions',
+    'prompts',
+    'skills',
+    'agents',
+    'hooks',
+    'chatmodes',
+]);
+
 /**
  * Resolve all layers from a config and return an ordered array of LayerContent.
  *
@@ -153,6 +162,9 @@ function walkDirectory(dirPath: string, layerRoot: string): LayerFile[] {
             files.push(...walkDirectory(fullPath, layerRoot));
         } else if (entry.isFile()) {
             const relativePath = normalizeLayerRelativePath(path.relative(layerRoot, fullPath));
+            if (!isKnownArtifactPath(relativePath)) {
+                continue;
+            }
             files.push({
                 relativePath,
                 absolutePath: fullPath,
@@ -177,4 +189,9 @@ function normalizeLayerRelativePath(relativePath: string): string {
         return posixPath.slice('.github/'.length);
     }
     return posixPath;
+}
+
+function isKnownArtifactPath(relativePath: string): boolean {
+    const topDir = relativePath.split('/')[0];
+    return KNOWN_ARTIFACT_ROOTS.has(topDir);
 }
