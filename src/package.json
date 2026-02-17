@@ -141,7 +141,7 @@
       },
       {
         "view": "metaflow-profiles",
-        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)",
+        "contents": "No MetaFlow configuration found.",
         "when": "workspaceFolderCount > 0"
       }
     ],

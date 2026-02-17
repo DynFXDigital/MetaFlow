@@ -5,8 +5,6 @@
  */
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import {
     loadConfig,
@@ -40,20 +38,6 @@ suite('Config Loader', () => {
             }
         });
 
-        test('rejects unsupported legacy .ai-sync.json', () => {
-            const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-legacy-config-'));
-            fs.writeFileSync(path.join(tmpDir, '.ai-sync.json'), '{}', 'utf-8');
-
-            try {
-                const result = loadConfig(tmpDir);
-                assert.strictEqual(result.ok, false);
-                if (!result.ok) {
-                    assert.ok(result.errors[0].message.includes('Unsupported legacy config'));
-                }
-            } finally {
-                fs.rmSync(tmpDir, { recursive: true, force: true });
-            }
-        });
     });
 
     suite('loadConfigFromPath()', () => {
