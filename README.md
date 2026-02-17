@@ -74,6 +74,7 @@ Note: root `npm test` does not include `test:integration`.
 ## CI and release automation
 
 - `.github/workflows/ci.yml` — minimal build + unit test checks for PRs and `main`
+- `.github/workflows/version-packages.yml` — Changesets automation that opens/updates the version bump PR on `main`
 - `.github/workflows/release.yml` — package VSIX + create GitHub Release on `v*` tags, with optional manual marketplace publish (`publish_to_marketplaces`)
 - `.github/dependabot.yml` — scheduled dependency updates
 

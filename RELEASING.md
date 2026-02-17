@@ -5,6 +5,37 @@
 - Stable releases use tags: `vX.Y.Z`
 - Pre-releases use suffixes: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`, or `vX.Y.Z-preview.N`
 
+For early-stage development (pre-`1.0.0`), prefer `0.x` tags and pre-releases such as `v0.2.0-beta.1`.
+
+## Bumping versions
+
+Canonical versioning is now automated with Changesets.
+
+### In feature PRs
+
+From repository root:
+
+- `npm run changeset`
+
+Add a changeset whenever a PR should affect release versioning.
+
+### On `main`
+
+Workflow `.github/workflows/version-packages.yml` automatically opens/updates a
+`chore(release): version packages` PR when pending changesets exist.
+
+Merging that PR applies synchronized version bumps to:
+
+- `src/package.json`
+- `packages/engine/package.json`
+- `packages/cli/package.json`
+
+and updates changelog entries.
+
+### Create release
+
+After merging the version PR, tag the merge commit with `vX.Y.Z` to trigger release packaging.
+
 ## Release paths
 
 - **Tag push (`v*`)**: automatic package + GitHub Release with VSIX asset.

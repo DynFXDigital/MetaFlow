@@ -11,6 +11,11 @@
     "test:cli": "npm -w @metaflow/cli test",
     "test:unit": "npm -w metaflow run test:unit",
     "test:integration": "npm -w metaflow test",
-    "test": "npm run test:engine && npm run test:cli && npm run test:unit"
+    "test": "npm run test:engine && npm run test:cli && npm run test:unit",
+    "changeset": "changeset",
+    "version-packages": "changeset version && npm install --package-lock-only"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.6"
   }
 }
