@@ -7,8 +7,8 @@
  * Default rules:
  * - instructions/** → settings
  * - prompts/** → settings
- * - skills/** → materialized (or settings when injection override is set)
- * - agents/** → materialized (or settings when injection override is set)
+ * - skills/** → settings
+ * - agents/** → settings
  * - hooks/** → settings
  * - unknown → materialized
  *
@@ -22,8 +22,8 @@ import { ArtifactClassification, EffectiveFile } from './types';
 const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
     'instructions': 'settings',
     'prompts': 'settings',
-    'skills': 'materialized',
-    'agents': 'materialized',
+    'skills': 'settings',
+    'agents': 'settings',
     'hooks': 'settings',
 };
 

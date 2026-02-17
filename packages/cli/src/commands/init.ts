@@ -31,8 +31,9 @@ export function registerInitCommand(program: Command): void {
                 injection: {
                     instructions: 'settings',
                     prompts: 'settings',
-                    skills: 'materialize',
-                    agents: 'materialize',
+                    skills: 'settings',
+                    agents: 'settings',
+                    hooks: 'settings',
                 },
             };
 
