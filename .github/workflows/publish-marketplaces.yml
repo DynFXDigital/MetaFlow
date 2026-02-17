@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-marketplaces-${{ inputs.tag }}
+  group: publish-marketplaces-${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
