@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to release (tag or SHA)
-        required: true
-        default: main
+        description: Git tag to release (v*)
+        required: false
+        default: ""
       publish_to_marketplaces:
         description: Publish VSIX to VS Code Marketplace and Open VSX (requires approval)
         required: true
@@ -17,7 +17,7 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event_name }}-${{ github.ref_name || inputs.ref }}
@@ -28,16 +28,30 @@ jobs:
     name: Package and create GitHub release
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     outputs:
       ref_to_build: ${{ steps.ref.outputs.ref_to_build }}
       release_tag: ${{ steps.ref.outputs.release_tag }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
       - name: Resolve release ref
         id: ref
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             REF_INPUT="${{ inputs.ref }}"
+            if [ -z "$REF_INPUT" ]; then
+              REF_INPUT="$(git tag --list 'v*' --sort=-v:refname | head -1)"
+              if [ -z "$REF_INPUT" ]; then
+                echo "No release tags found. Provide a tag in the ref input (for example: v0.1.0)."
+                exit 1
+              fi
+            fi
           else
             REF_INPUT="${{ github.ref }}"
           fi
@@ -49,7 +63,7 @@ jobs:
             REF_NAME="$REF_INPUT"
             RELEASE_TAG="$REF_NAME"
           else
-            echo "Unsupported ref '$REF_INPUT'. Allowed: refs/tags/v* or v*."
+            echo "Unsupported ref '$REF_INPUT'. Allowed values are Git tags matching v* (for example: v0.1.0)."
             exit 1
           fi
 
@@ -63,13 +77,13 @@ jobs:
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout release ref
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ steps.ref.outputs.ref_to_build }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -79,6 +93,9 @@ jobs:
 
       - name: Build workspace
         run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
 
       - name: Package extension
         working-directory: src
@@ -99,7 +116,7 @@ jobs:
           echo "vsix_name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.vsix.outputs.vsix_name }}
           path: ${{ steps.vsix.outputs.vsix_path }}
@@ -133,14 +150,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: marketplace-publish
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ needs.release.outputs.ref_to_build }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -165,6 +184,9 @@ jobs:
 
       - name: Build workspace
         run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
 
       - name: Package extension
         working-directory: src

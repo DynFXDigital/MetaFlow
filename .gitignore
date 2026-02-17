@@ -36,6 +36,8 @@ test-results/
 src/test-workspace/.github/
 src/test-workspace/.vscode/
 src/test-workspace/.ai/.sync-state/
+.ai/.sync-state/
+.ai/temp/
 
 # Local env
 .env
@@ -44,3 +46,4 @@ src/test-workspace/.ai/.sync-state/
 # Local tooling caches
 .cache/
 .turbo/
+.pytest_cache/
