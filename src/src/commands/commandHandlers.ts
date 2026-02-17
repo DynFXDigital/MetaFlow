@@ -294,8 +294,7 @@ export function registerCommands(
         return pickWorkspaceFolder(
             folders,
             activeFolder,
-            folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow.json'))
-                || fs.existsSync(path.join(folder.uri.fsPath, '.ai', '.metaflow.json'))
+            folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow', 'config.jsonc'))
         );
     };
 
@@ -329,7 +328,7 @@ export function registerCommands(
                     );
 
                     if (nearMiss) {
-                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Rename it to ".metaflow.json".`;
+                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Move it to ".metaflow/config.jsonc".`;
                         logWarn(message);
                         vscode.window.showWarningMessage(message);
                     }

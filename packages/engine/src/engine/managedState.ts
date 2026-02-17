@@ -34,8 +34,8 @@ export interface ManagedState {
 }
 
 /** Default state directory relative to workspace root. */
-const STATE_DIR = '.ai/.sync-state';
-const STATE_FILE = 'overlay_managed.json';
+const STATE_DIR = '.metaflow';
+const STATE_FILE = 'state.json';
 const CURRENT_VERSION = 1;
 
 /**

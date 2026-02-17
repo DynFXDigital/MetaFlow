@@ -1,7 +1,7 @@
 /**
  * MetaFlow configuration schema interfaces.
  *
- * These types model the `.metaflow.json` configuration file defined by
+ * These types model the `.metaflow/config.jsonc` configuration file defined by
  * the MetaFlow Reference Architecture.
  *
  * Pure TypeScript — no VS Code imports.
@@ -87,7 +87,7 @@ export interface HooksConfig {
 // ── Top-level config ───────────────────────────────────────────────
 
 /**
- * The full `.metaflow.json` configuration.
+ * The full `.metaflow/config.jsonc` configuration.
  *
  * Supports both single-repo (`metadataRepo` + `layers`) and
  * multi-repo (`metadataRepos` + `layerSources`) modes.

@@ -24,8 +24,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "workspaceContains:**/.metaflow.json",
-    "workspaceContains:**/.ai/.metaflow.json"
+    "workspaceContains:**/.metaflow/config.jsonc"
   ],
   "main": "./dist/extension.js",
   "contributes": {

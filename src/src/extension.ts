@@ -2,7 +2,7 @@
  * MetaFlow VS Code Extension — entry point.
  *
  * Activation:
- * - On workspace containing `.metaflow.json` or `.ai/.metaflow.json`.
+ * - On workspace containing `.metaflow/config.jsonc`.
  * - On any `metaflow.*` command invocation.
  *
  * Follows the disposable pattern: all subscriptions tracked for cleanup.
@@ -68,11 +68,8 @@ export function activate(context: vscode.ExtensionContext): void {
     // Watch config file create/change/delete and auto-refresh state/UI.
     const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
     for (const folder of workspaceFolders) {
-        const rootConfigWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(folder, '.metaflow.json')
-        );
-        const fallbackConfigWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(folder, '.ai/.metaflow.json')
+        const configWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, '.metaflow/config.jsonc')
         );
 
         const registerWatcher = (watcher: vscode.FileSystemWatcher, label: string) => {
@@ -93,8 +90,7 @@ export function activate(context: vscode.ExtensionContext): void {
             );
         };
 
-        registerWatcher(rootConfigWatcher, '.metaflow.json');
-        registerWatcher(fallbackConfigWatcher, '.ai/.metaflow.json');
+        registerWatcher(configWatcher, '.metaflow/config.jsonc');
     }
 
     // Set context for keybindings/menus

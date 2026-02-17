@@ -267,7 +267,7 @@ export async function resolveSourceSelection(
 }
 
 /**
- * Initialize a new `.metaflow.json` configuration file in the workspace root.
+ * Initialize a new `.metaflow/config.jsonc` configuration file in the workspace root.
  *
  * Uses the VS Code workspace file-system API so it works for local,
  * remote, and WSL workspaces.
@@ -280,7 +280,8 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
     return;
   }
 
-    const configUri = vscode.Uri.joinPath(workspaceFolder.uri, '.metaflow.json');
+    const configDirUri = vscode.Uri.joinPath(workspaceFolder.uri, '.metaflow');
+    const configUri = vscode.Uri.joinPath(configDirUri, 'config.jsonc');
     logInfo(`initConfig: target → ${configUri.fsPath}`);
 
     // Check whether the file already exists
@@ -294,7 +295,7 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
 
     if (exists) {
         const overwrite = await vscode.window.showWarningMessage(
-            '.metaflow.json already exists. Overwrite?',
+        '.metaflow/config.jsonc already exists. Overwrite?',
             'Yes',
             'No'
         );
@@ -343,6 +344,7 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
       const localPath = toConfigLocalPath(workspaceFolder, selection.metadataRoot);
       const config = buildConfig(localPath, selection.layers, selection.metadataUrl);
       const content = Buffer.from(JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    await vscode.workspace.fs.createDirectory(configDirUri);
     await vscode.workspace.fs.writeFile(configUri, content);
     logInfo('initConfig: file written.');
 

@@ -6,11 +6,11 @@ import { getWorkspaceRoot } from './common';
 export function registerInitCommand(program: Command): void {
     program
         .command('init')
-        .description('Generate a starter .metaflow.json')
+        .description('Generate a starter .metaflow/config.jsonc')
         .option('-f, --force', 'Overwrite existing config')
         .action((options: { force?: boolean }) => {
             const workspaceRoot = getWorkspaceRoot(program);
-            const configPath = path.join(workspaceRoot, '.metaflow.json');
+            const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
 
             if (fs.existsSync(configPath) && !options.force) {
                 console.error(`Config already exists: ${configPath}`);
@@ -37,6 +37,7 @@ export function registerInitCommand(program: Command): void {
                 },
             };
 
+            fs.mkdirSync(path.dirname(configPath), { recursive: true });
             fs.writeFileSync(configPath, JSON.stringify(template, null, 2) + '\n', 'utf-8');
             console.log(`Created: ${configPath}`);
         });
