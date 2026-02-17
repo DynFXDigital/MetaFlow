@@ -23,6 +23,34 @@ const isPathWithin = (targetPath: string, parentPath: string): boolean => {
 const sortByLabel = <T extends vscode.TreeItem>(items: T[]): T[] =>
     [...items].sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }));
 
+function toDisplayRelativePath(relativePath: string): string {
+    const parts = toPosixPath(relativePath).split('/').filter(Boolean);
+    const githubIndex = parts.indexOf('.github');
+    if (githubIndex === -1) {
+        return parts.join('/');
+    }
+
+    const displayParts = [...parts.slice(0, githubIndex), ...parts.slice(githubIndex + 1)];
+    return displayParts.join('/');
+}
+
+function getLayerDisplayPath(file: EffectiveFile): string {
+    const sourceLayer = toPosixPath(file.sourceLayer || '').replace(/^\/|\/$/g, '');
+    const sourceRepo = toPosixPath(file.sourceRepo || '').replace(/^\/|\/$/g, '');
+
+    if (sourceRepo && sourceLayer.startsWith(sourceRepo + '/')) {
+        return sourceLayer.slice(sourceRepo.length + 1);
+    }
+
+    return sourceLayer;
+}
+
+function getDisplayPathForFile(file: EffectiveFile): string {
+    const layerPath = getLayerDisplayPath(file);
+    const artifactPath = toDisplayRelativePath(file.relativePath);
+    return [layerPath, artifactPath].filter(Boolean).join('/');
+}
+
 function getClassificationLabel(classification: EffectiveFile['classification']): string {
     return classification === 'settings' ? 'settings' : 'materialized';
 }
@@ -144,7 +172,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         const leafFiles: FileItem[] = [];
 
         for (const file of files) {
-            const rel = toPosixPath(file.relativePath);
+            const rel = getDisplayPathForFile(file);
             if (prefix && !rel.startsWith(prefix + '/')) {
                 continue;
             }
@@ -185,19 +213,29 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
 
         const representative = files[0];
-        const relativeParts = toPosixPath(representative.relativePath).split('/').filter(Boolean);
-        if (relativeParts.length === 0) {
+        const displayPath = getDisplayPathForFile(representative);
+        if (!displayPath) {
             return undefined;
         }
 
-        // Remove all artifact-relative segments to get the layer base path.
-        let basePath = path.normalize(representative.sourcePath);
-        for (let i = 0; i < relativeParts.length; i += 1) {
-            basePath = path.dirname(basePath);
+        const displayParts = displayPath.split('/').filter(Boolean);
+        const prefixParts = prefix.split('/').filter(Boolean);
+        if (prefixParts.length > displayParts.length) {
+            return undefined;
         }
 
-        const folderParts = prefix.split('/').filter(Boolean);
-        return path.join(basePath, ...folderParts);
+        const isPrefix = prefixParts.every((part, index) => part === displayParts[index]);
+        if (!isPrefix) {
+            return undefined;
+        }
+
+        const stepsUp = displayParts.length - prefixParts.length;
+        let sourceFolder = path.normalize(representative.sourcePath);
+        for (let i = 0; i < stepsUp; i += 1) {
+            sourceFolder = path.dirname(sourceFolder);
+        }
+
+        return sourceFolder;
     }
 
     getChildren(element?: FileTreeNode): FileTreeNode[] {

@@ -189,29 +189,49 @@ suite('TreeView Providers', () => {
                 name: 'CoreMeta',
                 localPath: repoRoot,
             },
-            layers: ['company/core'],
+            layers: ['company/components/devtools'],
         };
 
         state.effectiveFiles = [
             {
                 relativePath: 'instructions/policies/coding.md',
-                sourcePath: path.join(repoRoot, 'company', 'core', 'instructions', 'policies', 'coding.md'),
-                sourceLayer: 'company/core',
+                sourcePath: path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'instructions', 'policies', 'coding.md'),
+                sourceLayer: 'company/components/devtools',
                 classification: 'settings',
             },
             {
                 relativePath: 'agents/test.agent.md',
-                sourcePath: path.join(repoRoot, 'company', 'core', 'agents', 'test.agent.md'),
-                sourceLayer: 'standards/sdlc',
+                sourcePath: path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'agents', 'test.agent.md'),
+                sourceLayer: 'company/components/devtools',
                 classification: 'materialized',
             },
         ];
 
         const provider = new FilesTreeViewProvider(state);
         const items = provider.getChildren();
-        const instructionsFolder = items.find(i => String(i.label) === 'instructions');
-        assert.ok(instructionsFolder, 'Should preserve top-level folder hierarchy');
+        const companyFolder = items.find(i => String(i.label) === 'company');
+        assert.ok(companyFolder, 'Should preserve hierarchy above .github');
+
+        const companyChildren = provider.getChildren(companyFolder as never);
+        const componentsFolder = companyChildren.find(i => String(i.label) === 'components');
+        assert.ok(componentsFolder, 'Should preserve hierarchy above .github');
+
+        const componentsChildren = provider.getChildren(componentsFolder as never);
+        const devtoolsFolder = componentsChildren.find(i => String(i.label) === 'devtools');
+        assert.ok(devtoolsFolder, 'Should preserve hierarchy above .github');
+
+        const devtoolsChildren = provider.getChildren(devtoolsFolder as never);
+        const githubFolder = devtoolsChildren.find(i => String(i.label) === '.github');
+        assert.strictEqual(githubFolder, undefined, 'Should suppress .github from displayed hierarchy');
+
+        const instructionsFolder = devtoolsChildren.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Should show metadata category folders directly under layer path');
         assert.strictEqual(instructionsFolder?.command?.command, 'revealInExplorer');
+        assert.deepStrictEqual(
+            instructionsFolder?.command?.arguments,
+            [vscode.Uri.file(path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'instructions'))],
+            'Reveal should still target the real .github folder path'
+        );
 
         const instructionsChildren = provider.getChildren(instructionsFolder as never);
         const policiesFolder = instructionsChildren.find(i => String(i.label) === 'policies');
@@ -224,7 +244,7 @@ suite('TreeView Providers', () => {
         assert.strictEqual(codingFile?.description, 'CoreMeta (settings)');
         assert.strictEqual(codingFile?.command?.command, 'vscode.open');
 
-        const agentsFolder = items.find(i => String(i.label) === 'agents');
+        const agentsFolder = devtoolsChildren.find(i => String(i.label) === 'agents');
         assert.ok(agentsFolder, 'Should show folder for materialized files');
         assert.strictEqual(agentsFolder?.command?.command, 'revealInExplorer');
 
