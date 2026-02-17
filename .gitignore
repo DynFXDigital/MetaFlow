@@ -47,3 +47,6 @@ src/test-workspace/.metaflow/state.json
 .cache/
 .turbo/
 .pytest_cache/
+
+# Ignore materialized AI Metadata files
+.github/**/_*
