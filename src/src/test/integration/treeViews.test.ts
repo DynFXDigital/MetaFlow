@@ -146,7 +146,7 @@ suite('TreeView Providers', () => {
         const provider = new LayersTreeViewProvider(state);
         const items = provider.getChildren();
         assert.strictEqual(items.length, 2, 'Should return 2 layers');
-        assert.strictEqual(items[0].command?.command, 'metaflow.toggleLayer', 'Single-repo layers should be toggleable');
+        assert.strictEqual(items[0].checkboxState, vscode.TreeItemCheckboxState.Checked, 'Single-repo layers should expose a checked checkbox');
         assert.strictEqual(items[0].description, '');
     });
 

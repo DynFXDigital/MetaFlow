@@ -172,11 +172,6 @@
           "group": "inline"
         },
         {
-          "command": "metaflow.toggleLayer",
-          "when": "view == metaflow-layers && viewItem == layer",
-          "group": "inline"
-        },
-        {
           "command": "metaflow.toggleRepoSource",
           "when": "view == metaflow-config && viewItem == configRepoSource",
           "group": "inline"

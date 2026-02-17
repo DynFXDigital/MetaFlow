@@ -18,9 +18,9 @@ class LayerItem extends vscode.TreeItem {
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.contextValue = 'layer';
-        this.iconPath = enabled
-            ? new vscode.ThemeIcon('check')
-            : new vscode.ThemeIcon('circle-outline');
+        this.checkboxState = enabled
+            ? vscode.TreeItemCheckboxState.Checked
+            : vscode.TreeItemCheckboxState.Unchecked;
         if (repoId) {
             this.description = repoDisabled ? `(${repoId}, repo disabled)` : `(${repoId})`;
         } else if (!toggleable) {
@@ -28,13 +28,10 @@ class LayerItem extends vscode.TreeItem {
         } else {
             this.description = '';
         }
-        if (toggleable) {
-            this.command = {
-                command: 'metaflow.toggleLayer',
-                title: 'Toggle Layer',
-                arguments: [layerIndex],
-            };
-        }
+        this.accessibilityInformation = {
+            label: `${label} ${enabled ? 'enabled' : 'disabled'}`,
+            role: 'checkbox',
+        };
     }
 }
 

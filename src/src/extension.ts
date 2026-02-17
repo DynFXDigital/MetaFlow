@@ -43,11 +43,34 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommands(context, state, diagnosticCollection);
 
     // Register TreeView providers
+    const configTreeViewProvider = new ConfigTreeViewProvider(state);
+    const profilesTreeViewProvider = new ProfilesTreeViewProvider(state);
+    const layersTreeViewProvider = new LayersTreeViewProvider(state);
+    const filesTreeViewProvider = new FilesTreeViewProvider(state);
+
+    const layersTreeView = vscode.window.createTreeView('metaflow-layers', {
+        treeDataProvider: layersTreeViewProvider,
+    });
+
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('metaflow-config', new ConfigTreeViewProvider(state)),
-        vscode.window.registerTreeDataProvider('metaflow-profiles', new ProfilesTreeViewProvider(state)),
-        vscode.window.registerTreeDataProvider('metaflow-layers', new LayersTreeViewProvider(state)),
-        vscode.window.registerTreeDataProvider('metaflow-files', new FilesTreeViewProvider(state)),
+        vscode.window.registerTreeDataProvider('metaflow-config', configTreeViewProvider),
+        vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
+        layersTreeView,
+        vscode.window.registerTreeDataProvider('metaflow-files', filesTreeViewProvider),
+    );
+
+    context.subscriptions.push(
+        layersTreeView.onDidChangeCheckboxState(async e => {
+            for (const [item, checkboxState] of e.items) {
+                if (
+                    (checkboxState === vscode.TreeItemCheckboxState.Checked ||
+                        checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
+                    typeof item.layerIndex === 'number'
+                ) {
+                    await vscode.commands.executeCommand('metaflow.toggleLayer', item.layerIndex);
+                }
+            }
+        })
     );
 
     // Listen for settings changes
