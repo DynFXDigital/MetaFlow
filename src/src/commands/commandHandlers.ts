@@ -42,6 +42,8 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
     hooks: 'settings',
 };
 
+const INJECTION_GLOBAL_SETTING_KEY = 'metaflow.injection.mode';
+
 const INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
     prompts: 'metaflow.injection.promptsMode',
@@ -193,14 +195,26 @@ function extractRepoId(arg: unknown): string | undefined {
 
 function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaFlowConfig): InjectionConfig {
     const workspaceConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
+    const globalSettingMode = workspaceConfig.get<'settings' | 'materialize'>(
+        INJECTION_GLOBAL_SETTING_KEY,
+        'settings'
+    );
     const injection: InjectionConfig = {
         ...(config.injection ?? {}),
     };
 
     for (const key of INJECTION_KEYS) {
-        const settingMode = workspaceConfig.get<'settings' | 'materialize'>(INJECTION_SETTING_KEYS[key]);
-        if (settingMode) {
+        const settingMode = workspaceConfig.get<'inherit' | 'settings' | 'materialize'>(
+            INJECTION_SETTING_KEYS[key],
+            'inherit'
+        );
+        if (settingMode && settingMode !== 'inherit') {
             injection[key] = settingMode;
+            continue;
+        }
+
+        if (globalSettingMode) {
+            injection[key] = globalSettingMode;
             continue;
         }
 
