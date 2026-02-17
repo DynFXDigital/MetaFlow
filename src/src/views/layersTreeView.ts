@@ -49,6 +49,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return element;
     }
 
+    private formatLayerLabel(layerPath: string, repoLabel?: string): string {
+        if (layerPath !== '.') {
+            return layerPath;
+        }
+
+        return repoLabel?.trim() || 'primary';
+    }
+
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
         const config = this.state.config;
         if (!config) {
@@ -62,10 +70,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             }
 
             const repoEnabled = new Map(config.metadataRepos.map(repo => [repo.id, repo.enabled !== false]));
+            const repoLabels = new Map(config.metadataRepos.map(repo => [repo.id, repo.name?.trim() || repo.id]));
             return config.layerSources.map((ls, i) => {
                 const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
                 const isLayerEnabled = ls.enabled !== false;
-                return new LayerItem(ls.path, i, isRepoEnabled && isLayerEnabled, ls.repoId, !isRepoEnabled);
+                const label = this.formatLayerLabel(ls.path, repoLabels.get(ls.repoId));
+                return new LayerItem(label, i, isRepoEnabled && isLayerEnabled, ls.repoId, !isRepoEnabled);
             });
         }
 
@@ -75,7 +85,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         // Single-repo mode
         if (config.layers) {
-            return config.layers.map((layer, i) => new LayerItem(layer, i, true));
+            const singleRepoLabel = config.metadataRepo?.name?.trim() || 'primary';
+            return config.layers.map((layer, i) => new LayerItem(this.formatLayerLabel(layer, singleRepoLabel), i, true));
         }
 
         return [];

@@ -205,6 +205,58 @@ suite('Command Execution', () => {
         // Status writes to output channel — no assertion on output, just no throw
     });
 
+    test('checking a layer enables its disabled repo source', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const multiRepoConfig = {
+            metadataRepos: [
+                { id: 'ai-metadata', name: 'ai-metadata', localPath: '.ai/ai-metadata', enabled: false },
+            ],
+            layerSources: [
+                { repoId: 'ai-metadata', path: '.', enabled: false },
+            ],
+            filters: { include: [], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                    disable: [],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(multiRepoConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                layerIndex: 0,
+                checked: true,
+            });
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos: Array<{ enabled?: boolean }>;
+                layerSources: Array<{ enabled?: boolean }>;
+            };
+
+            assert.strictEqual(updatedConfig.layerSources[0].enabled, true, 'Layer should be enabled');
+            assert.strictEqual(updatedConfig.metadataRepos[0].enabled, true, 'Repo should be auto-enabled when layer is checked');
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('promote reports drift status', async function () {
         this.timeout(10000);
         await vscode.commands.executeCommand('metaflow.promote');

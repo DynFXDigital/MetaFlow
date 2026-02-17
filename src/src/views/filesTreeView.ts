@@ -14,6 +14,8 @@ interface SourceRoot {
     label: string;
 }
 
+type FilesViewMode = 'unified' | 'repoTree';
+
 const toPosixPath = (value: string): string => value.replace(/\\/g, '/');
 const isPathWithin = (targetPath: string, parentPath: string): boolean => {
     const normalizedTarget = path.normalize(targetPath);
@@ -45,17 +47,50 @@ function getLayerDisplayPath(file: EffectiveFile): string {
     return sourceLayer;
 }
 
-function getDisplayPathForFile(file: EffectiveFile): string {
+function getDisplayPathForFileWithSourceLabel(file: EffectiveFile, sourceLabel: string): string {
     const layerPath = getLayerDisplayPath(file);
+    const normalizedLayerPath = layerPath === '.' ? sourceLabel : layerPath;
     const artifactPath = toDisplayRelativePath(file.relativePath);
-    return [layerPath, artifactPath].filter(Boolean).join('/');
+    return [normalizedLayerPath, artifactPath].filter(Boolean).join('/');
+}
+
+function getDisplayPathForRepoTree(file: EffectiveFile): string {
+    const layerPath = getLayerDisplayPath(file);
+    const normalizedLayerPath = layerPath === '.' ? '' : layerPath;
+    const artifactPath = toDisplayRelativePath(file.relativePath);
+    return [normalizedLayerPath, artifactPath].filter(Boolean).join('/');
+}
+
+function getDisplayLayerLabel(file: EffectiveFile, sourceLabel: string): string {
+    const layerPath = getLayerDisplayPath(file);
+    return layerPath === '.' ? sourceLabel : layerPath;
 }
 
 function getClassificationLabel(classification: EffectiveFile['classification']): string {
     return classification === 'settings' ? 'settings' : 'materialized';
 }
 
-type FileTreeNode = FolderItem | FileItem;
+type FileTreeNode = RepoItem | FolderItem | FileItem;
+
+class RepoItem extends vscode.TreeItem {
+    constructor(
+        label: string,
+        public readonly files: EffectiveFile[],
+        repoPath?: string
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'effectiveRepo';
+        this.iconPath = new vscode.ThemeIcon('repo');
+        if (repoPath) {
+            this.command = {
+                command: 'revealInExplorer',
+                title: 'Reveal Repository in Explorer',
+                arguments: [vscode.Uri.file(repoPath)],
+            };
+            this.tooltip = `Repository: ${repoPath}`;
+        }
+    }
+}
 
 class FolderItem extends vscode.TreeItem {
     constructor(
@@ -79,7 +114,7 @@ class FolderItem extends vscode.TreeItem {
 }
 
 class FileItem extends vscode.TreeItem {
-    constructor(file: EffectiveFile, sourceLabel: string) {
+    constructor(file: EffectiveFile, sourceLabel: string, displayLayerLabel: string) {
         super(path.posix.basename(toPosixPath(file.relativePath)), vscode.TreeItemCollapsibleState.None);
         this.description = `${sourceLabel} (${getClassificationLabel(file.classification)})`;
         this.contextValue = 'effectiveFile';
@@ -95,7 +130,7 @@ class FileItem extends vscode.TreeItem {
             `Path: ${file.relativePath}`,
             `Source: ${sourceLabel}`,
             `Source Path: ${file.sourcePath}`,
-            `Layer: ${file.sourceLayer}`,
+            `Layer: ${displayLayerLabel} (raw: ${file.sourceLayer || ''})`,
             `Realization: ${getClassificationLabel(file.classification)}`,
         ].join('\n');
     }
@@ -105,8 +140,16 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     private _onDidChangeTreeData = new vscode.EventEmitter<FileTreeNode | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    constructor(private state: ExtensionState) {
+    constructor(
+        private state: ExtensionState,
+        private readonly modeResolver: () => FilesViewMode = () =>
+            vscode.workspace.getConfiguration('metaflow').get<FilesViewMode>('filesViewMode', 'unified')
+    ) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
+    }
+
+    refresh(): void {
+        this._onDidChangeTreeData.fire(undefined);
     }
 
     getTreeItem(element: FileTreeNode): vscode.TreeItem {
@@ -166,13 +209,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     private getChildrenForPrefix(
         files: EffectiveFile[],
         prefix: string,
-        roots: SourceRoot[]
+        roots: SourceRoot[],
+        displayPathResolver: (file: EffectiveFile, sourceLabel: string) => string
     ): FileTreeNode[] {
         const folderMap = new Map<string, EffectiveFile[]>();
         const leafFiles: FileItem[] = [];
 
         for (const file of files) {
-            const rel = getDisplayPathForFile(file);
+            const sourceLabel = this.getSourceLabel(file, roots);
+            const rel = displayPathResolver(file, sourceLabel);
             if (prefix && !rel.startsWith(prefix + '/')) {
                 continue;
             }
@@ -184,7 +229,8 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
 
             const [firstSegment, ...rest] = remainder.split('/');
             if (rest.length === 0) {
-                leafFiles.push(new FileItem(file, this.getSourceLabel(file, roots)));
+                const displayLayerLabel = getDisplayLayerLabel(file, sourceLabel);
+                leafFiles.push(new FileItem(file, sourceLabel, displayLayerLabel));
             } else {
                 const nextPrefix = prefix ? `${prefix}/${firstSegment}` : firstSegment;
                 const existing = folderMap.get(nextPrefix) ?? [];
@@ -199,7 +245,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     path.posix.basename(nextPrefix),
                     subset,
                     nextPrefix,
-                    this.getFolderSourcePath(subset, nextPrefix)
+                    this.getFolderSourcePath(subset, nextPrefix, roots, displayPathResolver)
                 )
             )
         );
@@ -207,13 +253,19 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return [...folders, ...sortByLabel(leafFiles)];
     }
 
-    private getFolderSourcePath(files: EffectiveFile[], prefix: string): string | undefined {
+    private getFolderSourcePath(
+        files: EffectiveFile[],
+        prefix: string,
+        roots: SourceRoot[],
+        displayPathResolver: (file: EffectiveFile, sourceLabel: string) => string
+    ): string | undefined {
         if (files.length === 0 || !prefix) {
             return undefined;
         }
 
         const representative = files[0];
-        const displayPath = getDisplayPathForFile(representative);
+        const sourceLabel = this.getSourceLabel(representative, roots);
+        const displayPath = displayPathResolver(representative, sourceLabel);
         if (!displayPath) {
             return undefined;
         }
@@ -238,11 +290,48 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return sourceFolder;
     }
 
+    private getChildrenRepoTree(roots: SourceRoot[]): FileTreeNode[] {
+        const files = this.state.effectiveFiles;
+        if (files.length === 0) {
+            return [];
+        }
+
+        const repos = new Map<string, EffectiveFile[]>();
+        for (const file of files) {
+            const sourceLabel = this.getSourceLabel(file, roots);
+            const existing = repos.get(sourceLabel) ?? [];
+            existing.push(file);
+            repos.set(sourceLabel, existing);
+        }
+
+        return sortByLabel(
+            Array.from(repos.entries()).map(([sourceLabel, repoFiles]) => {
+                const repoRoot = roots.find(root => root.label === sourceLabel)?.rootPath;
+                return new RepoItem(sourceLabel, repoFiles, repoRoot);
+            })
+        );
+    }
+
     getChildren(element?: FileTreeNode): FileTreeNode[] {
         const roots = this.getSourceRoots();
+        const mode = this.modeResolver();
+        const unifiedResolver = (file: EffectiveFile, sourceLabel: string) =>
+            getDisplayPathForFileWithSourceLabel(file, sourceLabel);
+        const repoTreeResolver = (file: EffectiveFile) => getDisplayPathForRepoTree(file);
+
+        if (element instanceof RepoItem) {
+            return this.getChildrenForPrefix(element.files, '', roots, (file: EffectiveFile) => repoTreeResolver(file));
+        }
 
         if (element instanceof FolderItem) {
-            return this.getChildrenForPrefix(element.files, element.prefix, roots);
+            const resolver = mode === 'repoTree'
+                ? (file: EffectiveFile) => repoTreeResolver(file)
+                : unifiedResolver;
+            return this.getChildrenForPrefix(element.files, element.prefix, roots, resolver);
+        }
+
+        if (mode === 'repoTree') {
+            return this.getChildrenRepoTree(roots);
         }
 
         const files = this.state.effectiveFiles;
@@ -250,6 +339,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             return [];
         }
 
-        return this.getChildrenForPrefix(files, '', roots);
+        return this.getChildrenForPrefix(files, '', roots, unifiedResolver);
     }
 }

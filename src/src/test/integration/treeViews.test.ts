@@ -192,6 +192,24 @@ suite('TreeView Providers', () => {
         assert.strictEqual(disabledLayer?.description, '(secondary, repo disabled)');
     });
 
+    test('LayersTreeView displays root layer as repository name', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'ai-metadata', name: 'ai-metadata', localPath: '.ai/ai-metadata', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'ai-metadata', path: '.', enabled: true },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(state);
+        const items = provider.getChildren();
+
+        assert.strictEqual(items.length, 1, 'Should return the root layer row');
+        assert.strictEqual(String(items[0].label), 'ai-metadata', 'Root layer should be displayed as repo name');
+        assert.strictEqual(items[0].description, '(ai-metadata)');
+    });
+
     // ── FilesTreeView ──────────────────────────────────────────
 
     test('FilesTreeView returns empty when no files', () => {
@@ -272,5 +290,110 @@ suite('TreeView Providers', () => {
         assert.ok(agentFile, 'Should show materialized file leaf');
         assert.strictEqual(agentFile?.description, 'CoreMeta (materialized)');
         assert.strictEqual(agentFile?.command?.command, 'vscode.open');
+    });
+
+    test('FilesTreeView displays root layer as repository name instead of dot', () => {
+        const repoRoot = path.join(os.tmpdir(), 'metaflow-source-ai-metadata');
+
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'ai-metadata',
+                    name: 'ai-metadata',
+                    localPath: repoRoot,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'ai-metadata',
+                    path: '.',
+                },
+            ],
+        };
+
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/root.instructions.md',
+                sourcePath: path.join(repoRoot, '.github', 'instructions', 'root.instructions.md'),
+                sourceLayer: 'ai-metadata/.',
+                sourceRepo: 'ai-metadata',
+                classification: 'settings',
+            },
+        ];
+
+        const provider = new FilesTreeViewProvider(state);
+        const items = provider.getChildren();
+
+        const repoFolder = items.find(i => String(i.label) === 'ai-metadata');
+        assert.ok(repoFolder, 'Root layer should be shown as repository name');
+
+        const dotFolder = items.find(i => String(i.label) === '.');
+        assert.strictEqual(dotFolder, undefined, 'Dot layer label should not be shown in effective files tree');
+
+        const repoChildren = provider.getChildren(repoFolder as never);
+        const instructionsFolder = repoChildren.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Root layer should include instructions folder');
+
+        const instructionChildren = provider.getChildren(instructionsFolder as never);
+        const instructionFile = instructionChildren.find(i => String(i.label) === 'root.instructions.md');
+        assert.ok(instructionFile, 'Should include root instruction file');
+
+        const tooltipText = String(instructionFile?.tooltip ?? '');
+        assert.ok(
+            tooltipText.includes('Layer: ai-metadata (raw: ai-metadata/.)'),
+            'Tooltip should include transformed display layer and raw source layer value'
+        );
+    });
+
+    test('FilesTreeView repoTree mode groups files under repository roots', () => {
+        const repoRoot = path.join(os.tmpdir(), 'metaflow-source-ai-metadata-repo-tree');
+
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'ai-metadata',
+                    name: 'ai-metadata',
+                    localPath: repoRoot,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'ai-metadata',
+                    path: 'company/components/devtools',
+                },
+            ],
+        };
+
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/policies/coding.md',
+                sourcePath: path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'instructions', 'policies', 'coding.md'),
+                sourceLayer: 'ai-metadata/company/components/devtools',
+                sourceRepo: 'ai-metadata',
+                classification: 'settings',
+            },
+        ];
+
+        const provider = new FilesTreeViewProvider(state, () => 'repoTree');
+        const items = provider.getChildren();
+
+        const repoFolder = items.find(i => String(i.label) === 'ai-metadata');
+        assert.ok(repoFolder, 'Top-level node should be repository');
+
+        const repoChildren = provider.getChildren(repoFolder as never);
+        const companyFolder = repoChildren.find(i => String(i.label) === 'company');
+        assert.ok(companyFolder, 'Repository should contain first layer segment');
+
+        const companyChildren = provider.getChildren(companyFolder as never);
+        const componentsFolder = companyChildren.find(i => String(i.label) === 'components');
+        assert.ok(componentsFolder, 'Should preserve layer hierarchy beneath repository');
+
+        const componentsChildren = provider.getChildren(componentsFolder as never);
+        const devtoolsFolder = componentsChildren.find(i => String(i.label) === 'devtools');
+        assert.ok(devtoolsFolder, 'Should preserve nested layer hierarchy');
+
+        const devtoolsChildren = provider.getChildren(devtoolsFolder as never);
+        const instructionsFolder = devtoolsChildren.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Should show metadata category after layer path');
     });
 });

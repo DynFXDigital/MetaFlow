@@ -43,6 +43,8 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
 };
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
+const FILES_VIEW_MODE_SETTING_KEY = 'filesViewMode';
+type FilesViewMode = 'unified' | 'repoTree';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -186,6 +188,14 @@ function extractLayerIndex(arg: unknown): number | undefined {
     return undefined;
 }
 
+function extractLayerCheckedState(arg: unknown): boolean | undefined {
+    if (typeof arg === 'object' && arg !== null && 'checked' in arg) {
+        const checked = (arg as { checked?: unknown }).checked;
+        return typeof checked === 'boolean' ? checked : undefined;
+    }
+    return undefined;
+}
+
 function extractRepoId(arg: unknown): string | undefined {
     if (typeof arg === 'string') {
         return arg;
@@ -251,6 +261,10 @@ function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
     return {
         skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
     };
+}
+
+function normalizeFilesViewMode(value: unknown): FilesViewMode {
+    return value === 'repoTree' ? 'repoTree' : 'unified';
 }
 
 function persistConfig(configPath: string, config: MetaFlowConfig): void {
@@ -573,20 +587,36 @@ export function registerCommands(
             }
 
             try {
-                const { layerSources } = ensureMultiRepoConfig(state.config);
+                const { metadataRepos, layerSources } = ensureMultiRepoConfig(state.config);
                 const layerSource = layerSources[layerIndex];
                 if (!layerSource) {
                     logWarn(`Toggle layer failed: layer index ${layerIndex} not found.`);
                     return;
                 }
 
-                layerSource.enabled = layerSource.enabled === false ? true : false;
+                const requestedCheckedState = extractLayerCheckedState(arg);
+                const nextLayerEnabled = typeof requestedCheckedState === 'boolean'
+                    ? requestedCheckedState
+                    : layerSource.enabled === false;
+                layerSource.enabled = nextLayerEnabled;
+
+                let repoAutoEnabled = false;
+                if (nextLayerEnabled) {
+                    const repo = metadataRepos.find(r => r.id === layerSource.repoId);
+                    if (repo && repo.enabled === false) {
+                        repo.enabled = true;
+                        repoAutoEnabled = true;
+                    }
+                }
 
                 if (state.configPath) {
                     persistConfig(state.configPath, state.config);
                 }
 
                 logInfo(`Toggled layer ${layerSource.repoId}/${layerSource.path}: ${layerSource.enabled ? 'enabled' : 'disabled'}`);
+                if (repoAutoEnabled) {
+                    logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
+                }
                 await vscode.commands.executeCommand('metaflow.refresh');
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -774,6 +804,23 @@ export function registerCommands(
             } else {
                 vscode.window.showWarningMessage('MetaFlow: No config file found.');
             }
+        })
+    );
+
+    // ── metaflow.toggleFilesViewMode ───────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.toggleFilesViewMode', async () => {
+            const ws = getWorkspace();
+            const config = vscode.workspace.getConfiguration('metaflow', ws?.uri);
+            const currentMode = normalizeFilesViewMode(
+                config.get<unknown>(FILES_VIEW_MODE_SETTING_KEY, 'unified')
+            );
+            const nextMode: FilesViewMode = currentMode === 'unified' ? 'repoTree' : 'unified';
+            const target = ws ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+
+            await config.update(FILES_VIEW_MODE_SETTING_KEY, nextMode, target);
+            await vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', nextMode);
+            logInfo(`Effective Files view mode set to: ${nextMode}`);
         })
     );
 

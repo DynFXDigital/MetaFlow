@@ -93,6 +93,11 @@
         "command": "metaflow.promote",
         "title": "MetaFlow: Promote Changes",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "metaflow.toggleFilesViewMode",
+        "title": "MetaFlow: Toggle Effective Files View Mode",
+        "icon": "$(list-tree)"
       }
     ],
     "views": {
@@ -163,6 +168,11 @@
           "command": "metaflow.refresh",
           "when": "view == metaflow-config || view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
           "group": "navigation@2"
+        },
+        {
+          "command": "metaflow.toggleFilesViewMode",
+          "when": "view == metaflow-files",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -276,6 +286,16 @@
               "description": "Injection mode for hooks artifacts"
             }
           }
+        },
+        "metaflow.filesViewMode": {
+          "type": "string",
+          "default": "unified",
+          "order": 5,
+          "enum": [
+            "unified",
+            "repoTree"
+          ],
+          "description": "Display mode for the Effective Files view: unified hierarchy or grouped by repository"
         }
       }
     },

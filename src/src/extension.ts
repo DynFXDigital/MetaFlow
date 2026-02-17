@@ -18,6 +18,12 @@ import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
 
+type FilesViewMode = 'unified' | 'repoTree';
+
+function getFilesViewMode(): FilesViewMode {
+    return vscode.workspace.getConfiguration('metaflow').get<FilesViewMode>('filesViewMode', 'unified');
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -47,6 +53,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const profilesTreeViewProvider = new ProfilesTreeViewProvider(state);
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
+
+    vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', getFilesViewMode());
 
     const configTreeView = vscode.window.createTreeView('metaflow-config', {
         treeDataProvider: configTreeViewProvider,
@@ -86,7 +94,10 @@ export function activate(context: vscode.ExtensionContext): void {
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
                     typeof item.layerIndex === 'number'
                 ) {
-                    await vscode.commands.executeCommand('metaflow.toggleLayer', item.layerIndex);
+                    await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                        layerIndex: item.layerIndex,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
                 }
             }
         })
@@ -106,6 +117,11 @@ export function activate(context: vscode.ExtensionContext): void {
             }
             if (e.affectsConfiguration('metaflow.injection')) {
                 vscode.commands.executeCommand('metaflow.refresh');
+            }
+            if (e.affectsConfiguration('metaflow.filesViewMode')) {
+                const mode = getFilesViewMode();
+                vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', mode);
+                filesTreeViewProvider.refresh();
             }
         })
     );
