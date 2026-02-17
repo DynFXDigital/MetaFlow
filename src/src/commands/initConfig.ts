@@ -15,9 +15,9 @@ import { logInfo } from '../views/outputChannel';
 
 const execFileAsync = promisify(execFile);
 
-type InitSourceMode = 'existing' | 'url' | 'empty';
+export type InitSourceMode = 'existing' | 'url' | 'empty';
 
-interface SourceSelection {
+export interface SourceSelection {
   metadataRoot: vscode.Uri;
   metadataUrl?: string;
   layers: string[];
@@ -111,8 +111,9 @@ function buildConfig(localPath: string, layers: string[], metadataUrl?: string):
     injection: {
       instructions: 'settings',
       prompts: 'settings',
-      skills: 'materialize',
-      agents: 'materialize',
+      skills: 'settings',
+      agents: 'settings',
+      hooks: 'settings',
     },
   };
 }
@@ -239,7 +240,7 @@ async function createEmptyScaffold(workspaceFolder: vscode.WorkspaceFolder): Pro
   return { metadataRoot, layers };
 }
 
-async function resolveSourceSelection(
+export async function resolveSourceSelection(
   mode: InitSourceMode,
   workspaceFolder: vscode.WorkspaceFolder
 ): Promise<SourceSelection | undefined> {

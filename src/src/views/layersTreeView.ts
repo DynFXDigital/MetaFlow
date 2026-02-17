@@ -7,27 +7,6 @@
 import * as vscode from 'vscode';
 import { ExtensionState } from '../commands/commandHandlers';
 
-class RepoSourceItem extends vscode.TreeItem {
-    constructor(
-        label: string,
-        public readonly repoId: string,
-        enabled: boolean,
-        localPath?: string
-    ) {
-        super(label, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = 'repoSource';
-        this.iconPath = enabled
-            ? new vscode.ThemeIcon('check')
-            : new vscode.ThemeIcon('circle-outline');
-        this.description = localPath ? localPath : '';
-        this.command = {
-            command: 'metaflow.toggleRepoSource',
-            title: 'Toggle Repo Source',
-            arguments: [repoId],
-        };
-    }
-}
-
 class LayerItem extends vscode.TreeItem {
     constructor(
         label: string,
@@ -59,7 +38,7 @@ class LayerItem extends vscode.TreeItem {
     }
 }
 
-type LayerTreeItem = RepoSourceItem | LayerItem;
+type LayerTreeItem = LayerItem;
 
 export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<LayerTreeItem | undefined>();
@@ -73,7 +52,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return element;
     }
 
-    getChildren(): LayerTreeItem[] {
+    getChildren(element?: LayerTreeItem): LayerTreeItem[] {
         const config = this.state.config;
         if (!config) {
             return [];
@@ -81,26 +60,25 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         // Multi-repo mode
         if (config.metadataRepos && config.layerSources) {
+            if (element) {
+                return [];
+            }
+
             const repoEnabled = new Map(config.metadataRepos.map(repo => [repo.id, repo.enabled !== false]));
-
-            const repoItems = config.metadataRepos.map(repo =>
-                new RepoSourceItem(repo.name?.trim() || repo.id, repo.id, repo.enabled !== false, repo.localPath)
-            );
-
-            const layerItems = config.layerSources.map((ls, i) => {
+            return config.layerSources.map((ls, i) => {
                 const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
                 const isLayerEnabled = ls.enabled !== false;
                 return new LayerItem(ls.path, i, isRepoEnabled && isLayerEnabled, ls.repoId, !isRepoEnabled);
             });
+        }
 
-            return [...repoItems, ...layerItems];
+        if (element) {
+            return [];
         }
 
         // Single-repo mode
         if (config.layers) {
-            return config.layers.map((layer, i) =>
-                new LayerItem(layer, i, true, undefined, undefined, false)
-            );
+            return config.layers.map((layer, i) => new LayerItem(layer, i, true));
         }
 
         return [];

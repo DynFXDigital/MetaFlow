@@ -71,6 +71,21 @@
         "icon": "$(repo)"
       },
       {
+        "command": "metaflow.addRepoSource",
+        "title": "MetaFlow: Add Repo Source",
+        "icon": "$(add)"
+      },
+      {
+        "command": "metaflow.toggleInjectionMode",
+        "title": "MetaFlow: Toggle Injection Mode",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "metaflow.removeRepoSource",
+        "title": "MetaFlow: Remove Repo Source",
+        "icon": "$(trash)"
+      },
+      {
         "command": "metaflow.openConfig",
         "title": "MetaFlow: Open Configuration",
         "icon": "$(settings)"
@@ -142,6 +157,11 @@
           "command": "metaflow.refresh",
           "when": "view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
           "group": "navigation"
+        },
+        {
+          "command": "metaflow.addRepoSource",
+          "when": "view == metaflow-config",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -153,6 +173,31 @@
         {
           "command": "metaflow.openConfig",
           "when": "view == metaflow-config && viewItem == configPath",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.toggleLayer",
+          "when": "view == metaflow-layers && viewItem == layer",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.toggleRepoSource",
+          "when": "view == metaflow-config && viewItem == configRepoSource",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.removeRepoSource",
+          "when": "view == metaflow-config && viewItem == configRepoSource",
+          "group": "inline@2"
+        },
+        {
+          "command": "metaflow.addRepoSource",
+          "when": "view == metaflow-config && viewItem == configRepoSection",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.toggleInjectionMode",
+          "when": "view == metaflow-config && viewItem == injectionMode",
           "group": "inline"
         }
       ]

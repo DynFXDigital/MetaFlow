@@ -147,11 +147,11 @@ suite('TreeView Providers', () => {
         const provider = new LayersTreeViewProvider(state);
         const items = provider.getChildren();
         assert.strictEqual(items.length, 2, 'Should return 2 layers');
-        assert.strictEqual(items[0].command, undefined, 'Single-repo layers should not be toggleable');
-        assert.strictEqual(items[0].description, '(single-repo, fixed order)');
+        assert.strictEqual(items[0].command?.command, 'metaflow.toggleLayer', 'Single-repo layers should be toggleable');
+        assert.strictEqual(items[0].description, '');
     });
 
-    test('LayersTreeView includes repo sources and reflects disabled repos', () => {
+    test('LayersTreeView shows layers and reflects disabled repos', () => {
         state.config = {
             metadataRepos: [
                 { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
@@ -166,11 +166,7 @@ suite('TreeView Providers', () => {
         const provider = new LayersTreeViewProvider(state);
         const items = provider.getChildren();
 
-        assert.strictEqual(items.length, 4, 'Should return repo sources + layers');
-
-        const repoItem = items.find(i => String(i.label) === 'TeamMeta');
-        assert.ok(repoItem, 'Should include repo source item');
-        assert.strictEqual(repoItem?.description, '.ai/team-meta');
+        assert.strictEqual(items.length, 2, 'Should return only layer rows');
 
         const disabledLayer = items.find(i => String(i.label) === 'team/social');
         assert.ok(disabledLayer, 'Should include layer item for disabled repo');

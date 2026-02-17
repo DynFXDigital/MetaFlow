@@ -27,8 +27,19 @@ import {
 import { publishConfigDiagnostics, clearDiagnostics } from '../diagnostics/configDiagnostics';
 import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
-import { initConfig } from './initConfig';
+import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
 import { pickWorkspaceFolder } from './workspaceSelection';
+
+const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
+type InjectionKey = typeof INJECTION_KEYS[number];
+
+const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> = {
+    instructions: 'settings',
+    prompts: 'settings',
+    skills: 'settings',
+    agents: 'settings',
+    hooks: 'settings',
+};
 
 /** Cached state for the current workspace. */
 export interface ExtensionState {
@@ -70,6 +81,115 @@ function resolveOverlay(
     return files;
 }
 
+function toPosixPath(value: string): string {
+    return value.replace(/\\/g, '/');
+}
+
+function toConfigLocalPath(workspaceFolder: vscode.WorkspaceFolder, targetFsPath: string): string {
+    const relative = toPosixPath(path.relative(workspaceFolder.uri.fsPath, targetFsPath));
+    if (relative && !relative.startsWith('../') && !path.isAbsolute(relative)) {
+        return relative;
+    }
+    return targetFsPath;
+}
+
+function toSlug(value: string): string {
+    const trimmed = value.trim().replace(/\/$/, '').toLowerCase();
+    return trimmed
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'source';
+}
+
+function deriveRepoId(
+    sourceLocalPath: string,
+    sourceUrl: string | undefined,
+    existingRepoIds: Set<string>
+): string {
+    const urlBase = sourceUrl ? sourceUrl.split('/').pop() : undefined;
+    const urlSeed = urlBase ? urlBase.replace(/\.git$/i, '') : undefined;
+    const pathSeed = path.basename(sourceLocalPath) || 'source';
+    const base = toSlug(urlSeed ?? pathSeed);
+
+    let candidate = base;
+    let suffix = 2;
+    while (existingRepoIds.has(candidate)) {
+        candidate = `${base}-${suffix}`;
+        suffix += 1;
+    }
+    return candidate;
+}
+
+function ensureMultiRepoConfig(config: MetaFlowConfig): { metadataRepos: NonNullable<MetaFlowConfig['metadataRepos']>; layerSources: NonNullable<MetaFlowConfig['layerSources']> } {
+    if (config.metadataRepos && config.layerSources) {
+        return {
+            metadataRepos: config.metadataRepos,
+            layerSources: config.layerSources,
+        };
+    }
+
+    if (!config.metadataRepo || !config.layers) {
+        throw new Error('Cannot convert config to multi-repo mode: metadataRepo/layers not found.');
+    }
+
+    config.metadataRepos = [{
+        id: 'primary',
+        ...config.metadataRepo,
+        enabled: true,
+    }];
+    config.layerSources = config.layers.map(layerPath => ({
+        repoId: 'primary',
+        path: layerPath,
+        enabled: true,
+    }));
+
+    delete config.metadataRepo;
+    delete config.layers;
+
+    return {
+        metadataRepos: config.metadataRepos,
+        layerSources: config.layerSources,
+    };
+}
+
+function extractLayerIndex(arg: unknown): number | undefined {
+    if (typeof arg === 'number') {
+        return arg;
+    }
+    if (typeof arg === 'object' && arg !== null && 'layerIndex' in arg) {
+        const layerIndex = (arg as { layerIndex?: unknown }).layerIndex;
+        return typeof layerIndex === 'number' ? layerIndex : undefined;
+    }
+    return undefined;
+}
+
+function extractRepoId(arg: unknown): string | undefined {
+    if (typeof arg === 'string') {
+        return arg;
+    }
+    if (typeof arg === 'object' && arg !== null && 'repoId' in arg) {
+        const repoId = (arg as { repoId?: unknown }).repoId;
+        return typeof repoId === 'string' ? repoId : undefined;
+    }
+    return undefined;
+}
+
+function extractInjectionKey(arg: unknown): InjectionKey | undefined {
+    if (typeof arg === 'string' && INJECTION_KEYS.includes(arg as InjectionKey)) {
+        return arg as InjectionKey;
+    }
+    if (typeof arg === 'object' && arg !== null && 'injectionKey' in arg) {
+        const injectionKey = (arg as { injectionKey?: unknown }).injectionKey;
+        if (typeof injectionKey === 'string' && INJECTION_KEYS.includes(injectionKey as InjectionKey)) {
+            return injectionKey as InjectionKey;
+        }
+    }
+    return undefined;
+}
+
+function persistConfig(configPath: string, config: MetaFlowConfig): void {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+}
+
 async function injectWorkspaceSettings(
     workspace: vscode.WorkspaceFolder,
     config: MetaFlowConfig,
@@ -87,21 +207,39 @@ async function injectWorkspaceSettings(
             workspace.uri.fsPath,
             configForSettings
         );
+        const entriesByKey = new Map(entries.map(entry => [entry.key, entry.value] as const));
         const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
-        for (const entry of entries) {
+        const managedKeys = computeSettingsKeysToRemove();
+
+        for (const key of managedKeys) {
             try {
-                await wsConfig.update(entry.key, entry.value, vscode.ConfigurationTarget.Workspace);
+                const value = entriesByKey.get(key);
+                await wsConfig.update(
+                    key,
+                    value === undefined ? undefined : value,
+                    vscode.ConfigurationTarget.Workspace
+                );
             } catch (entryErr: unknown) {
                 const entryMsg = entryErr instanceof Error ? entryErr.message : String(entryErr);
-                logWarn(`Settings key update skipped (${entry.key}): ${entryMsg}`);
+                logWarn(`Settings key update skipped (${key}): ${entryMsg}`);
             }
-        }
-        if (!hooksEnabled) {
-            await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
         }
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         logWarn(`Settings injection skipped: ${msg}`);
+    }
+}
+
+async function clearManagedWorkspaceSettings(workspace: vscode.WorkspaceFolder): Promise<void> {
+    try {
+        const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
+        const keysToRemove = computeSettingsKeysToRemove();
+        for (const key of keysToRemove) {
+            await wsConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+        }
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logWarn(`Settings cleanup skipped: ${msg}`);
     }
 }
 
@@ -144,6 +282,7 @@ export function registerCommands(
             if (!result.ok) {
                 logError(`Config errors: ${result.errors.map(e => e.message).join('; ')}`);
                 publishConfigDiagnostics(diagnosticCollection, result);
+                await clearManagedWorkspaceSettings(ws);
                 if (result.configPath) {
                     vscode.window.showWarningMessage('MetaFlow: Found config file, but it is invalid. Check Problems for details.');
                 } else {
@@ -180,6 +319,7 @@ export function registerCommands(
             try {
                 state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath);
                 logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
+                await injectWorkspaceSettings(ws, result.config, state.effectiveFiles);
                 updateStatusBar('idle', state.activeProfile, state.effectiveFiles.length);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
@@ -265,16 +405,7 @@ export function registerCommands(
                 async () => {
                     const result = clean(ws.uri.fsPath);
 
-                    try {
-                        const wsConfig = vscode.workspace.getConfiguration(undefined, ws.uri);
-                        const keysToRemove = computeSettingsKeysToRemove();
-                        for (const key of keysToRemove) {
-                            await wsConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace);
-                        }
-                    } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : String(err);
-                        logWarn(`Settings cleanup skipped: ${msg}`);
-                    }
+                    await clearManagedWorkspaceSettings(ws);
 
                     logInfo(`Clean complete: ${result.removed.length} removed, ${result.skipped.length} skipped.`);
                     for (const w of result.warnings) {
@@ -358,42 +489,52 @@ export function registerCommands(
 
     // ── metaflow.toggleLayer ───────────────────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.toggleLayer', async (layerIndex?: number) => {
+        vscode.commands.registerCommand('metaflow.toggleLayer', async (arg?: unknown) => {
             const ws = getWorkspace();
             if (!ws || !state.config) {
                 vscode.window.showWarningMessage('MetaFlow: No config loaded.');
                 return;
             }
 
-            if (state.config.layerSources && typeof layerIndex === 'number') {
-                const ls = state.config.layerSources[layerIndex];
-                if (ls) {
-                    ls.enabled = ls.enabled === false ? true : false;
-                    // Write back
-                    if (state.configPath) {
-                        fs.writeFileSync(
-                            state.configPath,
-                            JSON.stringify(state.config, null, 2),
-                            'utf-8'
-                        );
-                    }
-                    logInfo(`Toggled layer ${ls.repoId}/${ls.path}: ${ls.enabled ? 'enabled' : 'disabled'}`);
-                    await vscode.commands.executeCommand('metaflow.refresh');
+            const layerIndex = extractLayerIndex(arg);
+            if (typeof layerIndex !== 'number') {
+                logWarn('Toggle layer requires a valid layer index.');
+                return;
+            }
+
+            try {
+                const { layerSources } = ensureMultiRepoConfig(state.config);
+                const layerSource = layerSources[layerIndex];
+                if (!layerSource) {
+                    logWarn(`Toggle layer failed: layer index ${layerIndex} not found.`);
+                    return;
                 }
-            } else {
-                logWarn('Toggle layer requires a multi-repo config with layerSources.');
+
+                layerSource.enabled = layerSource.enabled === false ? true : false;
+
+                if (state.configPath) {
+                    persistConfig(state.configPath, state.config);
+                }
+
+                logInfo(`Toggled layer ${layerSource.repoId}/${layerSource.path}: ${layerSource.enabled ? 'enabled' : 'disabled'}`);
+                await vscode.commands.executeCommand('metaflow.refresh');
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Toggle layer failed: ${message}`);
             }
         })
     );
 
     // ── metaflow.toggleRepoSource ──────────────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.toggleRepoSource', async (repoId?: string) => {
+        vscode.commands.registerCommand('metaflow.toggleRepoSource', async (arg?: unknown) => {
             const ws = getWorkspace();
             if (!ws || !state.config) {
                 vscode.window.showWarningMessage('MetaFlow: No config loaded.');
                 return;
             }
+
+            const repoId = extractRepoId(arg);
 
             if (!state.config.metadataRepos || typeof repoId !== 'string' || repoId.length === 0) {
                 logWarn('Toggle repo source requires a multi-repo config and a valid repo id.');
@@ -409,14 +550,167 @@ export function registerCommands(
             repo.enabled = repo.enabled === false ? true : false;
 
             if (state.configPath) {
-                fs.writeFileSync(
-                    state.configPath,
-                    JSON.stringify(state.config, null, 2),
-                    'utf-8'
-                );
+                persistConfig(state.configPath, state.config);
             }
 
             logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        })
+    );
+
+    // ── metaflow.addRepoSource ─────────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.addRepoSource', async () => {
+            const ws = getWorkspace();
+            if (!ws || !state.config || !state.configPath) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            const modePick = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: 'Use Existing Directory',
+                        description: 'Discover layers from existing .github directories',
+                        mode: 'existing' as InitSourceMode,
+                    },
+                    {
+                        label: 'Clone from Git URL',
+                        description: 'Clone metadata repo locally, then discover layers',
+                        mode: 'url' as InitSourceMode,
+                    },
+                ],
+                {
+                    title: 'MetaFlow: Add Repository Source',
+                    placeHolder: 'Choose metadata source',
+                    ignoreFocusOut: true,
+                }
+            );
+
+            if (!modePick) {
+                return;
+            }
+
+            const selection = await resolveSourceSelection(modePick.mode, ws);
+            if (!selection) {
+                return;
+            }
+
+            const multiRepoConfig = ensureMultiRepoConfig(state.config);
+            const existingIds = new Set(multiRepoConfig.metadataRepos.map(repo => repo.id));
+            const sourceLocalPath = toConfigLocalPath(ws, selection.metadataRoot.fsPath);
+            const repoId = deriveRepoId(sourceLocalPath, selection.metadataUrl, existingIds);
+
+            multiRepoConfig.metadataRepos.push({
+                id: repoId,
+                name: repoId,
+                localPath: sourceLocalPath,
+                ...(selection.metadataUrl ? { url: selection.metadataUrl } : {}),
+                enabled: true,
+            });
+
+            const seenLayerKeys = new Set(multiRepoConfig.layerSources.map(layer => `${layer.repoId}:${layer.path}`));
+            for (const layerPath of selection.layers) {
+                const layerKey = `${repoId}:${layerPath}`;
+                if (seenLayerKeys.has(layerKey)) {
+                    continue;
+                }
+                multiRepoConfig.layerSources.push({
+                    repoId,
+                    path: layerPath,
+                    enabled: true,
+                });
+                seenLayerKeys.add(layerKey);
+            }
+
+            persistConfig(state.configPath, state.config);
+            logInfo(`Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        })
+    );
+
+    // ── metaflow.toggleInjectionMode ───────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.toggleInjectionMode', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config || !state.configPath) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            const injectionKey = extractInjectionKey(arg);
+            if (!injectionKey) {
+                logWarn('Toggle injection mode requires a valid injection key.');
+                return;
+            }
+
+            const currentMode = state.config.injection?.[injectionKey] ?? DEFAULT_INJECTION_MODE[injectionKey];
+            const nextMode = currentMode === 'settings' ? 'materialize' : 'settings';
+
+            if (!state.config.injection) {
+                state.config.injection = {};
+            }
+            state.config.injection[injectionKey] = nextMode;
+
+            persistConfig(state.configPath, state.config);
+            logInfo(`Injection mode updated: ${injectionKey} -> ${nextMode}`);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        })
+    );
+
+    // ── metaflow.removeRepoSource ──────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.removeRepoSource', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config || !state.configPath) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            if (!state.config.metadataRepos || !state.config.layerSources) {
+                vscode.window.showWarningMessage('MetaFlow: Remove repo source is available in multi-repo mode only.');
+                return;
+            }
+
+            const repoIdFromArg = extractRepoId(arg);
+            const repoIds = state.config.metadataRepos.map(repo => repo.id);
+            const repoId = repoIdFromArg ?? await vscode.window.showQuickPick(repoIds, {
+                title: 'MetaFlow: Remove Repository Source',
+                placeHolder: 'Select repository source to remove',
+                ignoreFocusOut: true,
+            });
+
+            if (!repoId) {
+                return;
+            }
+
+            const repo = state.config.metadataRepos.find(candidate => candidate.id === repoId);
+            if (!repo) {
+                logWarn(`Remove repo source failed: repoId "${repoId}" not found.`);
+                return;
+            }
+
+            if (state.config.metadataRepos.length <= 1) {
+                vscode.window.showWarningMessage('MetaFlow: Cannot remove the last repository source.');
+                return;
+            }
+
+            const layerCount = state.config.layerSources.filter(layer => layer.repoId === repoId).length;
+            const confirmation = await vscode.window.showWarningMessage(
+                `Remove source "${repoId}" and ${layerCount} associated layer(s)?`,
+                'Remove',
+                'Cancel'
+            );
+
+            if (confirmation !== 'Remove') {
+                return;
+            }
+
+            state.config.metadataRepos = state.config.metadataRepos.filter(candidate => candidate.id !== repoId);
+            state.config.layerSources = state.config.layerSources.filter(layer => layer.repoId !== repoId);
+
+            persistConfig(state.configPath, state.config);
+            logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);
             await vscode.commands.executeCommand('metaflow.refresh');
         })
     );
@@ -469,9 +763,6 @@ export function registerCommands(
                     async () => {
                         await initConfig(ws);
                         await vscode.commands.executeCommand('metaflow.refresh');
-                        if (state.config) {
-                            await injectWorkspaceSettings(ws, state.config, state.effectiveFiles);
-                        }
                     }
                 );
             } catch (err: unknown) {
