@@ -1,0 +1,107 @@
+name: Publish to Marketplaces
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (example: v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-marketplaces-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish VSIX to VS Code Marketplace and Open VSX
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: marketplace-publish
+    steps:
+      - name: Validate tag format
+        shell: bash
+        run: |
+          if [[ ! "${{ inputs.tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "Invalid tag '${{ inputs.tag }}'. Use semver-like tags such as v1.2.3 or v1.2.3-rc.1"
+            exit 1
+          fi
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify publish secrets
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "Missing required secret: VSCE_PAT"
+            exit 1
+          fi
+          if [ -z "$OVSX_PAT" ]; then
+            echo "Missing required secret: OVSX_PAT"
+            exit 1
+          fi
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Resolve VSIX path
+        id: vsix
+        shell: bash
+        run: |
+          VSIX_PATH="$(find src -maxdepth 1 -type f -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found under src/."
+            exit 1
+          fi
+          VSIX_NAME="$(basename "$VSIX_PATH")"
+          echo "VSIX_PATH=$VSIX_PATH" >> "$GITHUB_ENV"
+          echo "vsix_path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
+          echo "vsix_name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vsix.outputs.vsix_name }}
+          path: ${{ steps.vsix.outputs.vsix_path }}
+          retention-days: 30
+
+      - name: Publish to VS Code Marketplace
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          npx @vscode/vsce publish \
+            --packagePath "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          npx ovsx publish "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$OVSX_PAT"

@@ -7,15 +7,34 @@
 
 ## Release paths
 
-- **Tag push (`v*`)**: automatic package + publish workflow.
-- **Manual dispatch**: package-only by default; optional publish when explicitly enabled.
+- **Tag push (`v*`)**: automatic package + GitHub Release with VSIX asset.
+- **Manual dispatch**: run the same release flow by specifying a tag-like ref (`vX.Y.Z`).
 
 ## Preconditions
 
 - CI checks must be green.
-- Repository secrets must exist:
-  - `VSCE_PAT`
-  - `OVSX_PAT`
+- Push permission to create tags and releases.
+
+## Publishing to marketplaces
+
+This repository now includes an optional manual publish workflow:
+
+- Workflow: `.github/workflows/publish-marketplaces.yml`
+- Trigger: **Actions → Publish to Marketplaces → Run workflow**
+- Input: release tag (example: `v0.1.0`)
+
+Required setup:
+
+1. Configure repository secrets:
+	- `VSCE_PAT`
+	- `OVSX_PAT`
+2. Create a GitHub Environment named `marketplace-publish`.
+3. Add required reviewers on that environment for manual approval before publish.
+
+Recommended flow:
+
+1. Push release tag (`vX.Y.Z`) to create GitHub Release + VSIX asset.
+2. Run **Publish to Marketplaces** for that same tag after approval.
 
 ## Rollback and hotfix
 
