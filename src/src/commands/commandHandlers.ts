@@ -264,8 +264,8 @@ export function registerCommands(
         return pickWorkspaceFolder(
             folders,
             activeFolder,
-            folder => fs.existsSync(path.join(folder.uri.fsPath, '.ai-sync.json'))
-                || fs.existsSync(path.join(folder.uri.fsPath, '.ai', '.ai-sync.json'))
+            folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow.json'))
+                || fs.existsSync(path.join(folder.uri.fsPath, '.ai', '.metaflow.json'))
         );
     };
 
@@ -297,7 +297,7 @@ export function registerCommands(
                     );
 
                     if (nearMiss) {
-                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Rename it to ".ai-sync.json".`;
+                        const message = `MetaFlow: Found "${nearMiss}" in workspace root. Rename it to ".metaflow.json".`;
                         logWarn(message);
                         vscode.window.showWarningMessage(message);
                     }
@@ -319,7 +319,6 @@ export function registerCommands(
             try {
                 state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath);
                 logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
-                await injectWorkspaceSettings(ws, result.config, state.effectiveFiles);
                 updateStatusBar('idle', state.activeProfile, state.effectiveFiles.length);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
