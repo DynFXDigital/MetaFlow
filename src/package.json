@@ -172,11 +172,6 @@
           "group": "inline"
         },
         {
-          "command": "metaflow.toggleRepoSource",
-          "when": "view == metaflow-config && viewItem == configRepoSource",
-          "group": "inline"
-        },
-        {
           "command": "metaflow.removeRepoSource",
           "when": "view == metaflow-config && viewItem == configRepoSource",
           "group": "inline@2"

@@ -48,15 +48,34 @@ export function activate(context: vscode.ExtensionContext): void {
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
 
+    const configTreeView = vscode.window.createTreeView('metaflow-config', {
+        treeDataProvider: configTreeViewProvider,
+    });
+
     const layersTreeView = vscode.window.createTreeView('metaflow-layers', {
         treeDataProvider: layersTreeViewProvider,
     });
 
     context.subscriptions.push(
-        vscode.window.registerTreeDataProvider('metaflow-config', configTreeViewProvider),
+        configTreeView,
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
         vscode.window.registerTreeDataProvider('metaflow-files', filesTreeViewProvider),
+    );
+
+    context.subscriptions.push(
+        configTreeView.onDidChangeCheckboxState(async e => {
+            for (const [item, checkboxState] of e.items) {
+                const repoId = (item as { repoId?: unknown }).repoId;
+                if (
+                    (checkboxState === vscode.TreeItemCheckboxState.Checked ||
+                        checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
+                    typeof repoId === 'string'
+                ) {
+                    await vscode.commands.executeCommand('metaflow.toggleRepoSource', repoId);
+                }
+            }
+        })
     );
 
     context.subscriptions.push(

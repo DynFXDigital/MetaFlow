@@ -28,16 +28,13 @@ class RepoSourceItem extends vscode.TreeItem {
         super(label, vscode.TreeItemCollapsibleState.None);
         this.contextValue = repoId ? 'configRepoSource' : 'configRepoSourceReadonly';
         this.description = description;
-        this.iconPath = enabled
-            ? new vscode.ThemeIcon('check')
-            : new vscode.ThemeIcon('circle-outline');
-        if (repoId) {
-            this.command = {
-                command: 'metaflow.toggleRepoSource',
-                title: 'Toggle Repo Source',
-                arguments: [repoId],
-            };
-        }
+        this.checkboxState = enabled
+            ? vscode.TreeItemCheckboxState.Checked
+            : vscode.TreeItemCheckboxState.Unchecked;
+        this.accessibilityInformation = {
+            label: `${label} ${enabled ? 'enabled' : 'disabled'}`,
+            role: 'checkbox',
+        };
     }
 }
 

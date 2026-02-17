@@ -87,6 +87,26 @@ suite('TreeView Providers', () => {
         assert.strictEqual(items[0].label, 'Repositories');
     });
 
+    test('ConfigTreeView repository items expose checkbox state', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', localPath: '.ai/ai-metadata', enabled: true },
+                { id: 'secondary', localPath: '.ai/team-metadata', enabled: false },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company', enabled: true },
+            ],
+        };
+
+        const provider = new ConfigTreeViewProvider(state);
+        const rootItems = provider.getChildren();
+        const repoItems = provider.getChildren(rootItems[0] as never);
+
+        assert.strictEqual(repoItems.length, 2, 'Should return all repository items under Repositories section');
+        assert.strictEqual(repoItems[0].checkboxState, vscode.TreeItemCheckboxState.Checked, 'Enabled repo should show checked checkbox');
+        assert.strictEqual(repoItems[1].checkboxState, vscode.TreeItemCheckboxState.Unchecked, 'Disabled repo should show unchecked checkbox');
+    });
+
     // ── ProfilesTreeView ───────────────────────────────────────
 
     test('ProfilesTreeView returns empty when no profiles', () => {
