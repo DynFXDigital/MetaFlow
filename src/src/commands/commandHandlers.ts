@@ -42,15 +42,26 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
     hooks: 'settings',
 };
 
-const INJECTION_GLOBAL_SETTING_KEY = 'metaflow.injection.mode';
+const INJECTION_GLOBAL_SETTING_KEY = 'metaflow.injection.defaultMode';
+const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.defaultModes';
 
-const INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
+const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
     prompts: 'metaflow.injection.promptsMode',
     skills: 'metaflow.injection.skillsMode',
     agents: 'metaflow.injection.agentsMode',
     hooks: 'metaflow.injection.hooksMode',
 };
+
+type InjectionOverrideMode = 'inherit' | 'settings' | 'materialize';
+
+function isInjectionMode(value: unknown): value is 'settings' | 'materialize' {
+    return value === 'settings' || value === 'materialize';
+}
+
+function isInjectionOverrideMode(value: unknown): value is InjectionOverrideMode {
+    return value === 'inherit' || isInjectionMode(value);
+}
 
 /** Cached state for the current workspace. */
 export interface ExtensionState {
@@ -195,25 +206,35 @@ function extractRepoId(arg: unknown): string | undefined {
 
 function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaFlowConfig): InjectionConfig {
     const workspaceConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
-    const globalSettingMode = workspaceConfig.get<'settings' | 'materialize'>(
+    const globalSettingMode = workspaceConfig.get<unknown>(
         INJECTION_GLOBAL_SETTING_KEY,
         'settings'
+    );
+    const modes = workspaceConfig.get<Record<string, unknown>>(
+        INJECTION_OVERRIDE_SETTING_KEY,
+        {}
     );
     const injection: InjectionConfig = {
         ...(config.injection ?? {}),
     };
 
     for (const key of INJECTION_KEYS) {
-        const settingMode = workspaceConfig.get<'inherit' | 'settings' | 'materialize'>(
-            INJECTION_SETTING_KEYS[key],
-            'inherit'
-        );
-        if (settingMode && settingMode !== 'inherit') {
-            injection[key] = settingMode;
+        const overrideMode = modes?.[key];
+        if (isInjectionOverrideMode(overrideMode) && overrideMode !== 'inherit') {
+            injection[key] = overrideMode;
             continue;
         }
 
-        if (globalSettingMode) {
+        const legacySettingMode = workspaceConfig.get<unknown>(
+            LEGACY_INJECTION_SETTING_KEYS[key],
+            'inherit'
+        );
+        if (isInjectionOverrideMode(legacySettingMode) && legacySettingMode !== 'inherit') {
+            injection[key] = legacySettingMode;
+            continue;
+        }
+
+        if (isInjectionMode(globalSettingMode)) {
             injection[key] = globalSettingMode;
             continue;
         }
