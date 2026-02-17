@@ -149,15 +149,20 @@
       "viewContainer/title": [
         {
           "command": "metaflow.openConfig",
-          "when": "viewContainer == workbench.view.extension.metaflow-container",
+          "when": "viewContainer == workbench.view.extension.metaflow-container || viewContainer == metaflow-container",
           "group": "navigation"
         }
       ],
       "view/title": [
         {
+          "command": "metaflow.openConfig",
+          "when": "view == metaflow-config",
+          "group": "navigation@1"
+        },
+        {
           "command": "metaflow.refresh",
-          "when": "view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
-          "group": "navigation"
+          "when": "view == metaflow-config || view == metaflow-profiles || view == metaflow-layers || view == metaflow-files",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [

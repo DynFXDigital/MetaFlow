@@ -601,24 +601,31 @@ export function registerCommands(
 
             const repoId = extractRepoId(arg);
 
-            if (!state.config.metadataRepos || typeof repoId !== 'string' || repoId.length === 0) {
-                logWarn('Toggle repo source requires a multi-repo config and a valid repo id.');
+            if (typeof repoId !== 'string' || repoId.length === 0) {
+                logWarn('Toggle repo source requires a valid repo id.');
                 return;
             }
 
-            const repo = state.config.metadataRepos.find(r => r.id === repoId);
-            if (!repo) {
-                logWarn(`Toggle repo source failed: repoId "${repoId}" not found.`);
-                return;
+            try {
+                const { metadataRepos } = ensureMultiRepoConfig(state.config);
+                const repo = metadataRepos.find(r => r.id === repoId);
+                if (!repo) {
+                    logWarn(`Toggle repo source failed: repoId "${repoId}" not found.`);
+                    return;
+                }
+
+                repo.enabled = repo.enabled === false ? true : false;
+
+                if (state.configPath) {
+                    persistConfig(state.configPath, state.config);
+                }
+
+                logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Toggle repo source failed: ${message}`);
             }
 
-            repo.enabled = repo.enabled === false ? true : false;
-
-            if (state.configPath) {
-                persistConfig(state.configPath, state.config);
-            }
-
-            logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
             await vscode.commands.executeCommand('metaflow.refresh');
         })
     );
@@ -703,13 +710,15 @@ export function registerCommands(
                 return;
             }
 
-            if (!state.config.metadataRepos || !state.config.layerSources) {
-                vscode.window.showWarningMessage('MetaFlow: Remove repo source is available in multi-repo mode only.');
+            try {
+                ensureMultiRepoConfig(state.config);
+            } catch {
+                vscode.window.showWarningMessage('MetaFlow: Remove repo source requires a valid config with at least one repository.');
                 return;
             }
 
             const repoIdFromArg = extractRepoId(arg);
-            const repoIds = state.config.metadataRepos.map(repo => repo.id);
+            const repoIds = state.config.metadataRepos!.map(repo => repo.id);
             const repoId = repoIdFromArg ?? await vscode.window.showQuickPick(repoIds, {
                 title: 'MetaFlow: Remove Repository Source',
                 placeHolder: 'Select repository source to remove',
@@ -720,18 +729,18 @@ export function registerCommands(
                 return;
             }
 
-            const repo = state.config.metadataRepos.find(candidate => candidate.id === repoId);
+            const repo = state.config.metadataRepos!.find(candidate => candidate.id === repoId);
             if (!repo) {
                 logWarn(`Remove repo source failed: repoId "${repoId}" not found.`);
                 return;
             }
 
-            if (state.config.metadataRepos.length <= 1) {
+            if (state.config.metadataRepos!.length <= 1) {
                 vscode.window.showWarningMessage('MetaFlow: Cannot remove the last repository source.');
                 return;
             }
 
-            const layerCount = state.config.layerSources.filter(layer => layer.repoId === repoId).length;
+            const layerCount = state.config.layerSources!.filter(layer => layer.repoId === repoId).length;
             const confirmation = await vscode.window.showWarningMessage(
                 `Remove source "${repoId}" and ${layerCount} associated layer(s)?`,
                 'Remove',
@@ -742,8 +751,8 @@ export function registerCommands(
                 return;
             }
 
-            state.config.metadataRepos = state.config.metadataRepos.filter(candidate => candidate.id !== repoId);
-            state.config.layerSources = state.config.layerSources.filter(layer => layer.repoId !== repoId);
+            state.config.metadataRepos = state.config.metadataRepos!.filter(candidate => candidate.id !== repoId);
+            state.config.layerSources = state.config.layerSources!.filter(layer => layer.repoId !== repoId);
 
             persistConfig(state.configPath, state.config);
             logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);

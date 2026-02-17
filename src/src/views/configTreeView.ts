@@ -1,42 +1,20 @@
 /**
  * Config TreeView provider.
  *
- * Displays config summary: repo URL, commit, injection modes.
+ * Displays config summary and repository source state.
  */
 
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
 
-const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
-type InjectionKey = typeof INJECTION_KEYS[number];
-
-const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> = {
-    instructions: 'settings',
-    prompts: 'settings',
-    skills: 'settings',
-    agents: 'settings',
-    hooks: 'settings',
-};
-
-class ConfigItem extends vscode.TreeItem {
-    constructor(label: string, description: string, contextValue?: string) {
-        super(label, vscode.TreeItemCollapsibleState.None);
-        this.description = description;
-        this.contextValue = contextValue;
-    }
-}
-
 class SectionItem extends vscode.TreeItem {
     constructor(
-        label: string,
-        public readonly sectionId: 'repositories' | 'injection'
+        label: string
     ) {
         super(label, vscode.TreeItemCollapsibleState.Expanded);
-        this.contextValue = sectionId === 'repositories' ? 'configRepoSection' : 'configInjectionSection';
-        this.iconPath = sectionId === 'repositories'
-            ? new vscode.ThemeIcon('repo')
-            : new vscode.ThemeIcon('settings-gear');
+        this.contextValue = 'configRepoSection';
+        this.iconPath = new vscode.ThemeIcon('repo');
     }
 }
 
@@ -63,26 +41,7 @@ class RepoSourceItem extends vscode.TreeItem {
     }
 }
 
-class InjectionModeItem extends vscode.TreeItem {
-    constructor(
-        public readonly injectionKey: InjectionKey,
-        mode: 'settings' | 'materialize',
-        isDefault: boolean
-    ) {
-        const label = injectionKey.charAt(0).toUpperCase() + injectionKey.slice(1);
-        super(label, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = 'injectionMode';
-        this.description = isDefault ? `${mode} (default)` : mode;
-        this.iconPath = new vscode.ThemeIcon('settings-gear');
-        this.command = {
-            command: 'metaflow.toggleInjectionMode',
-            title: 'Toggle Injection Mode',
-            arguments: [injectionKey],
-        };
-    }
-}
-
-type ConfigTreeItem = ConfigItem | SectionItem | RepoSourceItem | InjectionModeItem;
+type ConfigTreeItem = SectionItem | RepoSourceItem;
 
 export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<ConfigTreeItem | undefined>();
@@ -125,52 +84,35 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         }
 
         if (element instanceof SectionItem) {
-            if (element.sectionId === 'repositories') {
-                if (config.metadataRepos) {
-                    return config.metadataRepos.map(repo =>
-                        new RepoSourceItem(
-                            repo.name?.trim() || repo.id,
-                            repo.id,
-                            repo.enabled !== false,
-                            this.toDisplayPath(repo.localPath)
-                        )
-                    );
-                }
-
-                if (config.metadataRepo) {
-                    return [
-                        new RepoSourceItem(
-                            'primary',
-                            undefined,
-                            true,
-                            this.toDisplayPath(config.metadataRepo.localPath)
-                        ),
-                    ];
-                }
-
-                return [];
+            if (config.metadataRepos) {
+                return config.metadataRepos.map(repo =>
+                    new RepoSourceItem(
+                        repo.name?.trim() || repo.id,
+                        repo.id,
+                        repo.enabled !== false,
+                        this.toDisplayPath(repo.localPath)
+                    )
+                );
             }
 
-            return INJECTION_KEYS.map(key => {
-                const mode = config.injection?.[key] ?? DEFAULT_INJECTION_MODE[key];
-                const isDefault = config.injection?.[key] === undefined;
-                return new InjectionModeItem(key, mode, isDefault);
-            });
+            if (config.metadataRepo) {
+                return [
+                    new RepoSourceItem(
+                        'primary',
+                        'primary',
+                        true,
+                        this.toDisplayPath(config.metadataRepo.localPath)
+                    ),
+                ];
+            }
+
+            return [];
         }
 
         if (element) {
             return [];
         }
 
-        const items: ConfigTreeItem[] = [];
-
-        if (this.state.configPath) {
-            items.push(new ConfigItem('Config', this.toDisplayPath(this.state.configPath), 'configPath'));
-        }
-
-        items.push(new SectionItem('Repositories', 'repositories'));
-        items.push(new SectionItem('Injection Mode', 'injection'));
-
-        return items;
+        return [new SectionItem('Repositories')];
     }
 }
