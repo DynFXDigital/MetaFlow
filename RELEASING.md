@@ -17,11 +17,12 @@
 
 ## Publishing to marketplaces
 
-This repository now includes an optional manual publish workflow:
+Marketplace publish is optional and handled by `.github/workflows/release.yml`.
 
-- Workflow: `.github/workflows/publish-marketplaces.yml`
-- Trigger: **Actions → Publish to Marketplaces → Run workflow**
-- Input: release tag (example: `v0.1.0`)
+- Trigger: **Actions → Release Extension → Run workflow**
+- Inputs:
+	- `ref`: release tag (example: `v0.1.0`)
+	- `publish_to_marketplaces`: set to `true`
 
 Required setup:
 
@@ -34,7 +35,7 @@ Required setup:
 Recommended flow:
 
 1. Push release tag (`vX.Y.Z`) to create GitHub Release + VSIX asset.
-2. Run **Publish to Marketplaces** for that same tag after approval.
+2. (Optional) Run **Release Extension** manually for that same tag with `publish_to_marketplaces=true` after approval.
 
 ## Rollback and hotfix
 

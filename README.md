@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/kiates/MetaFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/ci.yml)
 [![Release](https://github.com/kiates/MetaFlow/actions/workflows/release.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/release.yml)
-[![Publish Marketplaces](https://github.com/kiates/MetaFlow/actions/workflows/publish-marketplaces.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/publish-marketplaces.yml)
 [![Latest Release](https://img.shields.io/github/v/release/kiates/MetaFlow?display_name=tag)](https://github.com/kiates/MetaFlow/releases)
 
 MetaFlow helps teams manage AI coding metadata in a deterministic, auditable way across local repos, CI, and editor workflows.
@@ -75,14 +74,13 @@ Note: root `npm test` does not include `test:integration`.
 ## CI and release automation
 
 - `.github/workflows/ci.yml` — minimal build + unit test checks for PRs and `main`
-- `.github/workflows/release.yml` — package VSIX + create GitHub Release on `v*` tags (or manual dispatch)
-- `.github/workflows/publish-marketplaces.yml` — optional manual publish to VS Code Marketplace/Open VSX with environment approval
+- `.github/workflows/release.yml` — package VSIX + create GitHub Release on `v*` tags, with optional manual marketplace publish (`publish_to_marketplaces`)
 - `.github/dependabot.yml` — scheduled dependency updates
 
 ### Release secrets
 
-- `VSCE_PAT` — required for `.github/workflows/publish-marketplaces.yml`
-- `OVSX_PAT` — required for `.github/workflows/publish-marketplaces.yml`
+- `VSCE_PAT` — required when `publish_to_marketplaces` is enabled
+- `OVSX_PAT` — required when `publish_to_marketplaces` is enabled
 
 ## Contributing
 

@@ -10,6 +10,11 @@ on:
         description: Git ref to release (tag or SHA)
         required: true
         default: main
+      publish_to_marketplaces:
+        description: Publish VSIX to VS Code Marketplace and Open VSX (requires approval)
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -23,6 +28,9 @@ jobs:
     name: Package and create GitHub release
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      ref_to_build: ${{ steps.ref.outputs.ref_to_build }}
+      release_tag: ${{ steps.ref.outputs.release_tag }}
     steps:
       - name: Resolve release ref
         id: ref
@@ -117,3 +125,76 @@ jobs:
               --generate-notes \
               $EXTRA_ARGS
           fi
+
+  publish-marketplaces:
+    name: Publish to marketplaces (manual + approval)
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_to_marketplaces == true
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: marketplace-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.ref_to_build }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify publish secrets
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "Missing required secret: VSCE_PAT"
+            exit 1
+          fi
+          if [ -z "$OVSX_PAT" ]; then
+            echo "Missing required secret: OVSX_PAT"
+            exit 1
+          fi
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Resolve VSIX path
+        shell: bash
+        run: |
+          VSIX_PATH="$(find src -maxdepth 1 -type f -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found under src/."
+            exit 1
+          fi
+          echo "VSIX_PATH=$VSIX_PATH" >> "$GITHUB_ENV"
+
+      - name: Publish to VS Code Marketplace
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          npx @vscode/vsce publish \
+            --packagePath "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          npx ovsx publish "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$OVSX_PAT"
