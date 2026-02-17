@@ -57,7 +57,7 @@ ai-metadata (canonical repo)
         ↓
 repo/
 ├─ .github/        (materialized outputs)
-└─ .ai-sync.json    (composition recipe)
+└─ .metaflow.json    (composition recipe)
 ```
 
 Key principle:
@@ -278,7 +278,7 @@ No automatic upstream mutation is permitted.
 
 A single repo-local file defines the realization recipe.
 
-Example: `.ai-sync.json`
+Example: `.metaflow.json`
 
 ```json
 {

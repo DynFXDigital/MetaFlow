@@ -61,7 +61,7 @@ suite('TreeView Providers', () => {
             },
             activeProfile: 'baseline',
         };
-        state.configPath = '/fake/.ai-sync.json';
+        state.configPath = '/fake/.metaflow.json';
 
         const provider = new ConfigTreeViewProvider(state);
         const items = provider.getChildren();
@@ -78,14 +78,14 @@ suite('TreeView Providers', () => {
             },
             layers: ['core'],
         };
-        state.configPath = path.join(wsRoot!, '.ai-sync.json');
+        state.configPath = path.join(wsRoot!, '.metaflow.json');
 
         const provider = new ConfigTreeViewProvider(state);
         const items = provider.getChildren();
         const configItem = items.find(i => i.label === 'Config');
 
         assert.ok(configItem, 'Config item should exist');
-        assert.strictEqual(configItem!.description, '.ai-sync.json');
+        assert.strictEqual(configItem!.description, '.metaflow.json');
     });
 
     // ── ProfilesTreeView ───────────────────────────────────────

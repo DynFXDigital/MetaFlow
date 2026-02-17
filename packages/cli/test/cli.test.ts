@@ -45,15 +45,15 @@ describe('CLI: init', () => {
 
     afterEach(() => ws?.cleanup());
 
-    it('should create .ai-sync.json in an empty workspace', async () => {
+    it('should create .metaflow.json in an empty workspace', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const result = await runCli(['init', '-w', ws.root]);
 
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Created:'));
 
-        const configPath = path.join(ws.root, '.ai-sync.json');
-        assert.ok(fs.existsSync(configPath), '.ai-sync.json should exist');
+        const configPath = path.join(ws.root, '.metaflow.json');
+        assert.ok(fs.existsSync(configPath), '.metaflow.json should exist');
 
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         assert.ok(config.metadataRepo, 'config should have metadataRepo');
@@ -382,7 +382,7 @@ describe('CLI: profile', () => {
         assert.ok(result.stdout.includes('"lean"'));
 
         // Verify config file was updated
-        const configPath = path.join(ws.root, '.ai-sync.json');
+        const configPath = path.join(ws.root, '.metaflow.json');
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         assert.strictEqual(config.activeProfile, 'lean');
     });
@@ -437,7 +437,7 @@ describe('CLI: full lifecycle', () => {
         assert.strictEqual(initResult.exitCode, 0);
 
         // 3. Overwrite with our standard config (init creates a template)
-        const configPath = path.join(ws.root, '.ai-sync.json');
+        const configPath = path.join(ws.root, '.metaflow.json');
         fs.writeFileSync(configPath, JSON.stringify(standardConfig(), null, 2), 'utf-8');
 
         // 4. Status
@@ -535,7 +535,7 @@ describe('CLI: error handling', () => {
 
     it('should handle invalid JSON config', async () => {
         ws = createTestWorkspace({ noRepo: true });
-        const configPath = path.join(ws.root, '.ai-sync.json');
+        const configPath = path.join(ws.root, '.metaflow.json');
         fs.writeFileSync(configPath, '{ invalid json {{', 'utf-8');
 
         const result = await runCli(['status', '-w', ws.root]);
@@ -691,7 +691,7 @@ describe('CLI: multi-repo', () => {
             },
         };
         fs.writeFileSync(
-            path.join(ws.root, '.ai-sync.json'),
+            path.join(ws.root, '.metaflow.json'),
             JSON.stringify(config, null, 2),
             'utf-8'
         );
@@ -754,7 +754,7 @@ describe('CLI: multi-repo', () => {
             injection: { skills: 'materialize' },
         };
         fs.writeFileSync(
-            path.join(ws.root, '.ai-sync.json'),
+            path.join(ws.root, '.metaflow.json'),
             JSON.stringify(config, null, 2),
             'utf-8'
         );
@@ -849,7 +849,7 @@ describe('CLI: coverage - promote edge cases', () => {
             injection: { skills: 'materialize' },
         };
         fs.writeFileSync(
-            path.join(ws.root, '.ai-sync.json'),
+            path.join(ws.root, '.metaflow.json'),
             JSON.stringify(config, null, 2),
             'utf-8'
         );
@@ -1047,7 +1047,7 @@ describe('CLI: watch', () => {
 
             // Corrupt the config
             setTimeout(() => {
-                const configPath = path.join(ws.root, '.ai-sync.json');
+                const configPath = path.join(ws.root, '.metaflow.json');
                 fs.writeFileSync(configPath, '{ invalid {{', 'utf-8');
             }, 100);
         });
@@ -1098,7 +1098,7 @@ describe('CLI: watch', () => {
             injection: { skills: 'materialize' },
         };
         fs.writeFileSync(
-            path.join(ws.root, '.ai-sync.json'),
+            path.join(ws.root, '.metaflow.json'),
             JSON.stringify(config, null, 2),
             'utf-8'
         );

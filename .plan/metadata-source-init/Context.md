@@ -6,7 +6,7 @@
 
 ## Feature Overview
 
-MetaFlow initialization currently writes a static `.ai-sync.json` template and requires users to manually prepare metadata inputs. This feature adds source-aware initialization so users can bootstrap from (1) an existing local directory, (2) a remote Git URL that is cloned locally, or (3) a new empty directory scaffold. Success means users can complete first-time setup in one flow, with discovered layers and a valid config generated automatically for both CLI and VS Code extension paths.
+MetaFlow initialization currently writes a static `.metaflow.json` template and requires users to manually prepare metadata inputs. This feature adds source-aware initialization so users can bootstrap from (1) an existing local directory, (2) a remote Git URL that is cloned locally, or (3) a new empty directory scaffold. Success means users can complete first-time setup in one flow, with discovered layers and a valid config generated automatically for both CLI and VS Code extension paths.
 
 ## Current Focus
 

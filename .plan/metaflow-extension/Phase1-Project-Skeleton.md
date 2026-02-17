@@ -3,7 +3,7 @@
 ## Objectives
 
 - Establish the VS Code extension scaffold with build/test/lint tooling.
-- Implement the clean `.ai-sync.json` config schema loader and diagnostics.
+- Implement the clean `.metaflow.json` config schema loader and diagnostics.
 - Deliver unit tests for all config-related code.
 - Update SDD and TCS with config design elements and test cases.
 
@@ -14,14 +14,14 @@
 - `src/extension.ts` — minimal activation path (graceful degradation)
 - `src/config/configLoader.ts` — JSON/JSONC config parser and validator
 - `src/config/configPathUtils.ts` — config discovery and path resolution
-- `src/config/configSchema.ts` — TypeScript interfaces for `.ai-sync.json` (single or multiple metadata repositories)
+- `src/config/configSchema.ts` — TypeScript interfaces for `.metaflow.json` (single or multiple metadata repositories)
 - `src/diagnostics/configDiagnostics.ts` — VS Code diagnostic collection for config errors
 - `src/views/outputChannel.ts` — structured output channel with log levels
 - `src/views/statusBar.ts` — minimal status bar (loading/error/idle states)
 - `src/test/unit/configLoader.test.ts` — config loader unit tests
 - `src/test/unit/configPathUtils.test.ts` — path utilities unit tests
 - `src/test/unit/configDiagnostics.test.ts` — diagnostics unit tests
-- `test-workspace/` — minimal fixture with valid and invalid `.ai-sync.json` files
+- `test-workspace/` — minimal fixture with valid and invalid `.metaflow.json` files
 
 **Out of scope**
 - Overlay engine logic
@@ -41,7 +41,7 @@
 
 ### T1.2 — Config Schema & Loader
 
-1. Define TypeScript interfaces for `.ai-sync.json` in `configSchema.ts`:
+1. Define TypeScript interfaces for `.metaflow.json` in `configSchema.ts`:
    - `metadataRepo` (single repo) and `metadataRepos` (multi-repo)
    - `layerSources` entries with `{ repoId, path }`
    - Shared path support for `localPath` (absolute or relative)
@@ -51,7 +51,7 @@
    - Validate required fields (`metadataRepo`, `layers`).
    - Return typed config or error.
 3. Implement `configPathUtils.ts`:
-   - Config discovery: `.ai-sync.json` → `.ai/.ai-sync.json` fallback.
+   - Config discovery: `.metaflow.json` → `.ai/.metaflow.json` fallback.
    - Path resolution relative to workspace root.
 
 ### T1.3 — Config Diagnostics
@@ -71,9 +71,9 @@
 
 ### T1.5 — Test Fixture Workspace
 
-1. Create `test-workspace/.ai-sync.json` — valid minimal config.
-2. Create `test-workspace/.ai/.ai-sync.json` — fallback config.
-3. Create `test-workspace/invalid-config/.ai-sync.json` — intentionally malformed.
+1. Create `test-workspace/.metaflow.json` — valid minimal config.
+2. Create `test-workspace/.ai/.metaflow.json` — fallback config.
+3. Create `test-workspace/invalid-config/.metaflow.json` — intentionally malformed.
 4. Create mock metadata directory with empty layer folders.
 
 ### T1.6 — Unit Tests

@@ -16,10 +16,10 @@ suite('Config Path Utils', () => {
 
     suite('discoverConfigPath()', () => {
 
-        test('finds .ai-sync.json at workspace root', () => {
+        test('finds .metaflow.json at workspace root', () => {
             const result = discoverConfigPath(FIXTURES_ROOT);
             assert.ok(result);
-            assert.ok(result!.endsWith('.ai-sync.json'));
+            assert.ok(result!.endsWith('.metaflow.json'));
             assert.ok(!result!.includes(`${path.sep}.ai${path.sep}`));
         });
 
@@ -33,15 +33,15 @@ suite('Config Path Utils', () => {
             }
         });
 
-        test('falls back to .ai/.ai-sync.json when root config is absent', () => {
+        test('falls back to .ai/.metaflow.json when root config is absent', () => {
             const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-test-'));
             const aiDir = path.join(tmpDir, '.ai');
             fs.mkdirSync(aiDir);
-            fs.writeFileSync(path.join(aiDir, '.ai-sync.json'), '{}');
+            fs.writeFileSync(path.join(aiDir, '.metaflow.json'), '{}');
             try {
                 const result = discoverConfigPath(tmpDir);
                 assert.ok(result);
-                assert.ok(result!.endsWith(path.join('.ai', '.ai-sync.json')));
+                assert.ok(result!.endsWith(path.join('.ai', '.metaflow.json')));
             } finally {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             }

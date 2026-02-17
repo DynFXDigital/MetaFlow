@@ -15,7 +15,7 @@ Extend CLI `init` to support interactive or flag-driven source selection and gen
    - empty: target local directory path
 3. Perform source actions (discover / clone+discover / scaffold+discover).
 4. Preview resolved `metadataRepo.localPath` and `layers` count.
-5. Write `.ai-sync.json` (respect `--force`).
+5. Write `.metaflow.json` (respect `--force`).
 
 ### Non-interactive flags
 

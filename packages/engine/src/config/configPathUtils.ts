@@ -1,7 +1,7 @@
 /**
  * Config path discovery and resolution utilities.
  *
- * Discovers `.ai-sync.json` at workspace root or `.ai/.ai-sync.json` fallback.
+ * Discovers `.metaflow.json` at workspace root or `.ai/.metaflow.json` fallback.
  * Resolves relative paths against the workspace root.
  *
  * Pure TypeScript — no VS Code imports.
@@ -12,8 +12,8 @@ import * as fs from 'fs';
 
 /** Config file names in discovery order. */
 const CONFIG_FILENAMES = [
-    '.ai-sync.json',
-    path.join('.ai', '.ai-sync.json'),
+    '.metaflow.json',
+    path.join('.ai', '.metaflow.json'),
 ];
 
 /**

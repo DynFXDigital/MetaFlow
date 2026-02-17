@@ -47,7 +47,7 @@ graph TD
 
 ### Diagram Definitions
 
-- **Config Loader (CL)**: Discovers and parses `.ai-sync.json`; validates schema; returns typed config or error.
+- **Config Loader (CL)**: Discovers and parses `.metaflow.json`; validates schema; returns typed config or error.
 - **Config Diagnostics (CD)**: Maps parse/validation errors to VS Code diagnostic entries with line/column.
 - **Overlay Engine (OE)**: Pure TS module; resolves layers, applies filters and profiles; produces `OverlayResult`.
 - **Classifier (CLS)**: Determines `settings` vs `materialized` per artifact type and injection config.
@@ -63,7 +63,7 @@ graph TD
 
 ### Data Flow Narrative
 
-- Config Loader reads `.ai-sync.json`, validates it, and passes a typed config to the Overlay Engine.
+- Config Loader reads `.metaflow.json`, validates it, and passes a typed config to the Overlay Engine.
 - Overlay Engine resolves layers in precedence order, applies filters, activates the current profile, and produces an `OverlayResult` with classified effective files.
 - Materializer consumes the `OverlayResult`: writes materialized files with provenance headers, updates managed state, injects settings for settings-classified files.
 - Command Handlers orchestrate the flow and update UI components (TreeViews, Status Bar, Output Channel).
@@ -73,8 +73,8 @@ graph TD
 
 | DES-ID | Name | Responsibility | Realizes REQ-ID(s) | Code Ref(s) |
 |---|---|---|---|---|
-| DES-0001 | Config Schema | TypeScript interfaces modelling `.ai-sync.json` — single-repo, multi-repo, filters, profiles, injection, hooks | REQ-0001, REQ-0002, REQ-0003, REQ-0004 | `src/config/configSchema.ts` |
-| DES-0002 | Config Path Utils | Discovers `.ai-sync.json` at workspace root or `.ai/` fallback; resolves relative paths; boundary check | REQ-0001, REQ-0006 | `src/config/configPathUtils.ts` |
+| DES-0001 | Config Schema | TypeScript interfaces modelling `.metaflow.json` — single-repo, multi-repo, filters, profiles, injection, hooks | REQ-0001, REQ-0002, REQ-0003, REQ-0004 | `src/config/configSchema.ts` |
+| DES-0002 | Config Path Utils | Discovers `.metaflow.json` at workspace root or `.ai/` fallback; resolves relative paths; boundary check | REQ-0001, REQ-0006 | `src/config/configPathUtils.ts` |
 | DES-0003 | Config Loader | JSONC-tolerant parsing (`jsonc-parser`), schema validation, single/multi-repo mode detection | REQ-0001, REQ-0002, REQ-0003, REQ-0005 | `src/config/configLoader.ts` |
 | DES-0004 | Config Diagnostics | Maps `ConfigError[]` to VS Code `Diagnostic` entries with line/column positioning | REQ-0007, REQ-0008 | `src/diagnostics/configDiagnostics.ts` |
 | DES-0005 | Output Channel | Structured timestamped logging with configurable severity; auto-shows on error | REQ-0300 | `src/views/outputChannel.ts` |
@@ -92,7 +92,7 @@ graph TD
 | DES-0203 | Materializer | Apply/clean/preview workflows; writes files with provenance; skip on drift; updates state | REQ-0200, REQ-0208, REQ-0209, REQ-0210, REQ-0211, REQ-0212 | `src/engine/materializer.ts` |
 | DES-0204 | Settings Injector | Computes VS Code settings entries for settings-classified directories and hook paths; supports clean removal | REQ-0109, REQ-0110 | `src/engine/settingsInjector.ts` |
 | DES-0300 | Command Handlers | Registers all 10 `metaflow.*` commands; manages ExtensionState with config, effectiveFiles, and change event; wires engine+materializer to VS Code UI | REQ-0300, REQ-0301, REQ-0302 | `src/commands/commandHandlers.ts` |
-| DES-0301 | Init Config Command | Scaffolds `.ai-sync.json` with sensible JSONC template; overwrite confirmation | REQ-0303 | `src/commands/initConfig.ts` |
+| DES-0301 | Init Config Command | Scaffolds `.metaflow.json` with sensible JSONC template; overwrite confirmation | REQ-0303 | `src/commands/initConfig.ts` |
 | DES-0302 | Config TreeView | Displays metadata repo URL, commit, injection modes; refreshes on state change | REQ-0400 | `src/views/configTreeView.ts` |
 | DES-0303 | Profiles TreeView | Lists profiles with check/circle icons for active state; click-to-switch | REQ-0401 | `src/views/profilesTreeView.ts` |
 | DES-0304 | Layers TreeView | Shows layers in precedence order; single-repo and multi-repo modes; toggle-enabled commands | REQ-0402 | `src/views/layersTreeView.ts` |
@@ -107,7 +107,7 @@ graph TD
 |---|---|---|---|
 | DEC-0001 | Pure TypeScript engine (no external-runtime CLI) | Eliminates subprocess overhead and external runtime dependency. | Accepted |
 | DEC-0002 | Engine modules must not import `vscode` | Enables fast unit testing without Extension Host. | Accepted |
-| DEC-0003 | Use `jsonc-parser` for config files | Supports comments and trailing commas in `.ai-sync.json`. | Accepted |
+| DEC-0003 | Use `jsonc-parser` for config files | Supports comments and trailing commas in `.metaflow.json`. | Accepted |
 | DEC-0004 | Clean reference-architecture schema only | No legacy format support; simplifies validation. | Accepted |
 | DEC-0005 | `_shared_` prefix for materialized files | Avoids name collisions; enables deterministic cleanup. | Accepted |
 | DEC-0006 | SHA-256 content hashing for managed state | Reliable drift detection; widely supported. | Accepted |

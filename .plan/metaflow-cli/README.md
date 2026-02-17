@@ -90,7 +90,7 @@ src/               ← VS Code extension (imports packages/engine as dependency)
 
 ## Success Criteria
 
-- `metaflow status` and `metaflow preview` operate purely from `.ai-sync.json` + metadata commit.
+- `metaflow status` and `metaflow preview` operate purely from `.metaflow.json` + metadata commit.
 - `metaflow apply` produces identical outputs given identical inputs (determinism).
 - `metaflow clean` removes exactly the managed files, nothing more.
 - `metaflow promote` detects local edits to materialized files.

@@ -29,17 +29,17 @@ suite('Command Execution', () => {
 
     test('refresh loads config from test workspace', async function () {
         this.timeout(10000);
-        // Execute refresh — should find .ai-sync.json in test-workspace
+        // Execute refresh — should find .metaflow.json in test-workspace
         await vscode.commands.executeCommand('metaflow.refresh');
         // If it reaches here without throwing, the command succeeded
     });
 
-    test('refresh falls back to .ai/.ai-sync.json when root config is absent', async function () {
+    test('refresh falls back to .ai/.metaflow.json when root config is absent', async function () {
         this.timeout(15000);
 
-        const rootConfigPath = path.join(workspaceRoot, '.ai-sync.json');
-        const fallbackConfigPath = path.join(workspaceRoot, '.ai', '.ai-sync.json');
-        const backupRootConfigPath = path.join(workspaceRoot, '.ai-sync.json.bak');
+        const rootConfigPath = path.join(workspaceRoot, '.metaflow.json');
+        const fallbackConfigPath = path.join(workspaceRoot, '.ai', '.metaflow.json');
+        const backupRootConfigPath = path.join(workspaceRoot, '.metaflow.json.bak');
 
         assert.ok(fs.existsSync(rootConfigPath), 'Root config should exist in test fixture');
         assert.ok(fs.existsSync(fallbackConfigPath), 'Fallback config should exist in test fixture');
@@ -55,7 +55,7 @@ suite('Command Execution', () => {
             assert.strictEqual(
                 path.normalize(editor!.document.uri.fsPath),
                 path.normalize(fallbackConfigPath),
-                'Expected openConfig to resolve to .ai/.ai-sync.json fallback'
+                'Expected openConfig to resolve to .ai/.metaflow.json fallback'
             );
         } finally {
             if (fs.existsSync(backupRootConfigPath)) {
@@ -70,12 +70,12 @@ suite('Command Execution', () => {
         await vscode.commands.executeCommand('metaflow.refresh');
         await vscode.commands.executeCommand('metaflow.openConfig');
 
-        // Verify an editor is open with .ai-sync.json
+        // Verify an editor is open with .metaflow.json
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             assert.ok(
-                editor.document.fileName.endsWith('.ai-sync.json'),
-                'Active editor should be .ai-sync.json'
+                editor.document.fileName.endsWith('.metaflow.json'),
+                'Active editor should be .metaflow.json'
             );
         }
     });

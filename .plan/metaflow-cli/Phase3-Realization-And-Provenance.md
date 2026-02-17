@@ -25,12 +25,12 @@ Build the TypeScript CLI (`packages/cli/`) that imports `@metaflow/engine` and e
   - Remove managed in-sync files → clear state → display summary
 - [ ] Implement `metaflow profile list|set`:
   - List available profiles with active marker
-  - Set active profile → update .ai-sync.json → show new file counts
+  - Set active profile → update .metaflow.json → show new file counts
 - [ ] Implement `metaflow promote`:
   - Detect locally modified materialized files via drift detection
   - Display list with actionable suggestions
 - [ ] Implement `metaflow init`:
-  - Generate starter `.ai-sync.json` template
+  - Generate starter `.metaflow.json` template
   - Refuse overwrite unless `--force`
 - [ ] Write unit tests for each command:
   - Use Commander test helpers or capture stdout

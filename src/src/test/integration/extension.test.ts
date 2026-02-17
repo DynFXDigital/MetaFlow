@@ -2,7 +2,7 @@
  * Extension activation integration tests.
  *
  * Validates:
- * - Extension activates when .ai-sync.json is present.
+ * - Extension activates when .metaflow.json is present.
  * - All commands are registered after activation.
  * - Extension context is set correctly.
  */

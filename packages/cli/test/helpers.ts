@@ -30,7 +30,7 @@ export interface RepoFile {
 }
 
 export interface WorkspaceOptions {
-    /** Config object to write as .ai-sync.json. If undefined, no config is created. */
+    /** Config object to write as .metaflow.json. If undefined, no config is created. */
     config?: Record<string, unknown>;
     /** Layer files to populate in the metadata repo. Key is layer path. */
     layers?: Record<string, RepoFile[]>;
@@ -58,7 +58,7 @@ export function createTestWorkspace(options: WorkspaceOptions = {}): TestWorkspa
 
     // Write config
     if (options.config) {
-        const configPath = path.join(root, '.ai-sync.json');
+        const configPath = path.join(root, '.metaflow.json');
         fs.writeFileSync(configPath, JSON.stringify(options.config, null, 2), 'utf-8');
     }
 

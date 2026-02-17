@@ -1,5 +1,5 @@
 /**
- * Config loader: discovers, parses, and validates `.ai-sync.json`.
+ * Config loader: discovers, parses, and validates `.metaflow.json`.
  *
  * Uses `jsonc-parser` for fault-tolerant JSONC support.
  *
@@ -16,7 +16,7 @@ import {
 import { discoverConfigPath } from './configPathUtils';
 
 /**
- * Load and validate a `.ai-sync.json` configuration file.
+ * Load and validate a `.metaflow.json` configuration file.
  *
  * @param workspaceRoot Absolute path to the workspace root.
  * @returns A `ConfigLoadResult` with either the parsed config or errors.
@@ -26,7 +26,7 @@ export function loadConfig(workspaceRoot: string): ConfigLoadResult {
     if (!configPath) {
         return {
             ok: false,
-            errors: [{ message: 'No .ai-sync.json found at workspace root or .ai/.ai-sync.json fallback.' }],
+            errors: [{ message: 'No .metaflow.json found at workspace root or .ai/.metaflow.json fallback.' }],
         };
     }
     return loadConfigFromPath(configPath);

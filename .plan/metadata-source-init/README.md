@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan introduces source-aware initialization for MetaFlow so users can generate an initial `.ai-sync.json` from a chosen metadata source instead of a static template. The feature supports three source modes: existing local directory (with auto-discovery), remote Git URL (clone + discovery), and new empty directory scaffold (example structure).
+This plan introduces source-aware initialization for MetaFlow so users can generate an initial `.metaflow.json` from a chosen metadata source instead of a static template. The feature supports three source modes: existing local directory (with auto-discovery), remote Git URL (clone + discovery), and new empty directory scaffold (example structure).
 
 ## Problem / Goal
 

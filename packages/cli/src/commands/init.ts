@@ -6,11 +6,11 @@ import { getWorkspaceRoot } from './common';
 export function registerInitCommand(program: Command): void {
     program
         .command('init')
-        .description('Generate a starter .ai-sync.json')
+        .description('Generate a starter .metaflow.json')
         .option('-f, --force', 'Overwrite existing config')
         .action((options: { force?: boolean }) => {
             const workspaceRoot = getWorkspaceRoot(program);
-            const configPath = path.join(workspaceRoot, '.ai-sync.json');
+            const configPath = path.join(workspaceRoot, '.metaflow.json');
 
             if (fs.existsSync(configPath) && !options.force) {
                 console.error(`Config already exists: ${configPath}`);

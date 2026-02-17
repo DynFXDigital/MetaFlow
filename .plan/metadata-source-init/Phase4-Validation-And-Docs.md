@@ -36,5 +36,5 @@ Verify behavior end-to-end and document the new initialization paths for maintai
 
 ## Rollout Notes
 
-- Treat this as additive UX; no migration needed for existing `.ai-sync.json` users.
+- Treat this as additive UX; no migration needed for existing `.metaflow.json` users.
 - Keep telemetry/logging minimal and privacy-safe (no full URL/path logs beyond current standards).

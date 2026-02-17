@@ -28,8 +28,8 @@ suite('Extension Packaging Regression Guards', () => {
 
         const activationEvents = packageJson.activationEvents ?? [];
         assert.ok(activationEvents.includes('onStartupFinished'));
-        assert.ok(activationEvents.includes('workspaceContains:**/.ai-sync.json'));
-        assert.ok(activationEvents.includes('workspaceContains:**/.ai/.ai-sync.json'));
+        assert.ok(activationEvents.includes('workspaceContains:**/.metaflow.json'));
+        assert.ok(activationEvents.includes('workspaceContains:**/.ai/.metaflow.json'));
     });
 
     test('vscode prepublish uses bundle script', () => {

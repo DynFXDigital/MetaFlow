@@ -19,7 +19,7 @@ Traceability is maintained in downstream docs (SDD/TCS/FTD/FTR) via back-links t
 ## Scope
 
 - In scope:
-  - Config management (`.ai-sync.json` loading, validation, diagnostics)
+  - Config management (`.metaflow.json` loading, validation, diagnostics)
   - Overlay engine (layer resolution, filtering, profiles, classification)
   - Materialization (apply, clean, provenance, managed state, drift detection)
   - Extension UI (TreeViews, status bar, output channel, commands)
@@ -45,14 +45,14 @@ Notes:
 
 | REQ-ID | Title | Description | Enforcement | Acceptance (testable) | Notes | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| REQ-0001 | Config discovery | Discover `.ai-sync.json` at workspace root, falling back to `.ai/.ai-sync.json`. | Phase-1 | Given both files exist, the root-level file is used; given only fallback exists, fallback is used; given neither exists, extension reports no config. | | P1 | Draft |
+| REQ-0001 | Config discovery | Discover `.metaflow.json` at workspace root, falling back to `.ai/.metaflow.json`. | Phase-1 | Given both files exist, the root-level file is used; given only fallback exists, fallback is used; given neither exists, extension reports no config. | | P1 | Draft |
 | REQ-0002 | JSONC tolerant parsing | Parse config files with support for JSON comments and trailing commas. | Phase-1 | A config file containing `//` comments and trailing commas parses successfully. | Uses `jsonc-parser` | P1 | Draft |
 | REQ-0003 | Config schema validation | Validate config against the reference schema; reject configs missing required fields. | Phase-1 | Missing `metadataRepo` or `layers` produces a validation error with field name. | | P1 | Draft |
 | REQ-0004 | Config diagnostics | Report JSON parse errors and schema violations via VS Code diagnostic collection with line/column positions. | Phase-1 | Parse errors appear in the Problems panel at the correct line. | | P1 | Draft |
 | REQ-0005 | Path resolution | Resolve `localPath` in config relative to workspace root; support both absolute and relative paths. | Phase-1 | A relative `localPath` resolves to `<workspace>/<localPath>`; an absolute path is used as-is. | | P1 | Draft |
 | REQ-0006 | Multi-repo config | Support `metadataRepos` array with unique `id` fields; all `layerSources.repoId` must reference a valid repo ID. | Phase-1 | A config with two repos and valid `layerSources` parses successfully; an invalid `repoId` produces a diagnostic. | | P2 | Draft |
 | REQ-0007 | Single-repo fallback | When only `metadataRepo` and `layers` are provided (no `metadataRepos`), all layers resolve from that single repo. | Phase-1 | A config with `metadataRepo` + `layers` (no `layerSources`) resolves all layers from the single repo path. | | P1 | Draft |
-| REQ-0008 | Config reload | Reload configuration when the user invokes `metaflow.refresh` or when `.ai-sync.json` is modified. | Phase-4 | After editing `.ai-sync.json`, invoking refresh updates all views to reflect new config. | | P2 | Draft |
+| REQ-0008 | Config reload | Reload configuration when the user invokes `metaflow.refresh` or when `.metaflow.json` is modified. | Phase-4 | After editing `.metaflow.json`, invoking refresh updates all views to reflect new config. | | P2 | Draft |
 
 ### Overlay Engine (REQ-0100 – REQ-0199)
 
@@ -94,7 +94,7 @@ Notes:
 
 | REQ-ID | Title | Description | Enforcement | Acceptance (testable) | Notes | Priority | Status |
 |---|---|---|---|---|---|---|---|
-| REQ-0300 | Activation on config | Activate extension when workspace contains `.ai-sync.json` or `.ai/.ai-sync.json`. | Phase-4 | Opening a workspace with `.ai-sync.json` activates the extension and registers commands. | | P1 | Draft |
+| REQ-0300 | Activation on config | Activate extension when workspace contains `.metaflow.json` or `.ai/.metaflow.json`. | Phase-4 | Opening a workspace with `.metaflow.json` activates the extension and registers commands. | | P1 | Draft |
 | REQ-0301 | Activation on command | Activate extension when any `metaflow.*` command is invoked. | Phase-4 | Invoking `metaflow.initConfig` activates the extension even without existing config. | | P1 | Draft |
 | REQ-0302 | Graceful no-config | When no config is found, display welcome content in sidebar and register `initConfig` command. | Phase-4 | Without config, sidebar shows "No configuration found" with init action. | | P1 | Draft |
 | REQ-0303 | Profiles TreeView | Display named profiles with active indicator; click to switch. | Phase-4 | Profiles TreeView shows all profiles; active profile has a check icon. | | P2 | Draft |
@@ -115,10 +115,10 @@ Notes:
 | REQ-0402 | Apply command | `metaflow.apply` materializes required files with progress indicator. | Phase-4 | Apply creates/updates materialized files and updates managed state. | | P1 | Draft |
 | REQ-0403 | Clean command | `metaflow.clean` removes managed files with confirmation prompt. | Phase-4 | Clean prompts for confirmation, then removes in-sync managed files. | | P1 | Draft |
 | REQ-0404 | Status command | `metaflow.status` shows layer/profile/commit state in output channel. | Phase-4 | Status output displays metadata repo, active profile, layer count, and managed file count. | | P2 | Draft |
-| REQ-0405 | Switch profile command | `metaflow.switchProfile` presents quick-pick of profiles and updates `activeProfile` in config. | Phase-4 | After selecting a profile, `.ai-sync.json` is updated and views refresh. | | P1 | Draft |
+| REQ-0405 | Switch profile command | `metaflow.switchProfile` presents quick-pick of profiles and updates `activeProfile` in config. | Phase-4 | After selecting a profile, `.metaflow.json` is updated and views refresh. | | P1 | Draft |
 | REQ-0406 | Toggle layer command | `metaflow.toggleLayer` toggles a layer's enabled state and updates config. | Phase-4 | After toggling, the layer's state changes in config and TreeView updates. | | P2 | Draft |
-| REQ-0407 | Open config command | `metaflow.openConfig` opens `.ai-sync.json` in the editor. | Phase-4 | The config file opens in an editor tab. | | P3 | Draft |
-| REQ-0408 | Init config command | `metaflow.initConfig` scaffolds a new `.ai-sync.json` at workspace root. | Phase-4 | A valid starter `.ai-sync.json` is created if none exists; no-op if one already exists. | | P2 | Draft |
+| REQ-0407 | Open config command | `metaflow.openConfig` opens `.metaflow.json` in the editor. | Phase-4 | The config file opens in an editor tab. | | P3 | Draft |
+| REQ-0408 | Init config command | `metaflow.initConfig` scaffolds a new `.metaflow.json` at workspace root. | Phase-4 | A valid starter `.metaflow.json` is created if none exists; no-op if one already exists. | | P2 | Draft |
 | REQ-0409 | Promote command | `metaflow.promote` detects drifted files and shows a drift report. | Phase-4 | Promote lists all drifted managed files with their drift status. | Detection only in v1 | P2 | Draft |
 
 ### Settings Injection (REQ-0500 – REQ-0599)

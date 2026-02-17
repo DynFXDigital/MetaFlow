@@ -6,7 +6,7 @@ All notable changes to the MetaFlow extension will be documented in this file.
 
 ### Added
 
-- **Config Model**: JSONC-tolerant config loading, discovery, and validation for `.ai-sync.json`.
+- **Config Model**: JSONC-tolerant config loading, discovery, and validation for `.metaflow.json`.
 - **Overlay Engine**: Deterministic layer resolution with later-wins precedence; single-repo and multi-repo modes.
 - **Filter Engine**: Include/exclude glob pattern evaluation (exclude wins).
 - **Profile Engine**: Enable/disable pattern application per profile.

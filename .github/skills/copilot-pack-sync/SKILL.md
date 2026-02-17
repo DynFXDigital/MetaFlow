@@ -38,7 +38,7 @@ Expected behavior (composition):
 
 - Creates new files from common even if they’re not ignored.
 - Updates/deletes only when safe (matches managed-state), unless the path is ignored by git (explicit opt-in).
-- Uses `.ai-sync.json` (repo-local) to select hierarchy layers and `standards` bundles.
+- Uses `.metaflow.json` (repo-local) to select hierarchy layers and `standards` bundles.
 
 ### Status
 

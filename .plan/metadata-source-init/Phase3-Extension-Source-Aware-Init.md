@@ -13,7 +13,7 @@ Bring source-aware initialization to VS Code command flow with parity to CLI sem
    - URL: input box for URL, optional input box for clone destination.
    - Empty: folder picker or typed path for scaffold.
 4. Perform source action and layer discovery.
-5. Confirm overwrite if `.ai-sync.json` already exists.
+5. Confirm overwrite if `.metaflow.json` already exists.
 6. Write config, open file, show success message.
 
 ## Tasks

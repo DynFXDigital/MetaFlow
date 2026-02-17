@@ -25,7 +25,7 @@ export interface WatchHandle {
 /**
  * Core watch logic — exported for testing.
  *
- * Watches `.ai-sync.json` and the metadata repo directory for changes.
+ * Watches `.metaflow.json` and the metadata repo directory for changes.
  * On change, reloads config, resolves effective files, and applies.
  *
  * @returns A handle to stop watching.
