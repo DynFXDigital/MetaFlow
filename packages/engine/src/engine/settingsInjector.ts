@@ -57,13 +57,21 @@ export function computeSettingsEntries(
             continue;
         }
         const normalized = file.relativePath.replace(/\\/g, '/');
-        const topDir = normalized.split('/')[0];
-        const dirPath = path.dirname(file.sourcePath);
+        const relativeSegments = normalized.split('/');
+        const topDir = relativeSegments[0];
+        
+        // Navigate up to the artifact type directory (e.g., instructions/, skills/, prompts/)
+        // VS Code will scan subdirectories automatically, so we only add the top level
+        const levelsUp = relativeSegments.length - 1;
+        let artifactTypeDir = file.sourcePath;
+        for (let i = 0; i < levelsUp; i++) {
+            artifactTypeDir = path.dirname(artifactTypeDir);
+        }
 
         if (!settingsDirs.has(topDir)) {
             settingsDirs.set(topDir, new Set());
         }
-        settingsDirs.get(topDir)!.add(dirPath);
+        settingsDirs.get(topDir)!.add(artifactTypeDir);
     }
 
     // Map artifact types to VS Code setting keys

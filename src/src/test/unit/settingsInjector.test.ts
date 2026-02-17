@@ -61,7 +61,7 @@ suite('settingsInjector', () => {
         assert.ok(agentEntry);
         assert.ok(skillEntry);
         assert.ok((agentEntry!.value as Record<string, boolean>)['../repo/agents']);
-        assert.ok((skillEntry!.value as Record<string, boolean>)['../repo/skills/testing']);
+        assert.ok((skillEntry!.value as Record<string, boolean>)['../repo/skills']);
     });
 
     test('ignores materialized files', () => {
