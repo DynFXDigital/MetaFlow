@@ -35,8 +35,6 @@ test-results/
 # Integration test workspace runtime artifacts
 src/test-workspace/.github/
 src/test-workspace/.vscode/
-src/test-workspace/.metaflow/state.json
-.metaflow/state.json
 .ai/temp/
 
 # Local env
@@ -50,3 +48,7 @@ src/test-workspace/.metaflow/state.json
 
 # Ignore materialized AI Metadata files
 .github/**/_*
+
+# Ignore Metaflow state and config files
+.metaflow/state.json
+.metaflow/config.jsonc
