@@ -76,13 +76,13 @@ src/               ← VS Code extension (imports packages/engine as dependency)
 - Reference architecture document (canonical spec).
 - Existing engine implementation in `src/src/engine/` (extraction source).
 - Existing config implementation in `src/src/config/` (extraction source).
-- npm workspace or TypeScript project references for monorepo structure.
+- npm workspace or TypeScript project references for multi-package workspace structure.
 
 ## Phases
 
 | Phase | Name | Description | Status |
 |-------|------|-------------|--------|
-| 1 | [Engine Extraction](Phase1-Skeleton-And-Config.md) | Extract engine + config into `packages/engine/`, set up monorepo | Complete |
+| 1 | [Engine Extraction](Phase1-Skeleton-And-Config.md) | Extract engine + config into `packages/engine/`, set up workspace | Complete |
 | 2 | [Extension Rewire](Phase2-Overlay-And-Filters.md) | Rewire VS Code extension to import `@metaflow/engine` | Complete |
 | 3 | [CLI Scaffold + Commands](Phase3-Realization-And-Provenance.md) | Build TypeScript CLI with all commands consuming the engine | Complete |
 | 4 | [Integration Tests + Polish](Phase4-CLI-Commands.md) | End-to-end tests, help text, exit codes, README | Complete |

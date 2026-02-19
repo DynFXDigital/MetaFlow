@@ -4,7 +4,7 @@
 
 ## Objective
 
-Extract the existing pure TypeScript engine (`src/src/engine/` + `src/src/config/`) into a standalone `packages/engine/` package. Set up the monorepo structure (npm workspaces or TypeScript project references) so both the VS Code extension and future CLI can import `@metaflow/engine`.
+Extract the existing pure TypeScript engine (`src/src/engine/` + `src/src/config/`) into a standalone `packages/engine/` package. Set up the workspace structure (npm workspaces or TypeScript project references) so both the VS Code extension and future CLI can import `@metaflow/engine`.
 
 ## Tasks
 
@@ -14,7 +14,7 @@ Extract the existing pure TypeScript engine (`src/src/engine/` + `src/src/config
   - `packages/engine/src/config/` — move `configSchema.ts`, `configLoader.ts`, `configPathUtils.ts`, `index.ts`
   - `packages/engine/src/engine/` — move all 12 engine modules + `index.ts`
   - `packages/engine/src/index.ts` — barrel re-export of config + engine
-- [ ] Set up monorepo workspace:
+- [ ] Set up workspace:
   - Root `package.json` with `workspaces: ["packages/*", "src"]` (or npm/pnpm workspace config)
   - Ensure `npm install` / `pnpm install` links workspace packages
 - [ ] Move unit tests:
@@ -32,7 +32,7 @@ Extract the existing pure TypeScript engine (`src/src/engine/` + `src/src/config
 - `packages/engine/` compiles independently and passes all unit tests.
 - `@metaflow/engine` exports the full config + engine API.
 - No `vscode` imports in the package (enforced).
-- Monorepo workspace links packages correctly.
+- Workspace links packages correctly.
 
 ## Reference
 

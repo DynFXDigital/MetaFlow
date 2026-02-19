@@ -1,5 +1,6 @@
 {
-  "name": "metaflow-monorepo",
+  "name": "metaflow-workspace",
+  "description": "MetaFlow workspace for deterministic AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
   "license": "MIT",
   "private": true,
   "workspaces": [

@@ -2,7 +2,7 @@
 
 ## Running the Program
 
-You can run MetaFlow from the monorepo root with:
+You can run MetaFlow from the workspace root with:
 
 ```bash
 metaflow
@@ -65,7 +65,7 @@ npm install
 
 ## Building Artifacts
 
-To build all TypeScript packages in this monorepo:
+To build all TypeScript packages in this workspace:
 
 1. Install dependencies (if not already installed):
 

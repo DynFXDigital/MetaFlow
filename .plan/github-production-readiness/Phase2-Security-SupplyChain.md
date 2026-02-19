@@ -15,7 +15,7 @@ Introduce first-class security workflows and dependency risk controls comparable
 - [x] Add CodeQL workflow:
    - [x] Trigger on `push` to `main`, `pull_request`, and scheduled scan.
    - [x] Scope languages to JavaScript/TypeScript.
-   - [x] Tune build commands for monorepo workspace.
+   - [x] Tune build commands for workspace.
 - [x] Add dependency-review workflow:
    - [x] Trigger on pull requests.
    - [x] Enforce fail/warn thresholds for high and critical advisories.

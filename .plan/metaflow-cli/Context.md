@@ -43,7 +43,7 @@ MetaFlow CLI provides a command-line interface for MetaFlow overlay management. 
 - **2026-02-05** – CLI namespace uses `metaflow` as the top-level command.
 - **2026-02-05** – Config file is `.metaflow.json` at repo root (or `.ai/.metaflow.json` fallback).
 - **2026-02-07** – **REWORK**: earlier CLI approach scrapped. The extension already has the full engine in pure TypeScript. New approach: extract engine into `packages/engine/`, build CLI in TypeScript, share engine as library. No subprocess calls between extension and CLI.
-- **2026-02-07** – Monorepo structure: `packages/engine/`, `packages/cli/`, `src/` (extension). npm workspaces for linking.
+- **2026-02-07** – Workspace structure: `packages/engine/`, `packages/cli/`, `src/` (extension). npm workspaces for linking.
 - **2026-02-07** – Commander.js selected as CLI framework (lighter than Click equivalent in Node).
 - **2026-02-07** – Phase 1 complete: `packages/engine/` created with config + engine modules, Node typings added, build passes.
 - **2026-02-07** – Phase 2 complete: extension rewired to `@metaflow/engine`; unit + integration tests pass.

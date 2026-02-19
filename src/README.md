@@ -1,6 +1,6 @@
 # MetaFlow
 
-AI metadata overlay management for GitHub Copilot — deterministic overlay resolution, materialization with provenance, and profile/layer management.
+Deterministic AI metadata overlays for Copilot instructions, prompts, skills, and agents.
 
 ## Features
 

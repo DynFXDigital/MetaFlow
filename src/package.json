@@ -1,7 +1,7 @@
 {
   "name": "metaflow",
-  "displayName": "MetaFlow",
-  "description": "AI metadata overlay management for GitHub Copilot — deterministic overlay resolution, materialization with provenance, and profile/layer management",
+  "displayName": "MetaFlow: AI Metadata Overlay",
+  "description": "Deterministic AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
   "version": "0.1.0",
   "publisher": "dynfxdigital",
   "license": "MIT",
