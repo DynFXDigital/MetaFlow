@@ -109,7 +109,7 @@
 
 | TC-ID | Title | Input/Precondition | Action/Step | Expected Result | Type | Priority | Status | Automation Ref | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| TC-0300 | Extension is present | Test workspace | `getExtension('kiates.metaflow')` | Extension found | Integration | Critical | Pass | `test/integration/extension.test.ts` | Phase 4 |
+| TC-0300 | Extension is present | Test workspace | `getExtension('dynfxdigital.metaflow')` | Extension found | Integration | Critical | Pass | `test/integration/extension.test.ts` | Phase 4 |
 | TC-0301 | Extension activates | Test workspace | `ext.activate()` | `ext.isActive === true` | Integration | Critical | Pass | `test/integration/extension.test.ts` | Phase 4 |
 | TC-0302 | All commands registered | Extension active | `getCommands()` | All 10 `metaflow.*` commands found | Integration | Critical | Pass | `test/integration/extension.test.ts` | Phase 4 |
 | TC-0303 | Refresh executes | Extension active | `executeCommand('metaflow.refresh')` | No error thrown | Integration | High | Pass | `test/integration/extension.test.ts` | Phase 4 |

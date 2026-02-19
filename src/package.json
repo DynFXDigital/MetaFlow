@@ -3,11 +3,11 @@
   "displayName": "MetaFlow",
   "description": "AI metadata overlay management for GitHub Copilot — deterministic overlay resolution, materialization with provenance, and profile/layer management",
   "version": "0.1.0",
-  "publisher": "kiates",
+  "publisher": "dynfxdigital",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kiates/MetaFlow.git"
+    "url": "https://github.com/dynfxdigital/MetaFlow.git"
   },
   "engines": {
     "vscode": "^1.80.0"
@@ -141,7 +141,7 @@
     "viewsWelcome": [
       {
         "view": "metaflow-config",
-        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/kiates/MetaFlow)",
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/dynfxdigital/MetaFlow)",
         "when": "workspaceFolderCount > 0"
       },
       {

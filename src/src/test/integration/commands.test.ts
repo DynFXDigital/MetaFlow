@@ -17,7 +17,7 @@ suite('Command Execution', () => {
         this.timeout(15000);
 
         // Ensure extension is active
-        const ext = vscode.extensions.getExtension('kiates.metaflow');
+        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow');
         if (ext && !ext.isActive) {
             await ext.activate();
         }

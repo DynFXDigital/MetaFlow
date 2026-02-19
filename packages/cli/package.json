@@ -1,6 +1,7 @@
 {
   "name": "@metaflow/cli",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "bin": {
     "metaflow": "out/src/cli.js"
