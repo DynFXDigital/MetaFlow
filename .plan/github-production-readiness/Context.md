@@ -2,7 +2,7 @@
 
 - **Last updated:** 2026-02-13
 - **Status:** Implementation mostly complete; blocked on external GitHub validation/admin steps
-- **Owner:** @kiates (proposed)
+- **Owner:** DynF/X Digital (proposed)
 
 ## Feature Overview
 
