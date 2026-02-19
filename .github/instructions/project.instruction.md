@@ -6,4 +6,4 @@ description: Project-wide guidelines and metadata for AI-Editor contributors.
 
 ## GitHub
 
-URL: https://github.com/kiates/AI-Editor.git
+URL: https://github.com/dynfxdigital/AI-Editor.git
