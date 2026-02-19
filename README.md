@@ -1,8 +1,8 @@
 # MetaFlow
 
-[![CI](https://github.com/kiates/MetaFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/ci.yml)
-[![Release](https://github.com/kiates/MetaFlow/actions/workflows/release.yml/badge.svg)](https://github.com/kiates/MetaFlow/actions/workflows/release.yml)
-[![Latest Release](https://img.shields.io/github/v/release/kiates/MetaFlow?display_name=tag)](https://github.com/kiates/MetaFlow/releases)
+[![CI](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml)
+[![Release](https://github.com/dynfxdigital/MetaFlow/actions/workflows/release.yml/badge.svg)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/dynfxdigital/MetaFlow?display_name=tag)](https://github.com/dynfxdigital/MetaFlow/releases)
 
 MetaFlow helps teams manage GitHub Copilot metadata in a deterministic, auditable way across local repos, CI, and editor workflows.
 
@@ -26,7 +26,7 @@ MetaFlow gives you one consistent way to compose and apply layered AI metadata (
 
 ### 1) Install
 
-Install a release VSIX from the [Releases](https://github.com/kiates/MetaFlow/releases) page.
+Install a release VSIX from the [Releases](https://github.com/dynfxdigital/MetaFlow/releases) page.
 
 ```bash
 code --install-extension <metaflow-release>.vsix
