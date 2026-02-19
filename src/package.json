@@ -103,6 +103,11 @@
         "command": "metaflow.toggleFilesViewMode",
         "title": "MetaFlow: Toggle Effective Files View Mode",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "metaflow.toggleLayersViewMode",
+        "title": "MetaFlow: Toggle Layers View Mode",
+        "icon": "$(list-tree)"
       }
     ],
     "views": {
@@ -177,6 +182,11 @@
         {
           "command": "metaflow.toggleFilesViewMode",
           "when": "view == metaflow-files",
+          "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.toggleLayersViewMode",
+          "when": "view == metaflow-layers",
           "group": "navigation@3"
         }
       ],
@@ -306,6 +316,16 @@
             "repoTree"
           ],
           "description": "Display mode for the Effective Files view: unified hierarchy or grouped by repository"
+        },
+        "metaflow.layersViewMode": {
+          "type": "string",
+          "default": "flat",
+          "order": 7,
+          "enum": [
+            "flat",
+            "tree"
+          ],
+          "description": "Display mode for the Layers view: flat precedence list or hierarchical tree"
         }
       }
     },

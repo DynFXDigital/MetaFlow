@@ -210,6 +210,60 @@ suite('TreeView Providers', () => {
         assert.strictEqual(items[0].description, '(ai-metadata)');
     });
 
+    test('LayersTreeView tree mode groups multi-repo layers hierarchically', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
+                { id: 'secondary', name: 'TeamMeta', localPath: '.ai/team-meta', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: 'primary', path: 'company/core/devtools', enabled: true },
+                { repoId: 'secondary', path: 'team/social', enabled: true },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(state, () => 'tree');
+        const top = provider.getChildren();
+        const primaryRepo = top.find(i => String(i.label) === 'CoreMeta');
+        assert.ok(primaryRepo, 'Tree mode should group layers under repository roots');
+
+        const primaryChildren = provider.getChildren(primaryRepo as never);
+        const companyFolder = primaryChildren.find(i => String(i.label) === 'company');
+        assert.ok(companyFolder, 'Repository root should contain first path segment folders');
+
+        const companyChildren = provider.getChildren(companyFolder as never);
+        const coreLayer = companyChildren.find(i => String(i.label) === 'core');
+        assert.ok(coreLayer, 'Path segment with a matching layer should be present');
+        assert.strictEqual(coreLayer?.checkboxState, vscode.TreeItemCheckboxState.Checked, 'Layer nodes should remain toggleable in tree mode');
+        assert.ok(typeof (coreLayer as { layerIndex?: unknown }).layerIndex === 'number', 'Layer nodes should preserve layer index for toggle command wiring');
+
+        const coreChildren = provider.getChildren(coreLayer as never);
+        const devtoolsLayer = coreChildren.find(i => String(i.label) === 'devtools');
+        assert.ok(devtoolsLayer, 'Nested layer paths should be represented as nested tree nodes');
+    });
+
+    test('LayersTreeView tree mode keeps single-repo hierarchy', () => {
+        state.config = {
+            metadataRepo: { localPath: '.ai/ai-metadata', name: 'PrimaryRepo' },
+            layers: ['company/core', 'company/standards/sdlc'],
+        };
+
+        const provider = new LayersTreeViewProvider(state, () => 'tree');
+        const top = provider.getChildren();
+        const companyFolder = top.find(i => String(i.label) === 'company');
+        assert.ok(companyFolder, 'Single-repo tree mode should show top-level hierarchy segment');
+
+        const companyChildren = provider.getChildren(companyFolder as never);
+        const standardsFolder = companyChildren.find(i => String(i.label) === 'standards');
+        assert.ok(standardsFolder, 'Single-repo hierarchy should preserve intermediate folders');
+
+        const standardsChildren = provider.getChildren(standardsFolder as never);
+        const sdlcLayer = standardsChildren.find(i => String(i.label) === 'sdlc');
+        assert.ok(sdlcLayer, 'Leaf layer node should be present in hierarchy');
+        assert.strictEqual(sdlcLayer?.checkboxState, vscode.TreeItemCheckboxState.Checked, 'Leaf layer nodes should remain checked/toggleable');
+    });
+
     // ── FilesTreeView ──────────────────────────────────────────
 
     test('FilesTreeView returns empty when no files', () => {

@@ -19,9 +19,14 @@ import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
 
 type FilesViewMode = 'unified' | 'repoTree';
+type LayersViewMode = 'flat' | 'tree';
 
 function getFilesViewMode(): FilesViewMode {
     return vscode.workspace.getConfiguration('metaflow').get<FilesViewMode>('filesViewMode', 'unified');
+}
+
+function getLayersViewMode(): LayersViewMode {
+    return vscode.workspace.getConfiguration('metaflow').get<LayersViewMode>('layersViewMode', 'flat');
 }
 
 // ── Activation ─────────────────────────────────────────────────────
@@ -55,6 +60,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
 
     vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', getFilesViewMode());
+    vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', getLayersViewMode());
 
     const configTreeView = vscode.window.createTreeView('metaflow-config', {
         treeDataProvider: configTreeViewProvider,
@@ -94,6 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 if (
                     (checkboxState === vscode.TreeItemCheckboxState.Checked ||
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
+                    'layerIndex' in item &&
                     typeof item.layerIndex === 'number'
                 ) {
                     await vscode.commands.executeCommand('metaflow.toggleLayer', {
@@ -124,6 +131,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const mode = getFilesViewMode();
                 vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', mode);
                 filesTreeViewProvider.refresh();
+            }
+            if (e.affectsConfiguration('metaflow.layersViewMode')) {
+                const mode = getLayersViewMode();
+                vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', mode);
+                layersTreeViewProvider.refresh();
             }
         })
     );

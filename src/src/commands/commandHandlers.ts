@@ -46,7 +46,9 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const FILES_VIEW_MODE_SETTING_KEY = 'filesViewMode';
+const LAYERS_VIEW_MODE_SETTING_KEY = 'layersViewMode';
 type FilesViewMode = 'unified' | 'repoTree';
+type LayersViewMode = 'flat' | 'tree';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -277,6 +279,10 @@ function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
 
 function normalizeFilesViewMode(value: unknown): FilesViewMode {
     return value === 'repoTree' ? 'repoTree' : 'unified';
+}
+
+function normalizeLayersViewMode(value: unknown): LayersViewMode {
+    return value === 'tree' ? 'tree' : 'flat';
 }
 
 function persistConfig(configPath: string, config: MetaFlowConfig): void {
@@ -1018,6 +1024,23 @@ export function registerCommands(
             await config.update(FILES_VIEW_MODE_SETTING_KEY, nextMode, target);
             await vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', nextMode);
             logInfo(`Effective Files view mode set to: ${nextMode}`);
+        })
+    );
+
+    // ── metaflow.toggleLayersViewMode ──────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.toggleLayersViewMode', async () => {
+            const ws = getWorkspace();
+            const config = vscode.workspace.getConfiguration('metaflow', ws?.uri);
+            const currentMode = normalizeLayersViewMode(
+                config.get<unknown>(LAYERS_VIEW_MODE_SETTING_KEY, 'flat')
+            );
+            const nextMode: LayersViewMode = currentMode === 'flat' ? 'tree' : 'flat';
+            const target = ws ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+
+            await config.update(LAYERS_VIEW_MODE_SETTING_KEY, nextMode, target);
+            await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
+            logInfo(`Layers view mode set to: ${nextMode}`);
         })
     );
 
