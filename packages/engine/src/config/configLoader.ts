@@ -141,6 +141,16 @@ export function validateConfig(config: MetaFlowConfig): ConfigError[] {
             if (!repo.localPath) {
                 errors.push({ message: `"metadataRepos" entry "${repo.id}" is missing "localPath".` });
             }
+            if (repo.discover !== undefined) {
+                if (typeof repo.discover !== 'object' || repo.discover === null || Array.isArray(repo.discover)) {
+                    errors.push({ message: `"metadataRepos" entry "${repo.id}" has invalid "discover" (must be an object).` });
+                } else if (
+                    repo.discover.exclude !== undefined &&
+                    (!Array.isArray(repo.discover.exclude) || repo.discover.exclude.some(item => typeof item !== 'string'))
+                ) {
+                    errors.push({ message: `"metadataRepos" entry "${repo.id}" has invalid "discover.exclude" (must be an array of strings).` });
+                }
+            }
         }
 
         // layerSources required for multi-repo

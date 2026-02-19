@@ -21,6 +21,7 @@ import {
     isWithinBoundary,
     // Engine
     resolveLayers,
+    discoverLayersInRepo,
     buildEffectiveFileMap,
     applyFilters,
     applyProfile,
@@ -86,6 +87,7 @@ describe('Engine package: public API', () => {
 
         // Engine exports
         assert.strictEqual(typeof resolveLayers, 'function');
+        assert.strictEqual(typeof discoverLayersInRepo, 'function');
         assert.strictEqual(typeof buildEffectiveFileMap, 'function');
         assert.strictEqual(typeof applyFilters, 'function');
         assert.strictEqual(typeof applyProfile, 'function');
@@ -741,6 +743,106 @@ describe('Engine: overlay multi-repo resolution', () => {
         const layers = resolveLayers(config, tmpDir);
         assert.strictEqual(layers.length, 1);
         assert.strictEqual(layers[0].files.length, 0);
+    });
+
+    it('discovers runtime layers when repo discovery is enabled', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'dynamic', '.github', 'prompts'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'base', 'chatmodes', 'base.chatmode.md'), '# Base');
+        fs.writeFileSync(path.join(repoRoot, 'dynamic', '.github', 'prompts', 'new.prompt.md'), '# Prompt');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                { id: 'company', localPath: 'repos/company', discover: { enabled: true } },
+            ],
+            layerSources: [
+                { repoId: 'company', path: 'base' },
+            ],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const layerIds = layers.map(layer => layer.layerId);
+        assert.ok(layerIds.includes('company/base'));
+        assert.ok(layerIds.includes('company/dynamic'));
+    });
+
+    it('skips runtime discovery when resolve option disables discovery', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'dynamic', '.github', 'prompts'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'base', 'chatmodes', 'base.chatmode.md'), '# Base');
+        fs.writeFileSync(path.join(repoRoot, 'dynamic', '.github', 'prompts', 'new.prompt.md'), '# Prompt');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                { id: 'company', localPath: 'repos/company', discover: { enabled: true } },
+            ],
+            layerSources: [
+                { repoId: 'company', path: 'base' },
+            ],
+        };
+
+        const layers = resolveLayers(config, tmpDir, { enableDiscovery: false });
+        assert.deepStrictEqual(layers.map(layer => layer.layerId), ['company/base']);
+    });
+
+    it('discovery excludes matching layer paths', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        fs.mkdirSync(path.join(repoRoot, 'allowed', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'archive', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'allowed', 'chatmodes', 'a.chatmode.md'), '# A');
+        fs.writeFileSync(path.join(repoRoot, 'archive', 'chatmodes', 'b.chatmode.md'), '# B');
+
+        const discovered = discoverLayersInRepo(repoRoot, ['archive', 'archive/**']);
+        assert.ok(discovered.includes('allowed'));
+        assert.ok(!discovered.includes('archive'));
+    });
+
+    it('forces discovery for a repo id even when discover.enabled is not set', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'dynamic', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'base', 'chatmodes', 'base.chatmode.md'), '# Base');
+        fs.writeFileSync(path.join(repoRoot, 'dynamic', 'chatmodes', 'new.chatmode.md'), '# New');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                { id: 'company', localPath: 'repos/company' },
+            ],
+            layerSources: [
+                { repoId: 'company', path: 'base' },
+            ],
+        };
+
+        const layers = resolveLayers(config, tmpDir, {
+            enableDiscovery: true,
+            forceDiscoveryRepoIds: ['company'],
+        });
+        const layerIds = layers.map(layer => layer.layerId);
+        assert.ok(layerIds.includes('company/base'));
+        assert.ok(layerIds.includes('company/dynamic'));
+    });
+
+    it('forces discovery in single-repo mode for primary repo id', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'primary');
+        fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'dynamic', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'base', 'chatmodes', 'base.chatmode.md'), '# Base');
+        fs.writeFileSync(path.join(repoRoot, 'dynamic', 'chatmodes', 'new.chatmode.md'), '# New');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repos/primary' },
+            layers: ['base'],
+        };
+
+        const layers = resolveLayers(config, tmpDir, {
+            enableDiscovery: true,
+            forceDiscoveryRepoIds: ['primary'],
+        });
+
+        assert.ok(layers.some(layer => layer.layerId === 'base'));
+        assert.ok(layers.some(layer => layer.layerId === 'dynamic'));
     });
 });
 

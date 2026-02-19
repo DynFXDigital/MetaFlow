@@ -12,7 +12,9 @@ import {
     MetaFlowConfig,
     InjectionConfig,
     resolveLayers,
+    discoverLayersInRepo,
     buildEffectiveFileMap,
+    resolvePathFromWorkspace,
     applyFilters,
     applyProfile,
     classifyFiles,
@@ -70,6 +72,8 @@ export interface ExtensionState {
 
 interface RefreshCommandOptions {
     skipAutoApply?: boolean;
+    forceDiscovery?: boolean;
+    forceDiscoveryRepoId?: string;
 }
 
 interface ApplyCommandOptions {
@@ -92,9 +96,13 @@ export function createState(): ExtensionState {
 function resolveOverlay(
     config: MetaFlowConfig,
     workspaceRoot: string,
-    injection: InjectionConfig
+    injection: InjectionConfig,
+    options?: { enableDiscovery?: boolean; forceDiscoveryRepoIds?: string[] }
 ): EffectiveFile[] {
-    const layers = resolveLayers(config, workspaceRoot);
+    const layers = resolveLayers(config, workspaceRoot, {
+        enableDiscovery: options?.enableDiscovery,
+        forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
+    });
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
@@ -247,8 +255,12 @@ function extractRefreshCommandOptions(arg: unknown): RefreshCommandOptions {
     }
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
+    const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
+    const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
+        forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
+        forceDiscoveryRepoId: typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,
     };
 }
 
@@ -269,6 +281,121 @@ function normalizeFilesViewMode(value: unknown): FilesViewMode {
 
 function persistConfig(configPath: string, config: MetaFlowConfig): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+}
+
+function normalizeLayerPath(layerPath: string): string {
+    const normalized = layerPath.replace(/\\/g, '/').replace(/\/\.github$/, '');
+    return normalized === '' || normalized === '.github' ? '.' : normalized;
+}
+
+function normalizeAndDeduplicateLayerPaths(config: MetaFlowConfig): boolean {
+    let changed = false;
+
+    if (config.layerSources) {
+        const merged = new Map<string, { repoId: string; path: string; enabled?: boolean }>();
+        for (const source of config.layerSources) {
+            const normalizedPath = normalizeLayerPath(source.path);
+            if (normalizedPath !== source.path) {
+                changed = true;
+            }
+
+            const key = `${source.repoId}:${normalizedPath}`;
+            const existing = merged.get(key);
+            if (!existing) {
+                merged.set(key, { ...source, path: normalizedPath });
+                continue;
+            }
+
+            const existingEnabled = existing.enabled !== false;
+            const currentEnabled = source.enabled !== false;
+            if (existingEnabled !== currentEnabled) {
+                existing.enabled = existingEnabled || currentEnabled;
+                changed = true;
+            }
+        }
+
+        if (merged.size !== config.layerSources.length) {
+            changed = true;
+        }
+        config.layerSources = Array.from(merged.values());
+    }
+
+    if (config.layers) {
+        const normalizedLayers: string[] = [];
+        const seen = new Set<string>();
+        for (const layer of config.layers) {
+            const normalized = normalizeLayerPath(layer);
+            if (normalized !== layer) {
+                changed = true;
+            }
+            if (!seen.has(normalized)) {
+                seen.add(normalized);
+                normalizedLayers.push(normalized);
+            } else {
+                changed = true;
+            }
+        }
+        config.layers = normalizedLayers;
+    }
+
+    return changed;
+}
+
+function discoverAndPersistRepoLayers(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    repoId: string
+): number {
+    if (config.metadataRepos && config.layerSources) {
+        const repo = config.metadataRepos.find(candidate => candidate.id === repoId);
+        if (!repo) {
+            return 0;
+        }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        const discoveredLayers = discoverLayersInRepo(repoRoot, repo.discover?.exclude);
+        const existing = new Set(
+            config.layerSources
+                .filter(source => source.repoId === repoId)
+                .map(source => source.path)
+        );
+
+        let added = 0;
+        for (const layerPath of discoveredLayers) {
+            if (existing.has(layerPath)) {
+                continue;
+            }
+            config.layerSources.push({
+                repoId,
+                path: layerPath,
+                enabled: true,
+            });
+            existing.add(layerPath);
+            added += 1;
+        }
+
+        return added;
+    }
+
+    if (repoId === 'primary' && config.metadataRepo && config.layers) {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
+        const discoveredLayers = discoverLayersInRepo(repoRoot);
+        const existing = new Set(config.layers);
+
+        let added = 0;
+        for (const layerPath of discoveredLayers) {
+            if (existing.has(layerPath)) {
+                continue;
+            }
+            config.layers.push(layerPath);
+            existing.add(layerPath);
+            added += 1;
+        }
+
+        return added;
+    }
+
+    return 0;
 }
 
 async function injectWorkspaceSettings(
@@ -382,13 +509,28 @@ export function registerCommands(
             }
 
             clearDiagnostics(diagnosticCollection);
+            const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
+            if (configNormalized && result.configPath) {
+                persistConfig(result.configPath, result.config);
+                logInfo('Normalized layer paths in config (removed redundant .github suffix entries).');
+            }
             state.config = result.config;
             state.configPath = result.configPath;
             state.activeProfile = result.config.activeProfile;
 
+            const autoApplyEnabled = vscode.workspace
+                .getConfiguration('metaflow', ws.uri)
+                .get<boolean>('autoApply', true);
+
             try {
                 const injectionConfig = resolveInjectionConfig(ws, result.config);
-                state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig);
+                const shouldEnableDiscovery = autoApplyEnabled || refreshOptions.forceDiscovery === true;
+                state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig, {
+                    enableDiscovery: shouldEnableDiscovery,
+                    forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
+                        ? [refreshOptions.forceDiscoveryRepoId]
+                        : undefined,
+                });
                 logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
                 updateStatusBar('idle', state.activeProfile, state.effectiveFiles.length);
             } catch (err: unknown) {
@@ -400,10 +542,7 @@ export function registerCommands(
             state.onDidChange.fire();
 
             if (!refreshOptions.skipAutoApply) {
-                const autoApply = vscode.workspace
-                    .getConfiguration('metaflow', ws.uri)
-                    .get<boolean>('autoApply', true);
-                if (autoApply) {
+                if (autoApplyEnabled) {
                     logInfo('Auto-apply enabled; applying overlay after refresh.');
                     await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
                 }
@@ -665,6 +804,60 @@ export function registerCommands(
         })
     );
 
+    // ── metaflow.rescanRepository ─────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.rescanRepository', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            let repoId = extractRepoId(arg);
+            if (!repoId && state.config.metadataRepos && state.config.metadataRepos.length > 0) {
+                repoId = await vscode.window.showQuickPick(
+                    state.config.metadataRepos.map(repo => repo.id),
+                    {
+                        title: 'MetaFlow: Rescan Repository',
+                        placeHolder: 'Select repository source to rescan',
+                        ignoreFocusOut: true,
+                    }
+                );
+            }
+
+            if (!repoId) {
+                const message = 'MetaFlow: Rescan repository canceled (no repository selected).';
+                logWarn(message);
+                vscode.window.showWarningMessage(message);
+                return;
+            }
+
+            logInfo(`Rescanning repository ${repoId}...`);
+
+            const addedLayers = discoverAndPersistRepoLayers(state.config, ws.uri.fsPath, repoId);
+            if (addedLayers > 0 && state.configPath) {
+                persistConfig(state.configPath, state.config);
+                logInfo(`Discovered ${addedLayers} new layer(s) for ${repoId} and updated config.`);
+            }
+
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                forceDiscovery: true,
+                forceDiscoveryRepoId: repoId,
+            });
+
+            const autoApplyEnabled = vscode.workspace
+                .getConfiguration('metaflow', ws.uri)
+                .get<boolean>('autoApply', true);
+
+            const completionMessage = autoApplyEnabled
+                ? `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}.`
+                : `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}. Run Apply to materialize changes (autoApply is off).`;
+
+            logInfo(completionMessage);
+            vscode.window.showInformationMessage(completionMessage);
+        })
+    );
+
     // ── metaflow.addRepoSource ─────────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.addRepoSource', async () => {
@@ -770,11 +963,6 @@ export function registerCommands(
                 return;
             }
 
-            if (state.config.metadataRepos!.length <= 1) {
-                vscode.window.showWarningMessage('MetaFlow: Cannot remove the last repository source.');
-                return;
-            }
-
             const layerCount = state.config.layerSources!.filter(layer => layer.repoId === repoId).length;
             const confirmation = await vscode.window.showWarningMessage(
                 `Remove source "${repoId}" and ${layerCount} associated layer(s)?`,
@@ -788,6 +976,15 @@ export function registerCommands(
 
             state.config.metadataRepos = state.config.metadataRepos!.filter(candidate => candidate.id !== repoId);
             state.config.layerSources = state.config.layerSources!.filter(layer => layer.repoId !== repoId);
+
+            const removedLastRepo = state.config.metadataRepos.length === 0;
+            if (removedLastRepo) {
+                fs.unlinkSync(state.configPath);
+                logInfo(`Removed final repo source ${repoId}; configuration file deleted.`);
+                vscode.window.showInformationMessage('MetaFlow: All repository sources removed. Initialize Configuration to start again.');
+                await vscode.commands.executeCommand('metaflow.refresh');
+                return;
+            }
 
             persistConfig(state.configPath, state.config);
             logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);

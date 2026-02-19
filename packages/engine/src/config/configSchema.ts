@@ -27,6 +27,16 @@ export interface NamedMetadataRepo extends MetadataRepo {
     id: string;
     /** Whether this repo source is enabled (default: true). */
     enabled?: boolean;
+    /** Optional runtime layer discovery settings. */
+    discover?: RepoDiscoveryConfig;
+}
+
+/** Runtime layer discovery settings for a metadata repository. */
+export interface RepoDiscoveryConfig {
+    /** Whether discovery is enabled for this repo (default: false). */
+    enabled?: boolean;
+    /** Glob patterns to exclude from discovered layer paths. */
+    exclude?: string[];
 }
 
 // ── Layer configuration ────────────────────────────────────────────

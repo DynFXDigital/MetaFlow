@@ -9,6 +9,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { minimatch } from 'minimatch';
 import {
     MetaFlowConfig,
     MetadataRepo,
@@ -27,6 +28,13 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
     'chatmodes',
 ]);
 
+export interface ResolveLayersOptions {
+    /** Enables runtime layer discovery for repos with discover.enabled=true. */
+    enableDiscovery?: boolean;
+    /** Force runtime discovery for specific repo IDs even when discover.enabled is not set. */
+    forceDiscoveryRepoIds?: string[];
+}
+
 /**
  * Resolve all layers from a config and return an ordered array of LayerContent.
  *
@@ -36,13 +44,19 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
  */
 export function resolveLayers(
     config: MetaFlowConfig,
-    workspaceRoot: string
+    workspaceRoot: string,
+    options?: ResolveLayersOptions
 ): LayerContent[] {
+    const resolveOptions: ResolveLayersOptions = {
+        enableDiscovery: options?.enableDiscovery ?? true,
+        forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
+    };
+
     if (config.metadataRepos && config.layerSources) {
-        return resolveMultiRepoLayers(config.metadataRepos, config.layerSources, workspaceRoot);
+        return resolveMultiRepoLayers(config.metadataRepos, config.layerSources, workspaceRoot, resolveOptions);
     }
     if (config.metadataRepo && config.layers) {
-        return resolveSingleRepoLayers(config.metadataRepo, config.layers, workspaceRoot);
+        return resolveSingleRepoLayers(config.metadataRepo, config.layers, workspaceRoot, resolveOptions);
     }
     return [];
 }
@@ -80,10 +94,12 @@ export function buildEffectiveFileMap(
 function resolveSingleRepoLayers(
     repo: MetadataRepo,
     layers: string[],
-    workspaceRoot: string
+    workspaceRoot: string,
+    options: ResolveLayersOptions
 ): LayerContent[] {
     const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
     const result: LayerContent[] = [];
+    const explicitLayers = new Set(layers);
 
     for (const layerPath of layers) {
         const layerAbsPath = path.join(repoRoot, layerPath);
@@ -100,25 +116,75 @@ function resolveSingleRepoLayers(
         });
     }
 
+    const shouldForceSingleRepoDiscovery = options.forceDiscoveryRepoIds?.includes('primary') === true;
+    if (options.enableDiscovery && shouldForceSingleRepoDiscovery) {
+        const discoveredLayers = discoverLayersInRepo(repoRoot)
+            .filter(layerPath => !explicitLayers.has(layerPath));
+
+        for (const layerPath of discoveredLayers) {
+            const layerAbsPath = path.join(repoRoot, layerPath);
+            if (!isWithinBoundary(layerAbsPath, repoRoot)) {
+                continue;
+            }
+
+            const files = walkDirectory(layerAbsPath, layerAbsPath);
+            result.push({
+                layerId: layerPath,
+                files,
+            });
+        }
+    }
+
     return result;
 }
 
 function resolveMultiRepoLayers(
     repos: NamedMetadataRepo[],
     layerSources: LayerSource[],
-    workspaceRoot: string
+    workspaceRoot: string,
+    options: ResolveLayersOptions
 ): LayerContent[] {
     const repoMap = new Map<string, string>();
+    const discoveredLayerSources: LayerSource[] = [];
+    const explicitLayerKeys = new Set(layerSources.map(ls => `${ls.repoId}:${ls.path}`));
+
     for (const repo of repos) {
         if (repo.enabled === false) {
             continue;
         }
-        repoMap.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        repoMap.set(repo.id, repoRoot);
+
+        const shouldDiscoverRepo = options.enableDiscovery && (
+            repo.discover?.enabled === true ||
+            options.forceDiscoveryRepoIds?.includes(repo.id) === true
+        );
+
+        if (shouldDiscoverRepo) {
+            const discoveredPaths = discoverLayersInRepo(repoRoot, repo.discover?.exclude);
+            for (const discoveredPath of discoveredPaths) {
+                const layerKey = `${repo.id}:${discoveredPath}`;
+                if (explicitLayerKeys.has(layerKey)) {
+                    continue;
+                }
+                discoveredLayerSources.push({
+                    repoId: repo.id,
+                    path: discoveredPath,
+                    enabled: true,
+                });
+            }
+        }
     }
+
+    const allLayerSources = [
+        ...layerSources,
+        ...discoveredLayerSources.sort((a, b) => `${a.repoId}:${a.path}`.localeCompare(`${b.repoId}:${b.path}`)),
+    ];
 
     const result: LayerContent[] = [];
 
-    for (const ls of layerSources) {
+    for (const ls of allLayerSources) {
         if (ls.enabled === false) {
             continue;
         }
@@ -194,4 +260,99 @@ function normalizeLayerRelativePath(relativePath: string): string {
 function isKnownArtifactPath(relativePath: string): boolean {
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
+}
+
+/**
+ * Discover layer directories in a repository by finding directories
+ * that directly contain known artifact roots.
+ */
+export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[] = []): string[] {
+    const discovered = new Set<string>();
+
+    if (!fs.existsSync(repoRoot)) {
+        return [];
+    }
+
+    let repoStats: fs.Stats;
+    try {
+        repoStats = fs.statSync(repoRoot);
+    } catch {
+        return [];
+    }
+
+    if (!repoStats.isDirectory()) {
+        return [];
+    }
+
+    const walk = (currentDir: string): void => {
+        const currentBase = path.basename(currentDir);
+        if (currentBase === '.github') {
+            // Parent directory is the layer boundary for .github-based packs.
+            return;
+        }
+
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(currentDir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+
+        const childNames = new Set(entries.map(entry => entry.name));
+        const hasArtifactAtRoot = Array.from(KNOWN_ARTIFACT_ROOTS).some(root => childNames.has(root));
+        const hasGithubArtifacts = childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
+
+        if (hasArtifactAtRoot || hasGithubArtifacts) {
+            const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
+            const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
+            if (!matchesAnyExclude(layerPath, excludePatterns)) {
+                discovered.add(layerPath);
+            }
+        }
+
+        for (const entry of entries) {
+            if (!entry.isDirectory()) {
+                continue;
+            }
+            if (entry.name === '.git' || entry.name === 'node_modules') {
+                continue;
+            }
+            walk(path.join(currentDir, entry.name));
+        }
+    };
+
+    walk(repoRoot);
+    return Array.from(discovered).sort((a, b) => a.localeCompare(b));
+}
+
+function hasAnyKnownArtifactDir(dirPath: string): boolean {
+    if (!fs.existsSync(dirPath)) {
+        return false;
+    }
+
+    for (const root of KNOWN_ARTIFACT_ROOTS) {
+        const candidate = path.join(dirPath, root);
+        try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+                return true;
+            }
+        } catch {
+            continue;
+        }
+    }
+
+    return false;
+}
+
+function matchesAnyExclude(layerPath: string, excludePatterns: string[]): boolean {
+    if (excludePatterns.length === 0) {
+        return false;
+    }
+
+    return excludePatterns.some(pattern => minimatch(layerPath, pattern, { dot: true }));
+}
+
+function normalizeDiscoveredLayerPath(layerPath: string): string {
+    const normalized = layerPath.replace(/\\/g, '/').replace(/\/\.github$/, '');
+    return normalized === '' || normalized === '.github' ? '.' : normalized;
 }

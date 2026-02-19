@@ -75,10 +75,12 @@ export function activate(context: vscode.ExtensionContext): void {
         configTreeView.onDidChangeCheckboxState(async e => {
             for (const [item, checkboxState] of e.items) {
                 const repoId = (item as { repoId?: unknown }).repoId;
+                const contextValue = (item as { contextValue?: unknown }).contextValue;
                 if (
                     (checkboxState === vscode.TreeItemCheckboxState.Checked ||
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
-                    typeof repoId === 'string'
+                    typeof repoId === 'string' &&
+                    contextValue === 'configRepoSourceRescannable'
                 ) {
                     await vscode.commands.executeCommand('metaflow.toggleRepoSource', repoId);
                 }

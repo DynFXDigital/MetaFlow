@@ -1,4 +1,5 @@
-export { resolveLayers, buildEffectiveFileMap } from './overlayEngine';
+export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
+export type { ResolveLayersOptions } from './overlayEngine';
 export { applyFilters } from './filterEngine';
 export { applyProfile } from './profileEngine';
 export { classifyFiles, classifySingle } from './classifier';

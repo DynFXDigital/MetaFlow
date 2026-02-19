@@ -80,6 +80,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "metaflow.rescanRepository",
+        "title": "MetaFlow: Rescan Repository",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "metaflow.openConfig",
         "title": "MetaFlow: Open Config File",
         "icon": "$(settings-gear)"
@@ -183,8 +188,13 @@
         },
         {
           "command": "metaflow.removeRepoSource",
-          "when": "view == metaflow-config && viewItem == configRepoSource",
+          "when": "view == metaflow-config && viewItem == configRepoSourceRescannable",
           "group": "inline@2"
+        },
+        {
+          "command": "metaflow.rescanRepository",
+          "when": "view == metaflow-config && viewItem == configRepoSourceRescannable",
+          "group": "inline@1"
         },
         {
           "command": "metaflow.addRepoSource",

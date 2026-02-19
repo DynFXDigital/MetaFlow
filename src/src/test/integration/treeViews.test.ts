@@ -103,7 +103,7 @@ suite('TreeView Providers', () => {
         const repoItems = provider.getChildren(rootItems[0] as never);
 
         assert.strictEqual(repoItems.length, 2, 'Should return all repository items under Repositories section');
-        assert.strictEqual(repoItems[0].checkboxState, vscode.TreeItemCheckboxState.Checked, 'Enabled repo should show checked checkbox');
+        assert.strictEqual(repoItems[0].checkboxState, vscode.TreeItemCheckboxState.Checked, 'Primary repo should expose a checkbox and be togglable');
         assert.strictEqual(repoItems[1].checkboxState, vscode.TreeItemCheckboxState.Unchecked, 'Disabled repo should show unchecked checkbox');
     });
 

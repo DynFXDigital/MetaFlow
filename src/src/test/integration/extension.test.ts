@@ -19,6 +19,7 @@ const EXPECTED_COMMANDS = [
     'metaflow.switchProfile',
     'metaflow.toggleLayer',
     'metaflow.toggleRepoSource',
+    'metaflow.rescanRepository',
     'metaflow.openConfig',
     'metaflow.initConfig',
     'metaflow.promote',

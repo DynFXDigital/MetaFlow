@@ -26,11 +26,14 @@ class RepoSourceItem extends vscode.TreeItem {
         description: string
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = repoId ? 'configRepoSource' : 'configRepoSourceReadonly';
+        const isReadonly = !repoId;
+        this.contextValue = isReadonly ? 'configRepoSourceReadonly' : 'configRepoSourceRescannable';
         this.description = description;
-        this.checkboxState = enabled
-            ? vscode.TreeItemCheckboxState.Checked
-            : vscode.TreeItemCheckboxState.Unchecked;
+        if (!isReadonly) {
+            this.checkboxState = enabled
+                ? vscode.TreeItemCheckboxState.Checked
+                : vscode.TreeItemCheckboxState.Unchecked;
+        }
         this.accessibilityInformation = {
             label: `${label} ${enabled ? 'enabled' : 'disabled'}`,
             role: 'checkbox',

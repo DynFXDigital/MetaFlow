@@ -257,6 +257,203 @@ suite('Command Execution', () => {
         }
     });
 
+    test('rescanRepository discovers new layers when autoApply is disabled', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const priorAutoApply = wsConfig.inspect<boolean>('metaflow.autoApply')?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'discovery-repo');
+        const baseLayer = path.join(repoRoot, 'base', 'chatmodes');
+        const dynamicLayer = path.join(repoRoot, 'dynamic', 'chatmodes');
+        fs.mkdirSync(baseLayer, { recursive: true });
+        fs.mkdirSync(dynamicLayer, { recursive: true });
+        fs.writeFileSync(path.join(baseLayer, 'base.chatmode.md'), '# Base chatmode', 'utf-8');
+        fs.writeFileSync(path.join(dynamicLayer, 'discovered.chatmode.md'), '# Discovered chatmode', 'utf-8');
+
+        const discoveryConfig = {
+            metadataRepos: [
+                {
+                    id: 'dynamic',
+                    localPath: '.ai/discovery-repo',
+                    discover: {
+                        enabled: true,
+                    },
+                },
+            ],
+            layerSources: [
+                { repoId: 'dynamic', path: 'base' },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(discoveryConfig, null, 2), 'utf-8');
+            await wsConfig.update('metaflow.autoApply', false, vscode.ConfigurationTarget.Workspace);
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const chatmodesDir = path.join(workspaceRoot, '.github', 'chatmodes');
+            const firstApplyFiles = fs.existsSync(chatmodesDir)
+                ? (fs.readdirSync(chatmodesDir, { recursive: true }) as string[])
+                : [];
+
+            assert.ok(
+                firstApplyFiles.some(entry => entry.includes('base.chatmode.md')),
+                'Base layer should be applied when autoApply is disabled'
+            );
+            assert.ok(
+                !firstApplyFiles.some(entry => entry.includes('discovered.chatmode.md')),
+                'Discovered layer should not be resolved before manual rescan when autoApply is disabled'
+            );
+
+            await vscode.commands.executeCommand('metaflow.rescanRepository', { repoId: 'dynamic' });
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const secondApplyFiles = fs.existsSync(chatmodesDir)
+                ? (fs.readdirSync(chatmodesDir, { recursive: true }) as string[])
+                : [];
+            assert.ok(
+                secondApplyFiles.some(entry => entry.includes('discovered.chatmode.md')),
+                'Manual repository rescan should discover and apply new layer files'
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+            await wsConfig.update('metaflow.autoApply', priorAutoApply, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('rescanRepository forces discovery even when discover.enabled is not set', async function () {
+        this.timeout(20000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'force-discovery-repo');
+        const baseLayer = path.join(repoRoot, 'base', 'chatmodes');
+        const dynamicLayer = path.join(repoRoot, 'dynamic', 'chatmodes');
+        fs.mkdirSync(baseLayer, { recursive: true });
+        fs.mkdirSync(dynamicLayer, { recursive: true });
+        fs.writeFileSync(path.join(baseLayer, 'base.chatmode.md'), '# Base chatmode', 'utf-8');
+        fs.writeFileSync(path.join(dynamicLayer, 'discovered.chatmode.md'), '# Discovered chatmode', 'utf-8');
+
+        const configWithoutDiscover = {
+            metadataRepos: [
+                {
+                    id: 'dynamic',
+                    localPath: '.ai/force-discovery-repo',
+                },
+            ],
+            layerSources: [
+                { repoId: 'dynamic', path: 'base' },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(configWithoutDiscover, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const chatmodesDir = path.join(workspaceRoot, '.github', 'chatmodes');
+            const beforeRescanFiles = fs.existsSync(chatmodesDir)
+                ? (fs.readdirSync(chatmodesDir, { recursive: true }) as string[])
+                : [];
+
+            assert.ok(
+                !beforeRescanFiles.some(entry => entry.includes('discovered.chatmode.md')),
+                'Discovered file should not be present before manual rescan when discover.enabled is absent'
+            );
+
+            await vscode.commands.executeCommand('metaflow.rescanRepository', { repoId: 'dynamic' });
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const afterRescanFiles = fs.existsSync(chatmodesDir)
+                ? (fs.readdirSync(chatmodesDir, { recursive: true }) as string[])
+                : [];
+
+            assert.ok(
+                afterRescanFiles.some(entry => entry.includes('discovered.chatmode.md')),
+                'Manual rescan should force discovery for selected repo even without discover.enabled'
+            );
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                layerSources?: Array<{ repoId: string; path: string }>;
+            };
+            assert.ok(
+                updatedConfig.layerSources?.some(layer => layer.repoId === 'dynamic' && layer.path === 'dynamic') === true,
+                'Manual rescan should persist newly discovered layer into config'
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('removeRepoSource allows deleting final repo and returns to init mode', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const singleRepoConfig = {
+            metadataRepo: {
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        windowAny.showWarningMessage = async () => 'Remove';
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(singleRepoConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            await vscode.commands.executeCommand('metaflow.removeRepoSource', 'primary');
+
+            assert.strictEqual(fs.existsSync(configPath), false, 'Config file should be deleted after removing final repo source');
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            if (!fs.existsSync(configPath)) {
+                fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('promote reports drift status', async function () {
         this.timeout(10000);
         await vscode.commands.executeCommand('metaflow.promote');
