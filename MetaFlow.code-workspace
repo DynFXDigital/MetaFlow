@@ -2,10 +2,19 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../DFX-AI-Metadata"
 		}
 	],
 	"settings": {
 		"powershell.cwd": "MetaFlow",
 		"debug.onTaskErrors": "debugAnyway",
+		"chat.instructionsFilesLocations": {
+			"../DFX-AI-Metadata/packages/core/.github/instructions": true
+		},
+		"chat.promptFilesLocations": {
+			"../DFX-AI-Metadata/packages/core/.github/prompts": true
+		},
 	}
 }

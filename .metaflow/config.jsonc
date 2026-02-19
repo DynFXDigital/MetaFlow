@@ -23,24 +23,69 @@
     {
       "id": "primary",
       "localPath": "c:\\Users\\cyates\\gitwork\\AI\\DFX-AI-Metadata",
-      "enabled": false
+      "enabled": true
     }
   ],
   "layerSources": [
     {
       "repoId": "primary",
       "path": "company",
-      "enabled": true
+      "enabled": false
     },
     {
       "repoId": "primary",
       "path": "standards/devtools",
-      "enabled": true
+      "enabled": false
     },
     {
       "repoId": "primary",
       "path": "standards/sdlc",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "ai-metadata",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/core",
       "enabled": true
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/devtools",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/documentation",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/metadata-authoring",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/planning",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/reflection",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "packages/testing",
+      "enabled": false
+    },
+    {
+      "repoId": "primary",
+      "path": "standards/sdlc/ai-editor-sdlc",
+      "enabled": false
     }
   ]
 }
