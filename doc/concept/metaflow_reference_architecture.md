@@ -308,6 +308,22 @@ Example: `.metaflow.json`
 
 This file must be sufficient to fully reproduce the effective state.
 
+### Runtime Layer Discovery (Optional)
+
+In multi-repo mode, repositories may opt into runtime layer discovery:
+
+- `metadataRepos[].discover.enabled: true` enables discovery for that repo
+- Discovery finds directories that contain known artifact roots
+- `discover.exclude` filters out unwanted discovered layer paths
+
+Discovery behavior is tied to extension automatic mode:
+
+- With `metaflow.autoApply: true`, normal refresh resolves explicit + discovered layers
+- With `metaflow.autoApply: false`, normal refresh resolves explicit layers only
+- Manual repository rescan can force on-demand discovery when auto mode is disabled
+
+Explicit `layerSources` remain authoritative and take precedence over discovered duplicates.
+
 ---
 
 ## CLI Responsibilities

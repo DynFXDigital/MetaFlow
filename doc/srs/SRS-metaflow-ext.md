@@ -8,6 +8,7 @@
 
 | Last Updated | Notes |
 |---|---|
+| 2026-02-18 | Added runtime repository discovery and manual repository rescan requirements |
 | 2026-02-07 | Initial draft — Phase 0 |
 
 ## Purpose
@@ -71,6 +72,11 @@ Notes:
 | REQ-0110 | Deterministic resolution | Same config + same metadata file set always produces identical `OverlayResult`. | Phase-2 | Running resolution twice with identical inputs produces byte-identical output. | | P1 | Draft |
 | REQ-0111 | Empty layer handling | An empty layer directory contributes no files but does not cause errors. | Phase-2 | A layer pointing to an empty directory produces no effective files from that layer. | | P2 | Draft |
 | REQ-0112 | Nested directory support | Layer resolution preserves the relative directory structure within each layer. | Phase-2 | A layer containing `instructions/sub/foo.md` produces an effective file at `instructions/sub/foo.md`. | | P1 | Draft |
+| REQ-0113 | Runtime repository discovery | Support runtime discovery of layer directories for repositories with discovery enabled. | Phase-4 | For `discover.enabled: true`, directories containing known artifact roots are added to resolved layers at runtime. | | P1 | Draft |
+| REQ-0114 | Auto-mode discovery gating | Runtime discovery is enabled during refresh when `metaflow.autoApply` is enabled. | Phase-4 | With `autoApply: true`, refresh resolves explicit + discovered layers; with `autoApply: false`, refresh resolves explicit layers only. | | P1 | Draft |
+| REQ-0115 | Explicit precedence over discovered | Explicit `layerSources` entries take precedence over discovered layer entries with the same `{repoId, path}`. | Phase-4 | Duplicate discovered entries are ignored when an explicit entry exists. | | P1 | Draft |
+| REQ-0116 | Discovery exclude patterns | Support per-repository `discover.exclude` glob patterns to skip discovered layer paths. | Phase-4 | A discovered layer path matching any exclude pattern is not resolved. | | P2 | Draft |
+| REQ-0117 | Manual discovery fallback | Allow discovery to run on-demand via manual repository rescan even when `autoApply` is disabled. | Phase-4 | Invoking repository rescan with `autoApply: false` discovers new layers without auto-applying. | | P1 | Draft |
 
 ### Materialization & Provenance (REQ-0200 – REQ-0299)
 
@@ -120,6 +126,7 @@ Notes:
 | REQ-0407 | Open config command | `metaflow.openConfig` opens `.metaflow.json` in the editor. | Phase-4 | The config file opens in an editor tab. | | P3 | Draft |
 | REQ-0408 | Init config command | `metaflow.initConfig` scaffolds a new `.metaflow.json` at workspace root. | Phase-4 | A valid starter `.metaflow.json` is created if none exists; no-op if one already exists. | | P2 | Draft |
 | REQ-0409 | Promote command | `metaflow.promote` detects drifted files and shows a drift report. | Phase-4 | Promote lists all drifted managed files with their drift status. | Detection only in v1 | P2 | Draft |
+| REQ-0410 | Rescan repository command | `metaflow.rescanRepository` triggers on-demand layer discovery for the selected metadata repository row. | Phase-4 | Running the command refreshes state with discovery forced for runtime adaptation. | | P2 | Draft |
 
 ### Settings Injection (REQ-0500 – REQ-0599)
 
@@ -155,4 +162,5 @@ Notes:
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-18 | Added REQ-0113 through REQ-0117 and REQ-0410 for runtime discovery and manual rescan | AI |
 | 2026-02-07 | Initial draft — all requirements enumerated | AI |

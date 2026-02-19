@@ -83,6 +83,7 @@ graph TD
 | DES-0100 | Engine Types | Pure TS interfaces: `LayerFile`, `LayerContent`, `EffectiveFile`, `OverlayResult`, `PendingChange` | REQ-0100, REQ-0101 | `src/engine/types.ts` |
 | DES-0101 | Glob Matcher | Wraps `minimatch` with forward-slash normalization and dotfile support | REQ-0104, REQ-0105 | `src/engine/globMatcher.ts` |
 | DES-0102 | Overlay Engine | Resolves single/multi-repo layers in precedence order; builds effective file map (later-wins) | REQ-0100, REQ-0101, REQ-0102, REQ-0103 | `src/engine/overlayEngine.ts` |
+| DES-0106 | Runtime Layer Discovery | Discovers layer directories containing known artifact roots; merges discovered layers after explicit entries; supports exclude globs and discovery gating options | REQ-0113, REQ-0114, REQ-0115, REQ-0116, REQ-0117 | `packages/engine/src/engine/overlayEngine.ts` |
 | DES-0103 | Filter Engine | Evaluates include/exclude glob patterns; exclude wins over include | REQ-0104, REQ-0105 | `src/engine/filterEngine.ts` |
 | DES-0104 | Profile Engine | Applies active profile enable/disable patterns; disable wins over enable | REQ-0106, REQ-0107, REQ-0108 | `src/engine/profileEngine.ts` |
 | DES-0105 | Classifier | Classifies artifacts as `settings` or `materialized` per directory prefix and injection overrides | REQ-0109, REQ-0110, REQ-0111, REQ-0112 | `src/engine/classifier.ts` |
@@ -92,6 +93,7 @@ graph TD
 | DES-0203 | Materializer | Apply/clean/preview workflows; writes files with provenance; skip on drift; updates state | REQ-0200, REQ-0208, REQ-0209, REQ-0210, REQ-0211, REQ-0212 | `src/engine/materializer.ts` |
 | DES-0204 | Settings Injector | Computes VS Code settings entries for settings-classified directories and hook paths; supports clean removal | REQ-0109, REQ-0110 | `src/engine/settingsInjector.ts` |
 | DES-0300 | Command Handlers | Registers all 10 `metaflow.*` commands; manages ExtensionState with config, effectiveFiles, and change event; wires engine+materializer to VS Code UI | REQ-0300, REQ-0301, REQ-0302 | `src/commands/commandHandlers.ts` |
+| DES-0309 | Repository Rescan Command | Adds `metaflow.rescanRepository` and context-menu inline action on repository rows; forces discovery refresh for runtime adaptation | REQ-0410, REQ-0117 | `src/src/commands/commandHandlers.ts`, `src/src/views/configTreeView.ts`, `src/package.json` |
 | DES-0301 | Init Config Command | Scaffolds `.metaflow.json` with sensible JSONC template; overwrite confirmation | REQ-0303 | `src/commands/initConfig.ts` |
 | DES-0302 | Config TreeView | Displays metadata repo URL, commit, injection modes; refreshes on state change | REQ-0400 | `src/views/configTreeView.ts` |
 | DES-0303 | Profiles TreeView | Lists profiles with check/circle icons for active state; click-to-switch | REQ-0401 | `src/views/profilesTreeView.ts` |
@@ -112,6 +114,7 @@ graph TD
 | DEC-0005 | `_shared_` prefix for materialized files | Avoids name collisions; enables deterministic cleanup. | Accepted |
 | DEC-0006 | SHA-256 content hashing for managed state | Reliable drift detection; widely supported. | Accepted |
 | DEC-0007 | Detection-only promotion in v1 | Git automation deferred to reduce v1 scope and risk. | Accepted |
+| DEC-0008 | Discovery tied to auto mode | Runtime discovery executes during normal refresh only when `metaflow.autoApply` is enabled; manual rescan provides fallback when disabled. | Accepted |
 
 ## Checklist
 
@@ -122,6 +125,7 @@ graph TD
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-18 | Added DES-0106 and DES-0309 for runtime discovery and repository rescan command | AI |
 | 2026-02-07 | Initial skeleton with architecture diagram and key decisions | AI |
 | 2026-02-07 | Added DES-0001–DES-0007 (Phase 1: Config/UI scaffolding) and DES-0100–DES-0105 (Phase 2: Engine) | AI |
 | 2026-02-07 | Added DES-0200–DES-0204 (Phase 3: Materialization) | AI |

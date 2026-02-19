@@ -72,6 +72,7 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Init C
 | `MetaFlow: Status` | Show current status in output channel | |
 | `MetaFlow: Switch Profile` | Select active profile | |
 | `MetaFlow: Toggle Layer` | Enable/disable a layer | |
+| `MetaFlow: Rescan Repository` | Force runtime discovery rescan for the selected metadata repo row | |
 | `MetaFlow: Open Config` | Open `.metaflow/config.jsonc` in editor | |
 | `MetaFlow: Init Config` | Scaffold new `.metaflow/config.jsonc` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |

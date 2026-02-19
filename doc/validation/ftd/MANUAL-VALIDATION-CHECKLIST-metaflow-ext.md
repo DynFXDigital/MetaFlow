@@ -120,6 +120,20 @@ Evidence:
 - [ ] Follow-up issues filed for all failed checklist items.
 - [ ] Validation result entered into `doc/validation/ftr/VTR-metaflow-ext.md`.
 
+---
+
+## 8) Runtime Discovery and Manual Rescan
+
+- [ ] With `metaflow.autoApply: true` and repo discovery enabled, add a new layer directory containing known artifacts; verify refresh includes new layer content.
+- [ ] Set `metaflow.autoApply: false`; add another new layer directory; verify regular refresh does not include that layer.
+- [ ] Click the inline refresh icon on the repository row in Config view; verify discovery reruns and new layer becomes available.
+- [ ] Confirm explicit `layerSources` order remains stable and discovered layers append without duplicating explicit entries.
+- [ ] Confirm `discover.exclude` paths are skipped during discovery.
+
+Evidence:
+- [ ] Output snippet showing rescan log line
+- [ ] Before/after screenshot of Layers tree view
+
 ## Failure Log (fill as needed)
 
 - [ ] Item ID / Section: __________

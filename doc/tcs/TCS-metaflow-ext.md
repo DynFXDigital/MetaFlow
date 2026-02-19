@@ -59,6 +59,9 @@
 | TC-0116 | Multi-repo layer sources | Two repos, two layers | `resolveLayers(config, ws)` | Layers with correct repoId | Unit | High | Pass | `test/unit/overlayEngine.test.ts` | Phase 2 |
 | TC-0117 | Disabled layer source skipped | LayerSource with `enabled: false` | `resolveLayers(config, ws)` | Empty result | Unit | Medium | Pass | `test/unit/overlayEngine.test.ts` | Phase 2 |
 | TC-0118 | Invalid repoId in layerSources | Unknown repoId | `resolveLayers(config, ws)` | Layer skipped | Unit | Medium | Pass | `test/unit/overlayEngine.test.ts` | Phase 2 |
+| TC-0119 | Runtime discovery resolves new layers | Repo with `discover.enabled: true` and dynamic layer path | `resolveLayers(config, ws)` | Discovered layer appended to resolved set | Unit | High | Pass | `packages/engine/test/engine.test.ts` | Phase 4 |
+| TC-0125 | Discovery can be gated by refresh mode | Repo with discovery enabled | `resolveLayers(config, ws, { enableDiscovery: false })` | Only explicit `layerSources` resolved | Unit | High | Pass | `packages/engine/test/engine.test.ts` | Phase 4 |
+| TC-0126 | Discovery exclude patterns applied | Repo with allowed + excluded layer directories | `discoverLayersInRepo(repoRoot, exclude)` | Matching excluded paths are omitted | Unit | Medium | Pass | `packages/engine/test/engine.test.ts` | Phase 4 |
 | TC-0120 | No filters returns all | Files + no filter | `applyFilters(files, undefined)` | All files returned | Unit | High | Pass | `test/unit/filterEngine.test.ts` | Phase 2 |
 | TC-0121 | Include-only filters | Include `instructions/**` | `applyFilters(files, filter)` | Only instruction files | Unit | High | Pass | `test/unit/filterEngine.test.ts` | Phase 2 |
 | TC-0122 | Exclude-only filters | Exclude `**/*.txt` | `applyFilters(files, filter)` | Non-txt files | Unit | High | Pass | `test/unit/filterEngine.test.ts` | Phase 2 |
@@ -118,6 +121,7 @@
 | TC-0313 | Clean removes managed | Config loaded | `executeCommand('metaflow.clean')` | Managed files removed | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0314 | Status logs info | Config loaded | `executeCommand('metaflow.status')` | No error | Integration | Medium | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0315 | Promote reports drift | Config loaded | `executeCommand('metaflow.promote')` | No error | Integration | Medium | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0316 | Manual repository rescan discovers runtime layers | `autoApply: false`; discovery-enabled repo with explicit+dynamic layers | `executeCommand('metaflow.rescanRepository', {repoId})` then `apply` | Dynamic layer files included after rescan, not before | Integration | High | Pass | `src/src/test/integration/commands.test.ts` | Phase 4 |
 | TC-0320 | ConfigTreeView: empty no config | No config | `getChildren()` | Empty array | Integration | Medium | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0321 | ConfigTreeView: items with config | Config set | `getChildren()` | 3+ items (config, repo, URL) | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0322 | ProfilesTreeView: empty | No profiles | `getChildren()` | Empty array | Integration | Medium | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
@@ -161,6 +165,10 @@
 | TC-0141 | | | | | | | | | | | | | | | | | X | | | |
 | TC-0143 | | | | | | | | | | | | | | | | | | X | X | X |
 | TC-0144 | | | | | | | | | | | | | | | | | | X | X | |
+| TC-0119 | | | | | | | | | | | | | | | | | | | | X |
+| TC-0125 | | | | | | | | | | | | | | | | | | | | X |
+| TC-0126 | | | | | | | | | | | | | | | | | | | | X |
+| TC-0316 | | | | | | | | | | | | | | | | | | | | X |
 
 ## Traceability (Gap Analysis)
 
@@ -176,6 +184,7 @@
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-18 | Added TC-0119, TC-0125, TC-0126, and TC-0316 for runtime discovery and manual repository rescan | AI |
 | 2026-02-07 | Initial skeleton | AI |
 | 2026-02-07 | Added TC-0001–TC-0019 (Phase 1: Config), TC-0100–TC-0145 (Phase 2: Engine) | AI |
 | 2026-02-07 | Added TC-0200–TC-0244 (Phase 3: Materialization) | AI |

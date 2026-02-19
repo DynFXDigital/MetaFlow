@@ -71,6 +71,33 @@ Use manual commands when you want explicit control (for example, checking pendin
 
 `.metaflow/config.jsonc` can be either checked in (team-shared behavior) or kept local/untracked (user-isolated behavior). Runtime state stays in `.metaflow/state.json` and is typically ignored.
 
+## Runtime discovery for changing source repos
+
+When metadata source repositories add/remove layer directories over time, MetaFlow can adapt at runtime:
+
+- Configure discovery per multi-repo source with `metadataRepos[].discover.enabled: true`
+- Discovery is tied to automatic mode (`metaflow.autoApply: true`)
+- With auto mode enabled, refresh resolves explicit + discovered layers
+- With auto mode disabled, regular refresh resolves explicit layers only
+- Use the inline refresh icon on a repository row in the Config view to force an on-demand rescan
+
+Optional excludes:
+
+```jsonc
+{
+	"metadataRepos": [
+		{
+			"id": "company",
+			"localPath": "../DFX-AI-Metadata",
+			"discover": {
+				"enabled": true,
+				"exclude": ["archive", "archive/**", "**/deprecated/**"]
+			}
+		}
+	]
+}
+```
+
 ## Command overview
 
 Core VS Code commands (manual controls and diagnostics):

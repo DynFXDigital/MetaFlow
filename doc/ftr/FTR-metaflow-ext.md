@@ -8,12 +8,14 @@
 
 | Last Updated | Notes |
 |---|---|
+| 2026-02-18 | Added runtime discovery and repository rescan automation evidence |
 | 2026-02-07 | Automated test results recorded |
 
 ## Run
 
 | Run ID | Executor | Date | Build/Commit | Environment |
 |---|---|---|---|---|
+| RUN-002 | AI | 2026-02-18 | HEAD | Node.js 18+, Mocha, VS Code Extension Host |
 | RUN-001 | AI | 2026-02-07 | HEAD | Node.js 18+, Mocha, VS Code Extension Host |
 
 ## Results — Automated Tests
@@ -35,6 +37,7 @@
 | TC-0300–TC-0305 | TP-A013 | Pass (6/6) | HEAD | `npm test` output | Extension activation |
 | TC-0310–TC-0315 | TP-A014 | Pass (6/6) | HEAD | `npm test` output | Command execution |
 | TC-0320–TC-0328 | TP-A015 | Pass (9/9) | HEAD | `npm test` output | TreeView providers |
+| TC-0119, TC-0125, TC-0126, TC-0316 | TP-A016 | Pass (4/4) | HEAD | `npm -w @metaflow/engine test`; `npm test` | Runtime discovery + manual repository rescan |
 
 ## Results — Manual Tests
 
@@ -46,7 +49,7 @@
 
 | Metric | Value |
 |---|---:|
-| Automated Pass | 132 |
+| Automated Pass | 136 |
 | Automated Fail | 0 |
 | Manual Pass | 0 |
 | Manual Pending | 12 |
@@ -55,5 +58,6 @@
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-18 | Added RUN-002 and TP-A016 evidence (runtime discovery + manual repository rescan) | AI |
 | 2026-02-07 | Initial skeleton | AI |
 | 2026-02-07 | Recorded automated test results: 111 unit + 21 integration = 132 passing | AI |
