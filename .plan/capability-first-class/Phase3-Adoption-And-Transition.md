@@ -2,7 +2,7 @@
 
 ## Objective
 
-Define how MetaFlow messaging transitions from current terminology to capability-first language without breaking existing workflows.
+Define how MetaFlow documentation and UX messaging transition from current terminology to capability-first language without breaking existing workflows.
 
 ## Work Items
 
@@ -13,6 +13,7 @@ Define how MetaFlow messaging transitions from current terminology to capability
 2. Document recommended phrasing for docs and demos.
 3. Create follow-up backlog items for schema/engine/CLI adoption.
 4. Identify non-goals for this phase to avoid scope creep.
+5. Add explicit transition note: current capability convention uses folder + README; `CAPABILITY.md` (if adopted) is future work.
 
 ## Outputs
 
@@ -24,6 +25,7 @@ Define how MetaFlow messaging transitions from current terminology to capability
 1. Documentation readers can map old and new terms quickly.
 2. Backward-compatible naming guidance is explicit.
 3. Follow-up implementation work is clearly separated from terminology work.
+4. Current-state guidance and future-state (optional manifest) guidance are clearly separated.
 
 ## Risks
 

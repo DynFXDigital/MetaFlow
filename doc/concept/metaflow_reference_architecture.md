@@ -67,6 +67,51 @@ Key principle:
 
 ---
 
+## Capability Terminology Convention (MetaFlow)
+
+MetaFlow introduces `Capability` as a concept above `Skill` to group interoperating artifacts into one outcome-oriented unit.
+
+| Term | Meaning in MetaFlow |
+|---------------|------------------------|
+| `Skill` | Focused reusable tactic (`SKILL.md` + optional assets) |
+| `Capability` | Coordinated set of instructions, prompts, skills, and agents for one outcome |
+| `Pack` | Distributable grouping of one or more capabilities |
+| `Domain` | Classification axis for capabilities (for example: `security`, `release`) |
+
+Current convention scope:
+
+1. Capability identity is represented by folder naming plus `README.md`.
+2. MetaFlow does not parse or require `CAPABILITY.md` manifests at this stage.
+3. Manifest-based capability support, if added, is future implementation work.
+
+Example capability-oriented layout:
+
+```text
+ai-metadata/
+  capabilities/
+    security-secure-review/
+      README.md
+      instructions/
+      prompts/
+      skills/
+      agents/
+  packs/
+    platform-engineering/
+      pack.md
+```
+
+Transition mapping (current to preferred terminology):
+
+| Current Term | Preferred Term | Guidance |
+|---------------|------------------------|------|
+| `skills` (umbrella usage) | `capabilities` (umbrella) + `skills` (artifact type) | Keep `skill` scoped to focused tactics; use `capability` for coordinated outcome bundles. |
+| `metadata pack` | `pack` | Treat `metadata pack` as a migration alias in existing docs. |
+| `copilot pack` | `pack` / `agent pack` | Prefer neutral terms in architecture docs; keep Copilot wording only where behavior is product-specific. |
+
+Terminology migration is documentation-first; runtime semantics and config contracts are unchanged in this phase.
+
+---
+
 ## Overlay Model
 
 ### Layer Order (low → high specificity)

@@ -65,6 +65,65 @@ MetaFlow solves these problems by treating AI metadata as **compiled configurati
 | NG-04 | Marketplace publishing in v1 | Local VSIX distribution first |
 | NG-05 | Multi-root workspace support in v1 | Single workspace root assumed initially |
 
+### 2.3 Capability Terminology and Repository Convention
+
+MetaFlow terminology introduces `Capability` as a concept above `Skill` for grouping interoperating metadata artifacts into one outcome-oriented unit.
+
+| Term | Meaning in MetaFlow |
+|---|---|
+| `Skill` | Focused reusable tactic (`SKILL.md` + optional assets) |
+| `Capability` | Coordinated set of instructions, prompts, skills, and agents for one outcome |
+| `Pack` | Distributable grouping of one or more capabilities |
+| `Domain` | Classification axis used to group capabilities (for example: `security`, `release`) |
+
+Current convention scope (documentation-only):
+
+1. Capability identity is expressed by folder naming and `README.md`.
+2. MetaFlow does not currently parse or require `CAPABILITY.md` manifests.
+3. Manifest-based capability support, if adopted later, will be tracked in a dedicated implementation plan.
+
+Example AI metadata repository structure (capability-oriented):
+
+```text
+ai-metadata/
+  capabilities/
+    security-secure-review/
+      README.md
+      instructions/
+      prompts/
+      skills/
+      agents/
+    release-quality-gate/
+      README.md
+      instructions/
+      prompts/
+      skills/
+      agents/
+  packs/
+    platform-engineering/
+      pack.md
+```
+
+Naming guidance for capability folders:
+
+1. Use `<domain>-<capability-name>` (for example: `security-secure-review`).
+2. Keep names lowercase with hyphens.
+3. Prefer stable names that describe the outcome, not temporary implementation details.
+
+Transition mapping (current to preferred terminology):
+
+| Current Term | Preferred Term | Transition Guidance |
+|---|---|---|
+| `skills` (as umbrella term) | `capabilities` (umbrella) + `skills` (artifact type) | Use `capability` when describing an outcome-level bundle; keep `skill` for focused tactics. |
+| `metadata pack` | `pack` (containing capabilities) | Keep `metadata pack` as an explanatory alias during migration windows. |
+| `copilot pack` | `pack` / `agent pack` | Use ecosystem-neutral language in architecture and shared docs; retain Copilot-specific wording only where product behavior is specific. |
+| `artifact set` | `capability` | Prefer `capability` when the set has a named, reusable outcome. |
+
+Migration note:
+
+1. This terminology update is documentation-first.
+2. Existing config keys, command names, and runtime behavior are unchanged.
+
 ---
 
 ## 3. Architecture Overview
