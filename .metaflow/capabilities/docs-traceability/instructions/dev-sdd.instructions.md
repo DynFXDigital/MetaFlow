@@ -5,7 +5,7 @@ applyTo: "doc/**/sdd/**/*.md"
 
 # SDD authoring rules
 
-- Start new documents from `.github/instructions/resources/Template.SDD.md` (it encodes the expected header, optional `DES-*` table, and change log).
+- Start new documents from `instructions/resources/Template.SDD.md` (it encodes the expected header, optional `DES-*` table, and change log).
 
 - SDD must reference the related SRS doc ID(s) in the header.
 - For every enforced `REQ-*` (anything not marked `Future` in the SRS), provide a concrete design mapping.

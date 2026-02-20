@@ -25,11 +25,11 @@ This skill standardizes the creation and maintenance of traceable documentation 
 
 ## Authoring Workflow (Verification)
 
-1. Create or update SRS using `.github/instructions/resources/Template.SRS.md`.
-2. Map REQ → DES in SDD using `.github/instructions/resources/Template.SDD.md`.
-3. Define TC → REQ mappings in TCS using `.github/instructions/resources/Template.TCS.md`.
-4. Define TP → TC procedures in FTD using `.github/instructions/resources/Template.FTD.md`.
-5. Record execution results and evidence in FTR using `.github/instructions/resources/Template.FTR.md`.
+1. Create or update SRS using `instructions/resources/Template.SRS.md`.
+2. Map REQ → DES in SDD using `instructions/resources/Template.SDD.md`.
+3. Define TC → REQ mappings in TCS using `instructions/resources/Template.TCS.md`.
+4. Define TP → TC procedures in FTD using `instructions/resources/Template.FTD.md`.
+5. Record execution results and evidence in FTR using `instructions/resources/Template.FTR.md`.
 
 ## Authoring Workflow (Validation)
 

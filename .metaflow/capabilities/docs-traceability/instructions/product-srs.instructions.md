@@ -5,7 +5,7 @@ applyTo: "doc/**/srs/**/*.md"
 
 # SRS authoring rules
 
-- Start new documents from `.github/instructions/resources/Template.SRS.md` (it encodes the expected header, tables, and traceability policy).
+- Start new documents from `instructions/resources/Template.SRS.md` (it encodes the expected header, tables, and traceability policy).
 
 - Write requirements as verb-first behavior statements; avoid implementation details.
 - One behavior per `REQ-*`; keep wording testable and unambiguous.

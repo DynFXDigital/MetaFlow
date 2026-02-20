@@ -5,7 +5,7 @@ applyTo: "doc/**/ftd/**/*.md"
 
 # FTD authoring rules
 
-- Start new documents from `.github/instructions/resources/Template.FTD.md` (it encodes the expected header, TP→TC matrix, and gap analysis tables).
+- Start new documents from `instructions/resources/Template.FTD.md` (it encodes the expected header, TP→TC matrix, and gap analysis tables).
 
 - FTD must reference the related TCS doc ID(s) and cover each `TC-*` with runnable steps.
 - Include prerequisites and environment notes that make the procedure executable.

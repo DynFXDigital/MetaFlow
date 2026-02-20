@@ -20,7 +20,7 @@
 
 Use Mermaid for high-signal structure/sequence diagrams.
 
-Rule: every Mermaid block must include the theme snippet from `.github/instructions/mermaid.instructions.md`.
+Rule: every Mermaid block must include the theme snippet from `instructions/mermaid.instructions.md`.
 
 Rule: for every Mermaid diagram, add a short definitions/glossary section directly under the diagram and a brief narrative explaining the data flow (inputs/outputs, ordering, and failure/degraded behavior if relevant).
 

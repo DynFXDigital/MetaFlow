@@ -5,7 +5,7 @@ applyTo: "doc/**/tcs/**/*.md"
 
 # TCS authoring rules
 
-- Start new documents from `.github/instructions/resources/Template.TCS.md` (it encodes the expected header, TC table shape, TC→REQ matrix, and gap analysis).
+- Start new documents from `instructions/resources/Template.TCS.md` (it encodes the expected header, TC table shape, TC→REQ matrix, and gap analysis).
 
 - Use stable `TC-####` IDs. Never reuse IDs; reserve ranges per subsystem/feature/capability when helpful.
 - Every `TC-*` must validate at least one `REQ-*`.

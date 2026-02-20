@@ -1,11 +1,11 @@
-# Docs Traceability Package
+# Docs Traceability Capability
 
-This package provides reusable AI metadata for authoring and maintaining traceable documentation artifacts in `doc/`.
+This capability provides reusable AI metadata for authoring and maintaining traceable documentation artifacts in `doc/`.
 
 ## Included
 
 - Instructions for SRS, SDD, TCS, FTD, FTR, use-cases, and validation equivalents.
-- Reusable templates for SRS/SDD/TCS/FTD/FTR under `.github/instructions/resources/`.
+- Reusable templates for SRS/SDD/TCS/FTD/FTR under `instructions/resources/`.
 - `traceability-docs` skill for trace-model workflows.
 - Doc-focused prompts and agent profile.
 
@@ -21,4 +21,4 @@ Both are kept for compatibility across consumers that still reference either con
 ## Notes
 
 - Prompts in this package use YAML frontmatter format.
-- This package is content-only and does not modify `.metaflow/config.jsonc`.
+- This capability is content-only and does not modify `.metaflow/config.jsonc`.
