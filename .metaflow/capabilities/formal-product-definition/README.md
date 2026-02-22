@@ -1,4 +1,4 @@
-# Docs Traceability Capability
+# Formal Product Definition Capability
 
 This capability provides reusable AI metadata for authoring and maintaining traceable documentation artifacts in `doc/`.
 

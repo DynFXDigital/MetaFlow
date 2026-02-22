@@ -6,7 +6,7 @@ This documentation-only pack groups capability content used for traceability-foc
 
 ## Included Capabilities
 
-- `docs-traceability` from `.metaflow/capabilities/docs-traceability/`
+- `formal-product-definition` from `.metaflow/capabilities/formal-product-definition/`
 
 ## Notes
 
