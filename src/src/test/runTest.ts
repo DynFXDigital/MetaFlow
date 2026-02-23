@@ -8,34 +8,65 @@
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 
-async function main() {
-    try {
-        const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+export interface RunTestDeps {
+    runUnit: () => Promise<void>;
+    runIntegration: () => Promise<void>;
+    logError: (message: string, err: unknown) => void;
+}
 
-        // Determine which test suite to run
-        const args = process.argv.slice(2);
-        const unitOnly = args.includes('--unit');
+function createDefaultDeps(): RunTestDeps {
+    const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+    const extensionTestsPath = path.resolve(__dirname, './integration/index');
+    const testWorkspace = path.resolve(__dirname, '../../test-workspace');
 
-        if (unitOnly) {
-            // Unit tests: run directly in Node (no Extension Host)
+    return {
+        runUnit: async (): Promise<void> => {
             const unitIndex = path.resolve(__dirname, './unit/index');
             const { run } = await import(unitIndex);
             await run();
-        } else {
-            // Integration tests: run in Extension Host
-            const extensionTestsPath = path.resolve(__dirname, './integration/index');
-            const testWorkspace = path.resolve(__dirname, '../../test-workspace');
-
+        },
+        runIntegration: async (): Promise<void> => {
             await runTests({
                 extensionDevelopmentPath,
                 extensionTestsPath,
-                launchArgs: [testWorkspace, '--disable-extensions'],
+                launchArgs: [
+                    testWorkspace,
+                    '--disable-extensions',
+                    '--disable-updates',
+                ],
             });
-        }
-    } catch (err) {
-        console.error('Failed to run tests:', err);
-        process.exit(1);
+        },
+        logError: (message: string, err: unknown): void => {
+            console.error(message, err);
+        },
+    };
+}
+
+export async function runWithArgs(args: string[], deps: RunTestDeps = createDefaultDeps()): Promise<void> {
+    const unitOnly = args.includes('--unit');
+    if (unitOnly) {
+        await deps.runUnit();
+    } else {
+        await deps.runIntegration();
     }
 }
 
-main();
+export async function main(args: string[] = process.argv.slice(2), deps: RunTestDeps = createDefaultDeps()): Promise<number> {
+    try {
+        await runWithArgs(args, deps);
+        return 0;
+    } catch (err) {
+        deps.logError('Failed to run tests:', err);
+        return 1;
+    }
+}
+
+/* c8 ignore start */
+if (require.main === module) {
+    void main().then(exitCode => {
+        if (exitCode !== 0) {
+            process.exit(exitCode);
+        }
+    });
+}
+/* c8 ignore stop */

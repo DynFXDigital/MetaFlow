@@ -13,6 +13,21 @@ suite('Command Execution', () => {
 
     let workspaceRoot: string;
 
+    async function waitFor(
+        predicate: () => boolean,
+        timeoutMs = 5000,
+        intervalMs = 100
+    ): Promise<void> {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            if (predicate()) {
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
+        assert.fail(`Condition not met within ${timeoutMs}ms`);
+    }
+
     suiteSetup(async function () {
         this.timeout(15000);
 
@@ -155,6 +170,115 @@ suite('Command Execution', () => {
 
         assert.ok(instructionLocations && Object.keys(instructionLocations).length > 0, 'Instruction locations should be injected during refresh when autoApply is unset');
         assert.ok(promptLocations && Object.keys(promptLocations).length > 0, 'Prompt locations should be injected during refresh when autoApply is unset');
+    });
+
+    test('config watcher triggers auto refresh and settings injection on config change', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        await wsConfig.update('metaflow.autoApply', true, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.instructionsFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.promptFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            // Mutate a valid config value to trigger file watcher refresh.
+            const parsed = JSON.parse(originalConfig) as {
+                injection?: { prompts?: 'settings' | 'materialize' };
+            };
+            if (!parsed.injection) {
+                parsed.injection = {};
+            }
+            parsed.injection.prompts = parsed.injection.prompts === 'settings' ? 'materialize' : 'settings';
+            fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+            await waitFor(() => {
+                const instructionLocations = wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations')?.workspaceValue;
+                const promptLocations = wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations')?.workspaceValue;
+                return !!instructionLocations && Object.keys(instructionLocations).length > 0
+                    && !!promptLocations && Object.keys(promptLocations).length > 0;
+            }, 10000);
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('apply injects agent and skill locations when settings-classified', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        // Temporarily set agents and skills injection to 'settings'
+        const parsed = JSON.parse(originalConfig) as {
+            injection?: Record<string, string>;
+        };
+        if (!parsed.injection) {
+            parsed.injection = {};
+        }
+        parsed.injection.agents = 'settings';
+        parsed.injection.skills = 'settings';
+        fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+        await wsConfig.update('chat.agentFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.agentSkillsLocations', undefined, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const agentLocations = wsConfig.inspect<Record<string, boolean>>('chat.agentFilesLocations')?.workspaceValue;
+            const skillLocations = wsConfig.inspect<Record<string, boolean>>('chat.agentSkillsLocations')?.workspaceValue;
+
+            assert.ok(agentLocations && Object.keys(agentLocations).length > 0, 'Agent locations should be injected at workspace scope');
+            assert.ok(skillLocations && Object.keys(skillLocations).length > 0, 'Skill locations should be injected at workspace scope');
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh with hooks disabled omits hook settings injection', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const parsedConfig = JSON.parse(originalConfig) as {
+            hooks?: { preApply?: string; postApply?: string };
+        };
+        parsedConfig.hooks = {
+            preApply: 'scripts/pre-apply.sh',
+            postApply: 'scripts/post-apply.sh',
+        };
+
+        await wsConfig.update('metaflow.hooksEnabled', false, vscode.ConfigurationTarget.Workspace);
+        await wsConfig.update('chat.hookFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(parsedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const hookLocations = wsConfig.inspect<Record<string, boolean>>('chat.hookFilesLocations')?.workspaceValue;
+            assert.strictEqual(hookLocations, undefined, 'Hook locations should not be injected when metaflow.hooksEnabled is false');
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await wsConfig.update('metaflow.hooksEnabled', undefined, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
     });
 
     test('clean removes managed files', async function () {
@@ -455,8 +579,30 @@ suite('Command Execution', () => {
     });
 
     test('promote reports drift status', async function () {
-        this.timeout(10000);
-        await vscode.commands.executeCommand('metaflow.promote');
-        // Promote writes to output channel — no assertion on output, just no throw
+        this.timeout(15000);
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.promote');
+
+            assert.ok(
+                infoMessages.some(message => message.includes('No drifted files detected')),
+                'Promote should explicitly report when no drift is detected'
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+        }
     });
 });

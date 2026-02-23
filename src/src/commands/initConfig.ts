@@ -12,6 +12,13 @@ import * as path from 'path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
 import { logInfo } from '../views/outputChannel';
+import {
+  toPosixPath,
+  layerSort,
+  sanitizeRepoName,
+  toConfigLocalPath,
+  buildConfig,
+} from './initConfigHelpers';
 
 const execFileAsync = promisify(execFile);
 
@@ -21,38 +28,6 @@ export interface SourceSelection {
   metadataRoot: vscode.Uri;
   metadataUrl?: string;
   layers: string[];
-}
-
-function toPosixPath(value: string): string {
-  return value.replace(/\\/g, '/');
-}
-
-function layerSort(a: string, b: string): number {
-  const depthA = a === '.' ? 0 : a.split('/').length;
-  const depthB = b === '.' ? 0 : b.split('/').length;
-  if (depthA !== depthB) {
-    return depthA - depthB;
-  }
-  return a.localeCompare(b);
-}
-
-function sanitizeRepoName(url: string): string {
-  const trimmed = url.trim().replace(/\/$/, '');
-  const base = trimmed.split('/').pop() ?? 'metadata';
-  const noGit = base.replace(/\.git$/i, '');
-  const slug = noGit
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return slug || 'metadata';
-}
-
-function toConfigLocalPath(workspaceFolder: vscode.WorkspaceFolder, target: vscode.Uri): string {
-  const relative = toPosixPath(path.relative(workspaceFolder.uri.fsPath, target.fsPath));
-  if (relative && !relative.startsWith('../') && !path.isAbsolute(relative)) {
-    return relative;
-  }
-  return target.fsPath;
 }
 
 async function uriExists(uri: vscode.Uri): Promise<boolean> {
@@ -91,31 +66,6 @@ async function discoverLayersFromGithubDirs(root: vscode.Uri): Promise<string[]>
 
   await walk(root);
   return Array.from(found).sort(layerSort);
-}
-
-function buildConfig(localPath: string, layers: string[], metadataUrl?: string): Record<string, unknown> {
-  return {
-    metadataRepo: {
-      localPath,
-      ...(metadataUrl ? { url: metadataUrl } : {}),
-    },
-    layers,
-    filters: { include: [], exclude: [] },
-    profiles: {
-      default: {
-        enable: ['**/*'],
-        disable: [],
-      },
-    },
-    activeProfile: 'default',
-    injection: {
-      instructions: 'settings',
-      prompts: 'settings',
-      skills: 'settings',
-      agents: 'settings',
-      hooks: 'settings',
-    },
-  };
 }
 
 async function pickExistingDirectory(): Promise<vscode.Uri | undefined> {
@@ -341,7 +291,7 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
         return;
       }
 
-      const localPath = toConfigLocalPath(workspaceFolder, selection.metadataRoot);
+      const localPath = toConfigLocalPath(workspaceFolder.uri.fsPath, selection.metadataRoot.fsPath);
       const config = buildConfig(localPath, selection.layers, selection.metadataUrl);
       const content = Buffer.from(JSON.stringify(config, null, 2) + '\n', 'utf-8');
     await vscode.workspace.fs.createDirectory(configDirUri);

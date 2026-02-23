@@ -32,6 +32,21 @@ import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputCh
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
 import { pickWorkspaceFolder } from './workspaceSelection';
+import {
+    isInjectionMode,
+    deriveRepoId,
+    ensureMultiRepoConfig,
+    extractLayerIndex,
+    extractLayerCheckedState,
+    extractRepoId,
+    extractRefreshCommandOptions,
+    extractApplyCommandOptions,
+    normalizeFilesViewMode,
+    normalizeLayersViewMode,
+    type FilesViewMode,
+    type LayersViewMode,
+    normalizeAndDeduplicateLayerPaths,
+} from './commandHelpers';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 type InjectionKey = typeof INJECTION_KEYS[number];
@@ -47,8 +62,6 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const FILES_VIEW_MODE_SETTING_KEY = 'filesViewMode';
 const LAYERS_VIEW_MODE_SETTING_KEY = 'layersViewMode';
-type FilesViewMode = 'unified' | 'repoTree';
-type LayersViewMode = 'flat' | 'tree';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -58,10 +71,6 @@ const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     hooks: 'metaflow.injection.hooksMode',
 };
 
-function isInjectionMode(value: unknown): value is 'settings' | 'materialize' {
-    return value === 'settings' || value === 'materialize';
-}
-
 /** Cached state for the current workspace. */
 export interface ExtensionState {
     config?: MetaFlowConfig;
@@ -70,16 +79,6 @@ export interface ExtensionState {
     activeProfile?: string;
     /** Event emitter to notify TreeViews of changes. */
     onDidChange: vscode.EventEmitter<void>;
-}
-
-interface RefreshCommandOptions {
-    skipAutoApply?: boolean;
-    forceDiscovery?: boolean;
-    forceDiscoveryRepoId?: string;
-}
-
-interface ApplyCommandOptions {
-    skipRefresh?: boolean;
 }
 
 /**
@@ -129,94 +128,6 @@ function toConfigLocalPath(workspaceFolder: vscode.WorkspaceFolder, targetFsPath
     return targetFsPath;
 }
 
-function toSlug(value: string): string {
-    const trimmed = value.trim().replace(/\/$/, '').toLowerCase();
-    return trimmed
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'source';
-}
-
-function deriveRepoId(
-    sourceLocalPath: string,
-    sourceUrl: string | undefined,
-    existingRepoIds: Set<string>
-): string {
-    const urlBase = sourceUrl ? sourceUrl.split('/').pop() : undefined;
-    const urlSeed = urlBase ? urlBase.replace(/\.git$/i, '') : undefined;
-    const pathSeed = path.basename(sourceLocalPath) || 'source';
-    const base = toSlug(urlSeed ?? pathSeed);
-
-    let candidate = base;
-    let suffix = 2;
-    while (existingRepoIds.has(candidate)) {
-        candidate = `${base}-${suffix}`;
-        suffix += 1;
-    }
-    return candidate;
-}
-
-function ensureMultiRepoConfig(config: MetaFlowConfig): { metadataRepos: NonNullable<MetaFlowConfig['metadataRepos']>; layerSources: NonNullable<MetaFlowConfig['layerSources']> } {
-    if (config.metadataRepos && config.layerSources) {
-        return {
-            metadataRepos: config.metadataRepos,
-            layerSources: config.layerSources,
-        };
-    }
-
-    if (!config.metadataRepo || !config.layers) {
-        throw new Error('Cannot convert config to multi-repo mode: metadataRepo/layers not found.');
-    }
-
-    config.metadataRepos = [{
-        id: 'primary',
-        ...config.metadataRepo,
-        enabled: true,
-    }];
-    config.layerSources = config.layers.map(layerPath => ({
-        repoId: 'primary',
-        path: layerPath,
-        enabled: true,
-    }));
-
-    delete config.metadataRepo;
-    delete config.layers;
-
-    return {
-        metadataRepos: config.metadataRepos,
-        layerSources: config.layerSources,
-    };
-}
-
-function extractLayerIndex(arg: unknown): number | undefined {
-    if (typeof arg === 'number') {
-        return arg;
-    }
-    if (typeof arg === 'object' && arg !== null && 'layerIndex' in arg) {
-        const layerIndex = (arg as { layerIndex?: unknown }).layerIndex;
-        return typeof layerIndex === 'number' ? layerIndex : undefined;
-    }
-    return undefined;
-}
-
-function extractLayerCheckedState(arg: unknown): boolean | undefined {
-    if (typeof arg === 'object' && arg !== null && 'checked' in arg) {
-        const checked = (arg as { checked?: unknown }).checked;
-        return typeof checked === 'boolean' ? checked : undefined;
-    }
-    return undefined;
-}
-
-function extractRepoId(arg: unknown): string | undefined {
-    if (typeof arg === 'string') {
-        return arg;
-    }
-    if (typeof arg === 'object' && arg !== null && 'repoId' in arg) {
-        const repoId = (arg as { repoId?: unknown }).repoId;
-        return typeof repoId === 'string' ? repoId : undefined;
-    }
-    return undefined;
-}
-
 function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaFlowConfig): InjectionConfig {
     const workspaceConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
     const modes = workspaceConfig.get<Record<string, unknown>>(
@@ -251,100 +162,8 @@ function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaF
     return injection;
 }
 
-function extractRefreshCommandOptions(arg: unknown): RefreshCommandOptions {
-    if (typeof arg !== 'object' || arg === null) {
-        return {};
-    }
-
-    const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
-    const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
-    const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
-    return {
-        skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
-        forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
-        forceDiscoveryRepoId: typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,
-    };
-}
-
-function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
-    if (typeof arg !== 'object' || arg === null) {
-        return {};
-    }
-
-    const skipRefresh = (arg as { skipRefresh?: unknown }).skipRefresh;
-    return {
-        skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
-    };
-}
-
-function normalizeFilesViewMode(value: unknown): FilesViewMode {
-    return value === 'repoTree' ? 'repoTree' : 'unified';
-}
-
-function normalizeLayersViewMode(value: unknown): LayersViewMode {
-    return value === 'tree' ? 'tree' : 'flat';
-}
-
 function persistConfig(configPath: string, config: MetaFlowConfig): void {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-}
-
-function normalizeLayerPath(layerPath: string): string {
-    const normalized = layerPath.replace(/\\/g, '/').replace(/\/\.github$/, '');
-    return normalized === '' || normalized === '.github' ? '.' : normalized;
-}
-
-function normalizeAndDeduplicateLayerPaths(config: MetaFlowConfig): boolean {
-    let changed = false;
-
-    if (config.layerSources) {
-        const merged = new Map<string, { repoId: string; path: string; enabled?: boolean }>();
-        for (const source of config.layerSources) {
-            const normalizedPath = normalizeLayerPath(source.path);
-            if (normalizedPath !== source.path) {
-                changed = true;
-            }
-
-            const key = `${source.repoId}:${normalizedPath}`;
-            const existing = merged.get(key);
-            if (!existing) {
-                merged.set(key, { ...source, path: normalizedPath });
-                continue;
-            }
-
-            const existingEnabled = existing.enabled !== false;
-            const currentEnabled = source.enabled !== false;
-            if (existingEnabled !== currentEnabled) {
-                existing.enabled = existingEnabled || currentEnabled;
-                changed = true;
-            }
-        }
-
-        if (merged.size !== config.layerSources.length) {
-            changed = true;
-        }
-        config.layerSources = Array.from(merged.values());
-    }
-
-    if (config.layers) {
-        const normalizedLayers: string[] = [];
-        const seen = new Set<string>();
-        for (const layer of config.layers) {
-            const normalized = normalizeLayerPath(layer);
-            if (normalized !== layer) {
-                changed = true;
-            }
-            if (!seen.has(normalized)) {
-                seen.add(normalized);
-                normalizedLayers.push(normalized);
-            } else {
-                changed = true;
-            }
-        }
-        config.layers = normalizedLayers;
-    }
-
-    return changed;
 }
 
 function discoverAndPersistRepoLayers(

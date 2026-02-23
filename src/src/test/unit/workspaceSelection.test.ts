@@ -63,4 +63,17 @@ suite('Workspace Selection', () => {
 
         assert.strictEqual(selected?.uri.fsPath, beta.uri.fsPath);
     });
+
+    test('falls back to first folder when no config exists and no active folder', () => {
+        const alpha = folder('/workspace/alpha');
+        const beta = folder('/workspace/beta');
+
+        const selected = pickWorkspaceFolder(
+            [alpha, beta],
+            undefined,
+            () => false
+        );
+
+        assert.strictEqual(selected?.uri.fsPath, alpha.uri.fsPath);
+    });
 });
