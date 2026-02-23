@@ -14,7 +14,7 @@
   "activeProfile": "default",
   "injection": {
     "instructions": "settings",
-    "prompts": "materialize",
+    "prompts": "settings",
     "skills": "settings",
     "agents": "settings",
     "hooks": "settings"
@@ -29,23 +29,13 @@
   "layerSources": [
     {
       "repoId": "primary",
-      "path": "company",
-      "enabled": false
-    },
-    {
-      "repoId": "primary",
-      "path": "standards/devtools",
-      "enabled": false
-    },
-    {
-      "repoId": "primary",
-      "path": "standards/sdlc",
-      "enabled": false
-    },
-    {
-      "repoId": "primary",
       "path": "ai-metadata",
-      "enabled": false
+      "enabled": true
+    },
+    {
+      "repoId": "primary",
+      "path": "company",
+      "enabled": true
     },
     {
       "repoId": "primary",
@@ -55,37 +45,42 @@
     {
       "repoId": "primary",
       "path": "packages/devtools",
-      "enabled": false
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "packages/documentation",
-      "enabled": false
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "packages/metadata-authoring",
-      "enabled": false
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "packages/planning",
-      "enabled": false
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "packages/reflection",
-      "enabled": false
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "packages/testing",
-      "enabled": false
+      "enabled": true
+    },
+    {
+      "repoId": "primary",
+      "path": "standards/devtools",
+      "enabled": true
     },
     {
       "repoId": "primary",
       "path": "standards/sdlc/ai-editor-sdlc",
-      "enabled": false
+      "enabled": true
     }
   ]
 }

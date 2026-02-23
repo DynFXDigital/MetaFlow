@@ -11,10 +11,24 @@
 		"powershell.cwd": "MetaFlow",
 		"debug.onTaskErrors": "debugAnyway",
 		"chat.instructionsFilesLocations": {
-			"../DFX-AI-Metadata/packages/core/.github/instructions": true
+			"../DFX-AI-Metadata/packages/core/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/devtools/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/documentation/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/metadata-authoring/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/planning/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/reflection/.github/instructions": true,
+			"../DFX-AI-Metadata/packages/testing/.github/instructions": true,
+			"../DFX-AI-Metadata/standards/devtools/.github/instructions": true,
+			"../DFX-AI-Metadata/standards/sdlc/ai-editor-sdlc/.github/instructions": true
 		},
 		"chat.promptFilesLocations": {
-			"../DFX-AI-Metadata/packages/core/.github/prompts": true
+			"../DFX-AI-Metadata/packages/core/.github/prompts": true,
+			"../DFX-AI-Metadata/packages/planning/.github/prompts": true,
+			"../DFX-AI-Metadata/packages/reflection/.github/prompts": true,
+			"../DFX-AI-Metadata/packages/testing/.github/prompts": true
+		},
+		"chat.agentSkillsLocations": {
+			"../DFX-AI-Metadata/packages/documentation/.github/skills": true
 		},
 	}
 }

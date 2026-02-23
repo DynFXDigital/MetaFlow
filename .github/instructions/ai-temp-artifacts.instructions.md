@@ -22,6 +22,7 @@ Recommended optional subfolders (create on demand):
 	data/           # Small sample inputs (sanitized)
 	logs/           # Generated logs / traces from debug runs
 	analysis/       # Interim reports, metrics, coverage extracts
+	critiques/      # Adversarial critique reports (Markdown)
 ```
 Do NOT create peer directories directly under `.ai/` unless they are part of the persistent planning system (`tasks/`, `issues/`, `devnotes/`).
 
@@ -31,6 +32,10 @@ Examples:
 - `deadband_probe__20250920-143210.ts`
 - `mv_edge_case_gen__20250920-151000__v2.cpp`
 - `proto_cov_scan__20250920-153322.sh`
+
+For critique reports, use:
+- Directory: `.ai/temp/critiques/`
+- Filename: `critique-report-<YYYY-MM-DD>-<agent-or-model>.md`
 
 ## 4. Lifetime & Cleanup
 - Treat everything here as disposable. Delete when no longer needed.
