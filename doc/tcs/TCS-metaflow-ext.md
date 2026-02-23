@@ -104,6 +104,12 @@
 | TC-0242 | Settings: ignores materialized | Materialized files | `computeSettingsEntries()` | No entries | Unit | Medium | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
 | TC-0243 | Settings: hook paths | Config with hooks | `computeSettingsEntries()` | Hook entries | Unit | Medium | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
 | TC-0244 | Settings: keys to remove | N/A | `computeSettingsKeysToRemove()` | Expected keys | Unit | Low | Pass | `test/unit/settingsInjector.test.ts` | Phase 3 |
+| TC-0245 | Command helper normalization and option parsing | Mixed command args and config fragments | Call `commandHelpers` pure functions | Deterministic parse and normalization outputs | Unit | High | Pass | `src/src/test/unit/commandHelpers.test.ts` | Phase 3 hardening |
+| TC-0246 | Init-config helper normalization | URL/path/layer helper inputs | Call `initConfigHelpers` pure functions | Stable normalization and config scaffold defaults | Unit | Medium | Pass | `src/src/test/unit/initConfigHelpers.test.ts` | Phase 3 hardening |
+| TC-0247 | Test runner mode selection + error handling | Unit/integration args with injected failures | Call `runWithArgs` and `main` | Correct runner path and deterministic non-zero on failure | Unit | Medium | Pass | `src/src/test/unit/runTestRunner.test.ts` | Phase 3 hardening |
+| TC-0248 | Unit runner index deterministic behavior | Synthetic glob/Mocha outcomes | Call `createMocha`, `collectTestFiles`, `runMocha` | Deterministic collection and failure surfacing | Unit | Medium | Pass | `src/src/test/unit/unitRunnerIndex.test.ts` | Phase 3 hardening |
+| TC-0249 | Config diagnostics mapping contract | Engine validation errors with ranges | Call diagnostics mapper functions | Correct VS Code diagnostic shape, source, and clear behavior | Unit | Medium | Pass | `src/src/test/unit/configDiagnostics.test.ts` | Phase 3 hardening |
+| TC-0250 | Extension support module coverage guard | Unit test suite execution | Run `npm run test:unit` + c8 unit coverage command | 100% statement/branch/function/line for instrumented support scope | Unit | Medium | Pass | `src/src/test/unit/*.test.ts` + `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Phase 3 hardening |
 
 ### Phase 4 — Extension UI + Commands (Integration Tests)
 
@@ -131,6 +137,12 @@
 | TC-0326 | LayersTreeView: single-repo | 2 layers | `getChildren()` | 2 items | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0327 | FilesTreeView: empty | No files | `getChildren()` | Empty array | Integration | Medium | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
 | TC-0328 | FilesTreeView: groups + hierarchy | 1 settings-linked + 1 materialized with nested paths | `getChildren()` recursively | 2 groups; folder hierarchy preserved; file description includes source label + realization | Integration | High | Pass | `test/integration/treeViews.test.ts` | Phase 4 |
+| TC-0329 | Refresh publishes diagnostics for invalid config | Existing workspace config file path | Write invalid config, run `metaflow.refresh`, inspect diagnostics | Problems include MetaFlow diagnostics on config file | Integration | High | Pass | `test/integration/diagnostics.test.ts` | Phase 4 |
+| TC-0330 | Refresh clears diagnostics after config fix | Invalid diagnostics already present | Restore valid config and run `metaflow.refresh` | MetaFlow diagnostics for config file are cleared | Integration | High | Pass | `test/integration/diagnostics.test.ts` | Phase 4 |
+| TC-0331 | Config watcher auto-refresh triggers settings injection | Valid config and `metaflow.autoApply=true` | Modify `.metaflow/config.jsonc` and wait for watcher refresh | Instruction/prompt settings are injected without manual refresh command | Integration | Critical | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0332 | Apply injects agent and skill locations | Config with settings-classified agents/skills | Run `metaflow.apply` and inspect workspace settings | `chat.agentFilesLocations` and `chat.agentSkillsLocations` are populated | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0333 | Hooks-disabled mode suppresses hook setting injection | Config has hooks; `metaflow.hooksEnabled=false` | Run refresh and inspect workspace settings | `chat.hookFilesLocations` is not injected when hooks are disabled | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0334 | Promote reports no-drift status explicitly | Managed state has no drifted files | Run `metaflow.promote` and observe informational status | User receives explicit no-drift informational message | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 
 ## Traceability Matrix (TC → REQ)
 
@@ -169,12 +181,23 @@
 | TC-0125 | | | | | | | | | | | | | | | | | | | | X |
 | TC-0126 | | | | | | | | | | | | | | | | | | | | X |
 | TC-0316 | | | | | | | | | | | | | | | | | | | | X |
+| TC-0329 | | | | X | | | | | | | | | | | | | | | | |
+| TC-0330 | | | | X | | | | | | | | | | | | | | | | |
+
+### Supplemental Matrix (Phase 4 command/settings requirements)
+
+| TC-ID | REQ-0008 | REQ-0211 | REQ-0400 | REQ-0409 | REQ-0503 | REQ-0504 |
+|---|---|---|---|---|---|---|
+| TC-0331 | X | X | X | | | |
+| TC-0332 | | X | | | X | |
+| TC-0333 | | X | X | | | X |
+| TC-0334 | | | | X | | |
 
 ## Traceability (Gap Analysis)
 
 | Check | Expected | Current | Notes |
 |---|---:|---:|---|
-| TC maps to ≥1 REQ | 68 | 68 | All test cases map to at least one requirement. |
+| TC maps to ≥1 REQ | 74 | 74 | All test cases map to at least one requirement. |
 | Enforced REQ covered by ≥1 TC (Config) | 8 | 8 | All config REQs covered. |
 | Enforced REQ covered by ≥1 TC (Overlay) | 13 | 12 | REQ-0103 (cross-repo) partially covered via multi-repo tests. |
 | Enforced REQ covered by ≥1 TC (Materialization) | 13 | 13 | All materialization REQs covered. |
@@ -184,6 +207,9 @@
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-22 | Added TC-0245 through TC-0250 for extracted helper modules, runner determinism, and coverage guard evidence | AI |
+| 2026-02-22 | Added TC-0331 through TC-0334 for watcher refresh, settings injection edges, and promote no-drift contract | AI |
+| 2026-02-21 | Added TC-0329 and TC-0330 for config diagnostics publish/clear behavior on refresh | AI |
 | 2026-02-18 | Added TC-0119, TC-0125, TC-0126, and TC-0316 for runtime discovery and manual repository rescan | AI |
 | 2026-02-07 | Initial skeleton | AI |
 | 2026-02-07 | Added TC-0001–TC-0019 (Phase 1: Config), TC-0100–TC-0145 (Phase 2: Engine) | AI |

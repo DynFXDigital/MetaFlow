@@ -40,6 +40,8 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 | TP-A014 | Command execution | Automated | `npm test` | Extension Host output | TC-0310–TC-0315 |
 | TP-A015 | TreeView providers | Automated | `npm test` | Extension Host output | TC-0320–TC-0328 |
 | TP-A016 | Runtime discovery + repository rescan | Automated | `npm -w @metaflow/engine test` and `npm test` | Mocha + Extension Host output | TC-0119, TC-0125, TC-0126, TC-0316 |
+| TP-A017 | Command contract hardening (watcher/settings/promote) | Automated | `npm test` | Extension Host output | TC-0331–TC-0334 |
+| TP-A018 | Unit helper rigor + runner determinism | Automated | `npm run test:unit` and `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Mocha + c8 output | TC-0245–TC-0250 |
 
 ### Manual Procedures
 
@@ -248,6 +250,8 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 | TP-A014 | TC-0310–TC-0315 |
 | TP-A015 | TC-0320–TC-0328 |
 | TP-A016 | TC-0119, TC-0125, TC-0126, TC-0316 |
+| TP-A017 | TC-0331–TC-0334 |
+| TP-A018 | TC-0245–TC-0250 |
 | TP-M001 | TC-0300, TC-0301 |
 | TP-M002 | TC-0303 |
 | TP-M003 | TC-0323, TC-0324 |
@@ -265,12 +269,14 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 | Check | Expected | Current | Notes |
 |---|---:|---:|---|
-| TC covered by ≥1 TP | 68 | 68 | All TCs covered by automated or manual procedures. |
+| TC covered by ≥1 TP | 74 | 74 | All TCs covered by automated or manual procedures. |
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-22 | Added TP-A018 for helper extraction and unit-runner determinism coverage evidence | AI |
+| 2026-02-22 | Added TP-A017 and traceability coverage for TC-0331 through TC-0334 | AI |
 | 2026-02-18 | Added TP-A016 and traceability entries for runtime discovery and repository rescan | AI |
 | 2026-02-07 | Initial skeleton | AI |
 | 2026-02-07 | Complete FTD with 15 automated + 12 manual procedures | AI |
