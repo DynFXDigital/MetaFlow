@@ -1,7 +1,7 @@
 /**
  * Files TreeView provider.
  *
- * Shows effective files in a unified hierarchical tree.
+ * Shows effective files grouped by artifact type (instructions, prompts, agents, skills).
  */
 
 import * as vscode from 'vscode';
@@ -15,6 +15,11 @@ interface SourceRoot {
 }
 
 type FilesViewMode = 'unified' | 'repoTree';
+
+export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
+
+const KNOWN_TYPES: ReadonlySet<string> = new Set(['instructions', 'prompts', 'agents', 'skills']);
+const TYPE_ORDER: ArtifactType[] = ['instructions', 'prompts', 'agents', 'skills', 'other'];
 
 const toPosixPath = (value: string): string => value.replace(/\\/g, '/');
 const isPathWithin = (targetPath: string, parentPath: string): boolean => {
@@ -36,6 +41,35 @@ function toDisplayRelativePath(relativePath: string): string {
     return displayParts.join('/');
 }
 
+export function getArtifactType(relativePath: string): ArtifactType {
+    const posix = toPosixPath(relativePath).replace(/^\.github\//, '');
+    const firstSegment = posix.split('/')[0] ?? '';
+    return KNOWN_TYPES.has(firstSegment) ? (firstSegment as ArtifactType) : 'other';
+}
+
+/** Full hierarchy display path: layer-relative dirs + artifact path, with .github stripped. */
+function getDisplayPathForRepoTree(file: EffectiveFile): string {
+    const layerPath = getLayerDisplayPath(file);
+    const normalizedLayerPath = layerPath === '.' ? '' : layerPath;
+    const artifactPath = toDisplayRelativePath(file.relativePath);
+    return [normalizedLayerPath, artifactPath].filter(Boolean).join('/');
+}
+
+/**
+ * Returns the path of a file relative to its artifact-type segment.
+ * Works for both flat paths (instructions/foo.md → foo.md) and deep
+ * hierarchy paths (capabilities/devtools/instructions/foo.md → foo.md).
+ */
+function getPathAfterArtifactType(file: EffectiveFile): string {
+    const displayPath = toDisplayRelativePath(file.relativePath);
+    const parts = displayPath.split('/').filter(Boolean);
+    const typeIndex = parts.findIndex(p => KNOWN_TYPES.has(p));
+    if (typeIndex === -1) {
+        return displayPath;
+    }
+    return parts.slice(typeIndex + 1).join('/');
+}
+
 function getLayerDisplayPath(file: EffectiveFile): string {
     const sourceLayer = toPosixPath(file.sourceLayer || '').replace(/^\/|\/$/g, '');
     const sourceRepo = toPosixPath(file.sourceRepo || '').replace(/^\/|\/$/g, '');
@@ -47,20 +81,6 @@ function getLayerDisplayPath(file: EffectiveFile): string {
     return sourceLayer;
 }
 
-function getDisplayPathForFileWithSourceLabel(file: EffectiveFile, sourceLabel: string): string {
-    const layerPath = getLayerDisplayPath(file);
-    const normalizedLayerPath = layerPath === '.' ? sourceLabel : layerPath;
-    const artifactPath = toDisplayRelativePath(file.relativePath);
-    return [normalizedLayerPath, artifactPath].filter(Boolean).join('/');
-}
-
-function getDisplayPathForRepoTree(file: EffectiveFile): string {
-    const layerPath = getLayerDisplayPath(file);
-    const normalizedLayerPath = layerPath === '.' ? '' : layerPath;
-    const artifactPath = toDisplayRelativePath(file.relativePath);
-    return [normalizedLayerPath, artifactPath].filter(Boolean).join('/');
-}
-
 function getDisplayLayerLabel(file: EffectiveFile, sourceLabel: string): string {
     const layerPath = getLayerDisplayPath(file);
     return layerPath === '.' ? sourceLabel : layerPath;
@@ -70,7 +90,7 @@ function getClassificationLabel(classification: EffectiveFile['classification'])
     return classification === 'settings' ? 'settings' : 'materialized';
 }
 
-type FileTreeNode = RepoItem | FolderItem | FileItem;
+type FileTreeNode = RepoItem | ArtifactTypeItem | FolderItem | FileItem;
 
 class RepoItem extends vscode.TreeItem {
     constructor(
@@ -89,6 +109,18 @@ class RepoItem extends vscode.TreeItem {
             };
             this.tooltip = `Repository: ${repoPath}`;
         }
+    }
+}
+
+class ArtifactTypeItem extends vscode.TreeItem {
+    constructor(
+        public readonly artifactType: ArtifactType,
+        public readonly files: EffectiveFile[]
+    ) {
+        super(artifactType, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'artifactTypeFolder';
+        this.iconPath = new vscode.ThemeIcon('folder');
+        this.description = `${files.length} file${files.length !== 1 ? 's' : ''}`;
     }
 }
 
@@ -312,22 +344,117 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         );
     }
 
+    private groupByArtifactType(files: EffectiveFile[]): ArtifactTypeItem[] {
+        const typeMap = new Map<ArtifactType, EffectiveFile[]>();
+        for (const file of files) {
+            const type = getArtifactType(file.relativePath);
+            const existing = typeMap.get(type) ?? [];
+            existing.push(file);
+            typeMap.set(type, existing);
+        }
+        return TYPE_ORDER
+            .filter(type => typeMap.has(type))
+            .map(type => new ArtifactTypeItem(type, typeMap.get(type)!));
+    }
+
+    private getChildrenForType(
+        files: EffectiveFile[],
+        artifactType: ArtifactType,
+        roots: SourceRoot[]
+    ): FileTreeNode[] {
+        const typeFiles = files.filter(f => getArtifactType(f.relativePath) === artifactType);
+        return this.getChildrenForPrefix(
+            typeFiles,
+            '',
+            roots,
+            (file: EffectiveFile) => getPathAfterArtifactType(file)
+        );
+    }
+
+    /**
+     * Builds a tree using the full layer-relative display path (with .github stripped).
+     * Folder nodes whose name is a known artifact type are promoted to ArtifactTypeItem;
+     * all other intermediate directories become FolderItem.
+     */
+    private getChildrenForPrefixHierarchical(
+        files: EffectiveFile[],
+        prefix: string,
+        roots: SourceRoot[]
+    ): FileTreeNode[] {
+        const folderMap = new Map<string, EffectiveFile[]>();
+        const typeMap = new Map<ArtifactType, EffectiveFile[]>();
+        const leafFiles: FileItem[] = [];
+
+        for (const file of files) {
+            const sourceLabel = this.getSourceLabel(file, roots);
+            const rel = getDisplayPathForRepoTree(file);
+            if (prefix && !rel.startsWith(prefix + '/')) {
+                continue;
+            }
+
+            const remainder = prefix ? rel.slice(prefix.length + 1) : rel;
+            if (!remainder) {
+                continue;
+            }
+
+            const [firstSegment, ...rest] = remainder.split('/');
+
+            if (KNOWN_TYPES.has(firstSegment)) {
+                const type = firstSegment as ArtifactType;
+                const existing = typeMap.get(type) ?? [];
+                existing.push(file);
+                typeMap.set(type, existing);
+            } else if (rest.length === 0) {
+                const displayLayerLabel = getDisplayLayerLabel(file, sourceLabel);
+                leafFiles.push(new FileItem(file, sourceLabel, displayLayerLabel));
+            } else {
+                const nextPrefix = prefix ? `${prefix}/${firstSegment}` : firstSegment;
+                const existing = folderMap.get(nextPrefix) ?? [];
+                existing.push(file);
+                folderMap.set(nextPrefix, existing);
+            }
+        }
+
+        const folders = sortByLabel(
+            Array.from(folderMap.entries()).map(([nextPrefix, subset]) =>
+                new FolderItem(path.posix.basename(nextPrefix), subset, nextPrefix)
+            )
+        );
+
+        const typeItems = TYPE_ORDER
+            .filter(type => typeMap.has(type))
+            .map(type => new ArtifactTypeItem(type, typeMap.get(type)!));
+
+        return [...folders, ...typeItems, ...sortByLabel(leafFiles)];
+    }
+
     getChildren(element?: FileTreeNode): FileTreeNode[] {
         const roots = this.getSourceRoots();
         const mode = this.modeResolver();
-        const unifiedResolver = (file: EffectiveFile, sourceLabel: string) =>
-            getDisplayPathForFileWithSourceLabel(file, sourceLabel);
-        const repoTreeResolver = (file: EffectiveFile) => getDisplayPathForRepoTree(file);
+
+        if (element instanceof ArtifactTypeItem) {
+            return this.getChildrenForType(element.files, element.artifactType, roots);
+        }
 
         if (element instanceof RepoItem) {
-            return this.getChildrenForPrefix(element.files, '', roots, (file: EffectiveFile) => repoTreeResolver(file));
+            // repoTree mode: full directory hierarchy with .github stripped
+            // and artifact-type nodes promoted at whatever depth they appear.
+            if (mode === 'repoTree') {
+                return this.getChildrenForPrefixHierarchical(element.files, '', roots);
+            }
+            return this.groupByArtifactType(element.files);
         }
 
         if (element instanceof FolderItem) {
-            const resolver = mode === 'repoTree'
-                ? (file: EffectiveFile) => repoTreeResolver(file)
-                : unifiedResolver;
-            return this.getChildrenForPrefix(element.files, element.prefix, roots, resolver);
+            if (mode === 'repoTree') {
+                return this.getChildrenForPrefixHierarchical(element.files, element.prefix, roots);
+            }
+            return this.getChildrenForPrefix(
+                element.files,
+                element.prefix,
+                roots,
+                (file: EffectiveFile) => getPathAfterArtifactType(file)
+            );
         }
 
         if (mode === 'repoTree') {
@@ -339,6 +466,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             return [];
         }
 
-        return this.getChildrenForPrefix(files, '', roots, unifiedResolver);
+        return this.groupByArtifactType(files);
     }
 }
