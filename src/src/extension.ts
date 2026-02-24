@@ -98,13 +98,23 @@ export function activate(context: vscode.ExtensionContext): void {
         layersTreeView.onDidChangeCheckboxState(async e => {
             for (const [item, checkboxState] of e.items) {
                 if (
-                    (checkboxState === vscode.TreeItemCheckboxState.Checked ||
-                        checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
-                    'layerIndex' in item &&
-                    typeof item.layerIndex === 'number'
+                    checkboxState !== vscode.TreeItemCheckboxState.Checked &&
+                    checkboxState !== vscode.TreeItemCheckboxState.Unchecked
                 ) {
+                    continue;
+                }
+                const contextValue = (item as { contextValue?: unknown }).contextValue;
+                const layerIndex = (item as { layerIndex?: unknown }).layerIndex;
+
+                if (typeof layerIndex !== 'number') {
+                    continue;
+                }
+
+                if (contextValue === 'layerArtifactType') {
+                    await vscode.commands.executeCommand('metaflow.toggleLayerArtifactType', item, checkboxState);
+                } else {
                     await vscode.commands.executeCommand('metaflow.toggleLayer', {
-                        layerIndex: item.layerIndex,
+                        layerIndex,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
                 }

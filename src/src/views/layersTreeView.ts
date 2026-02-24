@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import { ExcludableArtifactType, EffectiveFile, getArtifactType } from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
 
 type LayersViewMode = 'flat' | 'tree';
@@ -91,7 +92,26 @@ class LayerItem extends vscode.TreeItem {
     }
 }
 
-type LayerTreeItem = LayerRepoItem | LayerItem;
+const ARTIFACT_TYPE_ORDER: ExcludableArtifactType[] = ['instructions', 'prompts', 'agents', 'skills'];
+
+class ArtifactTypeLayerItem extends vscode.TreeItem {
+    constructor(
+        public readonly artifactType: ExcludableArtifactType,
+        public readonly layerIndex: number,
+        public readonly repoId: string,
+        excluded: boolean
+    ) {
+        super(artifactType, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'layerArtifactType';
+        this.checkboxState = excluded
+            ? vscode.TreeItemCheckboxState.Unchecked
+            : vscode.TreeItemCheckboxState.Checked;
+        this.iconPath = new vscode.ThemeIcon('folder');
+        this.description = excluded ? '(excluded)' : '';
+    }
+}
+
+type LayerTreeItem = LayerRepoItem | LayerItem | ArtifactTypeLayerItem;
 
 export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<LayerTreeItem | undefined>();
@@ -166,7 +186,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return [];
     }
 
-    private getTreeChildrenForPrefix(entries: LayerEntry[], prefix: string, repoId?: string): LayerItem[] {
+    private getTreeChildrenForPrefix(entries: LayerEntry[], prefix: string, repoId?: string, mode?: LayersViewMode): LayerItem[] {
         const children = new Map<string, { path: string; label: string }>();
         const rootEntry = entries.find(entry => entry.normalizedPath === '');
 
@@ -197,11 +217,16 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             .map(node => {
                 const matchingEntry = entries.find(entry => entry.normalizedPath === node.path);
                 const hasChildren = entries.some(entry => entry.normalizedPath.startsWith(node.path + '/'));
+                const hasArtifactTypeChildren =
+                    mode === 'tree' &&
+                    typeof matchingEntry?.layerIndex === 'number' &&
+                    matchingEntry.enabled === true &&
+                    this.getActiveTypesForLayer(matchingEntry.layerIndex).size > 0;
                 return new LayerItem(node.label, matchingEntry?.enabled, matchingEntry?.layerIndex, {
                     repoId: matchingEntry?.repoId ?? repoId,
                     repoDisabled: matchingEntry?.repoDisabled,
                     toggleable: matchingEntry?.toggleable,
-                    hasChildren,
+                    hasChildren: hasChildren || hasArtifactTypeChildren,
                     path: node.path,
                 });
             })
@@ -211,18 +236,81 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const rootLabel = entries[0]?.repoId
                 ? 'root'
                 : rootEntry.label;
+            const rootHasArtifactChildren =
+                mode === 'tree' &&
+                typeof rootEntry.layerIndex === 'number' &&
+                rootEntry.enabled === true &&
+                this.getActiveTypesForLayer(rootEntry.layerIndex).size > 0;
             folderAndLayerItems.unshift(
                 new LayerItem(rootLabel, rootEntry.enabled, rootEntry.layerIndex, {
                     repoId: rootEntry.repoId ?? repoId,
                     repoDisabled: rootEntry.repoDisabled,
                     toggleable: rootEntry.toggleable,
-                    hasChildren: false,
+                    hasChildren: rootHasArtifactChildren,
                     path: '(root)',
                 })
             );
         }
 
         return folderAndLayerItems;
+    }
+
+    /**
+     * Computes the set of artifact types that are active (have files or are explicitly excluded)
+     * for a given multi-repo layer source. Returns an empty set for disabled or unknown layers.
+     */
+    private getActiveTypesForLayer(layerIndex: number): Set<ExcludableArtifactType> {
+        const layerSources = this.state.config?.layerSources;
+        if (!layerSources) {
+            return new Set();
+        }
+        const ls = layerSources[layerIndex];
+        if (!ls) {
+            return new Set();
+        }
+        const layerId = `${ls.repoId}/${ls.path}`;
+        const result = new Set<ExcludableArtifactType>();
+        for (const file of this.state.effectiveFiles as EffectiveFile[]) {
+            if (file.sourceLayer === layerId) {
+                const type = getArtifactType(file.relativePath);
+                if (type !== 'other') {
+                    result.add(type as ExcludableArtifactType);
+                }
+            }
+        }
+        for (const t of (ls.excludedTypes ?? [])) {
+            result.add(t);
+        }
+        return result;
+    }
+
+    /**
+     * Returns ArtifactTypeLayerItems for a given layer source.
+     * Only shown in tree mode for enabled leaf LayerItem nodes that have matching files.
+     */
+    private getArtifactTypeChildren(layerIndex: number, repoId?: string): ArtifactTypeLayerItem[] {
+        const layerSources = this.state.config?.layerSources;
+        if (!layerSources) {
+            return [];
+        }
+        const ls = layerSources[layerIndex];
+        if (!ls) {
+            return [];
+        }
+        // Don't show artifact-type children for disabled layers
+        const isRepoEnabled = this.state.config?.metadataRepos
+            ?.find((r: { id: string; enabled?: boolean }) => r.id === ls.repoId)?.enabled !== false;
+        if (!isRepoEnabled || ls.enabled === false) {
+            return [];
+        }
+        const activeTypes = this.getActiveTypesForLayer(layerIndex);
+        if (activeTypes.size === 0) {
+            return [];
+        }
+        const excludedTypes = ls.excludedTypes ?? [];
+        return ARTIFACT_TYPE_ORDER
+            .filter(type => activeTypes.has(type))
+            .map(type => new ArtifactTypeLayerItem(type, layerIndex, ls.repoId, excludedTypes.includes(type)));
     }
 
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
@@ -250,15 +338,19 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         if (element instanceof LayerRepoItem) {
             const repoEntries = entries.filter(entry => entry.repoId === element.repoId);
-            return this.getTreeChildrenForPrefix(repoEntries, '', element.repoId);
+            return this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode);
         }
 
         if (element instanceof LayerItem) {
+            // In tree mode, leaf layers (with a layerIndex) expand to show artifact-type children.
+            if (typeof element.layerIndex === 'number' && mode === 'tree') {
+                return this.getArtifactTypeChildren(element.layerIndex, element.repoId);
+            }
             const parentPath = element.pathKey === '(root)' ? '' : element.pathKey || '';
             const repoEntries = element.repoId
                 ? entries.filter(entry => entry.repoId === element.repoId)
                 : entries.filter(entry => entry.repoId === undefined);
-            return this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId);
+            return this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId, mode);
         }
 
         if (this.state.config?.metadataRepos && this.state.config.layerSources) {

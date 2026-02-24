@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 
 import * as assert from 'assert';
-import { EffectiveFile } from '@metaflow/engine';
+import { EffectiveFile, getArtifactType } from '@metaflow/engine';
 
 // ── Minimal vscode mock ────────────────────────────────────────────────────────
 
@@ -70,7 +70,6 @@ type FilesTreeViewModule = {
         },
         modeResolver?: () => string
     ) => MockProvider;
-    getArtifactType: (relativePath: string) => string;
 };
 
 function loadFilesTreeView(): FilesTreeViewModule {
@@ -311,10 +310,8 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(String(folderChildren[0].label), 'SKILL.md');
     });
 
-    // getArtifactType helper: exported pure function
+    // getArtifactType helper: re-exported from @metaflow/engine
     test('getArtifactType: recognises known types and falls back to other', () => {
-        const { getArtifactType } = loadFilesTreeView();
-
         assert.strictEqual(getArtifactType('.github/instructions/foo.md'), 'instructions');
         assert.strictEqual(getArtifactType('.github/prompts/p.prompt.md'), 'prompts');
         assert.strictEqual(getArtifactType('.github/agents/a.agent.md'), 'agents');

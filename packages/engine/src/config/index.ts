@@ -12,4 +12,5 @@ export type {
     HooksConfig,
     ConfigError,
     ConfigLoadResult,
+    ExcludableArtifactType,
 } from './configSchema';

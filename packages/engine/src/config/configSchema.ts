@@ -41,6 +41,13 @@ export interface RepoDiscoveryConfig {
 
 // ── Layer configuration ────────────────────────────────────────────
 
+/**
+ * Artifact-type bucket that can be toggled per layer source.
+ * Distinct from the full `ArtifactType` (which includes `'other'`) defined in
+ * the engine utility; `'other'` cannot be explicitly excluded.
+ */
+export type ExcludableArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills';
+
 /** A layer source entry for multi-repo configurations. */
 export interface LayerSource {
     /** References a repo `id` from `metadataRepos`. */
@@ -49,6 +56,12 @@ export interface LayerSource {
     path: string;
     /** Whether this layer is enabled (default: true). */
     enabled?: boolean;
+    /**
+     * Artifact-type directories to exclude for this layer source.
+     * UI-managed; distinct from `filters.exclude` (which is hand-authored).
+     * Absent or empty → all types are included (default behaviour unchanged).
+     */
+    excludedTypes?: ExcludableArtifactType[];
 }
 
 // ── Filters ────────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
 export type { ResolveLayersOptions } from './overlayEngine';
-export { applyFilters } from './filterEngine';
+export { applyFilters, applyExcludedTypeFilters } from './filterEngine';
 export { applyProfile } from './profileEngine';
+export { getArtifactType } from './artifactType';
+export type { ArtifactType } from './artifactType';
 export { classifyFiles, classifySingle } from './classifier';
 export { matchesGlob, matchesAnyGlob } from './globMatcher';
 export { generateProvenanceHeader, parseProvenanceHeader, stripProvenanceHeader } from './provenanceHeader';

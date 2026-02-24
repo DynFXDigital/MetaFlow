@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { EffectiveFile } from '@metaflow/engine';
+import { EffectiveFile, getArtifactType, ArtifactType } from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
 
 interface SourceRoot {
@@ -16,7 +16,8 @@ interface SourceRoot {
 
 type FilesViewMode = 'unified' | 'repoTree';
 
-export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
+// ArtifactType and getArtifactType are imported from @metaflow/engine.
+export type { ArtifactType } from '@metaflow/engine';
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set(['instructions', 'prompts', 'agents', 'skills']);
 const TYPE_ORDER: ArtifactType[] = ['instructions', 'prompts', 'agents', 'skills', 'other'];
@@ -39,12 +40,6 @@ function toDisplayRelativePath(relativePath: string): string {
 
     const displayParts = [...parts.slice(0, githubIndex), ...parts.slice(githubIndex + 1)];
     return displayParts.join('/');
-}
-
-export function getArtifactType(relativePath: string): ArtifactType {
-    const posix = toPosixPath(relativePath).replace(/^\.github\//, '');
-    const firstSegment = posix.split('/')[0] ?? '';
-    return KNOWN_TYPES.has(firstSegment) ? (firstSegment as ArtifactType) : 'other';
 }
 
 /** Full hierarchy display path: layer-relative dirs + artifact path, with .github stripped. */

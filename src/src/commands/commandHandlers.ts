@@ -18,9 +18,11 @@ import {
     buildEffectiveFileMap,
     resolvePathFromWorkspace,
     applyFilters,
+    applyExcludedTypeFilters,
     applyProfile,
     classifyFiles,
     EffectiveFile,
+    ExcludableArtifactType,
     apply,
     clean,
     preview,
@@ -110,6 +112,7 @@ function resolveOverlay(
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
+    files = applyExcludedTypeFilters(files, config.layerSources);
 
     const profileName = config.activeProfile;
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
@@ -614,6 +617,57 @@ export function registerCommands(
                 logWarn(`Toggle layer failed: ${message}`);
             }
         })
+    );
+
+    // ── metaflow.toggleLayerArtifactType ───────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.toggleLayerArtifactType',
+            async (item?: unknown, newState?: unknown) => {
+                const ws = getWorkspace();
+                if (!ws || !state.config) {
+                    vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                    return;
+                }
+
+                const layerIndex = typeof (item as { layerIndex?: unknown })?.layerIndex === 'number'
+                    ? (item as { layerIndex: number }).layerIndex
+                    : undefined;
+                const artifactType = typeof (item as { artifactType?: unknown })?.artifactType === 'string'
+                    ? (item as { artifactType: string }).artifactType as ExcludableArtifactType
+                    : undefined;
+
+                if (typeof layerIndex !== 'number' || !artifactType) {
+                    logWarn('toggleLayerArtifactType: missing layerIndex or artifactType.');
+                    return;
+                }
+
+                if (!state.config.layerSources || !state.config.layerSources[layerIndex]) {
+                    logWarn(`toggleLayerArtifactType: layer index ${layerIndex} not found.`);
+                    return;
+                }
+
+                const isExcluded = newState === vscode.TreeItemCheckboxState.Unchecked;
+                const layerSource = state.config.layerSources[layerIndex];
+                const current = layerSource.excludedTypes ?? [];
+
+                if (isExcluded) {
+                    if (!current.includes(artifactType)) {
+                        layerSource.excludedTypes = [...current, artifactType];
+                    }
+                } else {
+                    const next = current.filter(t => t !== artifactType);
+                    layerSource.excludedTypes = next.length > 0 ? next : undefined;
+                }
+
+                if (state.configPath) {
+                    await persistConfig(state.configPath, state.config);
+                }
+
+                logInfo(`Layer ${layerSource.repoId}/${layerSource.path}: ${artifactType} ${isExcluded ? 'excluded' : 'included'}`);
+                await vscode.commands.executeCommand('metaflow.refresh');
+            }
+        )
     );
 
     // ── metaflow.toggleRepoSource ──────────────────────────────────
