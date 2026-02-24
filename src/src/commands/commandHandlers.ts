@@ -642,13 +642,15 @@ export function registerCommands(
                     return;
                 }
 
-                if (!state.config.layerSources || !state.config.layerSources[layerIndex]) {
+                const { layerSources } = ensureMultiRepoConfig(state.config);
+
+                if (!layerSources[layerIndex]) {
                     logWarn(`toggleLayerArtifactType: layer index ${layerIndex} not found.`);
                     return;
                 }
 
                 const isExcluded = newState === vscode.TreeItemCheckboxState.Unchecked;
-                const layerSource = state.config.layerSources[layerIndex];
+                const layerSource = layerSources[layerIndex];
                 const current = layerSource.excludedTypes ?? [];
 
                 if (isExcluded) {

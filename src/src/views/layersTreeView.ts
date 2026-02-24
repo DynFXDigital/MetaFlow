@@ -98,7 +98,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
     constructor(
         public readonly artifactType: ExcludableArtifactType,
         public readonly layerIndex: number,
-        public readonly repoId: string,
+        public readonly repoId: string | undefined,
         excluded: boolean
     ) {
         super(artifactType, vscode.TreeItemCollapsibleState.None);
@@ -151,6 +151,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private normalizeLayerPath(layerPath: string): string {
         return layerPath === '.' ? '' : layerPath;
+    }
+
+    private normalizeLayerId(layerId: string): string {
+        const normalized = layerId.replace(/\\/g, '/').replace(/\/+$/, '');
+        return normalized === '' ? '.' : normalized;
     }
 
     private getLayerEntries(): LayerEntry[] {
@@ -268,25 +273,33 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
      * for a given multi-repo layer source. Returns an empty set for disabled or unknown layers.
      */
     private getActiveTypesForLayer(layerIndex: number): Set<ExcludableArtifactType> {
-        const layerSources = this.state.config?.layerSources;
-        if (!layerSources) {
+        const config = this.state.config;
+        if (!config) {
             return new Set();
         }
-        const ls = layerSources[layerIndex];
-        if (!ls) {
+
+        const layerSource = config.layerSources?.[layerIndex];
+        const singleLayerPath = config.layers?.[layerIndex];
+
+        if (!layerSource && typeof singleLayerPath !== 'string') {
             return new Set();
         }
-        const layerId = `${ls.repoId}/${ls.path}`;
+
+        const layerId = layerSource
+            ? `${layerSource.repoId}/${layerSource.path}`
+            : singleLayerPath!;
+        const normalizedLayerId = this.normalizeLayerId(layerId);
+
         const result = new Set<ExcludableArtifactType>();
         for (const file of this.state.effectiveFiles as EffectiveFile[]) {
-            if (file.sourceLayer === layerId) {
+            if (this.normalizeLayerId(file.sourceLayer) === normalizedLayerId) {
                 const type = getArtifactType(file.relativePath);
                 if (type !== 'other') {
                     result.add(type as ExcludableArtifactType);
                 }
             }
         }
-        for (const t of (ls.excludedTypes ?? [])) {
+        for (const t of (layerSource?.excludedTypes ?? [])) {
             result.add(t);
         }
         return result;
@@ -297,28 +310,35 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
      * Only shown in tree mode for enabled leaf LayerItem nodes that have matching files.
      */
     private getArtifactTypeChildren(layerIndex: number, repoId?: string): ArtifactTypeLayerItem[] {
-        const layerSources = this.state.config?.layerSources;
-        if (!layerSources) {
+        const config = this.state.config;
+        if (!config) {
             return [];
         }
-        const ls = layerSources[layerIndex];
-        if (!ls) {
+
+        const layerSource = config.layerSources?.[layerIndex];
+        const singleLayerPath = config.layers?.[layerIndex];
+        if (!layerSource && typeof singleLayerPath !== 'string') {
             return [];
         }
+
         // Don't show artifact-type children for disabled layers
-        const isRepoEnabled = this.state.config?.metadataRepos
-            ?.find((r: { id: string; enabled?: boolean }) => r.id === ls.repoId)?.enabled !== false;
-        if (!isRepoEnabled || ls.enabled === false) {
+        const isRepoEnabled = layerSource
+            ? this.state.config?.metadataRepos
+                ?.find((r: { id: string; enabled?: boolean }) => r.id === layerSource.repoId)?.enabled !== false
+            : true;
+        const isLayerEnabled = layerSource ? layerSource.enabled !== false : true;
+        if (!isRepoEnabled || !isLayerEnabled) {
             return [];
         }
+
         const activeTypes = this.getActiveTypesForLayer(layerIndex);
         if (activeTypes.size === 0) {
             return [];
         }
-        const excludedTypes = ls.excludedTypes ?? [];
+        const excludedTypes = layerSource?.excludedTypes ?? [];
         return ARTIFACT_TYPE_ORDER
             .filter(type => activeTypes.has(type))
-            .map(type => new ArtifactTypeLayerItem(type, layerIndex, ls.repoId, excludedTypes.includes(type)));
+            .map(type => new ArtifactTypeLayerItem(type, layerIndex, layerSource?.repoId ?? repoId, excludedTypes.includes(type)));
     }
 
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
@@ -350,14 +370,22 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof LayerItem) {
-            if (typeof element.layerIndex === 'number' && mode === 'tree') {
-                return this.trackChildren(this.getArtifactTypeChildren(element.layerIndex, element.repoId), element);
-            }
             const parentPath = element.pathKey === '(root)' ? '' : element.pathKey || '';
             const repoEntries = element.repoId
                 ? entries.filter(entry => entry.repoId === element.repoId)
                 : entries.filter(entry => entry.repoId === undefined);
-            return this.trackChildren(this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId, mode), element);
+
+            // A node can be both a concrete layer (has layerIndex) and a folder with child layers.
+            // In that case, expose both descendants and artifact-type toggles.
+            const folderChildren = this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId, mode)
+                .filter(child => child.pathKey !== '(root)');
+
+            if (typeof element.layerIndex === 'number' && mode === 'tree') {
+                const artifactChildren = this.getArtifactTypeChildren(element.layerIndex, element.repoId);
+                return this.trackChildren([...folderChildren, ...artifactChildren], element);
+            }
+
+            return this.trackChildren(folderChildren, element);
         }
 
         if (this.state.config?.metadataRepos && this.state.config.layerSources) {

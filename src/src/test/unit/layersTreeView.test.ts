@@ -344,4 +344,69 @@ suite('LayersTreeView – artifact-type children', () => {
         const labels = artifactChildren.map(c => String(c.label));
         assert.deepStrictEqual(labels, ['instructions', 'skills']);
     });
+
+    test('LTV-AT-11: mixed layer/folder node shows descendant layers and artifact toggles', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities' },
+                { repoId: 'repo1', path: 'capabilities/devtools' },
+            ],
+        };
+        const files = [
+            makeEffectiveFile('instructions/root.md', 'repo1', 'capabilities'),
+            makeEffectiveFile('prompts/devtools.md', 'repo1', 'capabilities/devtools'),
+        ];
+
+        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
+
+        const repoItem = provider.getChildren()[0];
+        const top = provider.getChildren(repoItem);
+        const capabilitiesNode = top.find(c => String(c.label) === 'capabilities');
+        assert.ok(capabilitiesNode, 'expected capabilities node at repo root');
+
+        const capabilitiesChildren = provider.getChildren(capabilitiesNode);
+        const childLabels = capabilitiesChildren.map(c => String(c.label));
+
+        assert.ok(childLabels.includes('devtools'), 'should include descendant layer folder');
+        assert.ok(childLabels.includes('instructions'), 'should include artifact type from capabilities layer');
+    });
+
+    test('LTV-AT-12: single-repo tree mode shows artifact-type children for layer nodes', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepo: { localPath: '/repo1' },
+            layers: ['capabilities/communication'],
+        };
+        const files = [
+            {
+                relativePath: 'instructions/a.md',
+                sourceLayer: 'capabilities/communication',
+                absolutePath: '/repo1/capabilities/communication/.github/instructions/a.md',
+            },
+            {
+                relativePath: 'prompts/b.md',
+                sourceLayer: 'capabilities/communication',
+                absolutePath: '/repo1/capabilities/communication/.github/prompts/b.md',
+            },
+        ];
+
+        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
+        const roots = provider.getChildren();
+        assert.ok(roots.length > 0, 'expected single-repo layer item at root');
+
+        const capabilitiesFolder = roots.find(c => String(c.label) === 'capabilities');
+        assert.ok(capabilitiesFolder, 'expected capabilities folder at root');
+
+        const nested = provider.getChildren(capabilitiesFolder);
+        const layerItem = nested.find(c => c.contextValue === 'layer');
+        assert.ok(layerItem, 'expected layer item under capabilities folder');
+
+        const children = provider.getChildren(layerItem);
+        const labels = children.map(c => String(c.label));
+
+        assert.deepStrictEqual(labels, ['instructions', 'prompts']);
+        assert.ok(children.every(c => c.contextValue === 'layerArtifactType'));
+    });
 });
