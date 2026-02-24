@@ -6,7 +6,9 @@
 
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as fsp from 'fs/promises';
 import * as path from 'path';
+import * as jsonc from 'jsonc-parser';
 import {
     loadConfig,
     MetaFlowConfig,
@@ -162,8 +164,31 @@ function resolveInjectionConfig(workspace: vscode.WorkspaceFolder, config: MetaF
     return injection;
 }
 
-function persistConfig(configPath: string, config: MetaFlowConfig): void {
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+/**
+ * Write config to disk. When the file already exists, uses JSONC edit operations
+ * to preserve comments and formatting where possible. Falls back to JSON.stringify
+ * for new files or when the existing content cannot be parsed.
+ */
+async function persistConfig(configPath: string, config: MetaFlowConfig): Promise<void> {
+    let existing: string | undefined;
+    try {
+        existing = await fsp.readFile(configPath, 'utf-8');
+    } catch {
+        // File does not exist yet — will write fresh JSON below.
+    }
+
+    if (existing !== undefined) {
+        // Apply each top-level property as a targeted JSONC edit to preserve comments.
+        let updated = existing;
+        const formatOptions: jsonc.FormattingOptions = { tabSize: 2, insertSpaces: true };
+        for (const [key, value] of Object.entries(config)) {
+            const edits = jsonc.modify(updated, [key], value, { formattingOptions: formatOptions });
+            updated = jsonc.applyEdits(updated, edits);
+        }
+        await fsp.writeFile(configPath, updated, 'utf-8');
+    } else {
+        await fsp.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    }
 }
 
 function discoverAndPersistRepoLayers(
@@ -297,6 +322,9 @@ export function registerCommands(
         return pickWorkspaceFolder(
             folders,
             activeFolder,
+            // Sync stat check kept intentionally: pickWorkspaceFolder is a synchronous
+            // heuristic and existsSync is fast for local filesystems. Remote-FS callers
+            // should use the explicit workspace-folder arg path instead.
             folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow', 'config.jsonc'))
         );
     };
@@ -336,7 +364,7 @@ export function registerCommands(
             clearDiagnostics(diagnosticCollection);
             const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
             if (configNormalized && result.configPath) {
-                persistConfig(result.configPath, result.config);
+                await persistConfig(result.configPath, result.config);
                 logInfo('Normalized layer paths in config (removed redundant .github suffix entries).');
             }
             state.config = result.config;
@@ -515,20 +543,12 @@ export function registerCommands(
 
             if (!selected || !state.configPath) { return; }
 
-            // Update the config file
-            const raw = fs.readFileSync(state.configPath, 'utf-8');
-            const current = state.config.activeProfile;
-            let updated: string;
-            if (current) {
-                updated = raw.replace(
-                    `"activeProfile": "${current}"`,
-                    `"activeProfile": "${selected}"`
-                );
-            } else {
-                // Add activeProfile before the last closing brace
-                updated = raw.replace(/}(\s*)$/, `  "activeProfile": "${selected}"\n}$1`);
-            }
-            fs.writeFileSync(state.configPath, updated, 'utf-8');
+            // Update the config file using JSONC-safe edit to preserve comments
+            const raw = await fsp.readFile(state.configPath, 'utf-8');
+            const formatOptions: jsonc.FormattingOptions = { tabSize: 2, insertSpaces: true };
+            const edits = jsonc.modify(raw, ['activeProfile'], selected, { formattingOptions: formatOptions });
+            const updated = jsonc.applyEdits(raw, edits);
+            await fsp.writeFile(state.configPath, updated, 'utf-8');
 
             logInfo(`Switched profile to: ${selected}`);
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -574,7 +594,7 @@ export function registerCommands(
                 }
 
                 if (state.configPath) {
-                    persistConfig(state.configPath, state.config);
+                    await persistConfig(state.configPath, state.config);
                 }
 
                 logInfo(`Toggled layer ${layerSource.repoId}/${layerSource.path}: ${layerSource.enabled ? 'enabled' : 'disabled'}`);
@@ -616,7 +636,7 @@ export function registerCommands(
                 repo.enabled = repo.enabled === false ? true : false;
 
                 if (state.configPath) {
-                    persistConfig(state.configPath, state.config);
+                    await persistConfig(state.configPath, state.config);
                 }
 
                 logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
@@ -661,7 +681,7 @@ export function registerCommands(
 
             const addedLayers = discoverAndPersistRepoLayers(state.config, ws.uri.fsPath, repoId);
             if (addedLayers > 0 && state.configPath) {
-                persistConfig(state.configPath, state.config);
+                await persistConfig(state.configPath, state.config);
                 logInfo(`Discovered ${addedLayers} new layer(s) for ${repoId} and updated config.`);
             }
 
@@ -748,7 +768,7 @@ export function registerCommands(
                 seenLayerKeys.add(layerKey);
             }
 
-            persistConfig(state.configPath, state.config);
+            await persistConfig(state.configPath, state.config);
             logInfo(`Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`);
             await vscode.commands.executeCommand('metaflow.refresh');
         })
@@ -804,14 +824,14 @@ export function registerCommands(
 
             const removedLastRepo = state.config.metadataRepos.length === 0;
             if (removedLastRepo) {
-                fs.unlinkSync(state.configPath);
+                await fsp.unlink(state.configPath);
                 logInfo(`Removed final repo source ${repoId}; configuration file deleted.`);
                 vscode.window.showInformationMessage('MetaFlow: All repository sources removed. Initialize Configuration to start again.');
                 await vscode.commands.executeCommand('metaflow.refresh');
                 return;
             }
 
-            persistConfig(state.configPath, state.config);
+            await persistConfig(state.configPath, state.config);
             logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);
             await vscode.commands.executeCommand('metaflow.refresh');
         })
