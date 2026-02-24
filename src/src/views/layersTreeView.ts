@@ -116,6 +116,7 @@ type LayerTreeItem = LayerRepoItem | LayerItem | ArtifactTypeLayerItem;
 export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<LayerTreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+    private readonly _parentMap = new WeakMap<LayerTreeItem, LayerTreeItem | undefined>();
 
     constructor(
         private state: ExtensionState,
@@ -131,6 +132,13 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     getTreeItem(element: LayerTreeItem): vscode.TreeItem {
         return element;
+    }
+
+    private trackChildren<T extends LayerTreeItem>(items: T[], parent: LayerTreeItem | undefined): T[] {
+        for (const item of items) {
+            this._parentMap.set(item, parent);
+        }
+        return items;
     }
 
     private formatLayerLabel(layerPath: string, repoLabel?: string): string {
@@ -338,19 +346,18 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         if (element instanceof LayerRepoItem) {
             const repoEntries = entries.filter(entry => entry.repoId === element.repoId);
-            return this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode);
+            return this.trackChildren(this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode), element);
         }
 
         if (element instanceof LayerItem) {
-            // In tree mode, leaf layers (with a layerIndex) expand to show artifact-type children.
             if (typeof element.layerIndex === 'number' && mode === 'tree') {
-                return this.getArtifactTypeChildren(element.layerIndex, element.repoId);
+                return this.trackChildren(this.getArtifactTypeChildren(element.layerIndex, element.repoId), element);
             }
             const parentPath = element.pathKey === '(root)' ? '' : element.pathKey || '';
             const repoEntries = element.repoId
                 ? entries.filter(entry => entry.repoId === element.repoId)
                 : entries.filter(entry => entry.repoId === undefined);
-            return this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId, mode);
+            return this.trackChildren(this.getTreeChildrenForPrefix(repoEntries, parentPath, element.repoId, mode), element);
         }
 
         if (this.state.config?.metadataRepos && this.state.config.layerSources) {
@@ -358,12 +365,16 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const repoDisabled = new Map(this.state.config.metadataRepos.map(repo => [repo.id, repo.enabled === false]));
             const repoLabels = new Map(this.state.config.metadataRepos.map(repo => [repo.id, repo.name?.trim() || repo.id]));
 
-            return this.state.config.metadataRepos
+            return this.trackChildren(this.state.config.metadataRepos
                 .filter(repo => entries.some(entry => entry.repoId === repo.id))
                 .sort((a, b) => (repoOrder.get(a.id) ?? 0) - (repoOrder.get(b.id) ?? 0))
-                .map(repo => new LayerRepoItem(repoLabels.get(repo.id) || repo.id, repo.id, repoDisabled.get(repo.id) === true));
+                .map(repo => new LayerRepoItem(repoLabels.get(repo.id) || repo.id, repo.id, repoDisabled.get(repo.id) === true)), undefined);
         }
 
-        return this.getTreeChildrenForPrefix(entries, '');
+        return this.trackChildren(this.getTreeChildrenForPrefix(entries, ''), undefined);
+    }
+
+    getParent(element: LayerTreeItem): LayerTreeItem | undefined {
+        return this._parentMap.get(element);
     }
 }

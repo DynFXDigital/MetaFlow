@@ -166,6 +166,7 @@ class FileItem extends vscode.TreeItem {
 export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNode> {
     private _onDidChangeTreeData = new vscode.EventEmitter<FileTreeNode | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+    private readonly _parentMap = new WeakMap<FileTreeNode, FileTreeNode | undefined>();
 
     constructor(
         private state: ExtensionState,
@@ -181,6 +182,13 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
 
     getTreeItem(element: FileTreeNode): vscode.TreeItem {
         return element;
+    }
+
+    private trackChildren<T extends FileTreeNode>(items: T[], parent: FileTreeNode | undefined): T[] {
+        for (const item of items) {
+            this._parentMap.set(item, parent);
+        }
+        return items;
     }
 
     private getSourceRoots(): SourceRoot[] {
@@ -428,32 +436,30 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         const mode = this.modeResolver();
 
         if (element instanceof ArtifactTypeItem) {
-            return this.getChildrenForType(element.files, element.artifactType, roots);
+            return this.trackChildren(this.getChildrenForType(element.files, element.artifactType, roots), element);
         }
 
         if (element instanceof RepoItem) {
-            // repoTree mode: full directory hierarchy with .github stripped
-            // and artifact-type nodes promoted at whatever depth they appear.
             if (mode === 'repoTree') {
-                return this.getChildrenForPrefixHierarchical(element.files, '', roots);
+                return this.trackChildren(this.getChildrenForPrefixHierarchical(element.files, '', roots), element);
             }
-            return this.groupByArtifactType(element.files);
+            return this.trackChildren(this.groupByArtifactType(element.files), element);
         }
 
         if (element instanceof FolderItem) {
             if (mode === 'repoTree') {
-                return this.getChildrenForPrefixHierarchical(element.files, element.prefix, roots);
+                return this.trackChildren(this.getChildrenForPrefixHierarchical(element.files, element.prefix, roots), element);
             }
-            return this.getChildrenForPrefix(
+            return this.trackChildren(this.getChildrenForPrefix(
                 element.files,
                 element.prefix,
                 roots,
                 (file: EffectiveFile) => getPathAfterArtifactType(file)
-            );
+            ), element);
         }
 
         if (mode === 'repoTree') {
-            return this.getChildrenRepoTree(roots);
+            return this.trackChildren(this.getChildrenRepoTree(roots), undefined);
         }
 
         const files = this.state.effectiveFiles;
@@ -461,6 +467,10 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             return [];
         }
 
-        return this.groupByArtifactType(files);
+        return this.trackChildren(this.groupByArtifactType(files), undefined);
+    }
+
+    getParent(element: FileTreeNode): FileTreeNode | undefined {
+        return this._parentMap.get(element);
     }
 }

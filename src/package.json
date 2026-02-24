@@ -108,6 +108,26 @@
         "command": "metaflow.toggleLayersViewMode",
         "title": "MetaFlow: Toggle Layers View Mode",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "metaflow.collapseAllLayers",
+        "title": "MetaFlow: Collapse All Layers",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.expandAllLayers",
+        "title": "MetaFlow: Expand All Layers",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseAllFiles",
+        "title": "MetaFlow: Collapse All Effective Files",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.expandAllFiles",
+        "title": "MetaFlow: Expand All Effective Files",
+        "icon": "$(expand-all)"
       }
     ],
     "views": {
@@ -188,6 +208,26 @@
           "command": "metaflow.toggleLayersViewMode",
           "when": "view == metaflow-layers",
           "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.collapseAllLayers",
+          "when": "view == metaflow-layers",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.expandAllLayers",
+          "when": "view == metaflow-layers",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.collapseAllFiles",
+          "when": "view == metaflow-files",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.expandAllFiles",
+          "when": "view == metaflow-files",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [

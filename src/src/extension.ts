@@ -29,6 +29,26 @@ function getLayersViewMode(): LayersViewMode {
     return vscode.workspace.getConfiguration('metaflow').get<LayersViewMode>('layersViewMode', 'flat');
 }
 
+/**
+ * Recursively reveals all collapsible nodes in a tree view.
+ * Calling reveal() with expand:1 on each node overrides VS Code's cached
+ * collapsed state and forces the node to load and show its children.
+ * getParent() is populated via WeakMap tracking in getChildren(), giving
+ * VS Code the ancestry chain it needs to locate each node.
+ */
+async function revealAll<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: { getChildren(e?: T): T[] },
+    element?: T
+): Promise<void> {
+    for (const child of provider.getChildren(element)) {
+        if (child.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
+            await treeView.reveal(child, { expand: 1, select: false, focus: false });
+            await revealAll(treeView, provider, child);
+        }
+    }
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -70,11 +90,30 @@ export function activate(context: vscode.ExtensionContext): void {
         treeDataProvider: layersTreeViewProvider,
     });
 
+    const filesTreeView = vscode.window.createTreeView('metaflow-files', {
+        treeDataProvider: filesTreeViewProvider,
+    });
+
     context.subscriptions.push(
         configTreeView,
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
-        vscode.window.registerTreeDataProvider('metaflow-files', filesTreeViewProvider),
+        filesTreeView,
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.collapseAllLayers', () => {
+            vscode.commands.executeCommand('workbench.actions.treeView.metaflow-layers.collapseAll');
+        }),
+        vscode.commands.registerCommand('metaflow.expandAllLayers', async () => {
+            await revealAll(layersTreeView, layersTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.collapseAllFiles', () => {
+            vscode.commands.executeCommand('workbench.actions.treeView.metaflow-files.collapseAll');
+        }),
+        vscode.commands.registerCommand('metaflow.expandAllFiles', async () => {
+            await revealAll(filesTreeView, filesTreeViewProvider);
+        }),
     );
 
     context.subscriptions.push(
