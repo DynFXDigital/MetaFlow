@@ -260,4 +260,51 @@ suite('overlayEngine', () => {
             assert.strictEqual(layers.length, 0);
         });
     });
+
+    // ── TC-0602: Config loader rejects .env paths (REQ-0602) ──
+
+    suite('TC-0602: .env files excluded from overlay', () => {
+        test('.env file at layer root is not included in effective files', () => {
+            const repoDir = path.join(tmpDir, 'repo');
+            createLayer(repoDir, 'layer1', ['instructions/coding.md']);
+            // Place a .env file at the layer root
+            fs.writeFileSync(path.join(repoDir, 'layer1', '.env'), 'SECRET=value');
+            fs.writeFileSync(path.join(repoDir, 'layer1', '.env.local'), 'LOCAL_SECRET=value');
+
+            const config: MetaFlowConfig = {
+                metadataRepo: { localPath: repoDir },
+                layers: ['layer1'],
+            };
+
+            const layers = resolveLayers(config, tmpDir);
+            const fileMap = buildEffectiveFileMap(layers);
+
+            // .env files must not appear in the effective file map
+            const hasEnv = Array.from(fileMap.keys()).some(k => k.includes('.env'));
+            assert.strictEqual(hasEnv, false, '.env files at layer root must be excluded');
+
+            // Legitimate artifact file should still be present
+            assert.ok(fileMap.has('instructions/coding.md'));
+        });
+
+        test('.env file in non-artifact directory is not included', () => {
+            const repoDir = path.join(tmpDir, 'repo');
+            createLayer(repoDir, 'layer1', ['instructions/guide.md']);
+            // Place .env in a non-artifact subdirectory
+            const configDir = path.join(repoDir, 'layer1', 'config');
+            fs.mkdirSync(configDir, { recursive: true });
+            fs.writeFileSync(path.join(configDir, '.env'), 'DB_PASSWORD=secret');
+
+            const config: MetaFlowConfig = {
+                metadataRepo: { localPath: repoDir },
+                layers: ['layer1'],
+            };
+
+            const layers = resolveLayers(config, tmpDir);
+            const fileMap = buildEffectiveFileMap(layers);
+
+            const hasEnv = Array.from(fileMap.keys()).some(k => k.includes('.env'));
+            assert.strictEqual(hasEnv, false, '.env files in non-artifact dirs must be excluded');
+        });
+    });
 });
