@@ -48,6 +48,7 @@ import {
     type FilesViewMode,
     type LayersViewMode,
     normalizeAndDeduplicateLayerPaths,
+    pruneStaleLayerSources,
 } from './commandHelpers';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
@@ -363,9 +364,15 @@ export function registerCommands(
 
             clearDiagnostics(diagnosticCollection);
             const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-            if (configNormalized && result.configPath) {
+            const prunedLayers = pruneStaleLayerSources(result.config, ws.uri.fsPath);
+            if ((configNormalized || prunedLayers.length > 0) && result.configPath) {
                 await persistConfig(result.configPath, result.config);
-                logInfo('Normalized layer paths in config (removed redundant .github suffix entries).');
+                if (configNormalized) {
+                    logInfo('Normalized layer paths in config (removed redundant .github suffix entries).');
+                }
+                if (prunedLayers.length > 0) {
+                    logInfo(`Pruned ${prunedLayers.length} stale layer source(s) from config: ${prunedLayers.join(', ')}`);
+                }
             }
             state.config = result.config;
             state.configPath = result.configPath;

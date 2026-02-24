@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
     isInjectionMode,
     deriveRepoId,
@@ -12,6 +15,7 @@ import {
     normalizeLayersViewMode,
     normalizeLayerPath,
     normalizeAndDeduplicateLayerPaths,
+    pruneStaleLayerSources,
 } from '../../commands/commandHelpers';
 
 suite('Command Helpers', () => {
@@ -151,5 +155,80 @@ suite('Command Helpers', () => {
 
         const changed = normalizeAndDeduplicateLayerPaths(config as never);
         assert.strictEqual(changed, false);
+    });
+});
+
+suite('pruneStaleLayerSources', () => {
+    let tmpDir: string;
+
+    setup(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-prune-'));
+    });
+
+    teardown(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    test('removes multi-repo layer sources whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present'), { recursive: true });
+
+        const config = {
+            metadataRepos: [{ id: 'org', localPath: repoRoot, enabled: true }],
+            layerSources: [
+                { repoId: 'org', path: 'present', enabled: true },
+                { repoId: 'org', path: 'removed', enabled: true },
+            ],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['org/removed']);
+        assert.strictEqual(config.layerSources.length, 1);
+        assert.strictEqual(config.layerSources[0].path, 'present');
+    });
+
+    test('removes single-repo layers whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'meta');
+        fs.mkdirSync(path.join(repoRoot, 'live'), { recursive: true });
+
+        const config = {
+            metadataRepo: { localPath: repoRoot },
+            layers: ['live', 'gone'],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['gone']);
+        assert.deepStrictEqual(config.layers, ['live']);
+    });
+
+    test('returns empty array when all layers exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'a'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'b'), { recursive: true });
+
+        const config = {
+            metadataRepos: [{ id: 'org', localPath: repoRoot, enabled: true }],
+            layerSources: [
+                { repoId: 'org', path: 'a', enabled: true },
+                { repoId: 'org', path: 'b', enabled: true },
+            ],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, []);
+        assert.strictEqual(config.layerSources.length, 2);
+    });
+
+    test('leaves entries with unknown repoId untouched', () => {
+        const config = {
+            metadataRepos: [{ id: 'known', localPath: tmpDir, enabled: true }],
+            layerSources: [
+                { repoId: 'unknown', path: 'whatever', enabled: true },
+            ],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, []);
+        assert.strictEqual(config.layerSources.length, 1);
     });
 });

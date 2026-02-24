@@ -1,4 +1,6 @@
+import * as fs from 'fs';
 import * as path from 'path';
+import { resolvePathFromWorkspace } from '@metaflow/engine';
 import type { MetaFlowConfig } from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
@@ -141,6 +143,50 @@ export function normalizeFilesViewMode(value: unknown): FilesViewMode {
 
 export function normalizeLayersViewMode(value: unknown): LayersViewMode {
     return value === 'tree' ? 'tree' : 'flat';
+}
+
+/**
+ * Remove layerSources / layers entries whose directories no longer exist on disk.
+ * Mutates config in-place. Returns the display strings of pruned entries.
+ */
+export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: string): string[] {
+    const pruned: string[] = [];
+
+    if (config.layerSources && config.metadataRepos) {
+        const repoMap = new Map<string, string>();
+        for (const repo of config.metadataRepos) {
+            if (repo.enabled !== false) {
+                repoMap.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
+            }
+        }
+
+        const kept = config.layerSources.filter(ls => {
+            const repoRoot = repoMap.get(ls.repoId);
+            if (!repoRoot) { return true; } // unknown repoId — leave for validator
+            const absPath = path.join(repoRoot, ls.path);
+            if (!fs.existsSync(absPath)) {
+                pruned.push(`${ls.repoId}/${ls.path}`);
+                return false;
+            }
+            return true;
+        });
+        config.layerSources = kept;
+    }
+
+    if (config.layers && config.metadataRepo) {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
+        const kept = config.layers.filter(layerPath => {
+            const absPath = path.join(repoRoot, layerPath);
+            if (!fs.existsSync(absPath)) {
+                pruned.push(layerPath);
+                return false;
+            }
+            return true;
+        });
+        config.layers = kept;
+    }
+
+    return pruned;
 }
 
 export function normalizeLayerPath(layerPath: string): string {
