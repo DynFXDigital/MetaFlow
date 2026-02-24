@@ -29,57 +29,37 @@
   "layerSources": [
     {
       "repoId": "primary",
-      "path": "ai-metadata",
+      "path": "capabilities/communication",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "company",
+      "path": "capabilities/devtools",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "packages/core",
+      "path": "capabilities/git-version-control",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "packages/devtools",
+      "path": "capabilities/metadata-authoring",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "packages/documentation",
+      "path": "capabilities/planning",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "packages/metadata-authoring",
+      "path": "capabilities/reflection",
       "enabled": true
     },
     {
       "repoId": "primary",
-      "path": "packages/planning",
-      "enabled": true
-    },
-    {
-      "repoId": "primary",
-      "path": "packages/reflection",
-      "enabled": true
-    },
-    {
-      "repoId": "primary",
-      "path": "packages/testing",
-      "enabled": true
-    },
-    {
-      "repoId": "primary",
-      "path": "standards/devtools",
-      "enabled": true
-    },
-    {
-      "repoId": "primary",
-      "path": "standards/sdlc/ai-editor-sdlc",
+      "path": "capabilities/sdlc-traceability",
       "enabled": true
     }
   ]

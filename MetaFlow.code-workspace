@@ -11,24 +11,24 @@
 		"powershell.cwd": "MetaFlow",
 		"debug.onTaskErrors": "debugAnyway",
 		"chat.instructionsFilesLocations": {
-			"../DFX-AI-Metadata/packages/core/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/devtools/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/documentation/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/metadata-authoring/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/planning/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/reflection/.github/instructions": true,
-			"../DFX-AI-Metadata/packages/testing/.github/instructions": true,
-			"../DFX-AI-Metadata/standards/devtools/.github/instructions": true,
-			"../DFX-AI-Metadata/standards/sdlc/ai-editor-sdlc/.github/instructions": true
+			"../DFX-AI-Metadata/capabilities/communication/.github/instructions": true,
+			"../DFX-AI-Metadata/capabilities/devtools/.github/instructions": true,
+			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/instructions": true,
+			"../DFX-AI-Metadata/capabilities/planning/.github/instructions": true,
+			"../DFX-AI-Metadata/capabilities/reflection/.github/instructions": true,
+			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/instructions": true
 		},
 		"chat.promptFilesLocations": {
-			"../DFX-AI-Metadata/packages/core/.github/prompts": true,
-			"../DFX-AI-Metadata/packages/planning/.github/prompts": true,
-			"../DFX-AI-Metadata/packages/reflection/.github/prompts": true,
-			"../DFX-AI-Metadata/packages/testing/.github/prompts": true
+			"../DFX-AI-Metadata/capabilities/git-version-control/.github/prompts": true,
+			"../DFX-AI-Metadata/capabilities/planning/.github/prompts": true,
+			"../DFX-AI-Metadata/capabilities/reflection/.github/prompts": true,
+			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/prompts": true
+		},
+		"chat.agentFilesLocations": {
+			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/agents": true
 		},
 		"chat.agentSkillsLocations": {
-			"../DFX-AI-Metadata/packages/documentation/.github/skills": true
+			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/skills": true
 		},
 	}
 }
