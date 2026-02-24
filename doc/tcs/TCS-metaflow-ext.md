@@ -143,6 +143,10 @@
 | TC-0332 | Apply injects agent and skill locations | Config with settings-classified agents/skills | Run `metaflow.apply` and inspect workspace settings | `chat.agentFilesLocations` and `chat.agentSkillsLocations` are populated | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0333 | Hooks-disabled mode suppresses hook setting injection | Config has hooks; `metaflow.hooksEnabled=false` | Run refresh and inspect workspace settings | `chat.hookFilesLocations` is not injected when hooks are disabled | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
 | TC-0334 | Promote reports no-drift status explicitly | Managed state has no drifted files | Run `metaflow.promote` and observe informational status | User receives explicit no-drift informational message | Integration | High | Pass | `test/integration/commands.test.ts` | Phase 4 |
+| TC-0600 | Deterministic output across identical runs | Same config + same metadata file set | Run `apply` twice with identical inputs and compare outputs | Both runs produce byte-identical materialized files | Unit | Critical | Pass | `test/unit/materializer.test.ts` | Phase 6 |
+| TC-0601 | No auto-commit after operations | Workspace with clean git status | Run apply, clean, promote, switchProfile | `git status` shows no new commits after any operation | Unit + Manual | Critical | Pass | `test/unit/safetyConstraints.test.ts` | Phase 6 |
+| TC-0602 | Config loader rejects .env paths | Layer path list containing `.env` or `.env.local` entries | Load config and resolve layers | Loader rejects or filters paths matching `.env*` patterns | Unit | Critical | Pass | `test/unit/overlayEngine.test.ts` | Phase 6 |
+| TC-0603 | Path traversal outside repo root is rejected | Layer path containing `../../outside-repo` escaping metadata repo boundary | Resolve effective file paths | Path is rejected with error; no files outside repo root are produced | Unit | Critical | Pass | `test/unit/materializer.test.ts` | Phase 6 |
 
 ## Traceability Matrix (TC → REQ)
 
@@ -193,20 +197,31 @@
 | TC-0333 | | X | X | | | X |
 | TC-0334 | | | | X | | |
 
+### Supplemental Matrix (Safety requirements REQ-060x)
+
+| TC-ID | REQ-0600 | REQ-0601 | REQ-0602 | REQ-0603 |
+|---|---|---|---|---|
+| TC-0600 | X | | | |
+| TC-0601 | | X | | |
+| TC-0602 | | | X | |
+| TC-0603 | | | | X |
+
 ## Traceability (Gap Analysis)
 
 | Check | Expected | Current | Notes |
 |---|---:|---:|---|
-| TC maps to ≥1 REQ | 74 | 74 | All test cases map to at least one requirement. |
+| TC maps to ≥1 REQ | 78 | 78 | All test cases map to at least one requirement. |
 | Enforced REQ covered by ≥1 TC (Config) | 8 | 8 | All config REQs covered. |
 | Enforced REQ covered by ≥1 TC (Overlay) | 13 | 12 | REQ-0103 (cross-repo) partially covered via multi-repo tests. |
 | Enforced REQ covered by ≥1 TC (Materialization) | 13 | 13 | All materialization REQs covered. |
 | Enforced REQ covered by ≥1 TC (UI/Commands) | 10 | 10 | All Phase 4 REQs covered by integration tests. |
+| Enforced REQ covered by ≥1 TC (Safety) | 4 | 4 | REQ-0600–REQ-0603 covered by TC-0600–TC-0603 (Pending execution). |
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-23 | F-006 closure: added TC-0600 through TC-0603 for REQ-0600–REQ-0603 safety requirements; added safety traceability matrix; updated gap analysis | AI |
 | 2026-02-22 | Added TC-0245 through TC-0250 for extracted helper modules, runner determinism, and coverage guard evidence | AI |
 | 2026-02-22 | Added TC-0331 through TC-0334 for watcher refresh, settings injection edges, and promote no-drift contract | AI |
 | 2026-02-21 | Added TC-0329 and TC-0330 for config diagnostics publish/clear behavior on refresh | AI |

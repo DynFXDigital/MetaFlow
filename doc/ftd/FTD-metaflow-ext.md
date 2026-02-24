@@ -42,6 +42,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 | TP-A016 | Runtime discovery + repository rescan | Automated | `npm -w @metaflow/engine test` and `npm test` | Mocha + Extension Host output | TC-0119, TC-0125, TC-0126, TC-0316 |
 | TP-A017 | Command contract hardening (watcher/settings/promote) | Automated | `npm test` | Extension Host output | TC-0331–TC-0334 |
 | TP-A018 | Unit helper rigor + runner determinism | Automated | `npm run test:unit` and `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Mocha + c8 output | TC-0245–TC-0250 |
+| TP-A019 | Safety requirement constraints | Automated | `npm run test:unit` | Mocha output | TC-0600–TC-0603 |
 
 ### Manual Procedures
 

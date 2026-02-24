@@ -115,8 +115,8 @@ VS Code integration (commands, views, diagnostics) wraps the engine in `src/comm
 cd src
 npm install
 npm run compile
-npm run test:unit    # 111 unit tests
-npm test             # 21 integration tests (Extension Host)
+npm run test:unit    # unit tests
+npm test             # integration tests (Extension Host)
 npm run lint
 ```
 

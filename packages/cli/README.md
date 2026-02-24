@@ -148,7 +148,7 @@ metaflow profile set lean
 # Build
 npm -w @metaflow/cli run build
 
-# Test (44 integration tests)
+# Test
 npm -w @metaflow/cli test
 
 # Watch

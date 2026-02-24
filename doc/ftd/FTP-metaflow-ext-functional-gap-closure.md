@@ -66,7 +66,7 @@
 | GAP-003 | TC-0310 | Missing watcher path coverage | Critical | MetaFlow Maintainers | 2026-03-04 | Add config create/change/delete watcher-triggered refresh test | Open |
 | GAP-004 | TC-0312/TC-0313 | Missing progress contract assertions | High | MetaFlow Maintainers | 2026-03-04 | Assert progress notification behavior for apply and clean | Open |
 | GAP-005 | TC-0312 | Incomplete settings matrix | High | MetaFlow Maintainers | 2026-03-08 | Add functional matrix for skills/agents/hooks injection and hooks disable | Open |
-| GAP-006 | TC-(new) | Missing safety TCs for REQ-0601/0602/0603 | Critical | MetaFlow Maintainers | 2026-03-10 | Add new TC IDs and automated tests for safety constraints | Open |
+| GAP-006 | TC-0600–TC-0603 | Safety TCs for REQ-0600/0601/0602/0603 | Critical | MetaFlow Maintainers | 2026-02-24 | 8 automated tests implemented (safetyConstraints.test.ts, materializer.test.ts, overlayEngine.test.ts); 181 unit tests passing | Closed |
 | GAP-007 | TC-0101/TC-0116 | Integration gap for cross-repo precedence | High | MetaFlow Maintainers | 2026-03-10 | Add integration scenario proving global precedence across repos | Open |
 | GAP-008 | TC-0307/TC-0308/TC-0309 | Manual-only UI lock-down evidence missing | Medium | QA Owner (TBD) | 2026-03-15 | Execute manual procedures and append evidence to FTR | Open |
 
@@ -74,12 +74,15 @@
 
 | Gate | Rule | Current | Target | Status |
 |---|---|---:|---:|---|
-| REQ coverage | Enforced REQ has >=1 TC | 46 | 49 | Fail |
+| REQ coverage | Enforced REQ has >=1 TC | 49 | 49 | Pass |
 | TC procedure coverage | Each TC has >=1 TP | 70 | 70 | Pass |
 | High-risk gaps | Unclosed high-risk gaps | 7 | 0 | Fail |
+
+> **Authority Note:** This plan tracks gap-closure work-in-progress. The FTR (`FTR-metaflow-ext.md`) is the authority-of-record for release readiness decisions. Open gaps here represent improvement targets and do not automatically override the FTR release gate unless escalated by maintainers.
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-23 | F-004 closure: added authority note clarifying FTP vs FTR relationship; aligned with FTR Residual Risk cross-reference | AI |
 | 2026-02-22 | Initial gap-closure plan for functional lock-down | AI |

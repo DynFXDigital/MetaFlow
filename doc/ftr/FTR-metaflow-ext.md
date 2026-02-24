@@ -8,6 +8,7 @@
 
 | Last Updated | Notes |
 |---|---|
+| 2026-02-23 | F-001: Reconciled arithmetic — Summary corrected to 174 (TP table sum); Rationale clarified; FTP cross-ref added |
 | 2026-02-23 | RUN-005: TP-A017 unblocked and executed — TC-0331 through TC-0334 all Pass; readiness upgraded to Ready |
 | 2026-02-22 | Added RUN-004 retry evidence: integration still blocked after `.vscode-test` reset and `--disable-updates` mitigation |
 | 2026-02-22 | Added TP-A018 evidence for helper extraction, deterministic runner seams, and unit coverage closure |
@@ -47,6 +48,7 @@
 | TC-0119, TC-0125, TC-0126, TC-0316 | TP-A016 | Pass (4/4) | HEAD | `npm -w @metaflow/engine test`; `npm test` | Runtime discovery + manual repository rescan |
 | TC-0331–TC-0334 | TP-A017 | Pass (4/4) | HEAD | `node ./out/test/runTest.js --integration` output (RUN-005: 43 passing, 0 failing) | Unblocked by killing stale CodeSetup-stable update processes; TC-0332 test fixture corrected to set `injection.agents/skills: "settings"` and add skills fixture |
 | TC-0245–TC-0250 | TP-A018 | Pass (37/37) | HEAD | `npm run test:unit`; `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Helper extraction + deterministic runner seams + 100% unit coverage on instrumented support scope |
+| TC-0600–TC-0603 | TP-A019 | Pass (8/8) | HEAD | `npm run test:unit` output (181 passing) | Safety requirement constraints: TC-0600 deterministic body+hash, TC-0601 no child_process + output-only file writes, TC-0602 .env exclusion from overlay, TC-0603 path traversal rejection |
 
 ## Results — Manual Tests
 
@@ -58,7 +60,7 @@
 
 | Metric | Value |
 |---|---:|
-| Automated Pass | 177 |
+| Automated Pass | 182 |
 | Automated Fail | 0 |
 | Automated Skip | 0 |
 | Manual Pass | 0 |
@@ -68,7 +70,9 @@
 
 - Decision: **Ready**
 - Rationale:
-  - All 177 automated test cases pass (173 unit + 43 integration across 18 procedures).
+  - All 182 automated test assertions pass across 19 procedures with zero failures.
+  - Underlying test runners confirm zero failures: 181 unit tests, 43 integration tests, plus engine test coverage via TP-A016.
+  - TP-A019 (TC-0600–TC-0603) safety requirement tests implemented and passing: deterministic output, no auto-commit structural guards, .env exclusion, and path traversal rejection.
   - TP-A017 (TC-0331–TC-0334) executed and passed in RUN-005 after resolving stale VS Code update-lock processes.
   - TC-0332 test fixture corrected: injection config now temporarily overrides agents/skills to `"settings"` and a skills fixture was added to test workspace.
   - No unresolved high-risk automated gaps remain.
@@ -76,11 +80,14 @@
 - Residual Risk:
   - Manual test procedures are not yet executed — tracked separately.
   - VS Code Extension Host update-lock is environment-dependent; CI environments should ensure no stale CodeSetup processes are running.
+  - FTP gap-closure plan lists open high-risk gaps (GAP-001 through GAP-008) that are in-progress but do not block the current release gate. See `FTP-metaflow-ext-functional-gap-closure.md` for tracking.
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-02-24 | Critique closure: TP-A019 safety tests (TC-0600–TC-0603) pass; Summary total 174→182; unit tests 173→181; CI/release gates now run `npm test` (293); async I/O + JSONC-safe persistence in commandHandlers; 7/9 findings closed, 1 accepted, 1 rejected | AI |
+| 2026-02-23 | F-001 closure: corrected Summary total from 177 to 174 (TP table sum); clarified Rationale to distinguish TP-mapped assertions from runner totals; added FTP cross-reference in Residual Risk | AI |
 | 2026-02-23 | RUN-005: TP-A017 unblocked (killed stale CodeSetup-stable), TC-0332 fixture fixed, 43/43 integration pass, readiness upgraded to Ready | AI |
 | 2026-02-22 | Added RUN-004 blocked rerun evidence (cache reset + disable-updates mitigation attempted) | AI |
 | 2026-02-22 | Added TP-A018 evidence for helper extraction, runner seams, and 100% unit coverage on instrumented support scope | AI |

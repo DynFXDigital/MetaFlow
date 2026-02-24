@@ -13,22 +13,22 @@ npm -w @metaflow/engine run build
 npm -w @metaflow/cli run build
 cd src
 npm run compile
-npm run test:unit   # 111 unit tests (fast, no Extension Host)
-npm test            # 21 integration tests (launches Extension Host)
+npm run test:unit   # unit tests (fast, no Extension Host)
+npm test            # integration tests (launches Extension Host)
 npm run lint
 cd ..
-npm -w @metaflow/engine test    # 46 engine API tests
-npm -w @metaflow/cli test       # 56 CLI integration tests
-npm test                         # 213 tests (engine + CLI + extension unit)
+npm -w @metaflow/engine test    # engine API tests
+npm -w @metaflow/cli test       # CLI integration tests
+npm test                         # all tests (engine + CLI + extension unit)
 ```
 
 ## Architecture
 
 - `packages/engine/src/config/` — Config model, loader, path discovery
 - `packages/engine/src/engine/` — Pure TS engine (no `vscode` imports): overlay, filter, profile, classifier, materializer, provenance, drift, managed state, settings injector
-- `packages/engine/test/` — Engine standalone tests (Mocha, 46 tests)
+- `packages/engine/test/` — Engine standalone tests (Mocha)
 - `packages/cli/src/` — TypeScript CLI (Commander.js): status, preview, apply, clean, profile, promote (--auto), validate, watch, init
-- `packages/cli/test/` — CLI integration tests (Mocha, 56 tests)
+- `packages/cli/test/` — CLI integration tests (Mocha)
 - `src/src/commands/` — VS Code command handlers, init config
 - `src/src/views/` — TreeView providers, status bar, output channel
 - `src/src/diagnostics/` — Problems panel integration

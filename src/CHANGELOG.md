@@ -16,10 +16,10 @@ All notable changes to the MetaFlow extension will be documented in this file.
 - **Drift Detector**: Content-hash comparison for in-sync/drifted/missing/untracked classification.
 - **Materializer**: Apply/clean/preview workflows with drift protection and stale-file removal.
 - **Settings Injector**: Computes VS Code settings entries for Copilot alternate-path injection.
-- **10 Commands**: refresh, preview, apply, clean, status, switchProfile, toggleLayer, openConfig, initConfig, promote.
+- **16 Commands**: refresh, preview, apply, clean, status, switchProfile, toggleLayer, toggleRepoSource, addRepoSource, removeRepoSource, rescanRepository, openConfig, initConfig, promote, toggleFilesViewMode, toggleLayersViewMode.
 - **4 TreeView Providers**: Config summary, profiles, layers, effective files.
 - **Status Bar**: Profile + file count display with idle/loading/error/drift states.
 - **Output Channel**: Timestamped structured logging with configurable verbosity.
 - **Config Diagnostics**: Problems panel integration for config validation errors.
-- **111 Unit Tests** + **21 Integration Tests** — all passing.
+- **173 Unit Tests** + **43 Integration Tests** — all passing.
 - **Full Traceability Documentation**: SRS, SDD, TCS, FTD, FTR, VSRS, VTC, VTP, VTR.
