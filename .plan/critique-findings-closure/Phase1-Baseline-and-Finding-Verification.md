@@ -12,12 +12,12 @@ Establish an authoritative before-state and confirm which findings are consensus
 
 ## Tasks
 
-- [ ] Build a findings ledger with fields: `Finding ID`, `Source Reports`, `Current Evidence`, `Status`, `Owner`, `Target Phase`.
-- [ ] Reconfirm arithmetic and statement consistency in `doc/ftr/FTR-metaflow-ext.md` and `doc/ftd/FTP-metaflow-ext-functional-gap-closure.md`.
-- [ ] Reconfirm operational-count drift in `AGENTS.md` and `src/CHANGELOG.md` against current command/test inventories.
-- [ ] Verify CI/release workflow test-gate behavior in `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
-- [ ] Verify REQ-060x coverage chain in `SRS -> TCS -> FTD -> FTR`.
-- [ ] Verify proposed API warning reproducibility for `viewContainer/title` contribution.
+- [x] Build a findings ledger with fields: `Finding ID`, `Source Reports`, `Current Evidence`, `Status`, `Owner`, `Target Phase`.
+- [x] Reconfirm arithmetic and statement consistency in `doc/ftr/FTR-metaflow-ext.md` and `doc/ftd/FTP-metaflow-ext-functional-gap-closure.md`.
+- [x] Reconfirm operational-count drift in `AGENTS.md` and `src/CHANGELOG.md` against current command/test inventories.
+- [x] Verify CI/release workflow test-gate behavior in `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
+- [x] Verify REQ-060x coverage chain in `SRS -> TCS -> FTD -> FTR`.
+- [x] Verify proposed API warning reproducibility for `viewContainer/title` contribution.
 
 ## Deliverables
 

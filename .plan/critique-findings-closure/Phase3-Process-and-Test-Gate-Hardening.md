@@ -6,12 +6,12 @@ Ensure CI and release workflows enforce the intended quality gate and prevent re
 
 ## Tasks
 
-- [ ] Define and document test-gate policy: minimum suites for PR CI and release tags.
-- [ ] Update `.github/workflows/ci.yml` to match intended gate (including engine/CLI/extension coverage as required).
-- [ ] Update `.github/workflows/release.yml` to enforce release gate consistently with policy.
-- [ ] Add workflow comments explaining why each suite is included/excluded.
-- [ ] Add lightweight drift checks for critical documented counts/claims where practical.
-- [ ] Validate workflow updates through targeted dry runs or equivalent verification.
+- [x] Define and document test-gate policy: minimum suites for PR CI and release tags.
+- [x] Update `.github/workflows/ci.yml` to match intended gate (including engine/CLI/extension coverage as required).
+- [x] Update `.github/workflows/release.yml` to enforce release gate consistently with policy.
+- [x] Add workflow comments explaining why each suite is included/excluded.
+- [x] Add lightweight drift checks for critical documented counts/claims where practical.
+- [x] Validate workflow updates through targeted dry runs or equivalent verification.
 
 ## Deliverables
 

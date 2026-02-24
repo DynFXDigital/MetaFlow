@@ -6,15 +6,15 @@ Fix release-readiness document integrity issues and close traceability gaps that
 
 ## Tasks
 
-- [ ] Correct arithmetic and summary statements in `doc/ftr/FTR-metaflow-ext.md`.
-- [ ] Reconcile readiness statement conflicts between `FTR` and `FTP` and declare a clear authority model.
-- [ ] Refresh operational counts and command inventory in `AGENTS.md` and `src/CHANGELOG.md`.
-- [ ] Confirm requirement naming/path consistency where critiques identified mismatch candidates.
-- [ ] For REQ-060x:
-  - [ ] Add/confirm `TC-*` entries in `doc/tcs/TCS-metaflow-ext.md`.
-  - [ ] Add/confirm executable `TP-*` procedures in `doc/ftd/FTD-metaflow-ext.md`.
-  - [ ] Record pass/fail evidence linkage in `doc/ftr/FTR-metaflow-ext.md`.
-- [ ] Ensure docs maintain required traceability constraints (no forward-links in SRS; complete downstream links).
+- [x] Correct arithmetic and summary statements in `doc/ftr/FTR-metaflow-ext.md`.
+- [x] Reconcile readiness statement conflicts between `FTR` and `FTP` and declare a clear authority model.
+- [x] Refresh operational counts and command inventory in `AGENTS.md` and `src/CHANGELOG.md`.
+- [x] Confirm requirement naming/path consistency where critiques identified mismatch candidates.
+- [x] For REQ-060x:
+  - [x] Add/confirm `TC-*` entries in `doc/tcs/TCS-metaflow-ext.md`.
+  - [x] Add/confirm executable `TP-*` procedures in `doc/ftd/FTD-metaflow-ext.md`.
+  - [x] Record pass/fail evidence linkage in `doc/ftr/FTR-metaflow-ext.md`.
+- [x] Ensure docs maintain required traceability constraints (no forward-links in SRS; complete downstream links).
 
 ## Deliverables
 

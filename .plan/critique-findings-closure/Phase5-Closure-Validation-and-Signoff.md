@@ -6,11 +6,11 @@ Execute end-to-end closure validation and publish the final readiness dispositio
 
 ## Tasks
 
-- [ ] Run smallest relevant test scopes per change set, then full required suites.
-- [ ] Capture command outputs and execution evidence for all updated traceability rows.
-- [ ] Re-run critique delta check against the combined report to verify finding closure.
-- [ ] Update `doc/ftr/FTR-metaflow-ext.md` with final closure status and any residual risks.
-- [ ] Update `.plan/critique-findings-closure/Context.md` to completed outcome state.
+- [x] Run smallest relevant test scopes per change set, then full required suites.
+- [x] Capture command outputs and execution evidence for all updated traceability rows.
+- [x] Re-run critique delta check against the combined report to verify finding closure.
+- [x] Update `doc/ftr/FTR-metaflow-ext.md` with final closure status and any residual risks.
+- [x] Update `.plan/critique-findings-closure/Context.md` to completed outcome state.
 
 ## Deliverables
 

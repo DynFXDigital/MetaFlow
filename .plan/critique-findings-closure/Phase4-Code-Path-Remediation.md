@@ -6,12 +6,12 @@ Remediate implementation risks in extension command paths while preserving funct
 
 ## Tasks
 
-- [ ] Inventory sync filesystem calls in `src/src/commands/commandHandlers.ts` and related helpers.
-- [ ] Migrate command-path sync operations to async (`vscode.workspace.fs` or `fs/promises`) with proper error surfacing.
-- [ ] Add/upgrade unit tests for command behavior affected by async migration.
-- [ ] Validate config-write semantics for JSONC files:
-  - [ ] Preserve comments/format where required using JSONC edit APIs.
-  - [ ] Document and test expected behavior for normalization edge cases.
+- [x] Inventory sync filesystem calls in `src/src/commands/commandHandlers.ts` and related helpers.
+- [x] Migrate command-path sync operations to async (`vscode.workspace.fs` or `fs/promises`) with proper error surfacing.
+- [x] Add/upgrade unit tests for command behavior affected by async migration.
+- [x] Validate config-write semantics for JSONC files:
+  - [x] Preserve comments/format where required using JSONC edit APIs.
+  - [x] Document and test expected behavior for normalization edge cases.
 - [ ] Strengthen integration tests where no-throw oracles are currently too weak.
 - [ ] If proposed API warning is confirmed, refactor menu contributions for stable compatibility.
 
