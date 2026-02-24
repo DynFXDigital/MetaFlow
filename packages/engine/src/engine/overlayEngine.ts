@@ -109,6 +109,10 @@ function resolveSingleRepoLayers(
             continue; // skip layer silently — diagnostics handle this elsewhere
         }
 
+        if (!fs.existsSync(layerAbsPath)) {
+            continue; // directory was removed — omit this layer from results
+        }
+
         const files = walkDirectory(layerAbsPath, layerAbsPath);
         result.push({
             layerId: layerPath,
@@ -198,6 +202,10 @@ function resolveMultiRepoLayers(
 
         if (!isWithinBoundary(layerAbsPath, repoRoot)) {
             continue;
+        }
+
+        if (!fs.existsSync(layerAbsPath)) {
+            continue; // directory was removed — omit this layer from results
         }
 
         const files = walkDirectory(layerAbsPath, layerAbsPath);

@@ -129,15 +129,14 @@ suite('overlayEngine', () => {
             assert.strictEqual(layers[0].files.length, 2);
         });
 
-        test('non-existent layer directory returns empty files', () => {
+        test('non-existent layer directory is omitted from results', () => {
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: tmpDir },
                 layers: ['does-not-exist'],
             };
 
             const layers = resolveLayers(config, tmpDir);
-            assert.strictEqual(layers.length, 1);
-            assert.strictEqual(layers[0].files.length, 0);
+            assert.strictEqual(layers.length, 0);
         });
     });
 

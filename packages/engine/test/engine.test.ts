@@ -731,7 +731,7 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.strictEqual(layers.length, 0);
     });
 
-    it('resolveLayers handles missing layer directory gracefully', () => {
+    it('resolveLayers omits a single-repo layer whose directory no longer exists', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(repoDir, { recursive: true });
 
@@ -741,8 +741,27 @@ describe('Engine: overlay multi-repo resolution', () => {
         };
 
         const layers = resolveLayers(config, tmpDir);
+        // Removed directory — layer must not appear in overlay results
+        assert.strictEqual(layers.length, 0);
+    });
+
+    it('resolveLayers omits a multi-repo layer whose directory no longer exists', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'present', 'chatmodes', 'base.chatmode.md'), '# Base');
+        // 'removed-layer' directory intentionally not created
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [{ id: 'org', localPath: 'repos/org' }],
+            layerSources: [
+                { repoId: 'org', path: 'present' },
+                { repoId: 'org', path: 'removed-layer' },
+            ],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
         assert.strictEqual(layers.length, 1);
-        assert.strictEqual(layers[0].files.length, 0);
+        assert.strictEqual(layers[0].layerId, 'org/present');
     });
 
     it('discovers runtime layers when repo discovery is enabled', () => {
