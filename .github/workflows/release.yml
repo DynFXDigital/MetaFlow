@@ -94,8 +94,10 @@ jobs:
       - name: Build workspace
         run: npm run build
 
-      - name: Run unit tests
-        run: npm run test:unit
+      # Release gate: engine + CLI + extension unit tests.
+      # Integration tests require Extension Host display and are excluded.
+      - name: Run all unit tests
+        run: npm test
 
       - name: Package extension
         working-directory: src
@@ -185,8 +187,9 @@ jobs:
       - name: Build workspace
         run: npm run build
 
-      - name: Run unit tests
-        run: npm run test:unit
+      # Publish gate: same policy as release job above.
+      - name: Run all unit tests
+        run: npm test
 
       - name: Package extension
         working-directory: src
