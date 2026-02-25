@@ -111,23 +111,43 @@
       },
       {
         "command": "metaflow.collapseAllLayers",
-        "title": "MetaFlow: Collapse All Layers",
+        "title": "Collapse",
         "icon": "$(collapse-all)"
       },
       {
         "command": "metaflow.expandAllLayers",
-        "title": "MetaFlow: Expand All Layers",
+        "title": "Expand",
         "icon": "$(expand-all)"
       },
       {
         "command": "metaflow.collapseAllFiles",
-        "title": "MetaFlow: Collapse All Effective Files",
+        "title": "Collapse",
         "icon": "$(collapse-all)"
       },
       {
         "command": "metaflow.expandAllFiles",
-        "title": "MetaFlow: Expand All Effective Files",
+        "title": "Expand",
         "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.expandLayersBranch",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseLayersBranch",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.expandFilesBranch",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseFilesBranch",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
       }
     ],
     "views": {
@@ -250,6 +270,26 @@
           "command": "metaflow.addRepoSource",
           "when": "view == metaflow-config && viewItem == configRepoSection",
           "group": "inline"
+        },
+        {
+          "command": "metaflow.expandLayersBranch",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.collapseLayersBranch",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@2"
+        },
+        {
+          "command": "metaflow.expandFilesBranch",
+          "when": "view == metaflow-files && (viewItem == effectiveRepo || viewItem == artifactTypeFolder || viewItem == effectiveFolder)",
+          "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.collapseFilesBranch",
+          "when": "view == metaflow-files && (viewItem == effectiveRepo || viewItem == artifactTypeFolder || viewItem == effectiveFolder)",
+          "group": "navigation@2"
         }
       ]
     },

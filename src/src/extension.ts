@@ -49,6 +49,24 @@ async function revealAll<T extends vscode.TreeItem>(
     }
 }
 
+async function revealBranch<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: { getChildren(e?: T): T[] },
+    element: T
+): Promise<void> {
+    await treeView.reveal(element, { expand: 1, select: false, focus: false });
+    await revealAll(treeView, provider, element);
+}
+
+async function collapseBranch<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    element: T
+): Promise<void> {
+    // list.collapse operates on the focused tree item; select/focus the branch root first.
+    await treeView.reveal(element, { expand: false, select: true, focus: true });
+    await vscode.commands.executeCommand('list.collapse');
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -113,6 +131,30 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
         vscode.commands.registerCommand('metaflow.expandAllFiles', async () => {
             await revealAll(filesTreeView, filesTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.expandLayersBranch', async (item?: vscode.TreeItem) => {
+            if (!item || item.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+                return;
+            }
+            await revealBranch(layersTreeView, layersTreeViewProvider, item);
+        }),
+        vscode.commands.registerCommand('metaflow.collapseLayersBranch', async (item?: vscode.TreeItem) => {
+            if (!item || item.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+                return;
+            }
+            await collapseBranch(layersTreeView, item);
+        }),
+        vscode.commands.registerCommand('metaflow.expandFilesBranch', async (item?: vscode.TreeItem) => {
+            if (!item || item.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+                return;
+            }
+            await revealBranch(filesTreeView, filesTreeViewProvider, item);
+        }),
+        vscode.commands.registerCommand('metaflow.collapseFilesBranch', async (item?: vscode.TreeItem) => {
+            if (!item || item.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+                return;
+            }
+            await collapseBranch(filesTreeView, item);
         }),
     );
 

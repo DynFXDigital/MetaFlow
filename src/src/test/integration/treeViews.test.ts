@@ -264,6 +264,50 @@ suite('TreeView Providers', () => {
         assert.strictEqual(sdlcLayer?.checkboxState, vscode.TreeItemCheckboxState.Checked, 'Leaf layer nodes should remain checked/toggleable');
     });
 
+    test('LayersTreeView tree mode shows artifact-type checkbox children for single-repo layers', () => {
+        state.config = {
+            metadataRepo: { localPath: '.ai/ai-metadata', name: 'PrimaryRepo' },
+            layers: ['capabilities/communication'],
+        };
+
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/guide.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-layer', '.github', 'instructions', 'guide.md'),
+                sourceLayer: 'capabilities/communication',
+                classification: 'settings',
+            },
+            {
+                relativePath: 'prompts/review.prompt.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-layer', '.github', 'prompts', 'review.prompt.md'),
+                sourceLayer: 'capabilities/communication',
+                classification: 'settings',
+            },
+        ];
+
+        const provider = new LayersTreeViewProvider(state, () => 'tree');
+
+        const top = provider.getChildren();
+        const capabilitiesFolder = top.find(i => String(i.label) === 'capabilities');
+        assert.ok(capabilitiesFolder, 'Single-repo tree mode should expose capabilities folder');
+
+        const capabilitiesChildren = provider.getChildren(capabilitiesFolder as never);
+        const communicationLayer = capabilitiesChildren.find(i => String(i.label) === 'communication');
+        assert.ok(communicationLayer, 'Should expose communication layer node under capabilities');
+
+        const artifactChildren = provider.getChildren(communicationLayer as never);
+        const labels = artifactChildren.map(i => String(i.label));
+        assert.deepStrictEqual(labels, ['instructions', 'prompts']);
+        assert.ok(
+            artifactChildren.every(i => i.contextValue === 'layerArtifactType'),
+            'Artifact-type children should be rendered with layerArtifactType context'
+        );
+        assert.ok(
+            artifactChildren.every(i => i.checkboxState === vscode.TreeItemCheckboxState.Checked),
+            'Artifact-type children should be checked by default'
+        );
+    });
+
     // ── FilesTreeView ──────────────────────────────────────────
 
     test('FilesTreeView returns empty when no files', () => {

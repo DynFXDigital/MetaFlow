@@ -381,6 +381,76 @@ suite('Command Execution', () => {
         }
     });
 
+    test('toggleLayerArtifactType persists excludedTypes updates', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const multiRepoConfig = {
+            metadataRepos: [
+                { id: 'ai-metadata', localPath: '.ai/ai-metadata', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'ai-metadata', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                    disable: [],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(multiRepoConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            await vscode.commands.executeCommand(
+                'metaflow.toggleLayerArtifactType',
+                { layerIndex: 0, artifactType: 'instructions' },
+                vscode.TreeItemCheckboxState.Unchecked
+            );
+
+            const afterExclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                layerSources?: Array<{ excludedTypes?: string[] }>;
+            };
+
+            assert.ok(afterExclude.layerSources && afterExclude.layerSources.length > 0, 'Config should contain layerSources');
+            assert.ok(
+                afterExclude.layerSources?.[0].excludedTypes?.includes('instructions'),
+                'instructions should be persisted in excludedTypes when unchecked'
+            );
+
+            await vscode.commands.executeCommand(
+                'metaflow.toggleLayerArtifactType',
+                { layerIndex: 0, artifactType: 'instructions' },
+                vscode.TreeItemCheckboxState.Checked
+            );
+
+            const afterInclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                layerSources?: Array<{ excludedTypes?: string[] }>;
+            };
+
+            assert.ok(
+                !afterInclude.layerSources?.[0].excludedTypes?.includes('instructions'),
+                'instructions should be removed from excludedTypes when checked'
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('rescanRepository discovers new layers when autoApply is disabled', async function () {
         this.timeout(20000);
 

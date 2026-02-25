@@ -23,6 +23,10 @@ const EXPECTED_COMMANDS = [
     'metaflow.openConfig',
     'metaflow.initConfig',
     'metaflow.promote',
+    'metaflow.expandLayersBranch',
+    'metaflow.collapseLayersBranch',
+    'metaflow.expandFilesBranch',
+    'metaflow.collapseFilesBranch',
 ];
 
 suite('Extension Activation', () => {
