@@ -50,5 +50,4 @@ src/test-workspace/.vscode/
 .github/**/_*
 
 # Ignore Metaflow state and config files
-.metaflow/state.json
-.metaflow/config.jsonc
+.metaflow/
