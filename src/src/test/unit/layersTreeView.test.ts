@@ -409,4 +409,40 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(labels, ['instructions', 'prompts']);
         assert.ok(children.every(c => c.contextValue === 'layerArtifactType'));
     });
+
+    test('LTV-AT-13: parent LayerItem description shows excluded count when some types excluded', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig({ excludedTypes: ['prompts', 'agents'] });
+        const files = [
+            makeEffectiveFile('instructions/a.md'),
+            makeEffectiveFile('skills/d.md'),
+        ];
+        const provider = new LayersTreeViewProvider(
+            makeState(config, files), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.ok(
+            String(layerItem.description).includes('2 excluded'),
+            `expected description to mention excluded count, got: ${layerItem.description}`
+        );
+    });
+
+    test('LTV-AT-14: parent LayerItem description omits excluded count when no types excluded', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.ok(
+            !String(layerItem.description).includes('excluded'),
+            `expected description without excluded hint, got: ${layerItem.description}`
+        );
+    });
 });
