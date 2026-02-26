@@ -2,27 +2,12 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../DFX-AI-Metadata"
 		}
 	],
 	"settings": {
 		"powershell.cwd": "MetaFlow",
 		"debug.onTaskErrors": "debugAnyway",
-		"chat.instructionsFilesLocations": {
-			"../DFX-AI-Metadata/capabilities/communication/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/devtools/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/planning/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/reflection/.github/instructions": true
-		},
 		"metaflow.filesViewMode": "repoTree",
-		"chat.promptFilesLocations": {
-			"../DFX-AI-Metadata/capabilities/git-version-control/.github/prompts": true,
-			"../DFX-AI-Metadata/capabilities/planning/.github/prompts": true,
-			"../DFX-AI-Metadata/capabilities/reflection/.github/prompts": true
-		},
 		"metaflow.layersViewMode": "tree",
 	}
 }
