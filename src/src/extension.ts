@@ -106,6 +106,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const layersTreeView = vscode.window.createTreeView('metaflow-layers', {
         treeDataProvider: layersTreeViewProvider,
+        manageCheckboxStateManually: true,
     });
 
     const filesTreeView = vscode.window.createTreeView('metaflow-files', {

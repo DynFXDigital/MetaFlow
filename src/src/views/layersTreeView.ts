@@ -49,6 +49,7 @@ class LayerItem extends vscode.TreeItem {
             toggleable?: boolean;
             hasChildren?: boolean;
             path?: string;
+            excludedCount?: number;
         }
     ) {
         const hasChildren = options?.hasChildren === true;
@@ -71,12 +72,17 @@ class LayerItem extends vscode.TreeItem {
             this.contextValue = 'layerFolder';
         }
 
+        const excludedHint = (options?.excludedCount ?? 0) > 0
+            ? `, ${options!.excludedCount} excluded`
+            : '';
         if (options?.repoId && typeof layerIndex === 'number') {
-            this.description = options.repoDisabled ? `(${options.repoId}, repo disabled)` : `(${options.repoId})`;
+            this.description = options.repoDisabled
+                ? `(${options.repoId}, repo disabled)`
+                : `(${options.repoId}${excludedHint})`;
         } else if (options?.toggleable === false && typeof layerIndex === 'number') {
             this.description = '(single-repo, fixed order)';
         } else {
-            this.description = '';
+            this.description = excludedHint ? `(${excludedHint.slice(2)})` : '';
         }
 
         if (typeof layerIndex === 'number' && typeof enabled === 'boolean') {
@@ -199,6 +205,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return [];
     }
 
+    private getExcludedCount(layerIndex: number): number {
+        const ls = this.state.config?.layerSources?.[layerIndex];
+        return ls?.excludedTypes?.length ?? 0;
+    }
+
     private getTreeChildrenForPrefix(entries: LayerEntry[], prefix: string, repoId?: string, mode?: LayersViewMode): LayerItem[] {
         const children = new Map<string, { path: string; label: string }>();
         const rootEntry = entries.find(entry => entry.normalizedPath === '');
@@ -241,6 +252,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     toggleable: matchingEntry?.toggleable,
                     hasChildren: hasChildren || hasArtifactTypeChildren,
                     path: node.path,
+                    excludedCount: typeof matchingEntry?.layerIndex === 'number' ? this.getExcludedCount(matchingEntry.layerIndex) : undefined,
                 });
             })
             .sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }));
@@ -261,6 +273,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     toggleable: rootEntry.toggleable,
                     hasChildren: rootHasArtifactChildren,
                     path: '(root)',
+                    excludedCount: typeof rootEntry.layerIndex === 'number' ? this.getExcludedCount(rootEntry.layerIndex) : undefined,
                 })
             );
         }
@@ -360,6 +373,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     toggleable: entry.toggleable,
                     hasChildren: false,
                     path: entry.normalizedPath || '(root)',
+                    excludedCount: this.getExcludedCount(entry.layerIndex),
                 })
             );
         }
