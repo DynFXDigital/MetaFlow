@@ -15,20 +15,14 @@
 			"../DFX-AI-Metadata/capabilities/devtools/.github/instructions": true,
 			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/instructions": true,
 			"../DFX-AI-Metadata/capabilities/planning/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/reflection/.github/instructions": true,
-			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/instructions": true
+			"../DFX-AI-Metadata/capabilities/reflection/.github/instructions": true
 		},
+		"metaflow.filesViewMode": "repoTree",
 		"chat.promptFilesLocations": {
 			"../DFX-AI-Metadata/capabilities/git-version-control/.github/prompts": true,
 			"../DFX-AI-Metadata/capabilities/planning/.github/prompts": true,
-			"../DFX-AI-Metadata/capabilities/reflection/.github/prompts": true,
-			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/prompts": true
+			"../DFX-AI-Metadata/capabilities/reflection/.github/prompts": true
 		},
-		"chat.agentFilesLocations": {
-			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/agents": true
-		},
-		"chat.agentSkillsLocations": {
-			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/skills": true
-		},
+		"metaflow.layersViewMode": "tree",
 	}
 }

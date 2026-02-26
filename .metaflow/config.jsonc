@@ -60,7 +60,13 @@
     {
       "repoId": "primary",
       "path": "capabilities/sdlc-traceability",
-      "enabled": true
+      "enabled": false,
+      "excludedTypes": [
+        "instructions",
+        "prompts",
+        "agents",
+        "skills"
+      ]
     }
   ]
 }
