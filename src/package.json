@@ -22,6 +22,11 @@
     "overlay",
     "metaflow"
   ],
+  "icon": "images/metaflow.png",
+  "galleryBanner": {
+    "color": "#1e1b4b",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onStartupFinished",
     "workspaceContains:**/.metaflow/config.jsonc"
@@ -179,7 +184,7 @@
         {
           "id": "metaflow-container",
           "title": "MetaFlow",
-          "icon": "$(layers)"
+          "icon": "./images/metaflow-activity.svg"
         }
       ]
     },
