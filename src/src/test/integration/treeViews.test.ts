@@ -107,6 +107,46 @@ suite('TreeView Providers', () => {
         assert.strictEqual(repoItems[1].checkboxState, vscode.TreeItemCheckboxState.Unchecked, 'Disabled repo should show unchecked checkbox');
     });
 
+    test('ConfigTreeView marks git-backed repositories and shows remote URL in tooltip', () => {
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    url: 'https://github.com/org/ai-metadata.git',
+                },
+                {
+                    id: 'secondary',
+                    localPath: '.ai/team-metadata',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: 'secondary', path: 'team/default', enabled: true },
+            ],
+        };
+
+        const provider = new ConfigTreeViewProvider(state);
+        const rootItems = provider.getChildren();
+        const repoItems = provider.getChildren(rootItems[0] as never);
+
+        assert.strictEqual(repoItems.length, 2, 'Should return all repository items under Repositories section');
+        assert.strictEqual(repoItems[0].description, '.ai/ai-metadata [git]', 'Git-backed repo should include a visible git marker');
+        assert.strictEqual(repoItems[1].description, '.ai/team-metadata', 'Local-only repo should not include a git marker');
+
+        const primaryTooltip = repoItems[0].tooltip as vscode.MarkdownString;
+        assert.ok(primaryTooltip.value.includes('Remote URL:'), 'Git-backed repo tooltip should include remote URL label');
+        assert.ok(
+            primaryTooltip.value.includes('https://github.com/org/ai-metadata.git'),
+            'Git-backed repo tooltip should include configured remote URL'
+        );
+
+        const secondaryTooltip = repoItems[1].tooltip as vscode.MarkdownString;
+        assert.ok(!secondaryTooltip.value.includes('Remote URL:'), 'Local-only repo tooltip should not include remote URL label');
+    });
+
     // ── ProfilesTreeView ───────────────────────────────────────
 
     test('ProfilesTreeView returns empty when no profiles', () => {

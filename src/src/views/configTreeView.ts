@@ -23,21 +23,46 @@ class RepoSourceItem extends vscode.TreeItem {
         label: string,
         public readonly repoId: string | undefined,
         enabled: boolean,
-        description: string
+        localPath: string,
+        repoUrl?: string
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         const isReadonly = !repoId;
+        const isRemote = RepoSourceItem.isGitRemoteUrl(repoUrl);
         this.contextValue = isReadonly ? 'configRepoSourceReadonly' : 'configRepoSourceRescannable';
-        this.description = description;
+        this.description = isRemote ? `${localPath} [git]` : localPath;
+        this.iconPath = new vscode.ThemeIcon(isRemote ? 'cloud' : 'folder');
         if (!isReadonly) {
             this.checkboxState = enabled
                 ? vscode.TreeItemCheckboxState.Checked
                 : vscode.TreeItemCheckboxState.Unchecked;
         }
+        this.tooltip = RepoSourceItem.buildTooltip(label, localPath, repoUrl);
         this.accessibilityInformation = {
             label: `${label} ${enabled ? 'enabled' : 'disabled'}`,
             role: 'checkbox',
         };
+    }
+
+    private static isGitRemoteUrl(repoUrl: string | undefined): boolean {
+        if (!repoUrl) {
+            return false;
+        }
+        const trimmed = repoUrl.trim();
+        if (!trimmed) {
+            return false;
+        }
+        return /^(git@|git:\/\/|ssh:\/\/|https?:\/\/)/i.test(trimmed);
+    }
+
+    private static buildTooltip(label: string, localPath: string, repoUrl: string | undefined): vscode.MarkdownString {
+        const tooltip = new vscode.MarkdownString(
+            `**Repository**: ${label}\n\nLocal path: \`${localPath}\``
+        );
+        if (RepoSourceItem.isGitRemoteUrl(repoUrl)) {
+            tooltip.appendMarkdown(`\n\nRemote URL: \`${repoUrl!.trim()}\``);
+        }
+        return tooltip;
     }
 }
 
@@ -90,7 +115,8 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         repo.name?.trim() || repo.id,
                         repo.id,
                         repo.enabled !== false,
-                        this.toDisplayPath(repo.localPath)
+                        this.toDisplayPath(repo.localPath),
+                        repo.url
                     )
                 );
             }
@@ -101,7 +127,8 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         'primary',
                         'primary',
                         true,
-                        this.toDisplayPath(config.metadataRepo.localPath)
+                        this.toDisplayPath(config.metadataRepo.localPath),
+                        config.metadataRepo.url
                     ),
                 ];
             }
