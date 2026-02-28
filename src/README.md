@@ -116,7 +116,7 @@ cd src
 npm install
 npm run compile
 npm run test:unit    # unit tests
-npm test             # integration tests (Extension Host)
+npm run gate:integration # integration tests (Extension Host)
 npm run lint
 ```
 
@@ -147,7 +147,7 @@ From **Terminal → Run Task**:
 
 This repository uses GitHub Actions to validate and publish the extension:
 
-- `.github/workflows/ci.yml` runs build, tests, integration tests, and VSIX packaging on PRs and pushes to `main`.
+- `.github/workflows/ci.yml` runs `npm run gate:quick` (build + lint + unit tests) plus `npm run gate:integration` under headless `xvfb-run` on PRs and pushes.
 - `.github/workflows/release.yml` packages and publishes on `v*` tags, and can also be triggered manually.
 
 ### Publishing secrets

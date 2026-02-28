@@ -283,13 +283,47 @@ suite('Command Execution', () => {
 
     test('clean removes managed files', async function () {
         this.timeout(15000);
-        // First apply, then clean
+        // First apply (sets up workspace settings and any managed state), then clean.
         await vscode.commands.executeCommand('metaflow.refresh');
         await vscode.commands.executeCommand('metaflow.apply');
 
-        // Clean requires user confirmation — skip interactive confirmation in tests
-        // This tests that the command doesn't throw; actual clean logic is tested in unit tests
-        // await vscode.commands.executeCommand('metaflow.clean');
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const originalInfo = windowAny.showInformationMessage;
+        windowAny.showWarningMessage = async () => 'Yes';
+
+        const infoMessages: string[] = [];
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            const result = await vscode.commands.executeCommand('metaflow.clean') as {
+                removed?: unknown[];
+            } | undefined;
+
+            if (!result) {
+                assert.fail('Clean should return an ApplyResult when confirmed');
+            }
+            if (!Array.isArray(result.removed)) {
+                assert.fail('Clean result should include removed[]');
+            }
+
+            const removedCount = result.removed.length;
+            assert.ok(
+                infoMessages.some(m => m.includes(`MetaFlow: Cleaned ${removedCount} files.`)),
+                'Clean should emit a user-facing completion message with removal count'
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            windowAny.showInformationMessage = originalInfo;
+        }
     });
 
     test('clean removes injected workspace settings keys', async function () {
@@ -323,10 +357,17 @@ suite('Command Execution', () => {
         assert.strictEqual(hookLocations, undefined, 'Hook file locations should be removed by clean');
     });
 
-    test('status executes and logs', async function () {
-        this.timeout(10000);
-        await vscode.commands.executeCommand('metaflow.status');
-        // Status writes to output channel — no assertion on output, just no throw
+    test('status logs key metrics to output channel', async function () {
+        this.timeout(15000);
+
+        const lines = await vscode.commands.executeCommand('metaflow.status') as string[] | undefined;
+        assert.ok(Array.isArray(lines), 'Status should return the emitted log lines');
+
+        assert.ok(lines.some(line => line.includes('=== MetaFlow Status ===')), 'Status should include a header line');
+        assert.ok(lines.some(line => line.includes('Config:')), 'Status should include config path line');
+        assert.ok(lines.some(line => line.includes('Active Profile:')), 'Status should include active profile line');
+        assert.ok(lines.some(line => line.includes('Effective Files:')), 'Status should include effective file count line');
+        assert.ok(lines.some(line => line.includes('Managed Files:')), 'Status should include managed file count line');
     });
 
     test('checking a layer enables its disabled repo source', async function () {

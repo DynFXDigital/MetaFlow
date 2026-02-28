@@ -23,6 +23,8 @@ out/
 
 # VS Code extension artifacts
 **/.vscode-test/
+**/.vscode-test-user-data/
+**/.vscode-test-extensions/
 *.vsix
 
 # Coverage / test output

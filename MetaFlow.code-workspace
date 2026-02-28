@@ -9,5 +9,19 @@
 		"debug.onTaskErrors": "debugAnyway",
 		"metaflow.filesViewMode": "repoTree",
 		"metaflow.layersViewMode": "tree",
+		"chat.promptFilesLocations": {
+			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/prompts": true,
+			"../DFX-AI-Metadata/capabilities/git-version-control/.github/prompts": true
+		},
+		"chat.instructionsFilesLocations": {
+			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/instructions": true
+		},
+		"chat.agentFilesLocations": {
+			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/agents": true
+		},
+		"chat.agentSkillsLocations": {
+			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/skills": true,
+			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/skills": true
+		},
 	}
 }

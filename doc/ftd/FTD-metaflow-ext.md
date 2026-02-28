@@ -36,15 +36,17 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 | TP-A010 | Drift detector | Automated | `npm run test:unit` | Mocha output | TC-0220–TC-0224 |
 | TP-A011 | Materializer | Automated | `npm run test:unit` | Mocha output | TC-0230–TC-0237 |
 | TP-A012 | Settings injector | Automated | `npm run test:unit` | Mocha output | TC-0240–TC-0244 |
-| TP-A013 | Extension activation | Automated | `npm test` | Extension Host output | TC-0300–TC-0305 |
-| TP-A014 | Command execution | Automated | `npm test` | Extension Host output | TC-0310–TC-0315 |
-| TP-A015 | TreeView providers | Automated | `npm test` | Extension Host output | TC-0320–TC-0328 |
-| TP-A016 | Runtime discovery + repository rescan | Automated | `npm -w @metaflow/engine test` and `npm test` | Mocha + Extension Host output | TC-0119, TC-0125, TC-0126, TC-0316 |
-| TP-A017 | Command contract hardening (watcher/settings/promote) | Automated | `npm test` | Extension Host output | TC-0331–TC-0334 |
+| TP-A013 | Extension activation | Automated | `npm run gate:integration` | Extension Host output | TC-0300–TC-0305 |
+| TP-A014 | Command execution | Automated | `npm run gate:integration` | Extension Host output | TC-0310–TC-0315 |
+| TP-A015 | TreeView providers | Automated | `npm run gate:integration` | Extension Host output | TC-0320–TC-0328 |
+| TP-A016 | Runtime discovery + repository rescan | Automated | `npm -w @metaflow/engine test` and `npm run gate:integration` | Mocha + Extension Host output | TC-0119, TC-0125, TC-0126, TC-0316 |
+| TP-A017 | Command contract hardening (watcher/settings/promote) | Automated | `npm run gate:integration` | Extension Host output | TC-0331–TC-0334 |
 | TP-A018 | Unit helper rigor + runner determinism | Automated | `npm run test:unit` and `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Mocha + c8 output | TC-0245–TC-0250 |
 | TP-A019 | Safety requirement constraints | Automated | `npm run test:unit` | Mocha output | TC-0600–TC-0603 |
 
 ### Manual Procedures
+
+Manual procedures below are supplemental UX/operator validation activities and are not part of the enforced automated release gate.
 
 | TP-ID | Title | Type | How to run | Evidence / Artifacts | Notes |
 |---|---|---|---|---|---|
@@ -65,7 +67,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M001 — Extension Activation with Valid Config
 
-**Preconditions**: Workspace contains `.metaflow.json` with valid config; metadata repo clone exists at configured `localPath`.
+**Preconditions**: Workspace contains `.metaflow/config.jsonc` with valid config; metadata repo clone exists at configured `localPath`.
 
 **Steps**:
 1. Open workspace in VS Code with MetaFlow extension installed.
@@ -81,12 +83,12 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M002 — Extension Graceful Degradation
 
-**Preconditions**: Workspace has no `.metaflow.json`.
+**Preconditions**: Workspace has no `.metaflow/config.jsonc`.
 
 **Steps**:
 1. Open workspace without config file.
 2. Run `MetaFlow: Init Config` from command palette.
-3. Verify `.metaflow.json` created and opened in editor.
+3. Verify `.metaflow/config.jsonc` created and opened in editor.
 4. Verify TreeViews show welcome content.
 
 **Expected**: No errors on activation; init command creates valid config scaffold.
@@ -157,7 +159,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 2. Observe progress notification.
 3. Check `.github/` directory for materialized files.
 4. Verify provenance headers in written files.
-5. Verify `.ai/.sync-state/overlay_managed.json` updated.
+5. Verify `.metaflow/state.json` updated.
 
 **Expected**: Files written with provenance; managed state tracks files.
 
@@ -208,7 +210,7 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 **Preconditions**: Config file with validation errors.
 
 **Steps**:
-1. Create `.metaflow.json` with missing required field.
+1. Create `.metaflow/config.jsonc` with missing required field.
 2. Run `MetaFlow: Refresh`.
 3. Open Problems panel.
 4. Verify MetaFlow diagnostics appear with error messages and locations.
@@ -219,11 +221,11 @@ Every `TC-*` must have a runnable procedure (manual and/or automated).
 
 ### TP-M012 — Init Config Scaffolding
 
-**Preconditions**: No existing `.metaflow.json`.
+**Preconditions**: No existing `.metaflow/config.jsonc`.
 
 **Steps**:
 1. Run `MetaFlow: Init Config`.
-2. Verify `.metaflow.json` created with JSONC template.
+2. Verify `.metaflow/config.jsonc` created with JSONC template.
 3. Verify file opens in editor.
 4. Verify template contains all required fields.
 

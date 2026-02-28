@@ -9,10 +9,13 @@
   ],
   "scripts": {
     "build": "npm -w @metaflow/engine run build && npm -w @metaflow/cli run build && npm -w metaflow run compile",
+    "gate:quick": "npm run build && npm -w metaflow run lint && npm run test",
+    "gate:integration": "npm -w metaflow run gate:integration",
+    "gate:full": "npm run test:engine && npm run test:cli && npm -w metaflow run gate:quick && npm -w metaflow run gate:integration",
     "test:engine": "npm -w @metaflow/engine test",
     "test:cli": "npm -w @metaflow/cli test",
     "test:unit": "npm -w metaflow run test:unit",
-    "test:integration": "npm -w metaflow test",
+    "test:integration": "npm -w metaflow run test:integration",
     "test": "npm run test:engine && npm run test:cli && npm run test:unit",
     "changeset": "changeset",
     "version-packages": "changeset version && npm install --package-lock-only"

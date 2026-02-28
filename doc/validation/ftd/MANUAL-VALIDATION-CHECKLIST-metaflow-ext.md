@@ -21,10 +21,14 @@ Related docs:
 
 ## Preconditions
 
-- [ ] Workspace contains valid `.metaflow.json` that points to DFX-AI-Metadata.
+- [ ] Workspace contains valid `.metaflow/config.jsonc` that points to DFX-AI-Metadata.
 - [ ] Extension is installed/enabled.
 - [ ] At least 2 profiles exist (for profile-switch checks).
 - [ ] You can open VS Code views: Activity Bar, Output, Explorer, Settings JSON.
+
+Evidence guidance:
+- Use `doc/validation/RUNBOOK-agent-driven-manual-validation.md` for agent/operator protocol.
+- Use `doc/validation/EVIDENCE-TEMPLATE-manual-agent-runs.md` for standardized evidence capture.
 
 ---
 

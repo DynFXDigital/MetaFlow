@@ -23,7 +23,7 @@ This document defines validation requirements (VREQ-*) for end-to-end acceptance
 
 | VREQ-ID | Title | Description | Acceptance (testable) | Priority | Status |
 |---|---|---|---|---|---|
-| VREQ-0001 | Activation with DFX config | Extension activates when a workspace contains a valid `.metaflow.json` pointing to DFX-AI-Metadata. | Extension activates; sidebar views populated; no errors in output channel. | P1 | Draft |
+| VREQ-0001 | Activation with DFX config | Extension activates when a workspace contains a valid `.metaflow/config.jsonc` pointing to DFX-AI-Metadata. | Extension activates; sidebar views populated; no errors in output channel. | P1 | Draft |
 | VREQ-0002 | Apply produces expected files | Apply command materializes the expected file set from DFX-AI-Metadata layers. | After apply, `.github/` contains exactly the expected materialized files with correct provenance and `_shared_` prefix. | P1 | Draft |
 | VREQ-0003 | Profile switching changes files | Switching the active profile changes the effective file set. | After switching from `baseline` to a restrictive profile, the file count decreases; TreeView updates. | P1 | Draft |
 | VREQ-0004 | Clean removes managed files | Clean command removes all materialized files and settings. | After clean, no `_shared_*` files remain in `.github/`; managed state is cleared; settings removed. | P1 | Draft |

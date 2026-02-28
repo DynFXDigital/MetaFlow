@@ -21,10 +21,13 @@ class MockTreeItem {
 }
 
 class MockEventEmitter {
-    event(_listener: (_v: unknown) => void): { dispose: () => void } {
+    event(listener: (v: unknown) => void): { dispose: () => void } {
+        void listener;
         return { dispose: () => {} };
     }
-    fire(_v: unknown): void {}
+    fire(v: unknown): void {
+        void v;
+    }
 }
 
 class MockThemeIcon {
@@ -114,10 +117,15 @@ function makeFile(
 }
 
 function makeState(files: EffectiveFile[], config?: unknown) {
+    const event = (listener: unknown): { dispose: () => void } => {
+        void listener;
+        return { dispose: () => {} };
+    };
+
     return {
         effectiveFiles: files,
         config,
-        onDidChange: { event: () => ({ dispose: () => {} }) },
+        onDidChange: { event },
     };
 }
 

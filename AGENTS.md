@@ -14,12 +14,15 @@ npm -w @metaflow/cli run build
 cd src
 npm run compile
 npm run test:unit   # unit tests (fast, no Extension Host)
-npm test            # integration tests (launches Extension Host)
+npm run gate:integration # integration tests (launches Extension Host without pretest coupling)
 npm run lint
 cd ..
 npm -w @metaflow/engine test    # engine API tests
 npm -w @metaflow/cli test       # CLI integration tests
 npm test                         # all tests (engine + CLI + extension unit)
+npm run gate:quick               # build + lint + engine/cli/extension unit
+npm run gate:integration         # extension-host integration gate
+npm run gate:full                # quick gate + integration gate
 ```
 
 ## Architecture
@@ -51,7 +54,9 @@ npm test                         # all tests (engine + CLI + extension unit)
 ## Test Practices
 
 - Run `npm run test:unit` for fast feedback (no Extension Host).
-- Run `npm test` for integration tests (downloads VS Code if needed, ~15s first time).
+- Run `npm run gate:integration` (alias: `npm run test:integration`) for extension-host integration tests.
+- Run `npm run gate:quick` for the local CI-equivalent quality gate.
+- Run `npm run gate:full` before release-sensitive changes.
 - For non-blocking lint monitoring, run `npm -w metaflow run lint:monitor:summary` (or in `src/`: `npm run lint:monitor:summary`).
 - Coverage: `npm -w @metaflow/engine run test:coverage` (95%+ stmts) and `npm -w @metaflow/cli run test:coverage` (92%+ stmts).
 - Unit tests use `tmp_path` pattern (`os.tmpdir()` + `mkdtemp`) for isolation.

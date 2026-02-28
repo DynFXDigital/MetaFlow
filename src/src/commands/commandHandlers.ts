@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
+import type { ApplyResult } from '@metaflow/engine';
 import {
     loadConfig,
     MetaFlowConfig,
@@ -486,9 +487,9 @@ export function registerCommands(
             );
             if (confirm !== 'Yes') { return; }
 
-            await vscode.window.withProgress(
+            return await vscode.window.withProgress(
                 { location: vscode.ProgressLocation.Notification, title: 'MetaFlow: Cleaning managed files...' },
-                async () => {
+                async (): Promise<ApplyResult> => {
                     const result = clean(ws.uri.fsPath);
 
                     await clearManagedWorkspaceSettings(ws);
@@ -503,6 +504,8 @@ export function registerCommands(
                     );
 
                     await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+
+                    return result;
                 }
             );
         })
@@ -514,26 +517,38 @@ export function registerCommands(
             const ws = getWorkspace();
             if (!ws) { return; }
 
+            const lines: string[] = [];
+            const emitInfo = (message: string) => {
+                lines.push(message);
+                logInfo(message);
+            };
+            const emitWarn = (message: string) => {
+                lines.push(message);
+                logWarn(message);
+            };
+
             showOutputChannel();
-            logInfo('=== MetaFlow Status ===');
-            logInfo(`Config: ${state.configPath ?? 'Not loaded'}`);
-            logInfo(`Active Profile: ${state.activeProfile ?? 'None'}`);
-            logInfo(`Effective Files: ${state.effectiveFiles.length}`);
+            emitInfo('=== MetaFlow Status ===');
+            emitInfo(`Config: ${state.configPath ?? 'Not loaded'}`);
+            emitInfo(`Active Profile: ${state.activeProfile ?? 'None'}`);
+            emitInfo(`Effective Files: ${state.effectiveFiles.length}`);
 
             const managedState = loadManagedState(ws.uri.fsPath);
             const trackedCount = Object.keys(managedState.files).length;
-            logInfo(`Managed Files: ${trackedCount}`);
-            logInfo(`Last Apply: ${managedState.lastApply}`);
+            emitInfo(`Managed Files: ${trackedCount}`);
+            emitInfo(`Last Apply: ${managedState.lastApply}`);
 
             if (trackedCount > 0) {
                 const driftResults = checkAllDrift(ws.uri.fsPath, '.github', managedState);
                 const drifted = driftResults.filter(r => r.status === 'drifted');
                 const missing = driftResults.filter(r => r.status === 'missing');
-                logInfo(`Drifted: ${drifted.length}, Missing: ${missing.length}`);
+                emitInfo(`Drifted: ${drifted.length}, Missing: ${missing.length}`);
                 for (const d of drifted) {
-                    logWarn(`  Drifted: ${d.relativePath}`);
+                    emitWarn(`  Drifted: ${d.relativePath}`);
                 }
             }
+
+            return lines;
         })
     );
 

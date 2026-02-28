@@ -382,36 +382,26 @@ suite('TreeView Providers', () => {
             },
         ];
 
-        const provider = new FilesTreeViewProvider(state);
+        const provider = new FilesTreeViewProvider(state, () => 'unified');
         const items = provider.getChildren();
-        const companyFolder = items.find(i => String(i.label) === 'company');
-        assert.ok(companyFolder, 'Should preserve hierarchy above .github');
-
-        const companyChildren = provider.getChildren(companyFolder as never);
-        const componentsFolder = companyChildren.find(i => String(i.label) === 'components');
-        assert.ok(componentsFolder, 'Should preserve hierarchy above .github');
-
-        const componentsChildren = provider.getChildren(componentsFolder as never);
-        const devtoolsFolder = componentsChildren.find(i => String(i.label) === 'devtools');
-        assert.ok(devtoolsFolder, 'Should preserve hierarchy above .github');
-
-        const devtoolsChildren = provider.getChildren(devtoolsFolder as never);
-        const githubFolder = devtoolsChildren.find(i => String(i.label) === '.github');
-        assert.strictEqual(githubFolder, undefined, 'Should suppress .github from displayed hierarchy');
-
-        const instructionsFolder = devtoolsChildren.find(i => String(i.label) === 'instructions');
-        assert.ok(instructionsFolder, 'Should show metadata category folders directly under layer path');
-        assert.strictEqual(instructionsFolder?.command?.command, 'revealInExplorer');
         assert.deepStrictEqual(
-            instructionsFolder?.command?.arguments,
-            [vscode.Uri.file(path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'instructions'))],
-            'Reveal should still target the real .github folder path'
+            items.map(i => String(i.label)),
+            ['instructions', 'agents'],
+            'Unified mode should group by artifact type in canonical order'
         );
+
+        const instructionsFolder = items.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Should expose instructions artifact bucket');
 
         const instructionsChildren = provider.getChildren(instructionsFolder as never);
         const policiesFolder = instructionsChildren.find(i => String(i.label) === 'policies');
-        assert.ok(policiesFolder, 'Should preserve nested folder hierarchy');
+        assert.ok(policiesFolder, 'Should preserve nested folder hierarchy under artifact type');
         assert.strictEqual(policiesFolder?.command?.command, 'revealInExplorer');
+        assert.deepStrictEqual(
+            policiesFolder?.command?.arguments,
+            [vscode.Uri.file(path.join(repoRoot, 'company', 'components', 'devtools', '.github', 'instructions', 'policies'))],
+            'Reveal should target the real source folder'
+        );
 
         const policyChildren = provider.getChildren(policiesFolder as never);
         const codingFile = policyChildren.find(i => String(i.label) === 'coding.md');
@@ -419,9 +409,8 @@ suite('TreeView Providers', () => {
         assert.strictEqual(codingFile?.description, 'CoreMeta (settings)');
         assert.strictEqual(codingFile?.command?.command, 'vscode.open');
 
-        const agentsFolder = devtoolsChildren.find(i => String(i.label) === 'agents');
-        assert.ok(agentsFolder, 'Should show folder for materialized files');
-        assert.strictEqual(agentsFolder?.command?.command, 'revealInExplorer');
+        const agentsFolder = items.find(i => String(i.label) === 'agents');
+        assert.ok(agentsFolder, 'Should expose agents artifact bucket');
 
         const agentChildren = provider.getChildren(agentsFolder as never);
         const agentFile = agentChildren.find(i => String(i.label) === 'test.agent.md');
@@ -459,18 +448,11 @@ suite('TreeView Providers', () => {
             },
         ];
 
-        const provider = new FilesTreeViewProvider(state);
+        const provider = new FilesTreeViewProvider(state, () => 'unified');
         const items = provider.getChildren();
 
-        const repoFolder = items.find(i => String(i.label) === 'ai-metadata');
-        assert.ok(repoFolder, 'Root layer should be shown as repository name');
-
-        const dotFolder = items.find(i => String(i.label) === '.');
-        assert.strictEqual(dotFolder, undefined, 'Dot layer label should not be shown in effective files tree');
-
-        const repoChildren = provider.getChildren(repoFolder as never);
-        const instructionsFolder = repoChildren.find(i => String(i.label) === 'instructions');
-        assert.ok(instructionsFolder, 'Root layer should include instructions folder');
+        const instructionsFolder = items.find(i => String(i.label) === 'instructions');
+        assert.ok(instructionsFolder, 'Root-layer file should be grouped under its artifact type');
 
         const instructionChildren = provider.getChildren(instructionsFolder as never);
         const instructionFile = instructionChildren.find(i => String(i.label) === 'root.instructions.md');

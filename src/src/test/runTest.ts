@@ -18,6 +18,8 @@ function createDefaultDeps(): RunTestDeps {
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
     const extensionTestsPath = path.resolve(__dirname, './integration/index');
     const testWorkspace = path.resolve(__dirname, '../../test-workspace');
+    const integrationUserDataDir = path.resolve(__dirname, '../../.vscode-test-user-data');
+    const integrationExtensionsDir = path.resolve(__dirname, '../../.vscode-test-extensions');
 
     return {
         runUnit: async (): Promise<void> => {
@@ -33,6 +35,8 @@ function createDefaultDeps(): RunTestDeps {
                     testWorkspace,
                     '--disable-extensions',
                     '--disable-updates',
+                    '--user-data-dir', integrationUserDataDir,
+                    '--extensions-dir', integrationExtensionsDir,
                 ],
             });
         },

@@ -8,6 +8,7 @@
 
 | Last Updated | Notes |
 |---|---|
+| 2026-02-28 | RUN-006: Implemented agent-controlled gate model (`gate:quick`, `gate:integration`, `gate:full`) and executed all gates with passing results |
 | 2026-02-23 | F-001: Reconciled arithmetic — Summary corrected to 174 (TP table sum); Rationale clarified; FTP cross-ref added |
 | 2026-02-23 | RUN-005: TP-A017 unblocked and executed — TC-0331 through TC-0334 all Pass; readiness upgraded to Ready |
 | 2026-02-22 | Added RUN-004 retry evidence: integration still blocked after `.vscode-test` reset and `--disable-updates` mitigation |
@@ -20,6 +21,7 @@
 
 | Run ID | Executor | Date | Build/Commit | Environment |
 |---|---|---|---|---|
+| RUN-006 | AI | 2026-02-28 | HEAD | Node.js 18+, Mocha, VS Code Extension Host 1.109.5; gate scripts executed (`gate:quick`, `gate:integration`, `gate:full`) |
 | RUN-005 | AI | 2026-02-23 | HEAD | Node.js 18+, Mocha, VS Code Extension Host 1.109.5 (update-lock resolved by killing stale CodeSetup processes) |
 | RUN-004 | AI | 2026-02-22 | HEAD | Node.js 18+, Mocha, VS Code Extension Host (still blocked after cache reset + disable-updates launch arg) |
 | RUN-003 | AI | 2026-02-22 | HEAD | Node.js 18+, Mocha, VS Code Extension Host (blocked by update lock) |
@@ -42,13 +44,13 @@
 | TC-0220–TC-0224 | TP-A010 | Pass (5/5) | HEAD | `npm run test:unit` output | Drift detector |
 | TC-0230–TC-0237 | TP-A011 | Pass (8/8) | HEAD | `npm run test:unit` output | Materializer |
 | TC-0240–TC-0244 | TP-A012 | Pass (6/6) | HEAD | `npm run test:unit` output | Settings injector |
-| TC-0300–TC-0305 | TP-A013 | Pass (6/6) | HEAD | `npm test` output | Extension activation |
-| TC-0310–TC-0315 | TP-A014 | Pass (6/6) | HEAD | `npm test` output | Command execution |
-| TC-0320–TC-0328 | TP-A015 | Pass (9/9) | HEAD | `npm test` output | TreeView providers |
-| TC-0119, TC-0125, TC-0126, TC-0316 | TP-A016 | Pass (4/4) | HEAD | `npm -w @metaflow/engine test`; `npm test` | Runtime discovery + manual repository rescan |
-| TC-0331–TC-0334 | TP-A017 | Pass (4/4) | HEAD | `node ./out/test/runTest.js --integration` output (RUN-005: 43 passing, 0 failing) | Unblocked by killing stale CodeSetup-stable update processes; TC-0332 test fixture corrected to set `injection.agents/skills: "settings"` and add skills fixture |
+| TC-0300–TC-0305 | TP-A013 | Pass (6/6) | HEAD | `npm run gate:integration` output (RUN-006) | Extension activation |
+| TC-0310–TC-0315 | TP-A014 | Pass (6/6) | HEAD | `npm run gate:integration` output (RUN-006) | Command execution |
+| TC-0320–TC-0328 | TP-A015 | Pass (9/9) | HEAD | `npm run gate:integration` output (RUN-006) | TreeView providers |
+| TC-0119, TC-0125, TC-0126, TC-0316 | TP-A016 | Pass (4/4) | HEAD | `npm -w @metaflow/engine test`; `npm run gate:integration` (RUN-006) | Runtime discovery + manual repository rescan |
+| TC-0331–TC-0334 | TP-A017 | Pass (4/4) | HEAD | `npm run gate:integration` output (RUN-006: 46 passing, 0 failing) | TC-0332 fixture coverage remains intact; gate script decoupled integration from lint-coupled pretest |
 | TC-0245–TC-0250 | TP-A018 | Pass (37/37) | HEAD | `npm run test:unit`; `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Helper extraction + deterministic runner seams + 100% unit coverage on instrumented support scope |
-| TC-0600–TC-0603 | TP-A019 | Pass (8/8) | HEAD | `npm run test:unit` output (181 passing) | Safety requirement constraints: TC-0600 deterministic body+hash, TC-0601 no child_process + output-only file writes, TC-0602 .env exclusion from overlay, TC-0603 path traversal rejection |
+| TC-0600–TC-0603 | TP-A019 | Pass (8/8) | HEAD | `npm run test:unit` output (RUN-006) | Safety requirement constraints: TC-0600 deterministic body+hash, TC-0601 no child_process + output-only file writes, TC-0602 .env exclusion from overlay, TC-0603 path traversal rejection |
 
 ## Results — Manual Tests
 
@@ -70,23 +72,31 @@
 
 - Decision: **Ready**
 - Rationale:
-  - All 182 automated test assertions pass across 19 procedures with zero failures.
-  - Underlying test runners confirm zero failures: 181 unit tests, 43 integration tests, plus engine test coverage via TP-A016.
+  - All 182 **TP-mapped automated checks** pass across 19 procedures with zero failures.
+  - Underlying test runners confirm zero failures (RUN-006): 209 unit tests, 46 integration tests, plus engine test coverage via TP-A016.
   - TP-A019 (TC-0600–TC-0603) safety requirement tests implemented and passing: deterministic output, no auto-commit structural guards, .env exclusion, and path traversal rejection.
-  - TP-A017 (TC-0331–TC-0334) executed and passed in RUN-005 after resolving stale VS Code update-lock processes.
-  - TC-0332 test fixture corrected: injection config now temporarily overrides agents/skills to `"settings"` and a skills fixture was added to test workspace.
-  - No unresolved high-risk automated gaps remain.
+  - TP-A017 (TC-0331–TC-0334) executed and passed in RUN-006 via `gate:integration` after decoupling integration execution from lint-coupled `pretest`.
+  - New gate model implemented and verified: `gate:quick` (build+lint+unit), `gate:integration` (compile+bundle+extension host), and `gate:full` (quick + integration).
+  - Remaining high-risk functional gaps are tracked in the FTP plan (for example: progress notification contracts, broader settings injection matrix, cross-repo precedence). These are not currently enforced by the automated release gate and remain follow-up work.
   - 12 manual procedures (TP-M001–TP-M012) remain pending but are low/medium risk and do not block release.
 - Residual Risk:
   - Manual test procedures are not yet executed — tracked separately.
   - VS Code Extension Host update-lock is environment-dependent; CI environments should ensure no stale CodeSetup processes are running.
-  - FTP gap-closure plan lists open high-risk gaps (GAP-001 through GAP-008) that are in-progress but do not block the current release gate. See `FTP-metaflow-ext-functional-gap-closure.md` for tracking.
+  - FTP gap-closure plan items dispositioned as accepted non-blocking risk for this gate cycle:
+    - `GAP-004` (progress notification contract assertions): `accepted-risk`, Owner `MetaFlow Maintainers`, Target `2026-03-04`.
+    - `GAP-005` (settings injection matrix completion): `accepted-risk`, Owner `MetaFlow Maintainers`, Target `2026-03-08`.
+    - `GAP-007` (cross-repo precedence integration scenario): `accepted-risk`, Owner `MetaFlow Maintainers`, Target `2026-03-10`.
+    - `GAP-009` (activation weak-oracle hardening branch): `accepted-risk`, Owner `MetaFlow Maintainers`, Target `2026-03-12`.
+    - Source of truth: `doc/ftd/FTP-metaflow-ext-functional-gap-closure.md` backlog rows.
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
-| 2026-02-24 | Critique closure: TP-A019 safety tests (TC-0600–TC-0603) pass; Summary total 174→182; unit tests 173→181; CI/release gates now run `npm test` (293); async I/O + JSONC-safe persistence in commandHandlers; 7/9 findings closed, 1 accepted, 1 rejected | AI |
+| 2026-02-28 | Added explicit accepted-risk disposition for GAP-009 (activation weak-oracle hardening branch) to keep FTP/FTR tracking aligned | AI |
+| 2026-02-28 | Added explicit accepted-risk dispositions for GAP-004, GAP-005, and GAP-007 (owner/date) to remove readiness ambiguity with FTP tracking | AI |
+| 2026-02-28 | RUN-006: Implemented and verified agent-controlled gate model (`gate:quick`, `gate:integration`, `gate:full`); integration now runs through decoupled script path; updated TP-A013–TP-A017 evidence references and runner totals (209 unit, 46 integration) | AI |
+| 2026-02-24 | Critique closure: TP-A019 safety tests (TC-0600–TC-0603) pass; Summary total 174→182; unit tests 173→181; CI/release gates (at the time) ran `npm test` (293) — now superseded by `npm run gate:quick`; async I/O + JSONC-safe persistence in commandHandlers; 7/9 findings closed, 1 accepted, 1 rejected | AI |
 | 2026-02-23 | F-001 closure: corrected Summary total from 177 to 174 (TP table sum); clarified Rationale to distinguish TP-mapped assertions from runner totals; added FTP cross-reference in Residual Risk | AI |
 | 2026-02-23 | RUN-005: TP-A017 unblocked (killed stale CodeSetup-stable), TC-0332 fixture fixed, 43/43 integration pass, readiness upgraded to Ready | AI |
 | 2026-02-22 | Added RUN-004 blocked rerun evidence (cache reset + disable-updates mitigation attempted) | AI |
