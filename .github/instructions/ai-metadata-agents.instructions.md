@@ -17,9 +17,11 @@ This repository defines GitHub Copilot custom agents in `.github/agents/`.
 
 ## Recommended YAML frontmatter
 - `name`: use a human-friendly display name (Title Case, spaces allowed) that matches the role.
+- Preferred order: `name`, `description`, then optional execution keys (`tools`, `infer`, etc.).
 - Keep the filename `kebab-case.agent.md` for consistency and deduplication.
 - `infer`: set `infer: false` unless you explicitly want auto-selection.
 - `tools`: prefer GitHub-supported tool aliases for portability.
+- Quote values only when needed for YAML parsing clarity.
 
 Example:
 

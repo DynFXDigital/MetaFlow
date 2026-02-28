@@ -29,6 +29,8 @@ Required YAML frontmatter
 - `description` is required: short, specific summary.
 - `applyTo` is required: glob pattern(s) for what the file applies to.
 - Multiple `applyTo` patterns are comma-separated inside a single YAML string.
+- Preferred key order for instruction files: `description`, then `applyTo`, then optional keys.
+- Quote values only when needed for YAML parsing clarity.
 
 Optional YAML frontmatter
 - `excludeAgent` disables the file for specific agents:

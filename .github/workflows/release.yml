@@ -91,13 +91,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build workspace
-        run: npm run build
+      - name: Quick gate
+        run: npm run gate:quick
 
-      # Release gate: engine + CLI + extension unit tests.
-      # Integration tests require Extension Host display and are excluded.
-      - name: Run all unit tests
-        run: npm test
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration
 
       - name: Package extension
         working-directory: src
@@ -184,12 +191,21 @@ jobs:
             exit 1
           fi
 
-      - name: Build workspace
-        run: npm run build
-
       # Publish gate: same policy as release job above.
-      - name: Run all unit tests
-        run: npm test
+      - name: Quick gate
+        run: npm run gate:quick
+
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration
 
       - name: Package extension
         working-directory: src

@@ -22,6 +22,8 @@ Agent Skills are folders of instructions, scripts, and resources that an agent c
   - `name` (required): lowercase, hyphen-separated unique identifier
   - `description` (required): when the agent should use the skill
   - `license` (optional): license applying to the skill content
+- Preferred frontmatter order: `name`, `description`, then optional keys such as `license`.
+- Quote values only when needed for YAML parsing clarity.
 - The Markdown body should contain the procedure, constraints, and examples.
 
 ## Optional resources

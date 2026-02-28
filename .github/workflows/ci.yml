@@ -34,13 +34,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run extension lint
-        run: npm -w metaflow run lint
+      - name: Quick gate
+        run: npm run gate:quick
 
-      - name: Build workspace
-        run: npm run build
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
 
-      # Gate: engine + CLI + extension unit tests.
-      # Integration tests require Extension Host display and are excluded from CI.
-      - name: Run all unit tests
-        run: npm test
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration

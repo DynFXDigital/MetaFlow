@@ -14,15 +14,22 @@ Prompt files define reusable, task-specific prompts you invoke on demand (for ex
 ## Required structure
 - A `.prompt.md` file contains YAML frontmatter followed by a Markdown body.
 - Common frontmatter keys:
-  - `mode`: often `'agent'` for multi-step work
   - `description`: short description shown in UI
+  - `agent`: use `agent` for multi-step work
+  - `model`: specify the model to use (optional, depends on environment support)
+- Preferred key order:
+  - Keep `name` first when applicable.
+  - Keep `description` next.
+  - Put execution keys (`agent`, `model`) after identity/summary keys.
 
 Example:
 
 ---
-mode: 'agent'
-description: 'Perform a comprehensive code review'
+description: Perform a comprehensive code review
+agent: agent
 ---
+
+- Quote YAML values only when needed (for example to avoid parsing ambiguity).
 
 ## Inputs
 - Prefer explicit inputs using `${input:name:prompt}` to avoid ambiguous assumptions.
