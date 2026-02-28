@@ -13,6 +13,7 @@ class MockTreeItem {
     description?: string | boolean;
     checkboxState?: number;
     id?: string;
+    tooltip?: string;
 
     constructor(label: unknown, collapsibleState: number) {
         this.label = label;
@@ -61,6 +62,7 @@ type MockLayerTreeItem = {
     description?: string | boolean;
     collapsibleState?: number;
     pathKey?: string;
+    tooltip?: string;
 };
 
 type LayersTreeViewModule = {
@@ -68,6 +70,7 @@ type LayersTreeViewModule = {
         state: {
             config?: unknown;
             effectiveFiles: unknown[];
+            capabilityByLayer?: Record<string, { id?: string; name?: string; description?: string; license?: string }>;
             onDidChange: { event: (_l: unknown) => { dispose: () => void } };
         },
         modeResolver?: () => string
@@ -126,7 +129,11 @@ function makeEffectiveFile(
     };
 }
 
-function makeState(config?: unknown, effectiveFiles: unknown[] = []) {
+function makeState(
+    config?: unknown,
+    effectiveFiles: unknown[] = [],
+    capabilityByLayer: Record<string, { id?: string; name?: string; description?: string; license?: string }> = {}
+) {
     const event = (listener: unknown): { dispose: () => void } => {
         void listener;
         return { dispose: () => {} };
@@ -135,6 +142,7 @@ function makeState(config?: unknown, effectiveFiles: unknown[] = []) {
     return {
         config,
         effectiveFiles,
+        capabilityByLayer,
         onDidChange: {
             event,
         },
@@ -452,5 +460,74 @@ suite('LayersTreeView – artifact-type children', () => {
             !String(layerItem.description).includes('excluded'),
             `expected description without excluded hint, got: ${layerItem.description}`
         );
+    });
+
+    test('LTV-CAP-01: layer tooltip includes capability metadata when available', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const filesWithCapability = [
+            {
+                ...makeEffectiveFile('instructions/a.md'),
+                sourceCapabilityId: 'sdlc-traceability',
+                sourceCapabilityName: 'SDLC Traceability',
+                sourceCapabilityDescription: 'Traceability metadata capability.',
+                sourceCapabilityLicense: 'MIT',
+            },
+        ];
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, filesWithCapability), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.ok(String(layerItem.tooltip).includes('Capability: SDLC Traceability'));
+        assert.ok(String(layerItem.tooltip).includes('Description: Traceability metadata capability.'));
+        assert.ok(String(layerItem.tooltip).includes('License: MIT'));
+    });
+
+    test('LTV-CAP-02: layer tooltip falls back to capability id when name is absent', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const filesWithCapability = [
+            {
+                ...makeEffectiveFile('instructions/a.md'),
+                sourceCapabilityId: 'sdlc-traceability',
+            },
+        ];
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, filesWithCapability), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.ok(String(layerItem.tooltip).includes('Capability: sdlc-traceability'));
+    });
+
+    test('LTV-CAP-03: layer tooltip uses state capability map when layer has no effective files', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const capabilityByLayer = {
+            'repo1/.': {
+                id: 'sdlc-traceability',
+                name: 'SDLC Traceability',
+                description: 'Capability metadata sourced from layer state.',
+                license: 'MIT',
+            },
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.ok(String(layerItem.tooltip).includes('Capability: SDLC Traceability'));
+        assert.ok(String(layerItem.tooltip).includes('Description: Capability metadata sourced from layer state.'));
+        assert.ok(String(layerItem.tooltip).includes('License: MIT'));
     });
 });

@@ -1,7 +1,7 @@
 # Capability Manifest Implementation - Context
 
 - **Last updated:** 2026-02-28
-- **Status:** Planning ready for implementation kickoff
+- **Status:** Complete - CAPABILITY.md support implemented and validated
 - **Owner:** MetaFlow maintainers
 
 ## Feature Overview
@@ -10,17 +10,15 @@ MetaFlow has adopted capability-first language conceptually, but runtime tooling
 
 ## Current Focus
 
-1. Lock the minimal manifest schema and validation rule set.
-2. Define engine discovery and fallback behavior when metadata is missing or invalid.
-3. Stage CLI and extension UX updates behind non-breaking defaults.
+1. Completed implementation verification and rollout documentation.
 
 ## Next Steps
 
-- [ ] Finalize `CAPABILITY.md` contract and diagnostics severity levels.
-- [ ] Implement engine parser/discovery support with unit tests.
-- [ ] Add CLI `status` capability metadata output and tests.
-- [ ] Add extension view updates for capability name/description/license and tests.
-- [ ] Document migration and add examples in `test-workspace` and docs.
+- [x] Finalize `CAPABILITY.md` contract and diagnostics severity levels.
+- [x] Implement engine parser/discovery support with unit tests.
+- [x] Add CLI `status` capability metadata output and tests.
+- [x] Add extension view updates for capability name/description/license and tests.
+- [x] Document migration and add examples in `test-workspace` and docs.
 
 ## References
 
@@ -36,6 +34,9 @@ MetaFlow has adopted capability-first language conceptually, but runtime tooling
 - **2026-02-28** - Keep initial manifest minimal: required `name` and `description`, optional `license`.
 - **2026-02-28** - Defer `version` and `stability` fields until a real lifecycle/compat policy exists.
 - **2026-02-28** - Use warning diagnostics for malformed metadata to preserve non-breaking behavior.
+- **2026-02-28** - Implemented parser contract with warning codes for missing/malformed frontmatter, missing required fields, unknown fields, and invalid license syntax.
+- **2026-02-28** - Added capability metadata propagation from resolved layers to effective files for CLI and extension UX consumption.
+- **2026-02-28** - Added optional CAPABILITY.md examples/documentation and validated via `npm run gate:quick`.
 
 ## Open Questions & Risks
 
@@ -43,3 +44,7 @@ MetaFlow has adopted capability-first language conceptually, but runtime tooling
 - Should `license` accept SPDX identifiers only, or SPDX expressions plus a controlled fallback token?
 - Capability metadata may drift from folder intent if maintainers rename folders without updating manifests.
 - Extension UX density risk: adding too much capability text could reduce tree readability.
+
+## Outcome
+
+Implemented optional `CAPABILITY.md` support end-to-end across engine, CLI, and extension UX with non-breaking behavior. Existing repositories without manifests remain functional, while repositories with manifests now surface capability name/description/license metadata and warning diagnostics. Quick gate validation completed successfully (`npm run gate:quick`).

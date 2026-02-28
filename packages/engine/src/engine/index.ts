@@ -17,10 +17,17 @@ export {
 export { checkDrift, checkAllDrift } from './driftDetector';
 export { apply, clean, preview, toMaterializedRelativePath } from './materializer';
 export { computeSettingsEntries, computeSettingsKeysToRemove } from './settingsInjector';
+export {
+    parseCapabilityManifestContent,
+    loadCapabilityManifestForLayer,
+    capabilityManifestConstants,
+} from './capabilityManifest';
 export type {
     LayerFile,
     LayerContent,
     EffectiveFile,
+    CapabilityMetadata,
+    CapabilityWarning,
     ArtifactClassification,
     OverlayResult,
     PendingAction,

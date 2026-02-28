@@ -311,6 +311,43 @@ describe('Engine package: overlay pipeline', () => {
         assert.ok(!files.some(f => f.relativePath.startsWith('ISSUE_TEMPLATE/')));
         assert.ok(!files.some(f => f.relativePath.startsWith('components/')));
     });
+
+    it('loads capability metadata from CAPABILITY.md and propagates it to effective files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', 'CAPABILITY.md'),
+            [
+                '---',
+                'name: SDLC Traceability',
+                'description: Traceability metadata capability.',
+                'license: MIT',
+                '---',
+            ].join('\n'),
+            'utf-8'
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'instructions', 'coding.md'),
+            '# Coding'
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.ok(layers[0].capability);
+        assert.strictEqual(layers[0].capability?.name, 'SDLC Traceability');
+
+        const fileMap = buildEffectiveFileMap(layers);
+        const file = Array.from(fileMap.values())[0];
+        assert.strictEqual(file.sourceCapabilityId, 'core');
+        assert.strictEqual(file.sourceCapabilityName, 'SDLC Traceability');
+        assert.strictEqual(file.sourceCapabilityDescription, 'Traceability metadata capability.');
+        assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
+    });
 });
 
 describe('Engine package: materialization', () => {

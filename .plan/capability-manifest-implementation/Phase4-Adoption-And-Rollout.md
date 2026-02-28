@@ -6,11 +6,11 @@ Ship capability manifests as an opt-in feature with clear migration guidance and
 
 ## Tasks
 
-1. Add documentation for creating `CAPABILITY.md` files in capability/layer roots.
-2. Provide examples in `test-workspace` and docs.
-3. Add migration notes from prior capability-first conceptual docs.
-4. Run quality gates (`gate:quick`, then integration where relevant).
-5. Record traceability updates if behavior/spec docs are impacted.
+- [x] Add documentation for creating `CAPABILITY.md` files in capability/layer roots.
+- [x] Provide examples in `test-workspace` and docs.
+- [x] Add migration notes from prior capability-first conceptual docs.
+- [x] Run quality gates (`gate:quick`, then integration where relevant).
+- [x] Record traceability updates if behavior/spec docs are impacted.
 
 ## Acceptance Criteria
 

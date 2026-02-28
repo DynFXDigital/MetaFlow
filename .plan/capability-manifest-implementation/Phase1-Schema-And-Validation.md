@@ -6,12 +6,12 @@ Define and implement the canonical `CAPABILITY.md` parser contract and warning m
 
 ## Tasks
 
-1. Add a capability manifest parser in engine utilities.
-2. Implement frontmatter extraction and basic markdown-body passthrough.
-3. Validate required keys (`name`, `description`).
-4. Validate optional `license` against SPDX identifier/expression rules and fallback token.
-5. Emit structured warnings for parse and validation issues.
-6. Add unit tests for valid, missing, malformed, and unknown-key cases.
+- [x] Add a capability manifest parser in engine utilities.
+- [x] Implement frontmatter extraction and basic markdown-body passthrough.
+- [x] Validate required keys (`name`, `description`).
+- [x] Validate optional `license` against SPDX identifier/expression rules and fallback token.
+- [x] Emit structured warnings for parse and validation issues.
+- [x] Add unit tests for valid, missing, malformed, and unknown-key cases.
 
 ## Acceptance Criteria
 

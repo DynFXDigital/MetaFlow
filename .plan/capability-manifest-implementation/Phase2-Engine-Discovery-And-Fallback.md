@@ -6,11 +6,11 @@ Integrate capability manifest discovery into layer resolution without changing e
 
 ## Tasks
 
-1. Detect `CAPABILITY.md` at capability/layer roots during discovery.
-2. Bind manifest metadata to internal capability identity derived from folder name.
-3. Define fallback metadata when no manifest exists.
-4. Propagate warnings through existing diagnostics pathways.
-5. Add engine integration tests covering mixed manifest/no-manifest repositories.
+- [x] Detect `CAPABILITY.md` at capability/layer roots during discovery.
+- [x] Bind manifest metadata to internal capability identity derived from folder name.
+- [x] Define fallback metadata when no manifest exists.
+- [x] Propagate warnings through existing diagnostics pathways.
+- [x] Add engine integration tests covering mixed manifest/no-manifest repositories.
 
 ## Acceptance Criteria
 

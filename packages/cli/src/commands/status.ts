@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+import { resolveLayers } from '@metaflow/engine';
 
 export function registerStatusCommand(program: Command): void {
     program
@@ -14,8 +15,23 @@ export function registerStatusCommand(program: Command): void {
             }
             const { config, configPath } = loaded;
             const files = resolveEffectiveFiles(config, workspaceRoot);
+            const layers = resolveLayers(config, workspaceRoot);
             const settings = files.filter(f => f.classification === 'settings').length;
             const materialized = files.filter(f => f.classification === 'materialized').length;
+            const capabilities = layers
+                .map(layer => ({
+                    layerId: layer.layerId,
+                    capability: layer.capability,
+                }))
+                .filter(entry => entry.capability !== undefined)
+                .map(entry => ({
+                    layerId: entry.layerId,
+                    id: entry.capability!.id,
+                    name: entry.capability!.name,
+                    description: entry.capability!.description,
+                    license: entry.capability!.license,
+                    warnings: entry.capability!.warnings,
+                }));
 
             if (options.json) {
                 const data = {
@@ -23,6 +39,7 @@ export function registerStatusCommand(program: Command): void {
                     repo: config.metadataRepo?.localPath,
                     repos: config.metadataRepos?.map(r => ({ id: r.id, localPath: r.localPath })),
                     layers: config.layers ?? config.layerSources?.map(ls => `${ls.repoId}/${ls.path}`),
+                    capabilities,
                     activeProfile: config.activeProfile ?? null,
                     files: { total: files.length, settings, materialized },
                 };
@@ -51,6 +68,20 @@ export function registerStatusCommand(program: Command): void {
                 console.log(`Layers: ${config.layers.join(', ')}`);
             } else if (config.layerSources) {
                 console.log(`Layer sources: ${config.layerSources.length}`);
+            }
+
+            if (capabilities.length > 0) {
+                console.log(`Capabilities: ${capabilities.length}`);
+                for (const capability of capabilities) {
+                    const title = capability.name ?? capability.id;
+                    const description = capability.description ?? '(no description)';
+                    const license = capability.license ? ` [license: ${capability.license}]` : '';
+                    console.log(`  - ${title}: ${description}${license} (layer: ${capability.layerId})`);
+                    for (const warning of capability.warnings) {
+                        const location = warning.filePath ? ` [${warning.filePath}]` : '';
+                        console.log(`    ! ${warning.code}: ${warning.message}${location}`);
+                    }
+                }
             }
 
             console.log(`Profile: ${config.activeProfile ?? '(none)'}`);

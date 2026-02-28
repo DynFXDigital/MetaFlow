@@ -370,6 +370,39 @@ suite('Command Execution', () => {
         assert.ok(lines.some(line => line.includes('Managed Files:')), 'Status should include managed file count line');
     });
 
+    test('status reports capability warning file path when manifest is malformed', async function () {
+        this.timeout(15000);
+
+        const capabilityPath = path.join(
+            workspaceRoot,
+            '.ai',
+            'ai-metadata',
+            'standards',
+            'sdlc',
+            'CAPABILITY.md'
+        );
+
+        const originalCapability = fs.readFileSync(capabilityPath, 'utf-8');
+
+        try {
+            fs.writeFileSync(capabilityPath, '# malformed manifest without frontmatter\n', 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const lines = await vscode.commands.executeCommand('metaflow.status') as string[] | undefined;
+            assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
+
+            const warningLine = lines.find(line => line.includes('CAPABILITY_NO_FRONTMATTER'));
+            assert.ok(warningLine, 'Status should include capability warning code for malformed manifest');
+            assert.ok(
+                warningLine?.includes('standards/sdlc/CAPABILITY.md'),
+                `Expected warning to include manifest path, got: ${warningLine}`
+            );
+        } finally {
+            fs.writeFileSync(capabilityPath, originalCapability, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('checking a layer enables its disabled repo source', async function () {
         this.timeout(15000);
 

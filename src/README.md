@@ -61,6 +61,24 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Init C
 }
 ```
 
+### Optional `CAPABILITY.md` per layer
+
+Layer roots may include `CAPABILITY.md` to provide capability metadata consumed by MetaFlow.
+
+```md
+---
+name: SDLC Traceability
+description: Shared SDLC traceability metadata.
+license: MIT
+---
+```
+
+- `name` and `description` are required.
+- `license` is optional (`MIT`, `Apache-2.0`, `MIT OR Apache-2.0`, or `SEE-LICENSE-IN-REPO`).
+- Unknown fields are tolerated with warning diagnostics.
+
+This metadata is shown in `metaflow status` and in the Layers/Effective Files views.
+
 ## Commands
 
 | Command | Description | Keybinding |

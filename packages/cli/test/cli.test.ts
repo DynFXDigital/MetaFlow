@@ -105,6 +105,68 @@ describe('CLI: status', () => {
 
         assert.strictEqual(result.exitCode, 1);
     });
+
+    it('should include capability metadata when CAPABILITY.md is present', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'CAPABILITY.md',
+                        content: [
+                            '---',
+                            'name: SDLC Traceability',
+                            'description: Traceability metadata capability.',
+                            'license: MIT',
+                            '---',
+                        ].join('\n'),
+                    },
+                    {
+                        relativePath: 'instructions/coding.md',
+                        content: '# Coding Instructions',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['status', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Capabilities: 1'));
+        assert.ok(result.stdout.includes('SDLC Traceability'));
+        assert.ok(result.stdout.includes('Traceability metadata capability.'));
+        assert.ok(result.stdout.includes('license: MIT'));
+    });
+
+    it('should include warning file path for malformed capability manifest', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'CAPABILITY.md',
+                        content: [
+                            '---',
+                            'name SDLC Traceability',
+                            'description: Missing colon in previous line causes warning',
+                            '---',
+                        ].join('\n'),
+                    },
+                    {
+                        relativePath: 'instructions/coding.md',
+                        content: '# Coding Instructions',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['status', '-w', ws.root]);
+        const manifestPath = path.join(ws.root, '.ai', 'ai-metadata', 'company', 'core', 'CAPABILITY.md');
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('CAPABILITY_FRONTMATTER_LINE_INVALID'));
+        assert.ok(result.stdout.includes(manifestPath));
+    });
 });
 
 // ── Preview command ────────────────────────────────────────────────

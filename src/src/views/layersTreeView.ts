@@ -19,6 +19,12 @@ interface LayerEntry {
     repoDisabled?: boolean;
     toggleable: boolean;
     normalizedPath: string;
+    capability?: {
+        id?: string;
+        name?: string;
+        description?: string;
+        license?: string;
+    };
 }
 
 class LayerRepoItem extends vscode.TreeItem {
@@ -50,6 +56,10 @@ class LayerItem extends vscode.TreeItem {
             hasChildren?: boolean;
             path?: string;
             excludedCount?: number;
+            capabilityName?: string;
+            capabilityId?: string;
+            capabilityDescription?: string;
+            capabilityLicense?: string;
         }
     ) {
         const hasChildren = options?.hasChildren === true;
@@ -94,6 +104,18 @@ class LayerItem extends vscode.TreeItem {
 
         if (options?.path) {
             this.id = options.path;
+        }
+
+        if (options?.capabilityName || options?.capabilityId || options?.capabilityDescription || options?.capabilityLicense) {
+            const capabilityName = options.capabilityName ?? options.capabilityId ?? 'Unknown capability';
+            const detailLines: string[] = [`Capability: ${capabilityName}`];
+            if (options.capabilityDescription) {
+                detailLines.push(`Description: ${options.capabilityDescription}`);
+            }
+            if (options.capabilityLicense) {
+                detailLines.push(`License: ${options.capabilityLicense}`);
+            }
+            this.tooltip = detailLines.join('\n');
         }
     }
 }
@@ -164,11 +186,39 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return normalized === '' ? '.' : normalized;
     }
 
+    private getCapabilityMetadataByLayerId(): Map<string, { id?: string; name?: string; description?: string; license?: string }> {
+        const capabilityByLayer = new Map<string, { id?: string; name?: string; description?: string; license?: string }>();
+
+        for (const [layerId, metadata] of Object.entries(this.state.capabilityByLayer ?? {})) {
+            capabilityByLayer.set(this.normalizeLayerId(layerId), metadata);
+        }
+
+        for (const file of this.state.effectiveFiles as EffectiveFile[]) {
+            const normalized = this.normalizeLayerId(file.sourceLayer || '');
+            if (!normalized || capabilityByLayer.has(normalized)) {
+                continue;
+            }
+
+            if (file.sourceCapabilityId || file.sourceCapabilityName || file.sourceCapabilityDescription || file.sourceCapabilityLicense) {
+                capabilityByLayer.set(normalized, {
+                    id: file.sourceCapabilityId,
+                    name: file.sourceCapabilityName,
+                    description: file.sourceCapabilityDescription,
+                    license: file.sourceCapabilityLicense,
+                });
+            }
+        }
+
+        return capabilityByLayer;
+    }
+
     private getLayerEntries(): LayerEntry[] {
         const config = this.state.config;
         if (!config) {
             return [];
         }
+
+        const capabilityByLayer = this.getCapabilityMetadataByLayerId();
 
         if (config.metadataRepos && config.layerSources) {
             const repoEnabled = new Map(config.metadataRepos.map(repo => [repo.id, repo.enabled !== false]));
@@ -177,6 +227,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return config.layerSources.map((ls, i) => {
                 const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
                 const isLayerEnabled = ls.enabled !== false;
+                const layerId = `${ls.repoId}/${ls.path}`;
+                const capability = capabilityByLayer.get(this.normalizeLayerId(layerId));
                 return {
                     label: this.formatLayerLabel(ls.path, repoLabels.get(ls.repoId)),
                     layerIndex: i,
@@ -186,20 +238,26 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     repoDisabled: !isRepoEnabled,
                     toggleable: true,
                     normalizedPath: this.normalizeLayerPath(ls.path),
+                    capability,
                 };
             });
         }
 
         if (config.layers) {
             const singleRepoLabel = config.metadataRepo?.name?.trim() || 'primary';
-            return config.layers.map((layer, i) => ({
+            return config.layers.map((layer, i) => {
+                const normalizedLayerId = this.normalizeLayerId(layer);
+                const capability = capabilityByLayer.get(normalizedLayerId);
+                return {
                 label: this.formatLayerLabel(layer, singleRepoLabel),
                 layerIndex: i,
                 enabled: true,
                 repoLabel: singleRepoLabel,
                 toggleable: true,
                 normalizedPath: this.normalizeLayerPath(layer),
-            }));
+                    capability,
+                };
+            });
         }
 
         return [];
@@ -253,6 +311,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     hasChildren: hasChildren || hasArtifactTypeChildren,
                     path: node.path,
                     excludedCount: typeof matchingEntry?.layerIndex === 'number' ? this.getExcludedCount(matchingEntry.layerIndex) : undefined,
+                    capabilityName: matchingEntry?.capability?.name,
+                    capabilityId: matchingEntry?.capability?.id,
+                    capabilityDescription: matchingEntry?.capability?.description,
+                    capabilityLicense: matchingEntry?.capability?.license,
                 });
             })
             .sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }));
@@ -274,6 +336,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     hasChildren: rootHasArtifactChildren,
                     path: '(root)',
                     excludedCount: typeof rootEntry.layerIndex === 'number' ? this.getExcludedCount(rootEntry.layerIndex) : undefined,
+                    capabilityName: rootEntry.capability?.name,
+                    capabilityId: rootEntry.capability?.id,
+                    capabilityDescription: rootEntry.capability?.description,
+                    capabilityLicense: rootEntry.capability?.license,
                 })
             );
         }
@@ -374,6 +440,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     hasChildren: false,
                     path: entry.normalizedPath || '(root)',
                     excludedCount: this.getExcludedCount(entry.layerIndex),
+                    capabilityName: entry.capability?.name,
+                    capabilityId: entry.capability?.id,
+                    capabilityDescription: entry.capability?.description,
+                    capabilityLicense: entry.capability?.license,
                 })
             );
         }

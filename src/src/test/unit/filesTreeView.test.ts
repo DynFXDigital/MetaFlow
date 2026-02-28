@@ -58,6 +58,7 @@ type MockItem = {
     artifactType?: string;
     files?: EffectiveFile[];
     prefix?: string;
+    tooltip?: string;
 };
 
 type MockProvider = {
@@ -334,5 +335,38 @@ suite('FilesTreeView – artifact-type grouping', () => {
         const provider = new FilesTreeViewProvider(makeState([]), () => 'unified');
         const children = provider.getChildren();
         assert.strictEqual(children.length, 0);
+    });
+
+    test('FTV-CAP-01: File tooltip includes capability metadata when present', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const file = {
+            ...makeFile('.github/instructions/a.md'),
+            sourceCapabilityId: 'sdlc-traceability',
+            sourceCapabilityName: 'SDLC Traceability',
+            sourceCapabilityDescription: 'Traceability metadata capability.',
+            sourceCapabilityLicense: 'MIT',
+        } as EffectiveFile;
+
+        const provider = new FilesTreeViewProvider(makeState([file]), () => 'unified');
+        const [typeNode] = provider.getChildren();
+        const [fileNode] = provider.getChildren(typeNode);
+
+        assert.ok(String(fileNode.tooltip).includes('Capability: SDLC Traceability'));
+        assert.ok(String(fileNode.tooltip).includes('Capability Description: Traceability metadata capability.'));
+        assert.ok(String(fileNode.tooltip).includes('Capability License: MIT'));
+    });
+
+    test('FTV-CAP-02: File tooltip falls back to capability id when name is absent', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const file = {
+            ...makeFile('.github/instructions/a.md'),
+            sourceCapabilityId: 'sdlc-traceability',
+        } as EffectiveFile;
+
+        const provider = new FilesTreeViewProvider(makeState([file]), () => 'unified');
+        const [typeNode] = provider.getChildren();
+        const [fileNode] = provider.getChildren(typeNode);
+
+        assert.ok(String(fileNode.tooltip).includes('Capability: sdlc-traceability'));
     });
 });

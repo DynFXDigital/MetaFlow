@@ -37,6 +37,7 @@ import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputCh
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
 import { pickWorkspaceFolder } from './workspaceSelection';
+import { formatCapabilityWarningMessage } from './capabilityWarnings';
 import {
     isInjectionMode,
     deriveRepoId,
@@ -82,6 +83,13 @@ export interface ExtensionState {
     config?: MetaFlowConfig;
     configPath?: string;
     effectiveFiles: EffectiveFile[];
+    capabilityByLayer: Record<string, {
+        id?: string;
+        name?: string;
+        description?: string;
+        license?: string;
+    }>;
+    capabilityWarnings: string[];
     activeProfile?: string;
     /** Event emitter to notify TreeViews of changes. */
     onDidChange: vscode.EventEmitter<void>;
@@ -93,8 +101,15 @@ export interface ExtensionState {
 export function createState(): ExtensionState {
     return {
         effectiveFiles: [],
+        capabilityByLayer: {},
+        capabilityWarnings: [],
         onDidChange: new vscode.EventEmitter<void>(),
     };
+}
+
+function normalizeLayerId(layerId: string): string {
+    const normalized = layerId.replace(/\\/g, '/').replace(/\/+$/, '');
+    return normalized === '' ? '.' : normalized;
 }
 
 /**
@@ -105,11 +120,46 @@ function resolveOverlay(
     workspaceRoot: string,
     injection: InjectionConfig,
     options?: { enableDiscovery?: boolean; forceDiscoveryRepoIds?: string[] }
-): EffectiveFile[] {
+): {
+    effectiveFiles: EffectiveFile[];
+    capabilityByLayer: Record<string, {
+        id?: string;
+        name?: string;
+        description?: string;
+        license?: string;
+    }>;
+    capabilityWarnings: string[];
+} {
     const layers = resolveLayers(config, workspaceRoot, {
         enableDiscovery: options?.enableDiscovery,
         forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
     });
+
+    const capabilityByLayer: Record<string, {
+        id?: string;
+        name?: string;
+        description?: string;
+        license?: string;
+    }> = {};
+    const capabilityWarnings: string[] = [];
+
+    for (const layer of layers) {
+        if (layer.capability) {
+            capabilityByLayer[normalizeLayerId(layer.layerId)] = {
+                id: layer.capability.id,
+                name: layer.capability.name,
+                description: layer.capability.description,
+                license: layer.capability.license,
+            };
+        }
+
+        for (const warning of layer.capability?.warnings ?? []) {
+            const message = formatCapabilityWarningMessage(warning);
+            capabilityWarnings.push(message);
+            logWarn(message);
+        }
+    }
+
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
@@ -120,7 +170,11 @@ function resolveOverlay(
     files = applyProfile(files, profile);
 
     classifyFiles(files, injection);
-    return files;
+    return {
+        effectiveFiles: files,
+        capabilityByLayer,
+        capabilityWarnings,
+    };
 }
 
 function toPosixPath(value: string): string {
@@ -362,6 +416,8 @@ export function registerCommands(
                 state.configPath = undefined;
                 state.activeProfile = undefined;
                 state.effectiveFiles = [];
+                state.capabilityByLayer = {};
+                state.capabilityWarnings = [];
                 state.onDidChange.fire();
                 return;
             }
@@ -389,17 +445,22 @@ export function registerCommands(
             try {
                 const injectionConfig = resolveInjectionConfig(ws, result.config);
                 const shouldEnableDiscovery = autoApplyEnabled || refreshOptions.forceDiscovery === true;
-                state.effectiveFiles = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig, {
+                const overlay = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig, {
                     enableDiscovery: shouldEnableDiscovery,
                     forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
                         ? [refreshOptions.forceDiscoveryRepoId]
                         : undefined,
                 });
+                state.effectiveFiles = overlay.effectiveFiles;
+                state.capabilityByLayer = overlay.capabilityByLayer;
+                state.capabilityWarnings = overlay.capabilityWarnings;
                 logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
                 updateStatusBar('idle', state.activeProfile, state.effectiveFiles.length);
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
                 logError(`Overlay resolution failed: ${msg}`);
+                state.capabilityByLayer = {};
+                state.capabilityWarnings = [];
                 updateStatusBar('error');
             }
 
@@ -545,6 +606,13 @@ export function registerCommands(
                 emitInfo(`Drifted: ${drifted.length}, Missing: ${missing.length}`);
                 for (const d of drifted) {
                     emitWarn(`  Drifted: ${d.relativePath}`);
+                }
+            }
+
+            if (state.capabilityWarnings.length > 0) {
+                emitInfo(`Capability Warnings: ${state.capabilityWarnings.length}`);
+                for (const warning of state.capabilityWarnings) {
+                    emitWarn(`  ${warning}`);
                 }
             }
 

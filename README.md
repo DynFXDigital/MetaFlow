@@ -98,6 +98,29 @@ Optional excludes:
 }
 ```
 
+## Capability manifests (optional)
+
+MetaFlow now supports optional capability manifests at layer roots using `CAPABILITY.md`.
+
+Use minimal YAML frontmatter:
+
+```md
+---
+name: SDLC Traceability
+description: Shared SDLC traceability metadata.
+license: MIT
+---
+```
+
+Rules:
+
+- Required fields: `name`, `description`
+- Optional field: `license` (SPDX identifier/expression or `SEE-LICENSE-IN-REPO`)
+- Internal capability identity is derived from the layer directory name
+- Unknown fields are allowed but produce warnings
+
+When present, capability metadata is surfaced in CLI `status` and in VS Code Layer/File tooltips.
+
 ## Command overview
 
 Core VS Code commands (manual controls and diagnostics):

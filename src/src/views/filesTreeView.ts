@@ -153,13 +153,25 @@ class FileItem extends vscode.TreeItem {
             title: 'Open Source File',
             arguments: [vscode.Uri.file(file.sourcePath), { preview: false }],
         };
-        this.tooltip = [
+        const tooltipLines = [
             `Path: ${file.relativePath}`,
             `Source: ${sourceLabel}`,
             `Source Path: ${file.sourcePath}`,
             `Layer: ${displayLayerLabel} (raw: ${file.sourceLayer || ''})`,
             `Realization: ${getClassificationLabel(file.classification)}`,
-        ].join('\n');
+        ];
+
+        if (file.sourceCapabilityName || file.sourceCapabilityId) {
+            tooltipLines.push(`Capability: ${file.sourceCapabilityName ?? file.sourceCapabilityId}`);
+            if (file.sourceCapabilityDescription) {
+                tooltipLines.push(`Capability Description: ${file.sourceCapabilityDescription}`);
+            }
+            if (file.sourceCapabilityLicense) {
+                tooltipLines.push(`Capability License: ${file.sourceCapabilityLicense}`);
+            }
+        }
+
+        this.tooltip = tooltipLines.join('\n');
     }
 }
 

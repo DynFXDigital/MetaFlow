@@ -6,11 +6,11 @@ Expose capability metadata in user-visible surfaces where layer intent matters m
 
 ## Tasks
 
-1. Update CLI `status` output to include capability `name`, `description`, and `license` when available.
-2. Add formatting rules for concise fallback output when metadata is absent.
-3. Update extension `LAYERS` view labels/tooltips with capability metadata.
-4. Update `EFFECTIVE FILES` provenance displays to reference capability metadata where useful.
-5. Add unit/integration tests for CLI rendering and extension view behavior.
+- [x] Update CLI `status` output to include capability `name`, `description`, and `license` when available.
+- [x] Add formatting rules for concise fallback output when metadata is absent.
+- [x] Update extension `LAYERS` view labels/tooltips with capability metadata.
+- [x] Update `EFFECTIVE FILES` provenance displays to reference capability metadata where useful.
+- [x] Add unit/integration tests for CLI rendering and extension view behavior.
 
 ## Acceptance Criteria
 

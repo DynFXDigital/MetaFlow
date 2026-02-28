@@ -22,6 +22,36 @@ export interface LayerContent {
     repoId?: string;
     /** Files discovered in this layer. */
     files: LayerFile[];
+    /** Optional capability metadata loaded from CAPABILITY.md at layer root. */
+    capability?: CapabilityMetadata;
+}
+
+/** Warning emitted while parsing/validating capability metadata. */
+export interface CapabilityWarning {
+    /** Stable warning code for testability and diagnostics routing. */
+    code: string;
+    /** Human-readable warning message. */
+    message: string;
+    /** Optional file path associated with the warning. */
+    filePath?: string;
+}
+
+/** Parsed CAPABILITY.md metadata associated with a layer. */
+export interface CapabilityMetadata {
+    /** Internal capability identifier (derived from folder name). */
+    id: string;
+    /** Absolute path to CAPABILITY.md. */
+    manifestPath: string;
+    /** User-facing capability name. */
+    name?: string;
+    /** User-facing capability description. */
+    description?: string;
+    /** Optional SPDX identifier/expression or fallback token. */
+    license?: string;
+    /** Markdown content after frontmatter. */
+    body?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
 }
 
 // ── Effective file model ───────────────────────────────────────────
@@ -39,6 +69,14 @@ export interface EffectiveFile {
     sourceLayer: string;
     /** Which repo contributed this file (for multi-repo). */
     sourceRepo?: string;
+    /** Internal capability identifier associated with the source layer. */
+    sourceCapabilityId?: string;
+    /** User-facing capability name associated with the source layer. */
+    sourceCapabilityName?: string;
+    /** Capability description associated with the source layer. */
+    sourceCapabilityDescription?: string;
+    /** Capability license associated with the source layer. */
+    sourceCapabilityLicense?: string;
     /** Classification for realization strategy. */
     classification: ArtifactClassification;
 }

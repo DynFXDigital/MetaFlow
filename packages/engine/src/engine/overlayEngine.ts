@@ -18,6 +18,7 @@ import {
 } from '../config/configSchema';
 import { resolvePathFromWorkspace, isWithinBoundary } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
+import { loadCapabilityManifestForLayer } from './capabilityManifest';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -81,6 +82,10 @@ export function buildEffectiveFileMap(
                 sourcePath: file.absolutePath,
                 sourceLayer: layer.layerId,
                 sourceRepo: layer.repoId,
+                sourceCapabilityId: layer.capability?.id,
+                sourceCapabilityName: layer.capability?.name,
+                sourceCapabilityDescription: layer.capability?.description,
+                sourceCapabilityLicense: layer.capability?.license,
                 classification: 'materialized', // placeholder — set by classifier
             });
         }
@@ -103,6 +108,7 @@ function resolveSingleRepoLayers(
 
     for (const layerPath of layers) {
         const layerAbsPath = path.join(repoRoot, layerPath);
+        const capabilityId = deriveCapabilityId(layerPath, repoRoot);
 
         // Validate path traversal
         if (!isWithinBoundary(layerAbsPath, repoRoot)) {
@@ -117,6 +123,7 @@ function resolveSingleRepoLayers(
         result.push({
             layerId: layerPath,
             files,
+            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         });
     }
 
@@ -127,6 +134,7 @@ function resolveSingleRepoLayers(
 
         for (const layerPath of discoveredLayers) {
             const layerAbsPath = path.join(repoRoot, layerPath);
+            const capabilityId = deriveCapabilityId(layerPath, repoRoot);
             if (!isWithinBoundary(layerAbsPath, repoRoot)) {
                 continue;
             }
@@ -135,6 +143,7 @@ function resolveSingleRepoLayers(
             result.push({
                 layerId: layerPath,
                 files,
+                capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
             });
         }
     }
@@ -199,6 +208,7 @@ function resolveMultiRepoLayers(
         }
 
         const layerAbsPath = path.join(repoRoot, ls.path);
+        const capabilityId = deriveCapabilityId(ls.path, repoRoot);
 
         if (!isWithinBoundary(layerAbsPath, repoRoot)) {
             continue;
@@ -213,6 +223,7 @@ function resolveMultiRepoLayers(
             layerId: `${ls.repoId}/${ls.path}`,
             repoId: ls.repoId,
             files,
+            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         });
     }
 
@@ -263,6 +274,16 @@ function normalizeLayerRelativePath(relativePath: string): string {
         return posixPath.slice('.github/'.length);
     }
     return posixPath;
+}
+
+function deriveCapabilityId(layerPath: string, repoRoot: string): string {
+    const normalized = layerPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (normalized === '' || normalized === '.') {
+        return path.basename(repoRoot);
+    }
+
+    const segments = normalized.split('/').filter(Boolean);
+    return segments[segments.length - 1] || path.basename(repoRoot);
 }
 
 function isKnownArtifactPath(relativePath: string): boolean {
