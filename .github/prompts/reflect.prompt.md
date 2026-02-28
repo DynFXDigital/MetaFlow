@@ -1,4 +1,8 @@
-```prompt
+---
+description: Capture durable session learnings and propose safe AI-metadata updates.
+agent: agent
+---
+
 # Reflect (Generic Workspace)
 
 Capture durable learnings from this session, write a proposal to disk, and (when safe) update AI-meta + memory stores so we don’t re-learn the same things.
@@ -104,4 +108,3 @@ Constraints:
 2. Write the proposal file to `.ai/temp/reflect/`.
 3. Update memory store (sticky-notes or fallback) if safe.
 4. Propose AI-meta updates with exact file targets.
-```

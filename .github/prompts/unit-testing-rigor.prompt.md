@@ -1,6 +1,6 @@
 ---
-mode: 'agent'
-description: 'Design and implement rigorous unit tests using behavior, data, and failure-mode coverage.'
+description: Design and implement rigorous unit tests using behavior, data, and failure-mode coverage.
+agent: agent
 ---
 
 # Unit Testing Rigor

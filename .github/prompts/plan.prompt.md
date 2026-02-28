@@ -1,4 +1,8 @@
-````prompt
+---
+description: Create a new plan directory with required Context and phase artifacts.
+agent: agent
+---
+
 # Create a Plan
 
 Create a new planning folder under `.plan/<PlanName>/` and populate it with the minimum required artifacts, following the repository’s plan documentation rules.
@@ -32,4 +36,3 @@ Prefer linking to existing repo documents over duplicating long background.
 
 - Keep `Context.md` to roughly 1–2 screens as suggested by the plan instructions.
 - If naming/layout is ambiguous, scan existing `.plan/*` directories and follow prevailing conventions.
-````

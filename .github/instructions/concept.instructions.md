@@ -1,3 +1,8 @@
+---
+description: Guidance for writing high-level concept documents without implementation detail.
+applyTo: "doc/concept/**/*.md,doc/**/concept/**/*.md"
+---
+
 # Concept Instructions
 
 - Clearly state the problem to be solved.

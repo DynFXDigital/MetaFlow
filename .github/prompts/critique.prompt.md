@@ -1,6 +1,6 @@
 ---
-description: 'Run an adversarial, evidence-based critique of this VS Code extension project.'
-agent: 'agent'
+description: Run an adversarial, evidence-based critique of this VS Code extension project.
+agent: agent
 ---
 
 # VS Code Extension Critique

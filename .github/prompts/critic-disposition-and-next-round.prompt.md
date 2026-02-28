@@ -1,6 +1,6 @@
 ---
-mode: 'agent'
-description: 'Take Critic findings, disposition each one, and generate the exact next implementation round plan.'
+description: Take Critic findings, disposition each one, and generate the exact next implementation round plan.
+agent: agent
 ---
 
 # Critic Disposition + Next Round

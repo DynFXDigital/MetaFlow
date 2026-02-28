@@ -1,6 +1,6 @@
 ---
-mode: 'agent'
-description: 'Implement a goal, run Critic review, fix findings, and repeat until no real issues remain.'
+description: Implement a goal, run Critic review, fix findings, and repeat until no real issues remain.
+agent: agent
 ---
 
 # Critic Iteration Loop

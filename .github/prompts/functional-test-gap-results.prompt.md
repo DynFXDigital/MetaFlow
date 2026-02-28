@@ -1,6 +1,6 @@
 ---
-agent: 'agent'
-description: 'Record functional test execution, update gap burn-down, and produce release-readiness recommendation.'
+description: Record functional test execution, update gap burn-down, and produce release-readiness recommendation.
+agent: agent
 ---
 
 Record functional testing results for `${input:scope:Feature, subsystem, or release scope}`.

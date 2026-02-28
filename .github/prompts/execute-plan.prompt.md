@@ -1,4 +1,8 @@
-````prompt
+---
+description: Execute a plan folder end-to-end until complete or genuinely blocked.
+agent: agent
+---
+
 # Execute Plan to Completion
 
 Work on a plan in `.plan/<plan-name>/` until 100% complete or user input is required.
@@ -131,5 +135,3 @@ Begin by reading the plan's `Context.md`:
 2. Read the referenced phase document
 3. Execute the first uncompleted task
 4. Continue until complete or blocked
-
-````

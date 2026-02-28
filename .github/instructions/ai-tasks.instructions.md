@@ -1,3 +1,8 @@
+---
+description: Define conventions for creating and maintaining AI task checklists.
+applyTo: ".ai/tasks/**/*.md"
+---
+
 # Instructions: Creating AI Task Checklists
 
 When documenting recommended changes or improvements as tasks for this project, follow these steps:

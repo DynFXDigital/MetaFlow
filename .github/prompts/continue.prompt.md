@@ -1,6 +1,6 @@
 ---
-description: "Continue executing the current plan/task end-to-end without pausing; only stop if blocked or if the next step is destructive/ambiguous."
-agent: "agent"
+description: Continue executing the current plan/task end-to-end without pausing; only stop if blocked or if the next step is destructive/ambiguous.
+agent: agent
 ---
 
 Continue the work from the current context.

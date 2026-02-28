@@ -1,3 +1,8 @@
+---
+description: Validation testing guidance for VREQ/VTC/VTP/VTR evidence workflows.
+applyTo: "doc/validation/**"
+---
+
 # Validation Testing Instructions
 
 - Confirm the system meets user needs and validation requirements (`VREQ-*`).

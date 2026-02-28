@@ -1,3 +1,8 @@
+---
+description: Operational guidance for running MetaFlow commands, builds, and tests.
+applyTo: "**/*"
+---
+
 # MetaFlow Instructions
 
 ## Running the Program

@@ -1,6 +1,6 @@
 ---
-agent: 'agent'
-description: 'Create or refresh a functional test gap-closure plan with risk-ranked coverage actions and traceability.'
+description: Create or refresh a functional test gap-closure plan with risk-ranked coverage actions and traceability.
+agent: agent
 ---
 
 Create a functional testing gap-closure plan for `${input:scope:Feature, subsystem, or release scope}`.

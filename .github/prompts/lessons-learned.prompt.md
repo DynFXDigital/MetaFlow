@@ -1,6 +1,6 @@
 ---
+description: Record any durable lessons learned (append-only) using runSubagent.
 agent: agent
-description: 'Record any durable lessons learned (append-only) using runSubagent.'
 tools: ['read', 'edit', 'search', 'agent', 'memory', 'todo']
 ---
 

@@ -1,3 +1,8 @@
+---
+description: Validate coding-agent branch work for issue alignment, quality, and non-regression.
+agent: agent
+---
+
 # Validate Agent Work
 
 Automated reviewer for coding agent branches (e.g. `copilot/fix-<issue>`). Ensure correctness, alignment with GitHub issue, code quality, and non-regression.

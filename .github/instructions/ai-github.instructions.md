@@ -1,3 +1,8 @@
+---
+description: Define default GitHub repository ownership guidance for this workspace.
+applyTo: "**/*"
+---
+
 # GitHub Repository Ownership
 
 ## Default Owner
