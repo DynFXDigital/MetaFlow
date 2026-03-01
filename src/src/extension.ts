@@ -9,6 +9,8 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { setLogLevel, logInfo, disposeOutputChannel, LogLevel } from './views/outputChannel';
 import { createStatusBar, disposeStatusBar } from './views/statusBar';
 import { disposeDiagnostics } from './diagnostics/configDiagnostics';
@@ -17,6 +19,7 @@ import { ConfigTreeViewProvider } from './views/configTreeView';
 import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
+import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -27,6 +30,11 @@ function getFilesViewMode(): FilesViewMode {
 
 function getLayersViewMode(): LayersViewMode {
     return vscode.workspace.getConfiguration('metaflow').get<LayersViewMode>('layersViewMode', 'flat');
+}
+
+function workspaceHasMetaFlowConfig(): boolean {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    return folders.some(folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow', 'config.jsonc')));
 }
 
 /**
@@ -168,7 +176,8 @@ export function activate(context: vscode.ExtensionContext): void {
                     (checkboxState === vscode.TreeItemCheckboxState.Checked ||
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
                     typeof repoId === 'string' &&
-                    contextValue === 'configRepoSourceRescannable'
+                    (contextValue === 'configRepoSourceRescannable' ||
+                        contextValue === 'configRepoSourceGitRescannable')
                 ) {
                     await vscode.commands.executeCommand('metaflow.toggleRepoSource', repoId);
                 }
@@ -244,14 +253,17 @@ export function activate(context: vscode.ExtensionContext): void {
                 watcher,
                 watcher.onDidCreate(() => {
                     logInfo(`Config created (${label}); refreshing MetaFlow.`);
+                    syncRepoUpdateSchedulerLifecycle();
                     vscode.commands.executeCommand('metaflow.refresh');
                 }),
                 watcher.onDidChange(() => {
                     logInfo(`Config changed (${label}); refreshing MetaFlow.`);
+                    syncRepoUpdateSchedulerLifecycle();
                     vscode.commands.executeCommand('metaflow.refresh');
                 }),
                 watcher.onDidDelete(() => {
                     logInfo(`Config deleted (${label}); refreshing MetaFlow.`);
+                    syncRepoUpdateSchedulerLifecycle();
                     vscode.commands.executeCommand('metaflow.refresh');
                 })
             );
@@ -265,6 +277,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Auto-refresh on activation
     vscode.commands.executeCommand('metaflow.refresh');
+
+    let repoUpdateSchedulerDisposable: vscode.Disposable | undefined;
+    const syncRepoUpdateSchedulerLifecycle = (): void => {
+        const hasConfig = workspaceHasMetaFlowConfig();
+        if (hasConfig && !repoUpdateSchedulerDisposable) {
+            repoUpdateSchedulerDisposable = createRepoUpdateScheduler();
+            context.subscriptions.push(repoUpdateSchedulerDisposable);
+            logInfo('Repository update scheduler started.');
+            return;
+        }
+
+        if (!hasConfig && repoUpdateSchedulerDisposable) {
+            repoUpdateSchedulerDisposable.dispose();
+            repoUpdateSchedulerDisposable = undefined;
+            logInfo('Repository update scheduler stopped: no .metaflow/config.jsonc found.');
+        }
+    };
+
+    // Start/stop automatic background checks for upstream repo updates.
+    syncRepoUpdateSchedulerLifecycle();
 
     logInfo('MetaFlow extension activated.');
 }

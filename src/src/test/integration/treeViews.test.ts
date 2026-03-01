@@ -135,6 +135,8 @@ suite('TreeView Providers', () => {
         assert.strictEqual(repoItems.length, 2, 'Should return all repository items under Repositories section');
         assert.strictEqual(repoItems[0].description, '.ai/ai-metadata [git]', 'Git-backed repo should include a visible git marker');
         assert.strictEqual(repoItems[1].description, '.ai/team-metadata', 'Local-only repo should not include a git marker');
+        assert.strictEqual(repoItems[0].contextValue, 'configRepoSourceGitRescannable', 'Git-backed repo should expose git-specific context value');
+        assert.strictEqual(repoItems[1].contextValue, 'configRepoSourceRescannable', 'Local repo should keep non-git context value');
 
         const primaryTooltip = repoItems[0].tooltip as vscode.MarkdownString;
         assert.ok(primaryTooltip.value.includes('Remote URL:'), 'Git-backed repo tooltip should include remote URL label');
@@ -145,6 +147,44 @@ suite('TreeView Providers', () => {
 
         const secondaryTooltip = repoItems[1].tooltip as vscode.MarkdownString;
         assert.ok(!secondaryTooltip.value.includes('Remote URL:'), 'Local-only repo tooltip should not include remote URL label');
+    });
+
+    test('ConfigTreeView shows repo sync status indicators and tooltip details', () => {
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    url: 'https://github.com/org/ai-metadata.git',
+                },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+            ],
+        };
+        state.repoSyncByRepoId.primary = {
+            state: 'behind',
+            aheadCount: 0,
+            behindCount: 2,
+            trackingRef: 'origin/main',
+            lastCheckedAt: '2026-03-01T12:00:00.000Z',
+        };
+
+        const provider = new ConfigTreeViewProvider(state);
+        const rootItems = provider.getChildren();
+        const repoItems = provider.getChildren(rootItems[0] as never);
+        const repoItem = repoItems[0];
+
+        assert.strictEqual(repoItem.description, '.ai/ai-metadata [git] (2 updates)', 'Behind repos should surface update count in description');
+        const icon = repoItem.iconPath as vscode.ThemeIcon;
+        assert.strictEqual(icon.id, 'arrow-down', 'Behind repos should show arrow-down icon');
+
+        const tooltip = repoItem.tooltip as vscode.MarkdownString;
+        assert.ok(tooltip.value.includes('Sync status: Updates available upstream'), 'Tooltip should include sync status summary');
+        assert.ok(tooltip.value.includes('Tracking branch: `origin/main`'), 'Tooltip should include tracking branch');
+        assert.ok(tooltip.value.includes('Ahead/Behind: 0/2'), 'Tooltip should include ahead/behind counts');
+        assert.ok(tooltip.value.includes('Last checked: 2026-03-01T12:00:00.000Z'), 'Tooltip should include last-check timestamp');
     });
 
     // ── ProfilesTreeView ───────────────────────────────────────

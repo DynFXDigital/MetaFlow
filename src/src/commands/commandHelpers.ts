@@ -13,6 +13,12 @@ export interface ApplyCommandOptions {
     skipRefresh?: boolean;
 }
 
+export interface RepoScopeOptions {
+    repoId?: string;
+    allRepos?: boolean;
+    silent?: boolean;
+}
+
 export type FilesViewMode = 'unified' | 'repoTree';
 export type LayersViewMode = 'flat' | 'tree';
 
@@ -134,6 +140,29 @@ export function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
     const skipRefresh = (arg as { skipRefresh?: unknown }).skipRefresh;
     return {
         skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
+    };
+}
+
+export function extractRepoScopeOptions(arg: unknown): RepoScopeOptions {
+    if (typeof arg === 'string') {
+        return {
+            repoId: arg,
+            allRepos: false,
+            silent: false,
+        };
+    }
+
+    if (typeof arg !== 'object' || arg === null) {
+        return {};
+    }
+
+    const repoId = (arg as { repoId?: unknown }).repoId;
+    const allRepos = (arg as { allRepos?: unknown }).allRepos;
+    const silent = (arg as { silent?: unknown }).silent;
+    return {
+        repoId: typeof repoId === 'string' ? repoId : undefined,
+        allRepos: typeof allRepos === 'boolean' ? allRepos : undefined,
+        silent: typeof silent === 'boolean' ? silent : undefined,
     };
 }
 

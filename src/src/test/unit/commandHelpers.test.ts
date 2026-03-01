@@ -11,6 +11,7 @@ import {
     extractRepoId,
     extractRefreshCommandOptions,
     extractApplyCommandOptions,
+    extractRepoScopeOptions,
     normalizeFilesViewMode,
     normalizeLayersViewMode,
     normalizeLayerPath,
@@ -116,6 +117,11 @@ suite('Command Helpers', () => {
         assert.deepStrictEqual(extractApplyCommandOptions({ skipRefresh: true }), { skipRefresh: true });
         assert.deepStrictEqual(extractApplyCommandOptions(null), {});
         assert.deepStrictEqual(extractApplyCommandOptions({ skipRefresh: 'false' }), { skipRefresh: undefined });
+
+        assert.deepStrictEqual(extractRepoScopeOptions('repo-a'), { repoId: 'repo-a', allRepos: false, silent: false });
+        assert.deepStrictEqual(extractRepoScopeOptions({ repoId: 'repo-b', allRepos: true, silent: true }), { repoId: 'repo-b', allRepos: true, silent: true });
+        assert.deepStrictEqual(extractRepoScopeOptions({ repoId: 4, allRepos: 'yes', silent: 'no' }), { repoId: undefined, allRepos: undefined, silent: undefined });
+        assert.deepStrictEqual(extractRepoScopeOptions(undefined), {});
     });
 
     test('normalizes view mode settings to safe defaults', () => {

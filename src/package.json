@@ -90,6 +90,16 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "metaflow.checkRepoUpdates",
+        "title": "MetaFlow: Check Repository Updates",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "metaflow.pullRepository",
+        "title": "MetaFlow: Pull Repository Updates",
+        "icon": "$(repo-pull)"
+      },
+      {
         "command": "metaflow.openConfig",
         "title": "MetaFlow: Open Config File",
         "icon": "$(settings-gear)"
@@ -225,14 +235,19 @@
           "group": "navigation@2"
         },
         {
+          "command": "metaflow.checkRepoUpdates",
+          "when": "view == metaflow-config",
+          "group": "navigation@3"
+        },
+        {
           "command": "metaflow.toggleFilesViewMode",
           "when": "view == metaflow-files",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.toggleLayersViewMode",
           "when": "view == metaflow-layers",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.collapseAllLayers",
@@ -263,13 +278,23 @@
         },
         {
           "command": "metaflow.removeRepoSource",
-          "when": "view == metaflow-config && viewItem == configRepoSourceRescannable",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGitRescannable)",
           "group": "inline@2"
         },
         {
           "command": "metaflow.rescanRepository",
-          "when": "view == metaflow-config && viewItem == configRepoSourceRescannable",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGitRescannable)",
           "group": "inline@1"
+        },
+        {
+          "command": "metaflow.checkRepoUpdates",
+          "when": "view == metaflow-config && viewItem == configRepoSourceGitRescannable",
+          "group": "inline@3"
+        },
+        {
+          "command": "metaflow.pullRepository",
+          "when": "view == metaflow-config && viewItem == configRepoSourceGitRescannable",
+          "group": "inline@4"
         },
         {
           "command": "metaflow.addRepoSource",
@@ -411,6 +436,18 @@
             "tree"
           ],
           "description": "Display mode for the Layers view: flat precedence list or hierarchical tree"
+        },
+        "metaflow.repoUpdateCheckInterval": {
+          "type": "string",
+          "default": "daily",
+          "order": 8,
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly",
+            "monthly"
+          ],
+          "description": "How often MetaFlow checks git-backed metadata repositories for upstream updates in the background"
         }
       }
     },

@@ -46,6 +46,7 @@ import {
     extractLayerIndex,
     extractLayerCheckedState,
     extractRepoId,
+    extractRepoScopeOptions,
     extractRefreshCommandOptions,
     extractApplyCommandOptions,
     normalizeFilesViewMode,
@@ -55,6 +56,11 @@ import {
     normalizeAndDeduplicateLayerPaths,
     pruneStaleLayerSources,
 } from './commandHelpers';
+import {
+    RepoSyncStatus,
+    checkRepoSyncStatus,
+    pullRepositoryFastForward,
+} from './repoSyncStatus';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 type InjectionKey = typeof INJECTION_KEYS[number];
@@ -91,6 +97,7 @@ export interface ExtensionState {
         license?: string;
     }>;
     capabilityWarnings: string[];
+    repoSyncByRepoId: Record<string, RepoSyncStatus>;
     activeProfile?: string;
     /** Event emitter to notify TreeViews of changes. */
     onDidChange: vscode.EventEmitter<void>;
@@ -104,9 +111,21 @@ export function createState(): ExtensionState {
         effectiveFiles: [],
         capabilityByLayer: {},
         capabilityWarnings: [],
+        repoSyncByRepoId: {},
         onDidChange: new vscode.EventEmitter<void>(),
     };
 }
+
+interface ResolvedRepoSource {
+    repoId: string;
+    label: string;
+    localPath: string;
+    repoUrl?: string;
+}
+
+type CheckRepoUpdatesOutcome =
+    | { executed: true }
+    | { executed: false; reason: 'no-config' | 'no-git-repos' | 'repo-not-found' | 'no-targets' };
 
 function normalizeLayerId(layerId: string): string {
     const normalized = layerId.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -383,6 +402,77 @@ function discoverAndPersistRepoLayers(
     return 0;
 }
 
+function isGitRemoteUrl(repoUrl: string | undefined): boolean {
+    if (!repoUrl) {
+        return false;
+    }
+
+    const trimmed = repoUrl.trim();
+    if (!trimmed) {
+        return false;
+    }
+
+    return /^(git@|git:\/\/|ssh:\/\/|https?:\/\/)/i.test(trimmed);
+}
+
+function resolveGitBackedRepoSources(config: MetaFlowConfig, workspaceRoot: string): ResolvedRepoSource[] {
+    if (config.metadataRepos) {
+        return config.metadataRepos
+            .filter(repo => isGitRemoteUrl(repo.url))
+            .map(repo => ({
+                repoId: repo.id,
+                label: repo.name?.trim() || repo.id,
+                localPath: resolvePathFromWorkspace(workspaceRoot, repo.localPath),
+                repoUrl: repo.url,
+            }));
+    }
+
+    if (config.metadataRepo && isGitRemoteUrl(config.metadataRepo.url)) {
+        return [{
+            repoId: 'primary',
+            label: 'primary',
+            localPath: resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath),
+            repoUrl: config.metadataRepo.url,
+        }];
+    }
+
+    return [];
+}
+
+function invalidateRepoSyncStatus(state: ExtensionState): void {
+    state.repoSyncByRepoId = {};
+}
+
+async function pickGitBackedRepo(
+    repos: ResolvedRepoSource[],
+    title: string,
+    placeHolder: string
+): Promise<ResolvedRepoSource | undefined> {
+    if (repos.length === 1) {
+        return repos[0];
+    }
+
+    const pickedRepoId = await vscode.window.showQuickPick(
+        repos.map(repo => ({
+            label: repo.label,
+            description: repo.repoId,
+            detail: repo.localPath,
+            repoId: repo.repoId,
+        })),
+        {
+            title,
+            placeHolder,
+            ignoreFocusOut: true,
+        }
+    );
+
+    if (!pickedRepoId) {
+        return undefined;
+    }
+
+    return repos.find(repo => repo.repoId === pickedRepoId.repoId);
+}
+
 async function injectWorkspaceSettings(
     workspace: vscode.WorkspaceFolder,
     config: MetaFlowConfig,
@@ -494,6 +584,7 @@ export function registerCommands(
                 state.effectiveFiles = [];
                 state.capabilityByLayer = {};
                 state.capabilityWarnings = [];
+                invalidateRepoSyncStatus(state);
                 state.onDidChange.fire();
                 return;
             }
@@ -513,6 +604,7 @@ export function registerCommands(
             state.config = result.config;
             state.configPath = result.configPath;
             state.activeProfile = result.config.activeProfile;
+            invalidateRepoSyncStatus(state);
 
             const autoApplyEnabled = vscode.workspace
                 .getConfiguration('metaflow', ws.uri)
@@ -922,6 +1014,230 @@ export function registerCommands(
 
             logInfo(completionMessage);
             vscode.window.showInformationMessage(completionMessage);
+        })
+    );
+
+    // ── metaflow.checkRepoUpdates ────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.checkRepoUpdates', async (arg?: unknown) => {
+            const scope = extractRepoScopeOptions(arg);
+            const silent = scope.silent === true;
+
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                if (!silent) {
+                    vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
+                }
+                return { executed: false, reason: 'no-config' } satisfies CheckRepoUpdatesOutcome;
+            }
+
+            const gitRepos = resolveGitBackedRepoSources(state.config, ws.uri.fsPath);
+            if (gitRepos.length === 0) {
+                const message = 'MetaFlow: No git-backed repository sources are configured.';
+                if (silent) {
+                    logInfo(message);
+                } else {
+                    logWarn(message);
+                }
+                if (!silent) {
+                    vscode.window.showInformationMessage(message);
+                }
+                return { executed: false, reason: 'no-git-repos' } satisfies CheckRepoUpdatesOutcome;
+            }
+
+            let targets: ResolvedRepoSource[] = [];
+            if (scope.allRepos) {
+                targets = gitRepos;
+            } else if (scope.repoId) {
+                const target = gitRepos.find(repo => repo.repoId === scope.repoId);
+                if (!target) {
+                    const message = `MetaFlow: Repository "${scope.repoId}" is not git-backed or not found.`;
+                    logWarn(message);
+                    if (!silent) {
+                        vscode.window.showWarningMessage(message);
+                    }
+                    return { executed: false, reason: 'repo-not-found' } satisfies CheckRepoUpdatesOutcome;
+                }
+                targets = [target];
+            } else if (gitRepos.length === 1) {
+                targets = [gitRepos[0]];
+            } else {
+                const selection = await vscode.window.showQuickPick(
+                    [
+                        {
+                            label: 'All Git-backed Repositories',
+                            description: `${gitRepos.length} repositories`,
+                            allRepos: true,
+                        },
+                        ...gitRepos.map(repo => ({
+                            label: repo.label,
+                            description: repo.repoId,
+                            detail: repo.localPath,
+                            repoId: repo.repoId,
+                        })),
+                    ],
+                    {
+                        title: 'MetaFlow: Check Repository Updates',
+                        placeHolder: 'Select repository to check, or check all',
+                        ignoreFocusOut: true,
+                    }
+                );
+
+                if (!selection) {
+                    return;
+                }
+
+                if ('allRepos' in selection && selection.allRepos) {
+                    targets = gitRepos;
+                } else if ('repoId' in selection && selection.repoId) {
+                    const picked = gitRepos.find(repo => repo.repoId === selection.repoId);
+                    if (picked) {
+                        targets = [picked];
+                    }
+                }
+            }
+
+            if (targets.length === 0) {
+                return { executed: false, reason: 'no-targets' } satisfies CheckRepoUpdatesOutcome;
+            }
+
+            const runCheck = async (): Promise<CheckRepoUpdatesOutcome> => {
+                let nonGitCount = 0;
+                const summaryCounts = {
+                    upToDate: 0,
+                    behind: 0,
+                    ahead: 0,
+                    diverged: 0,
+                    unknown: 0,
+                };
+
+                for (const target of targets) {
+                    const result = await checkRepoSyncStatus(target.localPath);
+
+                    if (result.kind === 'nonGit') {
+                        nonGitCount += 1;
+                        delete state.repoSyncByRepoId[target.repoId];
+                        logWarn(`Repo update check skipped for ${target.repoId}: ${result.reason ?? 'not a git repository.'}`);
+                        continue;
+                    }
+
+                    const status = result.status!;
+                    state.repoSyncByRepoId[target.repoId] = status;
+                    summaryCounts[status.state] += 1;
+
+                    if (status.state === 'behind') {
+                        logInfo(`Repo ${target.repoId} has updates upstream (${status.behindCount ?? 0} behind, ${status.aheadCount ?? 0} ahead).`);
+                    } else if (status.state === 'unknown') {
+                        logWarn(`Repo ${target.repoId} update state unknown: ${status.error ?? 'unknown error'}`);
+                    } else {
+                        logInfo(`Repo ${target.repoId} sync state: ${status.state}.`);
+                    }
+                }
+
+                state.onDidChange.fire();
+
+                const fragments = [
+                    `up-to-date: ${summaryCounts.upToDate}`,
+                    `behind: ${summaryCounts.behind}`,
+                    `ahead: ${summaryCounts.ahead}`,
+                    `diverged: ${summaryCounts.diverged}`,
+                    `unknown: ${summaryCounts.unknown}`,
+                ];
+                if (nonGitCount > 0) {
+                    fragments.push(`non-git: ${nonGitCount}`);
+                }
+
+                const message = `MetaFlow: Update check complete (${fragments.join(', ')}).`;
+                logInfo(message);
+                if (!silent) {
+                    vscode.window.showInformationMessage(message);
+                }
+
+                return { executed: true };
+            };
+
+            if (silent) {
+                return await runCheck();
+            } else {
+                return await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: `MetaFlow: Checking ${targets.length} repository update${targets.length === 1 ? '' : 's'}...`,
+                    },
+                    runCheck
+                );
+            }
+        })
+    );
+
+    // ── metaflow.pullRepository ──────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.pullRepository', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
+                return;
+            }
+
+            const gitRepos = resolveGitBackedRepoSources(state.config, ws.uri.fsPath);
+            if (gitRepos.length === 0) {
+                const message = 'MetaFlow: No git-backed repository sources are configured.';
+                logWarn(message);
+                vscode.window.showInformationMessage(message);
+                return;
+            }
+
+            const repoId = extractRepoId(arg);
+            let target: ResolvedRepoSource | undefined;
+            if (repoId) {
+                target = gitRepos.find(repo => repo.repoId === repoId);
+                if (!target) {
+                    const message = `MetaFlow: Repository "${repoId}" is not git-backed or not found.`;
+                    logWarn(message);
+                    vscode.window.showWarningMessage(message);
+                    return;
+                }
+            } else {
+                target = await pickGitBackedRepo(
+                    gitRepos,
+                    'MetaFlow: Pull Repository',
+                    'Select git-backed repository to pull'
+                );
+                if (!target) {
+                    return;
+                }
+            }
+
+            const pullResult = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `MetaFlow: Pulling updates for ${target.repoId}...`,
+                },
+                async () => pullRepositoryFastForward(target.localPath)
+            );
+
+            if (!pullResult.ok) {
+                const failureMessage = `MetaFlow: Pull failed for ${target.repoId}. ${pullResult.message}`;
+                logWarn(failureMessage);
+                state.repoSyncByRepoId[target.repoId] = {
+                    state: 'unknown',
+                    lastCheckedAt: new Date().toISOString(),
+                    error: pullResult.message,
+                };
+                state.onDidChange.fire();
+                vscode.window.showWarningMessage(failureMessage);
+                return;
+            }
+
+            logInfo(`MetaFlow: Pull complete for ${target.repoId}. ${pullResult.message}`);
+
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                forceDiscovery: true,
+                forceDiscoveryRepoId: target.repoId,
+            });
+            await vscode.commands.executeCommand('metaflow.checkRepoUpdates', { repoId: target.repoId, silent: true });
+
+            vscode.window.showInformationMessage(`MetaFlow: Pulled updates for ${target.repoId}.`);
         })
     );
 

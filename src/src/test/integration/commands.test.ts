@@ -391,10 +391,13 @@ suite('Command Execution', () => {
             const lines = await vscode.commands.executeCommand('metaflow.status') as string[] | undefined;
             assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
 
-            const warningLine = lines.find(line => line.includes('CAPABILITY_NO_FRONTMATTER'));
+            const warningLine = lines.find(
+                line => line.includes('CAPABILITY_FRONTMATTER_MISSING') || line.includes('CAPABILITY_NO_FRONTMATTER')
+            );
             assert.ok(warningLine, 'Status should include capability warning code for malformed manifest');
+            const normalizedWarningLine = warningLine?.replace(/\\/g, '/');
             assert.ok(
-                warningLine?.includes('standards/sdlc/CAPABILITY.md'),
+                normalizedWarningLine?.includes('standards/sdlc/CAPABILITY.md'),
                 `Expected warning to include manifest path, got: ${warningLine}`
             );
         } finally {
@@ -719,6 +722,134 @@ suite('Command Execution', () => {
                 fs.writeFileSync(configPath, originalConfig, 'utf-8');
             }
             await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkRepoUpdates reports no git-backed sources when config has local-only repos', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const localOnlyConfig = {
+            metadataRepos: [
+                { id: 'local', localPath: '.ai/ai-metadata', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'local', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.checkRepoUpdates');
+
+            assert.ok(
+                infoMessages.some(message => message.includes('No git-backed repository sources are configured')),
+                'checkRepoUpdates should report when no git-backed repos exist'
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkRepoUpdates silent mode does not use progress notification UI', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const localOnlyConfig = {
+            metadataRepos: [
+                { id: 'local', localPath: '.ai/ai-metadata', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'local', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            withProgress: <T>(
+                options: unknown,
+                task: (...args: unknown[]) => Thenable<T> | Promise<T> | T
+            ) => Thenable<T>;
+        };
+        const originalWithProgress = windowAny.withProgress;
+        let withProgressCallCount = 0;
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            windowAny.withProgress = async (_options, task) => {
+                withProgressCallCount += 1;
+                return await task();
+            };
+
+            await vscode.commands.executeCommand('metaflow.checkRepoUpdates', { silent: true });
+
+            assert.strictEqual(withProgressCallCount, 0, 'silent checks should not invoke notification progress UI');
+        } finally {
+            windowAny.withProgress = originalWithProgress;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('pullRepository warns when requested repo is not git-backed', async function () {
+        this.timeout(15000);
+
+        await vscode.commands.executeCommand('metaflow.refresh');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const warningMessages: string[] = [];
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                warningMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.pullRepository', { repoId: 'missing-repo-id' });
+            assert.ok(
+                warningMessages.some(message => message.includes('not git-backed or not found')),
+                'pullRepository should warn when a non-git or unknown repo is requested'
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
         }
     });
 

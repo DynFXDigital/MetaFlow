@@ -6,6 +6,14 @@ type ExtensionPackageJson = {
     main?: string;
     activationEvents?: string[];
     scripts?: Record<string, string>;
+    contributes?: {
+        configuration?: {
+            properties?: Record<string, {
+                default?: unknown;
+                enum?: string[];
+            }>;
+        };
+    };
 };
 
 const EXTENSION_ROOT = path.resolve(__dirname, '../../..');
@@ -57,5 +65,17 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(initConfigSource.includes('vscode.workspace.fs.writeFile'));
         assert.ok(initConfigSource.includes('vscode.workspace.fs.stat'));
         assert.ok(!initConfigSource.includes('fs.writeFileSync('));
+    });
+
+    test('repo update interval setting exposes expected preset values', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8')
+        ) as ExtensionPackageJson;
+
+        const intervalSetting = packageJson.contributes?.configuration?.properties?.['metaflow.repoUpdateCheckInterval'];
+        assert.ok(intervalSetting, 'Expected metaflow.repoUpdateCheckInterval setting to be contributed');
+        assert.strictEqual(intervalSetting?.default, 'daily');
+        assert.deepStrictEqual(intervalSetting?.enum, ['hourly', 'daily', 'weekly', 'monthly']);
     });
 });

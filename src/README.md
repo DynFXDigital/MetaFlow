@@ -91,6 +91,8 @@ This metadata is shown in `metaflow status` and in the Layers/Effective Files vi
 | `MetaFlow: Switch Profile` | Select active profile | |
 | `MetaFlow: Toggle Layer` | Enable/disable a layer | |
 | `MetaFlow: Rescan Repository` | Force runtime discovery rescan for the selected metadata repo row | |
+| `MetaFlow: Check Repository Updates` | Fetch and compute upstream ahead/behind status for git-backed metadata repos | |
+| `MetaFlow: Pull Repository Updates` | Run `git pull --ff-only` for a selected git-backed metadata repo | |
 | `MetaFlow: Open Config` | Open `.metaflow/config.jsonc` in editor | |
 | `MetaFlow: Init Config` | Scaffold new `.metaflow/config.jsonc` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |
@@ -103,6 +105,7 @@ This metadata is shown in `metaflow status` and in the Layers/Effective Files vi
 | `metaflow.autoApply` | `true` | Auto-apply on config change (recommended) |
 | `metaflow.logLevel` | `info` | Log verbosity (debug/info/warn/error) |
 | `metaflow.hooksEnabled` | `true` | Enable Copilot hooks injection |
+| `metaflow.repoUpdateCheckInterval` | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`) |
 
 ### Copilot settings injected by `MetaFlow: Apply`
 

@@ -132,6 +132,8 @@ Core VS Code commands (manual controls and diagnostics):
 - `MetaFlow: Status`
 - `MetaFlow: Switch Profile`
 - `MetaFlow: Toggle Layer`
+- `MetaFlow: Check Repository Updates`
+- `MetaFlow: Pull Repository Updates`
 - `MetaFlow: Open Config`
 - `MetaFlow: Init Config`
 - `MetaFlow: Promote`

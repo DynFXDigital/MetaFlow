@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
+import { RepoSyncStatus } from '../commands/repoSyncStatus';
 
 class SectionItem extends vscode.TreeItem {
     constructor(
@@ -24,24 +25,82 @@ class RepoSourceItem extends vscode.TreeItem {
         public readonly repoId: string | undefined,
         enabled: boolean,
         localPath: string,
-        repoUrl?: string
+        repoUrl?: string,
+        syncStatus?: RepoSyncStatus
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         const isReadonly = !repoId;
         const isRemote = RepoSourceItem.isGitRemoteUrl(repoUrl);
-        this.contextValue = isReadonly ? 'configRepoSourceReadonly' : 'configRepoSourceRescannable';
-        this.description = isRemote ? `${localPath} [git]` : localPath;
-        this.iconPath = new vscode.ThemeIcon(isRemote ? 'cloud' : 'folder');
+        this.contextValue = isReadonly
+            ? 'configRepoSourceReadonly'
+            : (isRemote ? 'configRepoSourceGitRescannable' : 'configRepoSourceRescannable');
+        this.description = RepoSourceItem.buildDescription(localPath, isRemote, syncStatus);
+        this.iconPath = RepoSourceItem.buildIcon(isRemote, syncStatus);
         if (!isReadonly) {
             this.checkboxState = enabled
                 ? vscode.TreeItemCheckboxState.Checked
                 : vscode.TreeItemCheckboxState.Unchecked;
         }
-        this.tooltip = RepoSourceItem.buildTooltip(label, localPath, repoUrl);
+        this.tooltip = RepoSourceItem.buildTooltip(label, localPath, repoUrl, syncStatus);
         this.accessibilityInformation = {
             label: `${label} ${enabled ? 'enabled' : 'disabled'}`,
             role: 'checkbox',
         };
+    }
+
+    private static buildDescription(localPath: string, isRemote: boolean, syncStatus?: RepoSyncStatus): string {
+        if (!isRemote) {
+            return localPath;
+        }
+
+        const statusSuffix = RepoSourceItem.syncStatusSuffix(syncStatus);
+        return `${localPath} [git]${statusSuffix}`;
+    }
+
+    private static syncStatusSuffix(syncStatus?: RepoSyncStatus): string {
+        if (!syncStatus) {
+            return '';
+        }
+
+        switch (syncStatus.state) {
+            case 'upToDate':
+                return ' (up to date)';
+            case 'behind':
+                return ` (${syncStatus.behindCount ?? 0} update${(syncStatus.behindCount ?? 0) === 1 ? '' : 's'})`;
+            case 'ahead':
+                return ` (${syncStatus.aheadCount ?? 0} ahead)`;
+            case 'diverged':
+                return ' (diverged)';
+            case 'unknown':
+                return ' (status unknown)';
+            default:
+                return '';
+        }
+    }
+
+    private static buildIcon(isRemote: boolean, syncStatus?: RepoSyncStatus): vscode.ThemeIcon {
+        if (!isRemote) {
+            return new vscode.ThemeIcon('folder');
+        }
+
+        if (!syncStatus) {
+            return new vscode.ThemeIcon('cloud');
+        }
+
+        switch (syncStatus.state) {
+            case 'upToDate':
+                return new vscode.ThemeIcon('cloud');
+            case 'behind':
+                return new vscode.ThemeIcon('arrow-down');
+            case 'ahead':
+                return new vscode.ThemeIcon('arrow-up');
+            case 'diverged':
+                return new vscode.ThemeIcon('warning');
+            case 'unknown':
+                return new vscode.ThemeIcon('question');
+            default:
+                return new vscode.ThemeIcon('cloud');
+        }
     }
 
     private static isGitRemoteUrl(repoUrl: string | undefined): boolean {
@@ -55,14 +114,51 @@ class RepoSourceItem extends vscode.TreeItem {
         return /^(git@|git:\/\/|ssh:\/\/|https?:\/\/)/i.test(trimmed);
     }
 
-    private static buildTooltip(label: string, localPath: string, repoUrl: string | undefined): vscode.MarkdownString {
+    private static buildTooltip(
+        label: string,
+        localPath: string,
+        repoUrl: string | undefined,
+        syncStatus?: RepoSyncStatus
+    ): vscode.MarkdownString {
         const tooltip = new vscode.MarkdownString(
             `**Repository**: ${label}\n\nLocal path: \`${localPath}\``
         );
         if (RepoSourceItem.isGitRemoteUrl(repoUrl)) {
             tooltip.appendMarkdown(`\n\nRemote URL: \`${repoUrl!.trim()}\``);
         }
+
+        if (syncStatus) {
+            tooltip.appendMarkdown(`\n\nSync status: ${RepoSourceItem.describeSyncState(syncStatus)}`);
+            if (syncStatus.trackingRef) {
+                tooltip.appendMarkdown(`\n\nTracking branch: \`${syncStatus.trackingRef}\``);
+            }
+            if (typeof syncStatus.behindCount === 'number' || typeof syncStatus.aheadCount === 'number') {
+                tooltip.appendMarkdown(`\n\nAhead/Behind: ${syncStatus.aheadCount ?? 0}/${syncStatus.behindCount ?? 0}`);
+            }
+            tooltip.appendMarkdown(`\n\nLast checked: ${syncStatus.lastCheckedAt}`);
+            if (syncStatus.error) {
+                tooltip.appendMarkdown(`\n\nError: ${syncStatus.error}`);
+            }
+        }
+
         return tooltip;
+    }
+
+    private static describeSyncState(syncStatus: RepoSyncStatus): string {
+        switch (syncStatus.state) {
+            case 'upToDate':
+                return 'Up to date with upstream';
+            case 'behind':
+                return 'Updates available upstream';
+            case 'ahead':
+                return 'Local commits are ahead of upstream';
+            case 'diverged':
+                return 'Local and upstream histories diverged';
+            case 'unknown':
+                return 'Unknown';
+            default:
+                return syncStatus.state;
+        }
     }
 }
 
@@ -116,7 +212,8 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         repo.id,
                         repo.enabled !== false,
                         this.toDisplayPath(repo.localPath),
-                        repo.url
+                        repo.url,
+                        this.state.repoSyncByRepoId[repo.id]
                     )
                 );
             }
@@ -128,7 +225,8 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         'primary',
                         true,
                         this.toDisplayPath(config.metadataRepo.localPath),
-                        config.metadataRepo.url
+                        config.metadataRepo.url,
+                        this.state.repoSyncByRepoId.primary
                     ),
                 ];
             }
