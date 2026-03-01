@@ -8,7 +8,7 @@
 		"powershell.cwd": "MetaFlow",
 		"debug.onTaskErrors": "debugAnyway",
 		"metaflow.filesViewMode": "repoTree",
-		"metaflow.layersViewMode": "tree",
+		"metaflow.layersViewMode": "flat",
 		"chat.promptFilesLocations": {
 			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/prompts": true,
 			"../DFX-AI-Metadata/capabilities/git-version-control/.github/prompts": true,
@@ -30,7 +30,9 @@
 		},
 		"chat.agentSkillsLocations": {
 			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/skills": true,
+			"../DFX-AI-Metadata/capabilities/issues/.github/skills": true,
 			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/skills": true,
+			"../DFX-AI-Metadata/capabilities/planning/.github/skills": true,
 			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/skills": true,
 			"../DFX-AI-Metadata/capabilities/vscode-extension-dev/.github/skills": true
 		},
