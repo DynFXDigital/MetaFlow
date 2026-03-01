@@ -14,10 +14,10 @@
             "outFiles": [
                 "${workspaceFolder}/src/dist/**/*.js"
             ],
-            "preLaunchTask": "Extension: Watch"
+            "preLaunchTask": "Extension: Compile"
         },
         {
-            "name": "Run Extension (No Watch)",
+            "name": "Run Extension (Watch)",
             "type": "extensionHost",
             "request": "launch",
             "args": [
@@ -26,7 +26,7 @@
             "outFiles": [
                 "${workspaceFolder}/src/dist/**/*.js"
             ],
-            "preLaunchTask": "Extension: Compile"
+            "preLaunchTask": "Extension: Watch"
         }
     ]
 }
