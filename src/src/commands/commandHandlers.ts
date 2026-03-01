@@ -15,6 +15,7 @@ import {
     MetaFlowConfig,
     InjectionConfig,
     resolveLayers,
+    loadCapabilityManifestForLayer,
     discoverLayersInRepo,
     buildEffectiveFileMap,
     resolvePathFromWorkspace,
@@ -112,6 +113,72 @@ function normalizeLayerId(layerId: string): string {
     return normalized === '' ? '.' : normalized;
 }
 
+function deriveCapabilityIdFromLayerPath(layerPath: string, repoRoot: string): string {
+    const normalized = layerPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (normalized === '' || normalized === '.') {
+        return path.basename(repoRoot);
+    }
+
+    const segments = normalized.split('/').filter(Boolean);
+    return segments[segments.length - 1] || path.basename(repoRoot);
+}
+
+function collectConfiguredCapabilityMetadata(
+    config: MetaFlowConfig,
+    workspaceRoot: string
+): Record<string, { id?: string; name?: string; description?: string; license?: string }> {
+    const capabilityByLayer: Record<string, { id?: string; name?: string; description?: string; license?: string }> = {};
+
+    if (config.metadataRepos && config.layerSources) {
+        const repoById = new Map(config.metadataRepos.map(repo => [repo.id, repo]));
+
+        for (const source of config.layerSources) {
+            const repo = repoById.get(source.repoId);
+            if (!repo) {
+                continue;
+            }
+
+            const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+            const layerAbsPath = path.join(repoRoot, source.path);
+            const capabilityId = deriveCapabilityIdFromLayerPath(source.path, repoRoot);
+            const manifest = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
+            if (!manifest) {
+                continue;
+            }
+
+            capabilityByLayer[normalizeLayerId(`${source.repoId}/${source.path}`)] = {
+                id: manifest.id,
+                name: manifest.name,
+                description: manifest.description,
+                license: manifest.license,
+            };
+        }
+
+        return capabilityByLayer;
+    }
+
+    if (config.metadataRepo && config.layers) {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
+        for (const layerPath of config.layers) {
+            const layerAbsPath = path.join(repoRoot, layerPath);
+            const capabilityId = deriveCapabilityIdFromLayerPath(layerPath, repoRoot);
+            const manifest = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
+            if (!manifest) {
+                continue;
+            }
+
+            capabilityByLayer[normalizeLayerId(layerPath)] = {
+                id: manifest.id,
+                name: manifest.name,
+                description: manifest.description,
+                license: manifest.license,
+            };
+        }
+    }
+
+    return capabilityByLayer;
+}
+
 /**
  * Resolve the overlay from config and return effective files.
  */
@@ -157,6 +224,15 @@ function resolveOverlay(
             const message = formatCapabilityWarningMessage(warning);
             capabilityWarnings.push(message);
             logWarn(message);
+        }
+    }
+
+    // Also load capability metadata from configured layers that are currently disabled,
+    // so layer tooltips can still show capability details in the GUI.
+    const configuredCapabilityByLayer = collectConfiguredCapabilityMetadata(config, workspaceRoot);
+    for (const [layerId, metadata] of Object.entries(configuredCapabilityByLayer)) {
+        if (!capabilityByLayer[layerId]) {
+            capabilityByLayer[layerId] = metadata;
         }
     }
 

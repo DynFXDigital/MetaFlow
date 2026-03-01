@@ -530,4 +530,29 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(String(layerItem.tooltip).includes('Description: Capability metadata sourced from layer state.'));
         assert.ok(String(layerItem.tooltip).includes('License: MIT'));
     });
+
+    test('LTV-CAP-04: disabled layer still shows capability tooltip from state map', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig({ enabled: false });
+        const capabilityByLayer = {
+            'repo1/.': {
+                id: 'communication',
+                name: 'Communication',
+                description: 'Conversation quality and response structure guidance.',
+                license: 'MIT',
+            },
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer), () => 'tree'
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const layerItem = provider.getChildren(repoItem)[0];
+
+        assert.strictEqual(layerItem.checkboxState, 0, 'layer should render as disabled');
+        assert.ok(String(layerItem.tooltip).includes('Capability: Communication'));
+        assert.ok(String(layerItem.tooltip).includes('Description: Conversation quality and response structure guidance.'));
+        assert.ok(String(layerItem.tooltip).includes('License: MIT'));
+    });
 });
