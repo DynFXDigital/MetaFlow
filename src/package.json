@@ -2,7 +2,7 @@
   "name": "metaflow",
   "displayName": "MetaFlow: AI Metadata Overlay",
   "description": "Deterministic AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.1.0",
+  "version": "0.2.0-preview.0",
   "publisher": "dynfxdigital",
   "license": "MIT",
   "repository": {

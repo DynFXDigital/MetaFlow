@@ -31,7 +31,8 @@
 		"chat.agentSkillsLocations": {
 			"../DFX-AI-Metadata/capabilities/critic-evaluation/.github/skills": true,
 			"../DFX-AI-Metadata/capabilities/metadata-authoring/.github/skills": true,
-			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/skills": true
+			"../DFX-AI-Metadata/capabilities/sdlc-traceability/.github/skills": true,
+			"../DFX-AI-Metadata/capabilities/vscode-extension-dev/.github/skills": true
 		},
 	}
 }

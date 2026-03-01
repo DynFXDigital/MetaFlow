@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0-preview.0
+
+### Minor Changes
+
+- Bump minor versions for engine, CLI, and extension packages.
+
 All notable changes to the MetaFlow extension will be documented in this file.
 
 ## [0.1.0] — 2026-02-07
