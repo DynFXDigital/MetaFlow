@@ -14,9 +14,9 @@ Close quality, traceability, and release-readiness for bundled metadata, tools, 
 ## Implementation Tasks
 
 - [ ] Expand test coverage matrix for settings combinations and migration paths.
-- [ ] Update docs in `README.md`, `src/README.md`, and relevant `doc/` artifacts.
-- [ ] Add release notes and operational runbooks for support scenarios.
-- [ ] Run quality gates: `npm run gate:quick`, `npm run gate:integration`, `npm run gate:full`.
+- [x] Update docs in `README.md`, `src/README.md`, and relevant `doc/` artifacts.
+- [x] Add release notes and operational runbooks for support scenarios.
+- [x] Run quality gates: `npm run gate:quick`, `npm run gate:integration`, `npm run gate:full`.
 - [ ] Define staged rollout policy (preview flag -> opt-in stable -> default behavior decision).
 - [ ] Capture known limitations and follow-up backlog items.
 

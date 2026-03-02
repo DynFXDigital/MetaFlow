@@ -6,6 +6,14 @@
 
 - Bump minor versions for engine, CLI, and extension packages.
 
+### Added
+
+- Bundled baseline metadata lane with workspace-managed materialization under `.metaflow/system/bundled/<extension-version>/`.
+- Bundled metadata settings and modes: `metaflow.bundledMetadata.enabled`, `metaflow.bundledMetadata.mode`, and `metaflow.bundledMetadata.updatePolicy`.
+- MCP onboarding commands and settings: `MetaFlow: Scaffold MCP Config`, `MetaFlow: Validate MCP Config`, `metaflow.mcp.assistEnabled`, and `metaflow.mcp.configMode`.
+- AI tools compatibility guardrail command: `MetaFlow: Check AI Tools Compatibility` with opt-in setting `metaflow.aiTools.enabled`.
+- Integration coverage for bundled mode transitions and MCP scaffolding/validation workflows.
+
 All notable changes to the MetaFlow extension will be documented in this file.
 
 ## [0.1.0] — 2026-02-07

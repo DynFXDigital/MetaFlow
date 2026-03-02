@@ -16,16 +16,16 @@ Implement extension-packaged baseline metadata that can be enabled by setting an
 - [x] Add extension asset manifest and bundled metadata directory structure.
 - [x] Implement workspace-managed realization path (create/update/cleanup logic).
 - [x] Inject bundled source into overlay resolution when enabled.
-- [ ] Add migration-safe initialization behavior for new vs existing workspaces.
+- [x] Add migration-safe initialization behavior for new vs existing workspaces.
 - [x] Add diagnostics/status visibility for bundled source version and health.
-- [ ] Ensure `clean` and `refresh` semantics remain deterministic.
+- [x] Ensure `clean` and `refresh` semantics remain deterministic.
 
 ## Testing and Validation
 
 - [x] Unit tests for bundled source path resolution and managed-file behavior.
 - [x] Unit tests for precedence: bundled < repo source < higher-priority layers.
-- [ ] Integration tests for setting transitions (`off` -> `baseline-plus-local` -> `baseline-only`).
-- [ ] Integration tests for initialization flows and non-destructive upgrades.
+- [x] Integration tests for setting transitions (`off` -> `baseline-plus-local` -> `baseline-only`).
+- [x] Integration tests for initialization flows and non-destructive upgrades.
 
 ## Exit Criteria
 

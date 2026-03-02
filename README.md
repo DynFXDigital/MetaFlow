@@ -36,7 +36,7 @@ code --install-extension <metaflow-release>.vsix
 
 In VS Code, run:
 
-- `MetaFlow: Init Config`
+- `MetaFlow: Initialize Configuration`
 
 Then edit `.metaflow/config.jsonc` and set at least:
 
@@ -134,8 +134,12 @@ Core VS Code commands (manual controls and diagnostics):
 - `MetaFlow: Toggle Layer`
 - `MetaFlow: Check Repository Updates`
 - `MetaFlow: Pull Repository Updates`
+- `MetaFlow: Refresh Bundled Metadata`
+- `MetaFlow: Check AI Tools Compatibility`
+- `MetaFlow: Scaffold MCP Config`
+- `MetaFlow: Validate MCP Config`
 - `MetaFlow: Open Config`
-- `MetaFlow: Init Config`
+- `MetaFlow: Initialize Configuration`
 - `MetaFlow: Promote`
 
 For full command and setting details, see [src/README.md](src/README.md).

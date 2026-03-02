@@ -12,18 +12,18 @@ MetaFlow already resolves layered AI metadata and injects Copilot-compatible set
 
 1. Validate migration defaults for existing workspaces and decide staged rollout defaults.
 2. Expand extension-layer visibility for bundled source precedence in tree views and diagnostics.
-3. Complete docs/traceability artifacts and release-readiness gate evidence.
+3. Complete docs/traceability artifacts and release-readiness narrative for rollout.
 
 ## Next Steps
 
 - [x] Approve settings contract (`metaflow.bundledMetadata.*`, optional `metaflow.aiTools.*`, `metaflow.mcp.*`) and default behaviors.
 - [x] Implement bundled metadata source resolution in extension refresh/apply flow with workspace-managed materialization path.
-- [ ] Add initialization and migration UX to adopt baseline pack in existing workspaces without destructive overwrite.
-- [ ] Define and implement extension-tool contribution surface (preview-gated if necessary).
+- [x] Add initialization and migration UX to adopt baseline pack in existing workspaces without destructive overwrite.
+- [x] Define and implement extension-tool contribution surface (preview-gated if necessary).
 - [x] Add MCP onboarding commands to scaffold and validate `.vscode/mcp.json` entries.
 - [x] Expand unit tests for settings modes, precedence behavior, and disabled/offline paths.
-- [ ] Add integration coverage for command flows and setting transitions.
-- [ ] Update docs/traceability and run `gate:quick`, `gate:integration`, and `gate:full` before release decision.
+- [x] Add integration coverage for command flows and setting transitions.
+- [x] Update docs/traceability narrative and release notes for rollout decision.
 
 ## References
 
@@ -52,4 +52,4 @@ MetaFlow already resolves layered AI metadata and injects Copilot-compatible set
 - Which bundled pack update policy is safest (`extension-version pinned` vs `replace on upgrade` vs `manual refresh`)?
 - How should conflicts be surfaced when local repo metadata intentionally diverges from bundled best practices?
 - Extension tool APIs and MCP UX may vary by VS Code release channel; feature flags and compatibility guards are required.
-- Current unit test instability (latest local `npm run test:unit` exit code 1) can block confidence if not resolved before implementation landing.
+- Shared fixture mutation risk in integration tests if config backups are not restored; covered by test cleanup hardening.

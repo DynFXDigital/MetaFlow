@@ -14,17 +14,17 @@ Finalize the canonical architecture and configuration contracts for three integr
 ## Implementation Tasks
 
 - [x] Define and approve `metaflow.bundledMetadata.*` settings contract.
-- [ ] Define migration behavior for existing workspaces (default off/on rules, prompt strategy).
+- [x] Define migration behavior for existing workspaces (default off/on rules, prompt strategy).
 - [x] Define managed workspace path and retention policy for bundled assets.
 - [x] Define precedence and conflict policy (bundled baseline vs repo/local overrides).
 - [x] Define `metaflow.aiTools.*` and `metaflow.mcp.*` settings and compatibility gates.
-- [ ] Update or add concept/design docs to reflect lane separation and lifecycle.
+- [x] Update or add concept/design docs to reflect lane separation and lifecycle.
 
 ## Testing and Validation
 
 - [x] Add schema-focused unit checks for new settings defaults and enum validation.
-- [ ] Add command-helper tests for option parsing and migration behaviors.
-- [ ] Verify no regression in existing refresh/apply behavior when new settings are unset.
+- [x] Add command-helper tests for option parsing and migration behaviors.
+- [x] Verify no regression in existing refresh/apply behavior when new settings are unset.
 
 ## Exit Criteria
 
