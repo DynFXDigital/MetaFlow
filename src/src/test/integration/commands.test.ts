@@ -272,16 +272,28 @@ suite('Command Execution', () => {
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
-        // Temporarily set agents and skills injection to 'settings'
-        const parsed = JSON.parse(originalConfig) as {
-            injection?: Record<string, string>;
+        const settingsInjectionConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
         };
-        if (!parsed.injection) {
-            parsed.injection = {};
-        }
-        parsed.injection.agents = 'settings';
-        parsed.injection.skills = 'settings';
-        fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2), 'utf-8');
+        fs.writeFileSync(configPath, JSON.stringify(settingsInjectionConfig, null, 2), 'utf-8');
 
         await wsConfig.update('chat.agentFilesLocations', undefined, vscode.ConfigurationTarget.Workspace);
         await wsConfig.update('chat.agentSkillsLocations', undefined, vscode.ConfigurationTarget.Workspace);
@@ -426,6 +438,24 @@ suite('Command Execution', () => {
     test('status reports capability warning file path when manifest is malformed', async function () {
         this.timeout(15000);
 
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const capabilityConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+        fs.writeFileSync(configPath, JSON.stringify(capabilityConfig, null, 2), 'utf-8');
+
         const capabilityPath = path.join(
             workspaceRoot,
             '.ai',
@@ -455,6 +485,7 @@ suite('Command Execution', () => {
             );
         } finally {
             fs.writeFileSync(capabilityPath, originalCapability, 'utf-8');
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
@@ -976,7 +1007,24 @@ suite('Command Execution', () => {
     test('pullRepository warns when requested repo is not git-backed', async function () {
         this.timeout(15000);
 
-        await vscode.commands.executeCommand('metaflow.refresh');
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const gitBackedConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify(gitBackedConfig, null, 2), 'utf-8');
 
         const windowAny = vscode.window as unknown as {
             showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
@@ -991,6 +1039,7 @@ suite('Command Execution', () => {
         };
 
         try {
+            await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.pullRepository', { repoId: 'missing-repo-id' });
             assert.ok(
                 warningMessages.some(message => message.includes('not git-backed or not found')),
@@ -998,6 +1047,8 @@ suite('Command Execution', () => {
             );
         } finally {
             windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 
@@ -1026,6 +1077,337 @@ suite('Command Execution', () => {
             );
         } finally {
             windowAny.showInformationMessage = originalInfo;
+        }
+    });
+
+    test('bundled metadata mode transitions are reflected in status output', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousEnabled = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+        const previousMode = mfConfig.inspect<string>('bundledMetadata.mode')?.workspaceValue;
+
+        try {
+            await mfConfig.update('bundledMetadata.enabled', true, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', 'baseline-only', vscode.ConfigurationTarget.Workspace);
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const statusWithBundled = await vscode.commands.executeCommand('metaflow.status') as string[] | undefined;
+            assert.ok(Array.isArray(statusWithBundled), 'Status should return emitted lines for bundled-enabled mode');
+            assert.ok(
+                statusWithBundled.some(line => line.includes('Bundled Metadata: enabled (baseline-only')),
+                'Status should indicate bundled baseline-only mode when enabled'
+            );
+
+            await mfConfig.update('bundledMetadata.mode', 'off', vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const statusDisabled = await vscode.commands.executeCommand('metaflow.status') as string[] | undefined;
+            assert.ok(Array.isArray(statusDisabled), 'Status should return emitted lines for bundled-off mode');
+            assert.ok(
+                statusDisabled.some(line => line.includes('Bundled Metadata: disabled')),
+                'Status should indicate bundled metadata disabled when mode is off'
+            );
+        } finally {
+            await mfConfig.update('bundledMetadata.enabled', previousEnabled, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', previousMode, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('scaffoldMcpConfig creates baseline mcp.json when assist is enabled', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousAssist = mfConfig.inspect<boolean>('mcp.assistEnabled')?.workspaceValue;
+        const previousMode = mfConfig.inspect<string>('mcp.configMode')?.workspaceValue;
+
+        const mcpPath = path.join(workspaceRoot, '.vscode', 'mcp.json');
+        const backupPath = path.join(workspaceRoot, '.vscode', 'mcp.json.bak');
+
+        if (fs.existsSync(backupPath)) {
+            fs.rmSync(backupPath, { force: true });
+        }
+
+        if (fs.existsSync(mcpPath)) {
+            fs.renameSync(mcpPath, backupPath);
+        }
+
+        try {
+            await mfConfig.update('mcp.assistEnabled', true, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('mcp.configMode', 'workspace', vscode.ConfigurationTarget.Workspace);
+
+            await vscode.commands.executeCommand('metaflow.scaffoldMcpConfig');
+
+            assert.ok(fs.existsSync(mcpPath), 'Scaffold command should create .vscode/mcp.json');
+            const parsed = JSON.parse(fs.readFileSync(mcpPath, 'utf-8')) as {
+                servers?: Record<string, unknown>;
+            };
+
+            assert.ok(parsed.servers, 'mcp.json should contain a servers object');
+            assert.ok(
+                parsed.servers && 'metaflow-filesystem' in parsed.servers,
+                'mcp.json should include metaflow-filesystem baseline server template'
+            );
+
+            await vscode.commands.executeCommand('metaflow.validateMcpConfig');
+        } finally {
+            await mfConfig.update('mcp.assistEnabled', previousAssist, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('mcp.configMode', previousMode, vscode.ConfigurationTarget.Workspace);
+
+            if (fs.existsSync(mcpPath)) {
+                fs.rmSync(mcpPath, { force: true });
+            }
+            if (fs.existsSync(backupPath)) {
+                fs.renameSync(backupPath, mcpPath);
+            }
+        }
+    });
+
+    test('bundled manual-refresh preserves locally modified cached files across refresh', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousEnabled = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+        const previousMode = mfConfig.inspect<string>('bundledMetadata.mode')?.workspaceValue;
+        const previousPolicy = mfConfig.inspect<string>('bundledMetadata.updatePolicy')?.workspaceValue;
+
+        const extensionVersion = vscode.extensions.getExtension('dynfxdigital.metaflow')?.packageJSON?.version as string | undefined;
+        assert.ok(extensionVersion, 'Extension version should be available');
+
+        const bundledFilePath = path.join(
+            workspaceRoot,
+            '.metaflow',
+            'system',
+            'bundled',
+            extensionVersion!,
+            'baseline',
+            '.github',
+            'instructions',
+            'metaflow-default.instructions.md'
+        );
+
+        try {
+            await mfConfig.update('bundledMetadata.enabled', true, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', 'baseline-plus-local', vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.updatePolicy', 'manual-refresh', vscode.ConfigurationTarget.Workspace);
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            assert.ok(fs.existsSync(bundledFilePath), 'Bundled cached file should exist after refresh');
+
+            const marker = '# local-manual-refresh-marker\n';
+            fs.appendFileSync(bundledFilePath, marker, 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const after = fs.readFileSync(bundledFilePath, 'utf-8');
+            assert.ok(after.includes(marker), 'Manual-refresh policy should preserve local bundled cache edits on refresh');
+        } finally {
+            await mfConfig.update('bundledMetadata.enabled', previousEnabled, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', previousMode, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.updatePolicy', previousPolicy, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkAiToolsCompatibility warns when aiTools lane is disabled', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousEnabled = mfConfig.inspect<boolean>('aiTools.enabled')?.workspaceValue;
+        await mfConfig.update('aiTools.enabled', false, vscode.ConfigurationTarget.Workspace);
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const warnings: string[] = [];
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                warnings.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.checkAiToolsCompatibility');
+            assert.ok(
+                warnings.some(message => message.includes('AI tools lane is disabled')),
+                'Compatibility command should warn when aiTools lane is disabled'
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            await mfConfig.update('aiTools.enabled', previousEnabled, vscode.ConfigurationTarget.Workspace);
+        }
+    });
+
+    test('refreshBundledMetadata command refreshes baseline cache when enabled', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousEnabled = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+        const previousMode = mfConfig.inspect<string>('bundledMetadata.mode')?.workspaceValue;
+
+        const extensionVersion = vscode.extensions.getExtension('dynfxdigital.metaflow')?.packageJSON?.version as string | undefined;
+        assert.ok(extensionVersion, 'Extension version should be available');
+
+        const bundledFilePath = path.join(
+            workspaceRoot,
+            '.metaflow',
+            'system',
+            'bundled',
+            extensionVersion!,
+            'baseline',
+            '.github',
+            'instructions',
+            'metaflow-default.instructions.md'
+        );
+
+        try {
+            await mfConfig.update('bundledMetadata.enabled', true, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', 'baseline-plus-local', vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            fs.appendFileSync(bundledFilePath, '\n# marker-to-replace\n', 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refreshBundledMetadata');
+
+            const after = fs.readFileSync(bundledFilePath, 'utf-8');
+            assert.ok(!after.includes('marker-to-replace'), 'Refresh bundled command should force cache refresh');
+        } finally {
+            await mfConfig.update('bundledMetadata.enabled', previousEnabled, vscode.ConfigurationTarget.Workspace);
+            await mfConfig.update('bundledMetadata.mode', previousMode, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('initConfig first-init enables bundled metadata when workspace setting is unset', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousBundled = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const backupConfigPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc.pre-init-backup');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        fs.renameSync(configPath, backupConfigPath);
+
+        const metadataRoot = path.join(workspaceRoot, '.ai', 'init-metadata-existing');
+        const instructionDir = path.join(metadataRoot, 'team', 'default', '.github', 'instructions');
+        fs.mkdirSync(instructionDir, { recursive: true });
+        fs.writeFileSync(path.join(instructionDir, 'init.instructions.md'), '# init metadata', 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (items: unknown, options?: unknown) => Thenable<unknown>;
+            showOpenDialog: (options?: unknown) => Thenable<vscode.Uri[] | undefined>;
+        };
+
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            const resolved = await Promise.resolve(items as readonly { mode?: string }[]);
+            return resolved.find(item => item.mode === 'existing');
+        };
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(metadataRoot)];
+
+        try {
+            await mfConfig.update('bundledMetadata.enabled', undefined, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.initConfig');
+
+            const bundledSetting = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+            assert.strictEqual(bundledSetting, true, 'First init should enable bundled metadata when workspace setting is unset');
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+
+            if (fs.existsSync(configPath)) {
+                fs.rmSync(configPath, { force: true });
+            }
+            if (fs.existsSync(backupConfigPath)) {
+                fs.renameSync(backupConfigPath, configPath);
+            } else {
+                fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            }
+
+            fs.rmSync(metadataRoot, { recursive: true, force: true });
+            await mfConfig.update('bundledMetadata.enabled', previousBundled, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('initConfig overwrite does not change explicit bundled metadata preference', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const mfConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+
+        const previousBundled = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const backupConfigPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc.pre-overwrite-backup');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        fs.copyFileSync(configPath, backupConfigPath);
+
+        const metadataRoot = path.join(workspaceRoot, '.ai', 'init-overwrite-metadata');
+        const instructionDir = path.join(metadataRoot, 'team', 'overwrite', '.github', 'instructions');
+        fs.mkdirSync(instructionDir, { recursive: true });
+        fs.writeFileSync(path.join(instructionDir, 'overwrite.instructions.md'), '# overwrite metadata', 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showQuickPick: (items: unknown, options?: unknown) => Thenable<unknown>;
+            showOpenDialog: (options?: unknown) => Thenable<vscode.Uri[] | undefined>;
+        };
+
+        const originalWarning = windowAny.showWarningMessage;
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+
+        windowAny.showWarningMessage = async () => 'Yes';
+        windowAny.showQuickPick = async (items: unknown) => {
+            const resolved = await Promise.resolve(items as readonly { mode?: string }[]);
+            return resolved.find(item => item.mode === 'existing');
+        };
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(metadataRoot)];
+
+        try {
+            await mfConfig.update('bundledMetadata.enabled', false, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.initConfig');
+
+            const bundledSetting = mfConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
+            assert.strictEqual(bundledSetting, false, 'Overwrite init should preserve explicit bundled metadata preference');
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+
+            if (fs.existsSync(backupConfigPath)) {
+                fs.copyFileSync(backupConfigPath, configPath);
+                fs.rmSync(backupConfigPath, { force: true });
+            } else {
+                fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            }
+
+            fs.rmSync(metadataRoot, { recursive: true, force: true });
+            await mfConfig.update('bundledMetadata.enabled', previousBundled, vscode.ConfigurationTarget.Workspace);
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 });

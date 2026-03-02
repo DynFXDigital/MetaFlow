@@ -229,6 +229,9 @@ export function activate(context: vscode.ExtensionContext): void {
             if (e.affectsConfiguration('metaflow.injection')) {
                 vscode.commands.executeCommand('metaflow.refresh');
             }
+            if (e.affectsConfiguration('metaflow.bundledMetadata')) {
+                vscode.commands.executeCommand('metaflow.refresh');
+            }
             if (e.affectsConfiguration('metaflow.filesViewMode')) {
                 const mode = getFilesViewMode();
                 vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', mode);

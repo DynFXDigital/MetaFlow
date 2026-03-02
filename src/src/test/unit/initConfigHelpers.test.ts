@@ -5,6 +5,7 @@ import {
     sanitizeRepoName,
     toConfigLocalPath,
     buildConfig,
+    shouldEnableBundledMetadataOnFirstInit,
 } from '../../commands/initConfigHelpers';
 
 suite('Init Config Helpers', () => {
@@ -57,5 +58,12 @@ suite('Init Config Helpers', () => {
 
         const withoutUrl = buildConfig('.ai/metadata', ['company']) as { metadataRepo: { url?: string } };
         assert.strictEqual(withoutUrl.metadataRepo.url, undefined);
+    });
+
+    test('shouldEnableBundledMetadataOnFirstInit only enables for first init with unset setting', () => {
+        assert.strictEqual(shouldEnableBundledMetadataOnFirstInit(false, undefined), true);
+        assert.strictEqual(shouldEnableBundledMetadataOnFirstInit(false, true), false);
+        assert.strictEqual(shouldEnableBundledMetadataOnFirstInit(false, false), false);
+        assert.strictEqual(shouldEnableBundledMetadataOnFirstInit(true, undefined), false);
     });
 });

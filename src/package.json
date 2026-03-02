@@ -100,6 +100,26 @@
         "icon": "$(repo-pull)"
       },
       {
+        "command": "metaflow.checkAiToolsCompatibility",
+        "title": "MetaFlow: Check AI Tools Compatibility",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "metaflow.refreshBundledMetadata",
+        "title": "MetaFlow: Refresh Bundled Metadata",
+        "icon": "$(package)"
+      },
+      {
+        "command": "metaflow.scaffoldMcpConfig",
+        "title": "MetaFlow: Scaffold MCP Config",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "metaflow.validateMcpConfig",
+        "title": "MetaFlow: Validate MCP Config",
+        "icon": "$(check-all)"
+      },
+      {
         "command": "metaflow.openConfig",
         "title": "MetaFlow: Open Config File",
         "icon": "$(settings-gear)"
@@ -216,13 +236,6 @@
       }
     ],
     "menus": {
-      "viewContainer/title": [
-        {
-          "command": "metaflow.openConfig",
-          "when": "viewContainer == workbench.view.extension.metaflow-container",
-          "group": "navigation"
-        }
-      ],
       "view/title": [
         {
           "command": "metaflow.openConfig",
@@ -238,6 +251,26 @@
           "command": "metaflow.checkRepoUpdates",
           "when": "view == metaflow-config",
           "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.refreshBundledMetadata",
+          "when": "view == metaflow-config",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.scaffoldMcpConfig",
+          "when": "view == metaflow-config",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.validateMcpConfig",
+          "when": "view == metaflow-config",
+          "group": "navigation@6"
+        },
+        {
+          "command": "metaflow.checkAiToolsCompatibility",
+          "when": "view == metaflow-config",
+          "group": "navigation@7"
         },
         {
           "command": "metaflow.toggleFilesViewMode",
@@ -448,6 +481,55 @@
             "monthly"
           ],
           "description": "How often MetaFlow checks git-backed metadata repositories for upstream updates in the background"
+        },
+        "metaflow.bundledMetadata.enabled": {
+          "type": "boolean",
+          "default": false,
+          "order": 9,
+          "description": "Enable extension-shipped baseline metadata as an additional low-precedence source"
+        },
+        "metaflow.bundledMetadata.mode": {
+          "type": "string",
+          "default": "baseline-plus-local",
+          "order": 10,
+          "enum": [
+            "baseline-plus-local",
+            "baseline-only",
+            "off"
+          ],
+          "description": "How bundled metadata composes with workspace metadata sources"
+        },
+        "metaflow.bundledMetadata.updatePolicy": {
+          "type": "string",
+          "default": "pinned-to-extension",
+          "order": 11,
+          "enum": [
+            "pinned-to-extension",
+            "manual-refresh"
+          ],
+          "description": "When bundled metadata files are refreshed in the workspace-managed cache"
+        },
+        "metaflow.aiTools.enabled": {
+          "type": "boolean",
+          "default": false,
+          "order": 12,
+          "description": "Enable preview MetaFlow extension-native AI tool integrations when available"
+        },
+        "metaflow.mcp.assistEnabled": {
+          "type": "boolean",
+          "default": false,
+          "order": 13,
+          "description": "Enable MetaFlow MCP onboarding commands (scaffold and validation)"
+        },
+        "metaflow.mcp.configMode": {
+          "type": "string",
+          "default": "workspace",
+          "order": 14,
+          "enum": [
+            "workspace",
+            "profile"
+          ],
+          "description": "Target mode for MCP onboarding commands (profile mode currently falls back to workspace)"
         }
       }
     },
