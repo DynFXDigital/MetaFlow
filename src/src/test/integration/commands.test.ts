@@ -14,13 +14,13 @@ suite('Command Execution', () => {
     let workspaceRoot: string;
 
     async function waitFor(
-        predicate: () => boolean,
+        predicate: () => boolean | Promise<boolean>,
         timeoutMs = 5000,
         intervalMs = 100
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-            if (predicate()) {
+            if (await predicate()) {
                 return;
             }
             await new Promise(resolve => setTimeout(resolve, intervalMs));
@@ -203,6 +203,59 @@ suite('Command Execution', () => {
                 return !!instructionLocations && Object.keys(instructionLocations).length > 0
                     && !!promptLocations && Object.keys(promptLocations).length > 0;
             }, 10000);
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('config delete and recreate transitions checkRepoUpdates outcomes', async function () {
+        this.timeout(25000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        assert.ok(fs.existsSync(configPath), 'Config file should exist before lifecycle test');
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const gitBackedConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.unlinkSync(configPath);
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const noConfigOutcome = await vscode.commands.executeCommand('metaflow.checkRepoUpdates', {
+                silent: true,
+            }) as { executed?: boolean; reason?: string };
+            assert.strictEqual(noConfigOutcome.executed, false, 'Expected no-config run to be skipped');
+            assert.strictEqual(noConfigOutcome.reason, 'no-config', 'Expected no-config outcome after config deletion');
+
+            fs.writeFileSync(configPath, JSON.stringify(gitBackedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            let restoredOutcome: { executed?: boolean; reason?: string } = { executed: false, reason: 'no-config' };
+            await waitFor(async () => {
+                restoredOutcome = await vscode.commands.executeCommand('metaflow.checkRepoUpdates', {
+                    repoId: 'repo-that-does-not-exist',
+                    silent: true,
+                }) as { executed?: boolean; reason?: string };
+
+                return restoredOutcome.reason !== 'no-config';
+            }, 12000);
+
+            assert.strictEqual(restoredOutcome.executed, false, 'Expected unknown repo run to be skipped');
+            assert.strictEqual(restoredOutcome.reason, 'repo-not-found', 'Expected repo-not-found outcome after config recreation');
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -770,6 +823,101 @@ suite('Command Execution', () => {
             );
         } finally {
             windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkRepoUpdates silent mode returns no-git-repos outcome when no git-backed sources exist', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const localOnlyConfig = {
+            metadataRepos: [
+                { id: 'local', localPath: '.ai/ai-metadata', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'local', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const outcome = await vscode.commands.executeCommand('metaflow.checkRepoUpdates', { silent: true }) as { executed?: boolean; reason?: string };
+
+            assert.strictEqual(outcome.executed, false, 'Expected silent check to report skipped execution');
+            assert.strictEqual(outcome.reason, 'no-git-repos', 'Expected no-git-repos outcome reason');
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkRepoUpdates silent mode returns no-config outcome when config is absent', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const backupConfigPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc.bak.no-config-outcome');
+        assert.ok(fs.existsSync(configPath), 'Expected fixture config to exist before test');
+
+        fs.renameSync(configPath, backupConfigPath);
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const outcome = await vscode.commands.executeCommand('metaflow.checkRepoUpdates', { silent: true }) as { executed?: boolean; reason?: string };
+
+            assert.strictEqual(outcome.executed, false, 'Expected silent check to report skipped execution');
+            assert.strictEqual(outcome.reason, 'no-config', 'Expected no-config outcome reason');
+        } finally {
+            if (fs.existsSync(backupConfigPath)) {
+                fs.renameSync(backupConfigPath, configPath);
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('checkRepoUpdates returns repo-not-found outcome for unknown repo id in silent mode', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const gitBackedConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify(gitBackedConfig, null, 2), 'utf-8');
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const outcome = await vscode.commands.executeCommand('metaflow.checkRepoUpdates', {
+                repoId: 'repo-that-does-not-exist',
+                silent: true,
+            }) as { executed?: boolean; reason?: string };
+
+            assert.strictEqual(outcome.executed, false, 'Expected silent check to report skipped execution');
+            assert.strictEqual(outcome.reason, 'repo-not-found', 'Expected repo-not-found outcome reason');
+        } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }

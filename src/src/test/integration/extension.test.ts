@@ -20,6 +20,8 @@ const EXPECTED_COMMANDS = [
     'metaflow.toggleLayer',
     'metaflow.toggleRepoSource',
     'metaflow.rescanRepository',
+    'metaflow.checkRepoUpdates',
+    'metaflow.pullRepository',
     'metaflow.openConfig',
     'metaflow.initConfig',
     'metaflow.promote',

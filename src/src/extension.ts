@@ -20,6 +20,7 @@ import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
+import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -278,22 +279,30 @@ export function activate(context: vscode.ExtensionContext): void {
     // Auto-refresh on activation
     vscode.commands.executeCommand('metaflow.refresh');
 
-    let repoUpdateSchedulerDisposable: vscode.Disposable | undefined;
-    const syncRepoUpdateSchedulerLifecycle = (): void => {
-        const hasConfig = workspaceHasMetaFlowConfig();
-        if (hasConfig && !repoUpdateSchedulerDisposable) {
-            repoUpdateSchedulerDisposable = createRepoUpdateScheduler();
-            context.subscriptions.push(repoUpdateSchedulerDisposable);
+    const schedulerLifecycle = createRepoUpdateSchedulerLifecycleController({
+        workspaceHasConfig: workspaceHasMetaFlowConfig,
+        createScheduler: () => {
+            const scheduler = createRepoUpdateScheduler();
+            context.subscriptions.push(scheduler);
+            return scheduler;
+        },
+        onStarted: () => {
             logInfo('Repository update scheduler started.');
-            return;
-        }
-
-        if (!hasConfig && repoUpdateSchedulerDisposable) {
-            repoUpdateSchedulerDisposable.dispose();
-            repoUpdateSchedulerDisposable = undefined;
+        },
+        onStopped: () => {
             logInfo('Repository update scheduler stopped: no .metaflow/config.jsonc found.');
-        }
+        },
+    });
+
+    const syncRepoUpdateSchedulerLifecycle = (): void => {
+        schedulerLifecycle.sync();
     };
+
+    context.subscriptions.push({
+        dispose: () => {
+            schedulerLifecycle.dispose();
+        },
+    });
 
     // Start/stop automatic background checks for upstream repo updates.
     syncRepoUpdateSchedulerLifecycle();
