@@ -15,14 +15,14 @@ Provide explicit, safe onboarding for extension-native AI tools and MCP server c
 
 - [ ] Define extension tool capability scope and command UX (initially minimal/preview).
 - [ ] Add compatibility checks for VS Code channel/version prerequisites.
-- [ ] Implement MCP scaffold command with template presets and idempotent updates.
-- [ ] Implement MCP validation command for malformed config, missing executables, and trust guidance.
-- [ ] Add status indicators in output/view for configured tool/MCP state.
+- [x] Implement MCP scaffold command with template presets and idempotent updates.
+- [x] Implement MCP validation command for malformed config, missing executables, and trust guidance.
+- [x] Add status indicators in output/view for configured tool/MCP state.
 - [ ] Add opt-in controls and guardrails for all new capabilities.
 
 ## Testing and Validation
 
-- [ ] Unit tests for MCP config patch/merge logic.
+- [x] Unit tests for MCP config patch/merge logic.
 - [ ] Unit tests for tool capability gating and fallback behavior.
 - [ ] Integration tests for command flows that create/update config files safely.
 - [ ] Manual validation checklist for trust prompts and first-run ergonomics.

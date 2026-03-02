@@ -1,7 +1,7 @@
 # Bundled AI Metadata, Tools, and MCP - Context
 
 - **Last updated:** 2026-03-01
-- **Status:** Planning complete - ready for phased implementation
+- **Status:** Phase 1/2/3 partial implementation landed (settings + bundled baseline + MCP onboarding commands)
 - **Owner:** TBD
 
 ## Feature Overview
@@ -10,18 +10,19 @@ MetaFlow already resolves layered AI metadata and injects Copilot-compatible set
 
 ## Current Focus
 
-1. Finalize canonical architecture and settings contract for bundled metadata consumption.
-2. Define implementation boundaries between extension runtime, engine purity, and external MCP lifecycle.
-3. Define validation matrix and release criteria for stable rollout.
+1. Validate migration defaults for existing workspaces and decide staged rollout defaults.
+2. Expand extension-layer visibility for bundled source precedence in tree views and diagnostics.
+3. Complete docs/traceability artifacts and release-readiness gate evidence.
 
 ## Next Steps
 
-- [ ] Approve settings contract (`metaflow.bundledMetadata.*`, optional `metaflow.aiTools.*`, `metaflow.mcp.*`) and default behaviors.
-- [ ] Implement bundled metadata source resolution in extension refresh/apply flow with workspace-managed materialization path.
+- [x] Approve settings contract (`metaflow.bundledMetadata.*`, optional `metaflow.aiTools.*`, `metaflow.mcp.*`) and default behaviors.
+- [x] Implement bundled metadata source resolution in extension refresh/apply flow with workspace-managed materialization path.
 - [ ] Add initialization and migration UX to adopt baseline pack in existing workspaces without destructive overwrite.
 - [ ] Define and implement extension-tool contribution surface (preview-gated if necessary).
-- [ ] Add MCP onboarding commands to scaffold and validate `.vscode/mcp.json` entries.
-- [ ] Expand unit/integration tests across settings modes, precedence behavior, and disabled/offline paths.
+- [x] Add MCP onboarding commands to scaffold and validate `.vscode/mcp.json` entries.
+- [x] Expand unit tests for settings modes, precedence behavior, and disabled/offline paths.
+- [ ] Add integration coverage for command flows and setting transitions.
 - [ ] Update docs/traceability and run `gate:quick`, `gate:integration`, and `gate:full` before release decision.
 
 ## References
