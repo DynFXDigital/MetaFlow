@@ -8,6 +8,12 @@ import * as vscode from 'vscode';
 
 export type StatusBarState = 'idle' | 'loading' | 'error' | 'drift';
 
+export interface StatusBarRepoSummary {
+    dirtyCount: number;
+    updatesCount: number;
+    pushableCount: number;
+}
+
 let statusBarItem: vscode.StatusBarItem | undefined;
 
 /**
@@ -29,14 +35,25 @@ export function createStatusBar(): vscode.StatusBarItem {
  * @param profile   Active profile name (or undefined).
  * @param fileCount Number of effective files.
  */
-export function updateStatusBar(state: StatusBarState, profile?: string, fileCount?: number): void {
+export function updateStatusBar(
+    state: StatusBarState,
+    profile?: string,
+    fileCount?: number,
+    repoSummary?: StatusBarRepoSummary
+): void {
     const bar = createStatusBar();
     const profileLabel = profile ?? 'default';
     const count = fileCount ?? 0;
+    const repoSuffix = (summary?: StatusBarRepoSummary): string => {
+        if (!summary || (summary.dirtyCount === 0 && summary.updatesCount === 0)) {
+            return '';
+        }
+        return ` | Repos: ${summary.dirtyCount} dirty, ${summary.updatesCount} updates`;
+    };
 
     switch (state) {
         case 'idle':
-            bar.text = `$(layers) MetaFlow: ${profileLabel} (${count} files)`;
+            bar.text = `$(layers) MetaFlow: ${profileLabel} (${count} files)${repoSuffix(repoSummary)}`;
             bar.tooltip = 'MetaFlow — Click to switch profile';
             bar.backgroundColor = undefined;
             break;
@@ -51,7 +68,7 @@ export function updateStatusBar(state: StatusBarState, profile?: string, fileCou
             bar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
             break;
         case 'drift':
-            bar.text = `$(info) MetaFlow: ${profileLabel} (${count} files, drift detected)`;
+            bar.text = `$(info) MetaFlow: ${profileLabel} (${count} files, drift detected)${repoSuffix(repoSummary)}`;
             bar.tooltip = 'MetaFlow — Local edits detected in managed files';
             bar.backgroundColor = undefined;
             break;

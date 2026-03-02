@@ -160,6 +160,16 @@
         "icon": "$(collapse-all)"
       },
       {
+        "command": "metaflow.selectAllLayers",
+        "title": "Select All",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "metaflow.deselectAllLayers",
+        "title": "Deselect All",
+        "icon": "$(close-all)"
+      },
+      {
         "command": "metaflow.expandFilesBranch",
         "title": "Expand",
         "icon": "$(expand-all)"
@@ -313,6 +323,16 @@
           "command": "metaflow.collapseLayersBranch",
           "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
           "group": "navigation@2"
+        },
+        {
+          "command": "metaflow.selectAllLayers",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.deselectAllLayers",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.expandFilesBranch",

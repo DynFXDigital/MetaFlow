@@ -5,6 +5,7 @@ import type { MetaFlowConfig } from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
+    skipRepoSync?: boolean;
     forceDiscovery?: boolean;
     forceDiscoveryRepoId?: string;
 }
@@ -123,10 +124,12 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     }
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
+    const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
+        skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
         forceDiscoveryRepoId: typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,
     };

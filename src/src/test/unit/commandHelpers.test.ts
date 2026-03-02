@@ -107,11 +107,15 @@ suite('Command Helpers', () => {
         assert.deepStrictEqual(extractRefreshCommandOptions(undefined), {});
         assert.deepStrictEqual(
             extractRefreshCommandOptions({ skipAutoApply: true, forceDiscovery: false, forceDiscoveryRepoId: 'repo-a' }),
-            { skipAutoApply: true, forceDiscovery: false, forceDiscoveryRepoId: 'repo-a' }
+            { skipAutoApply: true, skipRepoSync: undefined, forceDiscovery: false, forceDiscoveryRepoId: 'repo-a' }
         );
         assert.deepStrictEqual(
             extractRefreshCommandOptions({ skipAutoApply: 'x', forceDiscovery: 1, forceDiscoveryRepoId: 7 }),
-            { skipAutoApply: undefined, forceDiscovery: undefined, forceDiscoveryRepoId: undefined }
+            { skipAutoApply: undefined, skipRepoSync: undefined, forceDiscovery: undefined, forceDiscoveryRepoId: undefined }
+        );
+        assert.deepStrictEqual(
+            extractRefreshCommandOptions({ skipRepoSync: true }),
+            { skipAutoApply: undefined, skipRepoSync: true, forceDiscovery: undefined, forceDiscoveryRepoId: undefined }
         );
 
         assert.deepStrictEqual(extractApplyCommandOptions({ skipRefresh: true }), { skipRefresh: true });

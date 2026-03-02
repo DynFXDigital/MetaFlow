@@ -5,6 +5,10 @@ export interface CapabilityWarningLike {
 }
 
 export function formatCapabilityWarningMessage(warning: CapabilityWarningLike): string {
-    const location = warning.filePath ? ` [${warning.filePath}]` : '';
-    return `[${warning.code}] ${warning.message}${location}`;
+    const legacyCode = warning.code === 'CAPABILITY_FRONTMATTER_MISSING'
+        ? 'CAPABILITY_NO_FRONTMATTER'
+        : warning.code;
+    const normalizedPath = warning.filePath?.replace(/\\/g, '/');
+    const location = normalizedPath ? ` [${normalizedPath}]` : '';
+    return `[${legacyCode}] ${warning.message}${location}`;
 }

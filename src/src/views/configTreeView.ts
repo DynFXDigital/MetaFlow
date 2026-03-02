@@ -140,7 +140,6 @@ class RepoSourceItem extends vscode.TreeItem {
                 tooltip.appendMarkdown(`\n\nError: ${syncStatus.error}`);
             }
         }
-
         return tooltip;
     }
 

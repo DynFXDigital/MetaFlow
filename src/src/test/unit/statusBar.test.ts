@@ -17,7 +17,12 @@ type StatusBarItemMock = {
 
 type StatusBarModule = {
     createStatusBar: () => unknown;
-    updateStatusBar: (state: 'idle' | 'loading' | 'error' | 'drift', profile?: string, fileCount?: number) => void;
+    updateStatusBar: (
+        state: 'idle' | 'loading' | 'error' | 'drift',
+        profile?: string,
+        fileCount?: number,
+        repoSummary?: { dirtyCount: number; updatesCount: number; pushableCount: number }
+    ) => void;
     hideStatusBar: () => void;
     disposeStatusBar: () => void;
 };
@@ -148,6 +153,28 @@ suite('Status Bar', () => {
         assert.strictEqual(item.text, '$(info) MetaFlow: default (3 files, drift detected)');
         assert.strictEqual(item.tooltip, 'MetaFlow — Local edits detected in managed files');
         assert.strictEqual(item.backgroundColor, undefined);
+    });
+
+    test('updateStatusBar appends repository summary when changes exist', () => {
+        const item = createStatusBarItemMock();
+
+        const module = loadStatusBarWithMock({
+            StatusBarAlignment: { Left: 1 },
+            ThemeColor: function ThemeColor(value: string): { id: string } {
+                return { id: value };
+            },
+            window: {
+                createStatusBarItem: (): StatusBarItemMock => item,
+            },
+        });
+
+        module.updateStatusBar('idle', 'default', 5, {
+            dirtyCount: 1,
+            updatesCount: 2,
+            pushableCount: 0,
+        });
+
+        assert.strictEqual(item.text, '$(layers) MetaFlow: default (5 files) | Repos: 1 dirty, 2 updates');
     });
 
     test('hide and dispose forward to status bar item', () => {

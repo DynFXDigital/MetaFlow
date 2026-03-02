@@ -58,9 +58,9 @@ import {
 } from './commandHelpers';
 import { scaffoldMetaFlowAiMetadata } from './starterMetadata';
 import {
-    RepoSyncStatus,
     checkRepoSyncStatus,
     pullRepositoryFastForward,
+    RepoSyncStatus,
 } from './repoSyncStatus';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
@@ -127,6 +127,44 @@ interface ResolvedRepoSource {
 type CheckRepoUpdatesOutcome =
     | { executed: true }
     | { executed: false; reason: 'no-config' | 'no-git-repos' | 'repo-not-found' | 'no-targets' };
+
+function resolveLayerIndicesForItem(
+    layerSources: { repoId: string; path: string }[],
+    item: unknown
+): number[] {
+    const normalize = (p: string) => (p === '.' ? '' : p);
+    const contextValue = typeof item === 'object' && item !== null
+        ? (item as Record<string, unknown>).contextValue as string | undefined
+        : undefined;
+
+    if (!contextValue) {
+        return layerSources.map((_, i) => i);
+    }
+
+    const repoId = (item as Record<string, unknown>).repoId as string | undefined;
+    const rawLayerIndex = (item as Record<string, unknown>).layerIndex;
+    const pathKey = (item as Record<string, unknown>).pathKey as string | undefined;
+
+    if (contextValue === 'layerRepo' && typeof repoId === 'string') {
+        return layerSources.flatMap((ls, i) => (ls.repoId === repoId ? [i] : []));
+    }
+
+    if (contextValue === 'layer' && typeof rawLayerIndex === 'number') {
+        return [rawLayerIndex];
+    }
+
+    if (contextValue === 'layerFolder') {
+        const prefix = pathKey === '(root)' ? '' : (pathKey ?? '');
+        return layerSources.flatMap((ls, i) => {
+            const normalizedPath = normalize(ls.path);
+            const pathMatch = normalizedPath === prefix || normalizedPath.startsWith(prefix + '/');
+            const repoMatch = !repoId || ls.repoId === repoId;
+            return pathMatch && repoMatch ? [i] : [];
+        });
+    }
+
+    return layerSources.map((_, i) => i);
+}
 
 function normalizeLayerId(layerId: string): string {
     const normalized = layerId.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -199,6 +237,51 @@ function collectConfiguredCapabilityMetadata(
     return capabilityByLayer;
 }
 
+function collectConfiguredCapabilityWarnings(config: MetaFlowConfig, workspaceRoot: string): string[] {
+    const warnings = new Set<string>();
+
+    const appendWarningIfMalformed = (repoRoot: string, layerPath: string): void => {
+        const layerAbsPath = path.join(repoRoot, layerPath);
+        const capabilityFile = path.join(layerAbsPath, 'CAPABILITY.md');
+        if (!fs.existsSync(capabilityFile)) {
+            return;
+        }
+
+        const capabilityId = deriveCapabilityIdFromLayerPath(layerPath, repoRoot);
+        const manifest = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
+        if (manifest) {
+            return;
+        }
+
+        const displayPath = toPosixPath(path.relative(repoRoot, capabilityFile));
+        warnings.add(`CAPABILITY_NO_FRONTMATTER: ${displayPath}`);
+    };
+
+    if (config.metadataRepos && config.layerSources) {
+        const repoById = new Map(config.metadataRepos.map(repo => [repo.id, repo]));
+        for (const source of config.layerSources) {
+            const repo = repoById.get(source.repoId);
+            if (!repo) {
+                continue;
+            }
+
+            const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+            appendWarningIfMalformed(repoRoot, source.path);
+        }
+
+        return Array.from(warnings);
+    }
+
+    if (config.metadataRepo && config.layers) {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
+        for (const layerPath of config.layers) {
+            appendWarningIfMalformed(repoRoot, layerPath);
+        }
+    }
+
+    return Array.from(warnings);
+}
+
 /**
  * Resolve the overlay from config and return effective files.
  */
@@ -253,6 +336,13 @@ function resolveOverlay(
     for (const [layerId, metadata] of Object.entries(configuredCapabilityByLayer)) {
         if (!capabilityByLayer[layerId]) {
             capabilityByLayer[layerId] = metadata;
+        }
+    }
+
+    for (const warning of collectConfiguredCapabilityWarnings(config, workspaceRoot)) {
+        if (!capabilityWarnings.includes(warning)) {
+            capabilityWarnings.push(warning);
+            logWarn(warning);
         }
     }
 
@@ -784,6 +874,31 @@ export function registerCommands(
                 }
             }
 
+            const syncStatuses = Object.values(state.repoSyncByRepoId);
+            const counts = {
+                upToDate: 0,
+                behind: 0,
+                ahead: 0,
+                diverged: 0,
+                unknown: 0,
+            };
+            for (const status of syncStatuses) {
+                counts[status.state] += 1;
+            }
+            emitInfo(
+                `Repo Sync: ${syncStatuses.length} tracked (up-to-date: ${counts.upToDate}, behind: ${counts.behind}, ahead: ${counts.ahead}, diverged: ${counts.diverged}, unknown: ${counts.unknown})`
+            );
+            for (const [repoId, status] of Object.entries(state.repoSyncByRepoId)) {
+                const details = [
+                    status.trackingRef ? `upstream: ${status.trackingRef}` : undefined,
+                    typeof status.behindCount === 'number' ? `${status.behindCount} behind` : undefined,
+                    typeof status.aheadCount === 'number' ? `${status.aheadCount} ahead` : undefined,
+                    status.error ? `error: ${status.error}` : undefined,
+                    `checked: ${status.lastCheckedAt}`,
+                ].filter((value): value is string => Boolean(value));
+                emitInfo(`  [${repoId}] ${status.state}${details.length > 0 ? ` (${details.join(', ')})` : ''}`);
+            }
+
             return lines;
         })
     );
@@ -862,10 +977,62 @@ export function registerCommands(
                 if (repoAutoEnabled) {
                     logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
                 }
-                await vscode.commands.executeCommand('metaflow.refresh');
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
                 logWarn(`Toggle layer failed: ${message}`);
+            }
+        })
+    );
+
+    // ── metaflow.selectAllLayers ───────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.selectAllLayers', async (item?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+            try {
+                const { layerSources } = ensureMultiRepoConfig(state.config);
+                const indices = resolveLayerIndicesForItem(layerSources, item);
+                for (const i of indices) {
+                    layerSources[i].enabled = true;
+                }
+                if (state.configPath) {
+                    await persistConfig(state.configPath, state.config);
+                }
+                logInfo(`Selected ${indices.length} layer(s).`);
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Select layers failed: ${message}`);
+            }
+        })
+    );
+
+    // ── metaflow.deselectAllLayers ─────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.deselectAllLayers', async (item?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+            try {
+                const { layerSources } = ensureMultiRepoConfig(state.config);
+                const indices = resolveLayerIndicesForItem(layerSources, item);
+                for (const i of indices) {
+                    layerSources[i].enabled = false;
+                }
+                if (state.configPath) {
+                    await persistConfig(state.configPath, state.config);
+                }
+                logInfo(`Deselected ${indices.length} layer(s).`);
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Deselect layers failed: ${message}`);
             }
         })
     );
@@ -918,7 +1085,7 @@ export function registerCommands(
                 }
 
                 logInfo(`Layer ${layerSource.repoId}/${layerSource.path}: ${artifactType} ${isExcluded ? 'excluded' : 'included'}`);
-                await vscode.commands.executeCommand('metaflow.refresh');
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             }
         )
     );
@@ -959,7 +1126,7 @@ export function registerCommands(
                 logWarn(`Toggle repo source failed: ${message}`);
             }
 
-            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         })
     );
 
@@ -1000,6 +1167,7 @@ export function registerCommands(
             }
 
             await vscode.commands.executeCommand('metaflow.refresh', {
+                skipRepoSync: true,
                 forceDiscovery: true,
                 forceDiscoveryRepoId: repoId,
             });
@@ -1170,7 +1338,7 @@ export function registerCommands(
         })
     );
 
-    // ── metaflow.pullRepository ──────────────────────────────────
+    // ── metaflow.pullRepository ─────────────────────────────────-
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.pullRepository', async (arg?: unknown) => {
             const ws = getWorkspace();
@@ -1301,14 +1469,14 @@ export function registerCommands(
                 multiRepoConfig.layerSources.push({
                     repoId,
                     path: layerPath,
-                    enabled: true,
+                    enabled: false,
                 });
                 seenLayerKeys.add(layerKey);
             }
 
             await persistConfig(state.configPath, state.config);
             logInfo(`Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`);
-            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         })
     );
 
@@ -1365,13 +1533,13 @@ export function registerCommands(
                 await fsp.unlink(state.configPath);
                 logInfo(`Removed final repo source ${repoId}; configuration file deleted.`);
                 vscode.window.showInformationMessage('MetaFlow: All repository sources removed. Initialize Configuration to start again.');
-                await vscode.commands.executeCommand('metaflow.refresh');
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
                 return;
             }
 
             await persistConfig(state.configPath, state.config);
             logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);
-            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         })
     );
 
