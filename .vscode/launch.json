@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run Extension",
+            "name": "MetaFlow: Run Extension",
             "type": "extensionHost",
             "request": "launch",
             "args": [
@@ -14,10 +14,10 @@
             "outFiles": [
                 "${workspaceFolder}/src/dist/**/*.js"
             ],
-            "preLaunchTask": "Extension: Compile"
+            "preLaunchTask": "MetaFlow: Build Extension"
         },
         {
-            "name": "Run Extension (Watch)",
+            "name": "MetaFlow: Run Extension (Watch)",
             "type": "extensionHost",
             "request": "launch",
             "args": [
@@ -26,7 +26,7 @@
             "outFiles": [
                 "${workspaceFolder}/src/dist/**/*.js"
             ],
-            "preLaunchTask": "Extension: Watch"
+            "preLaunchTask": "MetaFlow: Watch Extension"
         }
     ]
 }

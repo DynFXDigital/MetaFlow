@@ -2,21 +2,21 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Workspace: Install Dependencies",
+            "label": "MetaFlow: Install Dependencies",
             "type": "npm",
             "script": "install",
             "path": ".",
             "problemMatcher": []
         },
         {
-            "label": "Workspace: Build (All)",
+            "label": "MetaFlow: Build Workspace",
             "type": "npm",
             "script": "build",
             "path": ".",
             "problemMatcher": []
         },
         {
-            "label": "Extension: Watch",
+            "label": "MetaFlow: Watch Extension",
             "type": "npm",
             "script": "watch:esbuild",
             "path": "src",
@@ -38,7 +38,7 @@
             "group": "build"
         },
         {
-            "label": "Extension: Compile",
+            "label": "MetaFlow: Build Extension",
             "type": "npm",
             "script": "bundle:dev",
             "path": "src",
@@ -46,46 +46,23 @@
             "group": "build"
         },
         {
-            "label": "Extension: Lint",
+            "label": "MetaFlow: Lint Extension",
             "type": "npm",
             "script": "lint",
             "path": "src",
             "problemMatcher": []
         },
         {
-            "label": "Extension: Lint (Monitor Report)",
-            "type": "npm",
-            "script": "lint:monitor",
-            "path": "src",
-            "problemMatcher": []
-        },
-        {
-            "label": "Extension: Lint Summary",
-            "type": "npm",
-            "script": "lint:summary",
-            "path": "src",
-            "problemMatcher": []
-        },
-        {
-            "label": "Extension: Lint (Monitor + Summary)",
+            "label": "MetaFlow: Test Extension Unit",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "Extension: Lint (Monitor Report)",
-                "Extension: Lint Summary"
+                "MetaFlow: Compile Extension (TS)",
+                "MetaFlow: Test Extension Unit (Raw)"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Extension: Test Unit",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Extension: Compile (TS)",
-                "Extension: Test Unit (Raw)"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Extension: Compile (TS)",
+            "label": "MetaFlow: Compile Extension (TS)",
             "type": "npm",
             "script": "compile",
             "path": "src",
@@ -93,58 +70,50 @@
             "group": "build"
         },
         {
-            "label": "Extension: Test Unit (Raw)",
+            "label": "MetaFlow: Test Extension Unit (Raw)",
             "type": "npm",
             "script": "test:unit",
             "path": "src",
             "problemMatcher": []
         },
         {
-            "label": "Extension: Test Integration",
+            "label": "MetaFlow: Test Extension Integration",
             "type": "npm",
             "script": "test",
             "path": "src",
             "problemMatcher": []
         },
         {
-            "label": "Extension: Package VSIX",
+            "label": "MetaFlow: Package Extension VSIX",
             "type": "npm",
             "script": "package",
             "path": "src",
             "problemMatcher": []
         },
         {
-            "label": "Extension: Build + Package VSIX",
+            "label": "MetaFlow: Build + Package VSIX",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "Extension: Compile",
-                "Extension: Package VSIX"
+                "MetaFlow: Build Extension",
+                "MetaFlow: Package Extension VSIX"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Extension: Install Latest VSIX (code)",
+            "label": "MetaFlow: Install Latest VSIX",
             "type": "shell",
-            "command": "& { $vsix = Get-ChildItem -Path \"${workspaceFolder}/src\" -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $vsix) { throw 'No VSIX found under src/. Run Extension: Package VSIX first.' }; & \"${workspaceFolder}/src/scripts/install-vsix.ps1\" -VsixPath $vsix.FullName -Cli code-insiders -ProfileName \"${config:metaflow.installProfile}\" }",
+            "command": "& { $vsix = Get-ChildItem -Path \"${workspaceFolder}/src\" -Filter *.vsix | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (-not $vsix) { throw 'No VSIX found under src/. Run MetaFlow: Package Extension VSIX first.' }; & \"${workspaceFolder}/src/scripts/install-vsix.ps1\" -VsixPath $vsix.FullName -Cli code-insiders -ProfileName \"${config:metaflow.installProfile}\" }",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
             "problemMatcher": []
         },
         {
-            "label": "Extension: Install Latest VSIX (MetaFlow)",
+            "label": "MetaFlow: Build, Package & Install VSIX",
             "dependsOrder": "sequence",
             "dependsOn": [
-                "Extension: Install Latest VSIX (code)"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Extension: Build, Package & Install",
-            "dependsOrder": "sequence",
-            "dependsOn": [
-                "Extension: Build + Package VSIX",
-                "Extension: Install Latest VSIX (MetaFlow)"
+                "MetaFlow: Build + Package VSIX",
+                "MetaFlow: Install Latest VSIX"
             ],
             "problemMatcher": []
         }
