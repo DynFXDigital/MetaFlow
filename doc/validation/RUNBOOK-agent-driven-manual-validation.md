@@ -52,26 +52,13 @@ Reusable evidence template:
 - Every **Pass** should still have at least one durable artifact (e.g., screenshot, output excerpt, settings excerpt).
 - Keep evidence paths stable: prefer repo-relative paths when feasible.
 
-## Additional checks for bundled metadata, tools, and MCP
+## Additional checks for MetaFlow AI metadata
 
-When validating the bundled metadata + tools/MCP lanes, capture at least one run covering each item below:
+When validating MetaFlow AI metadata scaffolding, capture at least one run covering the item below:
 
-1. Bundled baseline activation
-   - Set `metaflow.bundledMetadata.enabled=true` and `metaflow.bundledMetadata.mode=baseline-plus-local`.
-   - Run `MetaFlow: Refresh`, then `MetaFlow: Status`.
-   - Evidence: status output line showing bundled mode and bundled source path.
+1. MetaFlow AI metadata scaffold command
+   - Run `MetaFlow: Initialize MetaFlow AI Metadata`.
+   - Verify starter templates are created under `.github/instructions`, `.github/prompts`, `.github/skills`, and `.github/agents`.
+   - Re-run the command and select `Keep Existing` when prompted.
+   - Evidence: command output + resulting starter files + confirmation local edits remain unchanged.
 
-2. Bundled baseline-only mode
-   - Set `metaflow.bundledMetadata.mode=baseline-only` and refresh.
-   - Evidence: status output line confirming baseline-only mode and expected effective behavior.
-
-3. MCP onboarding commands
-   - Set `metaflow.mcp.assistEnabled=true`.
-   - Run `MetaFlow: Scaffold MCP Config`, verify `.vscode/mcp.json` created/updated.
-   - Run `MetaFlow: Validate MCP Config`.
-   - Evidence: command output + resulting `.vscode/mcp.json` snippet.
-
-4. AI tools compatibility guardrail
-   - Set `metaflow.aiTools.enabled=true`.
-   - Run `MetaFlow: Check AI Tools Compatibility`.
-   - Evidence: compatibility result message and VS Code version.

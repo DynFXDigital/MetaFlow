@@ -134,10 +134,7 @@ Core VS Code commands (manual controls and diagnostics):
 - `MetaFlow: Toggle Layer`
 - `MetaFlow: Check Repository Updates`
 - `MetaFlow: Pull Repository Updates`
-- `MetaFlow: Refresh Bundled Metadata`
-- `MetaFlow: Check AI Tools Compatibility`
-- `MetaFlow: Scaffold MCP Config`
-- `MetaFlow: Validate MCP Config`
+- `MetaFlow: Initialize MetaFlow AI Metadata`
 - `MetaFlow: Open Config`
 - `MetaFlow: Initialize Configuration`
 - `MetaFlow: Promote`

@@ -93,10 +93,7 @@ This metadata is shown in `metaflow status` and in the Layers/Effective Files vi
 | `MetaFlow: Rescan Repository` | Force runtime discovery rescan for the selected metadata repo row | |
 | `MetaFlow: Check Repository Updates` | Fetch and compute upstream ahead/behind status for git-backed metadata repos | |
 | `MetaFlow: Pull Repository Updates` | Run `git pull --ff-only` for a selected git-backed metadata repo | |
-| `MetaFlow: Refresh Bundled Metadata` | Force refresh of workspace-managed bundled baseline metadata cache | |
-| `MetaFlow: Check AI Tools Compatibility` | Validate VS Code compatibility for the AI tools lane when enabled | |
-| `MetaFlow: Scaffold MCP Config` | Create or update `.vscode/mcp.json` with baseline MetaFlow MCP server template | |
-| `MetaFlow: Validate MCP Config` | Validate `.vscode/mcp.json` structure, command presence, and warnings | |
+| `MetaFlow: Initialize MetaFlow AI Metadata` | Scaffold `.github` metadata templates (instructions, prompts, skills, agents) for MetaFlow AI metadata workflows | |
 | `MetaFlow: Open Config` | Open `.metaflow/config.jsonc` in editor | |
 | `MetaFlow: Initialize Configuration` | Scaffold new `.metaflow/config.jsonc` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |
@@ -110,12 +107,6 @@ This metadata is shown in `metaflow status` and in the Layers/Effective Files vi
 | `metaflow.logLevel` | `info` | Log verbosity (debug/info/warn/error) |
 | `metaflow.hooksEnabled` | `true` | Enable Copilot hooks injection |
 | `metaflow.repoUpdateCheckInterval` | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`) |
-| `metaflow.bundledMetadata.enabled` | `false` | Enable extension-shipped baseline metadata as a low-precedence source |
-| `metaflow.bundledMetadata.mode` | `baseline-plus-local` | Composition mode for bundled baseline metadata (`baseline-plus-local`, `baseline-only`, `off`) |
-| `metaflow.bundledMetadata.updatePolicy` | `pinned-to-extension` | Refresh behavior for bundled metadata cache (`pinned-to-extension`, `manual-refresh`) |
-| `metaflow.aiTools.enabled` | `false` | Enable preview MetaFlow extension-native AI tool integration lane |
-| `metaflow.mcp.assistEnabled` | `false` | Enable MCP onboarding commands in the extension |
-| `metaflow.mcp.configMode` | `workspace` | MCP onboarding target mode (`workspace`, `profile`; profile currently falls back to workspace) |
 
 ### Copilot settings injected by `MetaFlow: Apply`
 
