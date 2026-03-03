@@ -8,6 +8,12 @@ MetaFlow provides deterministic AI metadata overlays for Copilot instructions, p
 
 MetaFlow gives you one consistent way to compose and apply layered AI metadata (instructions, prompts, skills, agents) without ad-hoc copy/paste.
 
+## Screenshot
+
+![MetaFlow extension view screenshot](doc/images/metaflow-extension-screenshot-2026-03-03.png)
+
+MetaFlow Activity Bar view showing AI Metadata, Profiles, Layers, and Effective Files panels.
+
 ## Why teams use MetaFlow
 
 - **Deterministic output**: same config + same metadata input = same result.
