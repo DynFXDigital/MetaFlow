@@ -41,6 +41,12 @@ npm run test:integration
 - Usage and troubleshooting: `SUPPORT.md`
 - Security reports: `.github/SECURITY.md`
 
+## Security hygiene baseline
+
+- No runtime `.env` file is required for normal development, testing, or extension usage.
+- Do not commit secrets, private keys, or internal service endpoints.
+- Route vulnerability disclosures through `.github/SECURITY.md` instead of public issues.
+
 ## Maintainer operations
 
 - Release process: `RELEASING.md`

@@ -46,6 +46,8 @@ Install a release VSIX from the [Releases](https://github.com/dynfxdigital/MetaF
 code --install-extension <metaflow-release>.vsix
 ```
 
+No runtime environment variables are required for standard extension and CLI usage.
+
 ### 2) Initialize config
 
 In VS Code, run:

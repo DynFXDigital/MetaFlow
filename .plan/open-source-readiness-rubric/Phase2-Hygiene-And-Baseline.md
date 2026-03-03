@@ -12,14 +12,14 @@ Demonstrate and document a clean-clone quality baseline while triaging dependenc
 
 ## Work Items
 
-- [ ] Execute and record baseline commands:
+- [x] Execute and record baseline commands:
   - `npm ci`
   - `npm run build`
   - `npm run test:unit`
-- [ ] Run `npm audit` and classify findings by severity, exploitability, and ownership.
-- [ ] Create remediation list with target versions or accepted-risk justifications.
-- [ ] Confirm no secrets/internal endpoints in tracked files (regex + manual review).
-- [ ] Document whether `.env.example` is required; if not, explicitly state "no runtime env vars required".
+- [x] Run `npm audit` and classify findings by severity, exploitability, and ownership.
+- [x] Create remediation list with target versions or accepted-risk justifications.
+- [x] Confirm no secrets/internal endpoints in tracked files (regex + manual review).
+- [x] Document whether `.env.example` is required; if not, explicitly state "no runtime env vars required".
 
 ## Acceptance Criteria
 

@@ -1,7 +1,7 @@
 # Open Source Readiness Rubric – Context
 
 - **Last updated:** 2026-03-03
-- **Status:** Phase 1 complete; Phase 2 in progress
+- **Status:** Phase 2 complete; Phase 3 in progress
 - **Owner:** MetaFlow maintainers (DynF/X Digital)
 
 ## Feature Overview
@@ -10,17 +10,17 @@ This effort closes practical open-source readiness gaps identified in a March 20
 
 ## Current Focus
 
-1. Execute Phase 2 baseline verification commands on clean workspace state.
-2. Triage dependency advisories and document explicit fix/defer/accept decisions.
-3. Capture security hygiene statements needed for open-source launch clarity.
+1. Execute Phase 3 launch-mechanics checks against current templates and release docs.
+2. Publish a concise launch checklist for Issues, Discussions, tags, and release notes.
+3. Validate Marketplace publication prerequisites documentation and token-handling guidance.
 
 ## Next Steps
 
-- [ ] Execute and record baseline commands (`npm ci`, `npm run build`, `npm run test:unit`).
-- [ ] Run `npm audit`, classify findings (fix now vs accepted risk), and document decisions.
-- [ ] Confirm no secrets/internal endpoints in tracked files (regex + manual review).
-- [ ] Document runtime env-var expectations (`.env.example` required or not required).
-- [ ] Publish a short launch checklist for repo visibility settings (Issues, Discussions, releases, tags).
+- [ ] Verify issue templates and PR template align with updated README/support policy.
+- [ ] Confirm release process docs reflect `v0.x` preview semantics and versioning policy.
+- [ ] Add launch checklist for Issues/Discussions/tags/release-note expectations.
+- [ ] Validate Marketplace publication prerequisites and token handling docs.
+- [ ] Rehearse one preview release path (tag or manual dispatch dry run evidence).
 
 ## References
 
@@ -41,6 +41,7 @@ This effort closes practical open-source readiness gaps identified in a March 20
 - **2026-03-03** – Treat unresolved dependency advisories as a tracked decision (fix/defer/accept), never implicit.
 - **2026-03-03** – Maintain pre-1.0 signaling in docs and releases to set accurate stability expectations.
 - **2026-03-03** – Completed Phase 1 repository consumability updates (root changelog, preview messaging, known limitations, roadmap, and README link verification).
+- **2026-03-03** – Completed Phase 2 hygiene baseline: clean-clone command pass, audit triage report, remediation backlog, tracked-file secret/internal-url scan, and explicit no-runtime-env documentation.
 
 ## Open Questions & Risks
 
