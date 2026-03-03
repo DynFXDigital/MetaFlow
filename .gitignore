@@ -47,6 +47,7 @@ src/test-workspace/.vscode/
 .cache/
 .turbo/
 .pytest_cache/
+do_icon.ps1
 
 # Ignore materialized AI Metadata files
 .github/**/_*
