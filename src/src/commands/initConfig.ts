@@ -18,7 +18,6 @@ import {
   sanitizeRepoName,
   toConfigLocalPath,
   buildConfig,
-  shouldEnableBundledMetadataOnFirstInit,
 } from './initConfigHelpers';
 
 const execFileAsync = promisify(execFile);
@@ -297,16 +296,6 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
       const content = Buffer.from(JSON.stringify(config, null, 2) + '\n', 'utf-8');
     await vscode.workspace.fs.createDirectory(configDirUri);
     await vscode.workspace.fs.writeFile(configUri, content);
-
-      // Migration-safe default: only first-time init sets bundled baseline on,
-      // and only when the workspace has not explicitly chosen a value.
-      if (!exists) {
-        const metaFlowConfig = vscode.workspace.getConfiguration('metaflow', workspaceFolder.uri);
-        const bundledEnabled = metaFlowConfig.inspect<boolean>('bundledMetadata.enabled')?.workspaceValue;
-        if (shouldEnableBundledMetadataOnFirstInit(exists, bundledEnabled)) {
-          await metaFlowConfig.update('bundledMetadata.enabled', true, vscode.ConfigurationTarget.Workspace);
-        }
-      }
 
     logInfo('initConfig: file written.');
 

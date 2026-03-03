@@ -57,10 +57,3 @@ export function buildConfig(localPath: string, layers: string[], metadataUrl?: s
         },
     };
 }
-
-export function shouldEnableBundledMetadataOnFirstInit(
-    configExistedBeforeInit: boolean,
-    workspaceBundledSettingValue: boolean | undefined
-): boolean {
-    return configExistedBeforeInit === false && workspaceBundledSettingValue === undefined;
-}

@@ -56,22 +56,7 @@ import {
     normalizeAndDeduplicateLayerPaths,
     pruneStaleLayerSources,
 } from './commandHelpers';
-import {
-    BUNDLED_REPO_ID,
-    type BundledMetadataMode,
-    materializeBundledMetadata,
-    mergeConfigWithBundledMetadata,
-    readBundledMetadataSettings,
-} from './bundledMetadata';
-import {
-    normalizeMcpConfigMode,
-    scaffoldWorkspaceMcpConfig,
-    validateWorkspaceMcpConfig,
-} from './mcpConfig';
-import {
-    evaluateAiToolsCompatibility,
-    getAiToolsMinVersion,
-} from './aiTools';
+import { scaffoldMetaFlowAiMetadata } from './starterMetadata';
 import {
     RepoSyncStatus,
     checkRepoSyncStatus,
@@ -114,14 +99,6 @@ export interface ExtensionState {
     }>;
     capabilityWarnings: string[];
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
-    bundledMetadata?: {
-        enabled: boolean;
-        mode: BundledMetadataMode;
-        sourcePath?: string;
-        layerCount?: number;
-        updated?: boolean;
-        warning?: string;
-    };
     activeProfile?: string;
     /** Event emitter to notify TreeViews of changes. */
     onDidChange: vscode.EventEmitter<void>;
@@ -136,10 +113,6 @@ export function createState(): ExtensionState {
         capabilityByLayer: {},
         capabilityWarnings: [],
         repoSyncByRepoId: {},
-        bundledMetadata: {
-            enabled: false,
-            mode: 'off',
-        },
         onDidChange: new vscode.EventEmitter<void>(),
     };
 }
@@ -612,10 +585,6 @@ export function registerCommands(
                 state.effectiveFiles = [];
                 state.capabilityByLayer = {};
                 state.capabilityWarnings = [];
-                state.bundledMetadata = {
-                    enabled: false,
-                    mode: 'off',
-                };
                 invalidateRepoSyncStatus(state);
                 state.onDidChange.fire();
                 return;
@@ -638,67 +607,16 @@ export function registerCommands(
             state.activeProfile = result.config.activeProfile;
             invalidateRepoSyncStatus(state);
 
-            let runtimeConfig = result.config;
-            const bundledSettings = readBundledMetadataSettings((key, defaultValue) => {
-                return vscode.workspace.getConfiguration('metaflow', ws.uri).get(key, defaultValue);
-            });
-
-            state.bundledMetadata = {
-                enabled: false,
-                mode: bundledSettings.mode,
-            };
-
-            const bundledMode = bundledSettings.mode;
-            const bundledModeActive = bundledSettings.enabled && bundledMode !== 'off';
-            if (bundledModeActive) {
-                try {
-                    const extensionVersion = typeof context.extension.packageJSON.version === 'string'
-                        ? context.extension.packageJSON.version
-                        : 'dev';
-                    const bundled = await materializeBundledMetadata({
-                        workspaceRoot: ws.uri.fsPath,
-                        extensionPath: context.extensionPath,
-                        extensionVersion,
-                        updatePolicy: bundledSettings.updatePolicy,
-                    });
-
-                    if (!bundled) {
-                        const warning = 'Bundled metadata assets are unavailable in this extension build.';
-                        logWarn(warning);
-                        state.bundledMetadata.warning = warning;
-                    } else {
-                        runtimeConfig = mergeConfigWithBundledMetadata(
-                            result.config,
-                            bundled.targetRoot,
-                            bundled.layerPaths,
-                            bundledMode
-                        );
-                        state.bundledMetadata = {
-                            enabled: true,
-                            mode: bundledMode,
-                            sourcePath: bundled.targetRoot,
-                            layerCount: bundled.layerPaths.length,
-                            updated: bundled.updated,
-                        };
-                    }
-                } catch (bundledError: unknown) {
-                    const warning = bundledError instanceof Error ? bundledError.message : String(bundledError);
-                    logWarn(`Bundled metadata initialization failed: ${warning}`);
-                    state.bundledMetadata.warning = warning;
-                }
-            }
-
             const autoApplyEnabled = vscode.workspace
                 .getConfiguration('metaflow', ws.uri)
                 .get<boolean>('autoApply', true);
 
             try {
-                const injectionConfig = resolveInjectionConfig(ws, runtimeConfig);
+                const injectionConfig = resolveInjectionConfig(ws, result.config);
                 const shouldEnableDiscovery = autoApplyEnabled || refreshOptions.forceDiscovery === true;
-                const overlay = resolveOverlay(runtimeConfig, ws.uri.fsPath, injectionConfig, {
+                const overlay = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig, {
                     enableDiscovery: shouldEnableDiscovery,
                     forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
-                        && refreshOptions.forceDiscoveryRepoId !== BUNDLED_REPO_ID
                         ? [refreshOptions.forceDiscoveryRepoId]
                         : undefined,
                 });
@@ -844,47 +762,6 @@ export function registerCommands(
             emitInfo(`Config: ${state.configPath ?? 'Not loaded'}`);
             emitInfo(`Active Profile: ${state.activeProfile ?? 'None'}`);
             emitInfo(`Effective Files: ${state.effectiveFiles.length}`);
-
-            if (state.bundledMetadata?.enabled) {
-                emitInfo(
-                    `Bundled Metadata: enabled (${state.bundledMetadata.mode}, layers: ${state.bundledMetadata.layerCount ?? 0})`
-                );
-                if (state.bundledMetadata.sourcePath) {
-                    emitInfo(`Bundled Source: ${state.bundledMetadata.sourcePath}`);
-                }
-            } else if (state.bundledMetadata?.warning) {
-                emitWarn(`Bundled Metadata: requested but unavailable (${state.bundledMetadata.warning ?? 'unknown reason'})`);
-            } else {
-                emitInfo('Bundled Metadata: disabled');
-            }
-
-            const mcpAssistEnabled = vscode.workspace
-                .getConfiguration('metaflow', ws.uri)
-                .get<boolean>('mcp.assistEnabled', false);
-            const aiToolsEnabled = vscode.workspace
-                .getConfiguration('metaflow', ws.uri)
-                .get<boolean>('aiTools.enabled', false);
-            const aiToolsCompatibility = evaluateAiToolsCompatibility(vscode.version);
-            emitInfo(
-                `AI Tools: ${aiToolsEnabled ? 'enabled' : 'disabled'} (${aiToolsCompatibility.supported ? 'compatible' : 'incompatible'}; min ${aiToolsCompatibility.minVersion}, current ${aiToolsCompatibility.currentVersion})`
-            );
-            if (aiToolsEnabled && !aiToolsCompatibility.supported && aiToolsCompatibility.reason) {
-                emitWarn(`AI Tools Compatibility: ${aiToolsCompatibility.reason}`);
-            }
-
-            const mcpMode = normalizeMcpConfigMode(
-                vscode.workspace.getConfiguration('metaflow', ws.uri).get<unknown>('mcp.configMode', 'workspace')
-            );
-            emitInfo(`MCP Assist: ${mcpAssistEnabled ? 'enabled' : 'disabled'} (${mcpMode})`);
-            if (mcpAssistEnabled) {
-                const mcpValidation = await validateWorkspaceMcpConfig(ws.uri.fsPath);
-                if (mcpValidation.issues.length === 0) {
-                    emitInfo(`MCP Config: OK (${mcpValidation.configPath})`);
-                } else {
-                    emitWarn(`MCP Config Issues: ${mcpValidation.issues.length} (${mcpValidation.configPath})`);
-                }
-            }
-
             const managedState = loadManagedState(ws.uri.fsPath);
             const trackedCount = Object.keys(managedState.files).length;
             emitInfo(`Managed Files: ${trackedCount}`);
@@ -1590,152 +1467,50 @@ export function registerCommands(
         })
     );
 
-    // ── metaflow.refreshBundledMetadata ───────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.checkAiToolsCompatibility', async () => {
+        vscode.commands.registerCommand('metaflow.initMetaFlowAiMetadata', async () => {
             const ws = getWorkspace();
             if (!ws) {
                 return;
             }
 
-            const aiToolsEnabled = vscode.workspace
-                .getConfiguration('metaflow', ws.uri)
-                .get<boolean>('aiTools.enabled', false);
-
-            if (!aiToolsEnabled) {
-                vscode.window.showWarningMessage('MetaFlow: AI tools lane is disabled. Enable metaflow.aiTools.enabled first.');
-                return;
-            }
-
-            const compatibility = evaluateAiToolsCompatibility(vscode.version);
-            const summary = compatibility.supported
-                ? `MetaFlow: AI tools compatibility OK (VS Code ${compatibility.currentVersion}, min ${compatibility.minVersion}).`
-                : `MetaFlow: AI tools compatibility check failed (${compatibility.reason ?? `requires ${getAiToolsMinVersion()}+`}).`;
-
-            if (compatibility.supported) {
-                vscode.window.showInformationMessage(summary);
-            } else {
-                vscode.window.showWarningMessage(summary);
-            }
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refreshBundledMetadata', async () => {
-            const ws = getWorkspace();
-            if (!ws) {
-                return;
-            }
-
-            const bundledSettings = readBundledMetadataSettings((key, defaultValue) => {
-                return vscode.workspace.getConfiguration('metaflow', ws.uri).get(key, defaultValue);
-            });
-
-            if (!bundledSettings.enabled || bundledSettings.mode === 'off') {
-                vscode.window.showWarningMessage('MetaFlow: Bundled metadata is disabled. Enable it in settings first.');
-                return;
-            }
-
-            const extensionVersion = typeof context.extension.packageJSON.version === 'string'
-                ? context.extension.packageJSON.version
-                : 'dev';
-
-            const bundled = await materializeBundledMetadata({
+            const firstPass = await scaffoldMetaFlowAiMetadata({
                 workspaceRoot: ws.uri.fsPath,
                 extensionPath: context.extensionPath,
-                extensionVersion,
-                updatePolicy: bundledSettings.updatePolicy,
-                forceRefresh: true,
             });
 
-            if (!bundled) {
-                vscode.window.showWarningMessage('MetaFlow: Bundled metadata assets are unavailable in this extension build.');
+            if (!firstPass) {
+                vscode.window.showWarningMessage('MetaFlow: MetaFlow AI metadata assets are unavailable in this extension build.');
                 return;
             }
 
+            if (firstPass.skippedFiles.length === 0) {
+                vscode.window.showInformationMessage(`MetaFlow: Added ${firstPass.writtenFiles.length} MetaFlow AI metadata file(s) to this workspace.`);
+                return;
+            }
+
+            const overwriteAction = 'Overwrite Existing';
+            const keepAction = 'Keep Existing';
+            const selection = await vscode.window.showWarningMessage(
+                `MetaFlow: Added ${firstPass.writtenFiles.length} starter file(s); ${firstPass.skippedFiles.length} existing file(s) were kept.`,
+                overwriteAction,
+                keepAction
+            );
+
+            if (selection !== overwriteAction) {
+                return;
+            }
+
+            const overwritePass = await scaffoldMetaFlowAiMetadata({
+                workspaceRoot: ws.uri.fsPath,
+                extensionPath: context.extensionPath,
+                overwriteExisting: true,
+            });
+
+            const overwriteCount = overwritePass?.writtenFiles.length ?? 0;
             vscode.window.showInformationMessage(
-                `MetaFlow: Refreshed bundled metadata (${bundled.layerPaths.length} layer(s)).`
+                `MetaFlow: Overwrote ${overwriteCount} MetaFlow AI metadata file(s).`
             );
-            await vscode.commands.executeCommand('metaflow.refresh');
-        })
-    );
-
-    // ── metaflow.scaffoldMcpConfig ───────────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.scaffoldMcpConfig', async () => {
-            const ws = getWorkspace();
-            if (!ws) {
-                return;
-            }
-
-            const mcpAssistEnabled = vscode.workspace
-                .getConfiguration('metaflow', ws.uri)
-                .get<boolean>('mcp.assistEnabled', false);
-
-            if (!mcpAssistEnabled) {
-                vscode.window.showWarningMessage('MetaFlow: MCP assist is disabled. Enable metaflow.mcp.assistEnabled first.');
-                return;
-            }
-
-            const mode = normalizeMcpConfigMode(
-                vscode.workspace.getConfiguration('metaflow', ws.uri).get<unknown>('mcp.configMode', 'workspace')
-            );
-            if (mode === 'profile') {
-                vscode.window.showWarningMessage(
-                    'MetaFlow: profile-mode MCP scaffolding is not yet implemented; using workspace mode.'
-                );
-            }
-
-            const scaffoldResult = await scaffoldWorkspaceMcpConfig(ws.uri.fsPath);
-            vscode.window.showInformationMessage(
-                `MetaFlow: MCP config ${scaffoldResult.created ? 'created' : 'updated'} at ${scaffoldResult.configPath}.`
-            );
-        })
-    );
-
-    // ── metaflow.validateMcpConfig ───────────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.validateMcpConfig', async () => {
-            const ws = getWorkspace();
-            if (!ws) {
-                return;
-            }
-
-            const mode = normalizeMcpConfigMode(
-                vscode.workspace.getConfiguration('metaflow', ws.uri).get<unknown>('mcp.configMode', 'workspace')
-            );
-
-            if (mode === 'profile') {
-                vscode.window.showWarningMessage(
-                    'MetaFlow: profile-mode MCP validation is not yet implemented; validating workspace mode.'
-                );
-            }
-
-            const validation = await validateWorkspaceMcpConfig(ws.uri.fsPath);
-            showOutputChannel();
-            logInfo('=== MetaFlow MCP Validation ===');
-            logInfo(`Config: ${validation.configPath}`);
-            if (validation.issues.length === 0) {
-                logInfo('No MCP configuration issues found.');
-                vscode.window.showInformationMessage('MetaFlow: MCP config validation passed.');
-                return;
-            }
-
-            for (const issue of validation.issues) {
-                if (issue.severity === 'error') {
-                    logError(issue.message);
-                } else {
-                    logWarn(issue.message);
-                }
-            }
-
-            const hasErrors = validation.issues.some(issue => issue.severity === 'error');
-            const summary = `MetaFlow: MCP validation found ${validation.issues.length} issue(s).`;
-            if (hasErrors) {
-                vscode.window.showWarningMessage(summary);
-            } else {
-                vscode.window.showInformationMessage(summary);
-            }
         })
     );
 
