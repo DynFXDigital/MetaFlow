@@ -1,8 +1,8 @@
 # MetaFlow
 
-[![CI](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml)
-[![Release](https://github.com/dynfxdigital/MetaFlow/actions/workflows/release.yml/badge.svg)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/release.yml)
+[![CI (main)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/ci.yml?query=branch%3Amain)
 [![Latest Release](https://img.shields.io/github/v/release/dynfxdigital/MetaFlow?display_name=tag)](https://github.com/dynfxdigital/MetaFlow/releases)
+[![Release Workflow](https://img.shields.io/github/actions/workflow/status/dynfxdigital/MetaFlow/release.yml?label=release%20workflow)](https://github.com/dynfxdigital/MetaFlow/actions/workflows/release.yml)
 
 MetaFlow provides deterministic AI metadata overlays for Copilot instructions, prompts, skills, and agents.
 
