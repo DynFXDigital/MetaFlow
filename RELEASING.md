@@ -6,6 +6,7 @@
 - Pre-releases use suffixes: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`, or `vX.Y.Z-preview.N`
 
 For early-stage development (pre-`1.0.0`), prefer `0.x` tags and pre-releases such as `v0.2.0-beta.1`.
+During `v0.x`, treat non-trivial behavior changes as preview semantics changes and call them out clearly in release notes.
 
 ## Bumping versions
 
@@ -62,6 +63,12 @@ Required setup:
 	- `OVSX_PAT`
 2. Create a GitHub Environment named `marketplace-publish`.
 3. Add required reviewers on that environment for manual approval before publish.
+
+Token handling policy:
+
+- Keep `VSCE_PAT` and `OVSX_PAT` only in GitHub Actions secrets.
+- Never commit tokens, place them in tracked `.env` files, or paste them into issues/PRs.
+- Rotate tokens immediately if exposure is suspected.
 
 Recommended flow:
 

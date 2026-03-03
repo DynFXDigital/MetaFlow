@@ -12,15 +12,15 @@ Finalize GitHub operational mechanics so an open-source launch is predictable, s
 
 ## Work Items
 
-- [ ] Verify issue templates and PR template still match updated README/support policies.
-- [ ] Confirm release process documents `v0.x` versioning policy and preview semantics.
-- [ ] Add/refresh launch checklist for:
+- [x] Verify issue templates and PR template still match updated README/support policies.
+- [x] Confirm release process documents `v0.x` versioning policy and preview semantics.
+- [x] Add/refresh launch checklist for:
   - Issues enabled
   - Discussions decision (enabled/deferred with rationale)
   - release tag flow (`v0.1.0`, `v0.2.0`, etc.)
   - release notes generation expectations
-- [ ] Validate Marketplace publication prerequisites and token handling docs.
-- [ ] Rehearse one preview release path (tag or manual dispatch) in a controlled run.
+- [x] Validate Marketplace publication prerequisites and token handling docs.
+- [x] Rehearse one preview release path (tag or manual dispatch) in a controlled run.
 
 ## Acceptance Criteria
 

@@ -1,7 +1,7 @@
 # Open Source Readiness Rubric – Context
 
 - **Last updated:** 2026-03-03
-- **Status:** Phase 2 complete; Phase 3 in progress
+- **Status:** Complete
 - **Owner:** MetaFlow maintainers (DynF/X Digital)
 
 ## Feature Overview
@@ -10,17 +10,17 @@ This effort closes practical open-source readiness gaps identified in a March 20
 
 ## Current Focus
 
-1. Execute Phase 3 launch-mechanics checks against current templates and release docs.
-2. Publish a concise launch checklist for Issues, Discussions, tags, and release notes.
-3. Validate Marketplace publication prerequisites documentation and token-handling guidance.
+1. Plan complete. Maintain changelog and launch checklist as part of each release cycle.
+2. Track dependency remediation items captured in Phase 2 audit triage.
+3. Re-run packaging dry-run (`npm -w metaflow run package`) before each tagged release.
 
 ## Next Steps
 
-- [ ] Verify issue templates and PR template align with updated README/support policy.
-- [ ] Confirm release process docs reflect `v0.x` preview semantics and versioning policy.
-- [ ] Add launch checklist for Issues/Discussions/tags/release-note expectations.
-- [ ] Validate Marketplace publication prerequisites and token handling docs.
-- [ ] Rehearse one preview release path (tag or manual dispatch dry run evidence).
+- [x] Verify issue templates and PR template align with updated README/support policy.
+- [x] Confirm release process docs reflect `v0.x` preview semantics and versioning policy.
+- [x] Add launch checklist for Issues/Discussions/tags/release-note expectations.
+- [x] Validate Marketplace publication prerequisites and token handling docs.
+- [x] Rehearse one preview release path (tag or manual dispatch dry run evidence).
 
 ## References
 
@@ -42,6 +42,7 @@ This effort closes practical open-source readiness gaps identified in a March 20
 - **2026-03-03** – Maintain pre-1.0 signaling in docs and releases to set accurate stability expectations.
 - **2026-03-03** – Completed Phase 1 repository consumability updates (root changelog, preview messaging, known limitations, roadmap, and README link verification).
 - **2026-03-03** – Completed Phase 2 hygiene baseline: clean-clone command pass, audit triage report, remediation backlog, tracked-file secret/internal-url scan, and explicit no-runtime-env documentation.
+- **2026-03-03** – Completed Phase 3 launch mechanics updates and discovered/fixed VSIX packaging bloat by tightening `src/.vscodeignore`.
 
 ## Open Questions & Risks
 
@@ -49,3 +50,7 @@ This effort closes practical open-source readiness gaps identified in a March 20
 - Do maintainers want Discussions enabled at launch, or defer until issue volume justifies moderation overhead?
 - Dependency advisories may include transitive findings without immediate upstream patches; risk acceptance criteria must be explicit.
 - Missing visual assets (screenshot/GIF) could delay final README polish if not prepared early.
+
+## Outcome
+
+Open-source readiness rubric plan completed across all three phases. The repository now has explicit preview-stage messaging, root-level release history, dependency/audit triage evidence, launch mechanics checklists, and a validated release dry run with clean VSIX contents. Full test suite status at completion: `npm test` passed.
