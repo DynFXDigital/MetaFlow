@@ -8,6 +8,14 @@ MetaFlow provides deterministic AI metadata overlays for Copilot instructions, p
 
 MetaFlow gives you one consistent way to compose and apply layered AI metadata (instructions, prompts, skills, agents) without ad-hoc copy/paste.
 
+> [!IMPORTANT]
+> MetaFlow is in `v0.x` preview. Expect workflow and command-surface adjustments as open-source feedback is incorporated.
+
+## Release Notes
+
+- Repository changelog: [CHANGELOG.md](CHANGELOG.md)
+- Extension changelog: [src/CHANGELOG.md](src/CHANGELOG.md)
+
 ## Screenshot
 
 ![MetaFlow extension view screenshot](doc/images/metaflow-extension-screenshot-2026-03-03.png)
@@ -154,10 +162,24 @@ For full command and setting details, see [src/README.md](src/README.md).
 - In automatic mode, save config and inspect output; use `Preview`/`Apply` only for explicit control.
 - If files are skipped, check drift output and decide whether to promote or force overwrite via CLI.
 
+## Known Issues / Limitations
+
+- Preview-phase surface area: command names and behavior may continue to evolve during `v0.x`.
+- Capability metadata tooltips update after refresh; edits in linked metadata repos are not watched continuously.
+- Automatic discovered-layer resolution is tied to automatic mode (`metaflow.autoApply: true`).
+- Validation coverage is strongest on desktop VS Code extension workflows; remote/container scenarios may need additional hardening.
+
+## Roadmap
+
+- Improve first-run onboarding with clearer starter metadata templates and usage examples.
+- Expand integration and release rehearsal coverage for open-source launch confidence.
+- Harden repository update ergonomics and background status visibility.
+- Continue tightening documentation traceability across requirements, design, and tests.
+
 ## Support
 
 - Usage help and troubleshooting: [SUPPORT.md](SUPPORT.md)
-- Bug reports and feature requests: GitHub Issues
+- Bug reports and feature requests: [GitHub Issues](https://github.com/dynfxdigital/MetaFlow/issues)
 - Security reporting: [.github/SECURITY.md](.github/SECURITY.md)
 
 ## For contributors and maintainers

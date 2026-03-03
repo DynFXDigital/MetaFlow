@@ -12,12 +12,12 @@ Make the repository understandable and usable by first-time external contributor
 
 ## Work Items
 
-- [ ] Add root `CHANGELOG.md` with initial entries and links to package changelogs.
-- [ ] Add a concise README maturity banner (`v0.x preview`, stability caveat).
-- [ ] Add `Known Issues / Limitations` section with concrete current constraints.
-- [ ] Add `Roadmap` section with near-term milestones and ownership hints.
-- [ ] Add screenshot and optional GIF references for key extension workflows.
-- [ ] Verify all README links resolve (`README.md`, `SUPPORT.md`, release links).
+- [x] Add root `CHANGELOG.md` with initial entries and links to package changelogs.
+- [x] Add a concise README maturity banner (`v0.x preview`, stability caveat).
+- [x] Add `Known Issues / Limitations` section with concrete current constraints.
+- [x] Add `Roadmap` section with near-term milestones and ownership hints.
+- [x] Add screenshot and optional GIF references for key extension workflows.
+- [x] Verify all README links resolve (`README.md`, `SUPPORT.md`, release links).
 
 ## Acceptance Criteria
 

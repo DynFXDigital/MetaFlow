@@ -1,7 +1,7 @@
 # Open Source Readiness Rubric – Context
 
 - **Last updated:** 2026-03-03
-- **Status:** Planning complete; execution queued
+- **Status:** Phase 1 complete; Phase 2 in progress
 - **Owner:** MetaFlow maintainers (DynF/X Digital)
 
 ## Feature Overview
@@ -10,18 +10,17 @@ This effort closes practical open-source readiness gaps identified in a March 20
 
 ## Current Focus
 
-1. Establish a plan-first execution path for readiness gap closure.
-2. Prioritize low-friction, high-signal documentation and release-hygiene improvements.
-3. Sequence work so public-facing clarity lands before launch/promotion actions.
+1. Execute Phase 2 baseline verification commands on clean workspace state.
+2. Triage dependency advisories and document explicit fix/defer/accept decisions.
+3. Capture security hygiene statements needed for open-source launch clarity.
 
 ## Next Steps
 
-- [ ] Create root `CHANGELOG.md` and align it with `src/CHANGELOG.md` release entries.
-- [ ] Update `README.md` with `Known Issues / Limitations` and `Roadmap` sections.
-- [ ] Add screenshot/GIF references to demonstrate core extension workflows.
+- [ ] Execute and record baseline commands (`npm ci`, `npm run build`, `npm run test:unit`).
 - [ ] Run `npm audit`, classify findings (fix now vs accepted risk), and document decisions.
+- [ ] Confirm no secrets/internal endpoints in tracked files (regex + manual review).
+- [ ] Document runtime env-var expectations (`.env.example` required or not required).
 - [ ] Publish a short launch checklist for repo visibility settings (Issues, Discussions, releases, tags).
-- [ ] Validate clean clone commands and record evidence in PR validation notes.
 
 ## References
 
@@ -41,6 +40,7 @@ This effort closes practical open-source readiness gaps identified in a March 20
 - **2026-03-03** – Prioritize public-documentation clarity before automation changes.
 - **2026-03-03** – Treat unresolved dependency advisories as a tracked decision (fix/defer/accept), never implicit.
 - **2026-03-03** – Maintain pre-1.0 signaling in docs and releases to set accurate stability expectations.
+- **2026-03-03** – Completed Phase 1 repository consumability updates (root changelog, preview messaging, known limitations, roadmap, and README link verification).
 
 ## Open Questions & Risks
 
