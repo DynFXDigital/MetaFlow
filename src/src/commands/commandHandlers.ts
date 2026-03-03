@@ -61,6 +61,7 @@ import {
     checkRepoSyncStatus,
     pullRepositoryFastForward,
     RepoSyncStatus,
+    runGitCommand,
 } from './repoSyncStatus';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
@@ -122,6 +123,17 @@ interface ResolvedRepoSource {
     label: string;
     localPath: string;
     repoUrl?: string;
+}
+
+interface UntrackedLocalRepoSource {
+    repoId: string;
+    label: string;
+    localPath: string;
+}
+
+interface GitRemoteInfo {
+    name: string;
+    url: string;
 }
 
 type CheckRepoUpdatesOutcome =
@@ -528,6 +540,108 @@ function resolveGitBackedRepoSources(config: MetaFlowConfig, workspaceRoot: stri
     }
 
     return [];
+}
+
+function resolveUntrackedLocalRepoSources(config: MetaFlowConfig, workspaceRoot: string): UntrackedLocalRepoSource[] {
+    if (config.metadataRepos) {
+        return config.metadataRepos
+            .filter(repo => !isGitRemoteUrl(repo.url))
+            .map(repo => ({
+                repoId: repo.id,
+                label: repo.name?.trim() || repo.id,
+                localPath: resolvePathFromWorkspace(workspaceRoot, repo.localPath),
+            }));
+    }
+
+    if (config.metadataRepo && !isGitRemoteUrl(config.metadataRepo.url)) {
+        return [{
+            repoId: 'primary',
+            label: 'primary',
+            localPath: resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath),
+        }];
+    }
+
+    return [];
+}
+
+function parseGitRemoteVerboseOutput(stdout: string): GitRemoteInfo[] {
+    const remotesByName = new Map<string, GitRemoteInfo>();
+
+    for (const rawLine of stdout.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) {
+            continue;
+        }
+
+        const match = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/);
+        if (!match) {
+            continue;
+        }
+
+        const [, name, url, direction] = match;
+        const existing = remotesByName.get(name);
+        if (!existing || direction === 'fetch') {
+            remotesByName.set(name, { name, url });
+        }
+    }
+
+    return Array.from(remotesByName.values());
+}
+
+async function discoverGitRemotes(repoRoot: string): Promise<GitRemoteInfo[]> {
+    try {
+        const insideWorkTree = (await runGitCommand(repoRoot, ['rev-parse', '--is-inside-work-tree'])).stdout.trim();
+        if (insideWorkTree !== 'true') {
+            return [];
+        }
+
+        const remotes = await runGitCommand(repoRoot, ['remote', '-v']);
+        return parseGitRemoteVerboseOutput(remotes.stdout);
+    } catch {
+        return [];
+    }
+}
+
+async function pickRemoteForPromotion(
+    repo: UntrackedLocalRepoSource,
+    remotes: GitRemoteInfo[]
+): Promise<GitRemoteInfo | undefined> {
+    if (remotes.length === 1) {
+        return remotes[0];
+    }
+
+    const picked = await vscode.window.showQuickPick(
+        remotes.map(remote => ({
+            label: remote.name,
+            description: remote.url,
+            remote,
+        })),
+        {
+            title: `MetaFlow: Select Remote for ${repo.repoId}`,
+            placeHolder: 'Choose the remote URL to track in MetaFlow config',
+            ignoreFocusOut: true,
+        }
+    );
+
+    return picked?.remote;
+}
+
+function setRepoRemoteUrl(config: MetaFlowConfig, repoId: string, url: string): boolean {
+    if (config.metadataRepos) {
+        const repo = config.metadataRepos.find(candidate => candidate.id === repoId);
+        if (!repo) {
+            return false;
+        }
+        repo.url = url;
+        return true;
+    }
+
+    if (repoId === 'primary' && config.metadataRepo) {
+        config.metadataRepo.url = url;
+        return true;
+    }
+
+    return false;
 }
 
 function invalidateRepoSyncStatus(state: ExtensionState): void {
@@ -1338,7 +1452,66 @@ export function registerCommands(
         })
     );
 
-    // ── metaflow.pullRepository ─────────────────────────────────-
+    // ── metaflow.offerGitRemotePromotion ─────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.offerGitRemotePromotion', async () => {
+            const ws = getWorkspace();
+            if (!ws || !state.config || !state.configPath) {
+                return;
+            }
+
+            const candidates = resolveUntrackedLocalRepoSources(state.config, ws.uri.fsPath);
+            if (candidates.length === 0) {
+                return;
+            }
+
+            const promoted: string[] = [];
+
+            for (const candidate of candidates) {
+                const remotes = await discoverGitRemotes(candidate.localPath);
+                if (remotes.length === 0) {
+                    continue;
+                }
+
+                const action = await vscode.window.showInformationMessage(
+                    `MetaFlow: Repository source "${candidate.repoId}" is a local git repo with ${remotes.length} remote${remotes.length === 1 ? '' : 's'} but no configured URL. Promote it to a git-backed source?`,
+                    'Promote',
+                    'Skip'
+                );
+
+                if (action !== 'Promote') {
+                    continue;
+                }
+
+                const selectedRemote = await pickRemoteForPromotion(candidate, remotes);
+                if (!selectedRemote) {
+                    continue;
+                }
+
+                if (!setRepoRemoteUrl(state.config, candidate.repoId, selectedRemote.url)) {
+                    continue;
+                }
+
+                promoted.push(`${candidate.repoId} -> ${selectedRemote.name}`);
+                logInfo(
+                    `Promoted repository source ${candidate.repoId} to git-backed using remote ${selectedRemote.name} (${selectedRemote.url}).`
+                );
+            }
+
+            if (promoted.length === 0) {
+                return;
+            }
+
+            await persistConfig(state.configPath, state.config);
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+
+            vscode.window.showInformationMessage(
+                `MetaFlow: Promoted ${promoted.length} repository source${promoted.length === 1 ? '' : 's'} to git-backed tracking.`
+            );
+        })
+    );
+
+    // ── metaflow.pullRepository ──────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.pullRepository', async (arg?: unknown) => {
             const ws = getWorkspace();

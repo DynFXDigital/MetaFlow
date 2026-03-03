@@ -309,8 +309,11 @@ export function activate(context: vscode.ExtensionContext): void {
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
-    // Auto-refresh on activation
-    vscode.commands.executeCommand('metaflow.refresh');
+    // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.
+    void (async () => {
+        await vscode.commands.executeCommand('metaflow.refresh');
+        await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+    })();
 
     const schedulerLifecycle = createRepoUpdateSchedulerLifecycleController({
         workspaceHasConfig: workspaceHasMetaFlowConfig,

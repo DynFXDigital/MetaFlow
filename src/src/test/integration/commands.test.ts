@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { execFileSync } from 'child_process';
 
 suite('Command Execution', () => {
 
@@ -855,6 +856,142 @@ suite('Command Execution', () => {
         } finally {
             windowAny.showInformationMessage = originalInfo;
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('offerGitRemotePromotion promotes local repo with a single remote URL', async function () {
+        this.timeout(20000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-single');
+        fs.rmSync(repoPath, { recursive: true, force: true });
+        fs.mkdirSync(repoPath, { recursive: true });
+
+        execFileSync('git', ['init'], { cwd: repoPath, windowsHide: true });
+        execFileSync('git', ['remote', 'add', 'origin', 'https://example.com/meta-single.git'], { cwd: repoPath, windowsHide: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const localOnlyConfig = {
+            metadataRepos: [
+                { id: 'local-single', localPath: path.relative(workspaceRoot, repoPath), enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'local-single', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string' && message.includes('Promote it to a git-backed source?')) {
+                return 'Promote';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; url?: string }>;
+            };
+            const repo = updatedConfig.metadataRepos?.find(candidate => candidate.id === 'local-single');
+            assert.strictEqual(
+                repo?.url,
+                'https://example.com/meta-single.git',
+                'Promotion should persist the single available git remote URL'
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoPath, { recursive: true, force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('offerGitRemotePromotion lets user pick which remote URL to track', async function () {
+        this.timeout(20000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-multi');
+        fs.rmSync(repoPath, { recursive: true, force: true });
+        fs.mkdirSync(repoPath, { recursive: true });
+
+        execFileSync('git', ['init'], { cwd: repoPath, windowsHide: true });
+        execFileSync('git', ['remote', 'add', 'origin', 'https://example.com/meta-origin.git'], { cwd: repoPath, windowsHide: true });
+        execFileSync('git', ['remote', 'add', 'upstream', 'https://example.com/meta-upstream.git'], { cwd: repoPath, windowsHide: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const localOnlyConfig = {
+            metadataRepos: [
+                { id: 'local-multi', localPath: path.relative(workspaceRoot, repoPath), enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'local-multi', path: '.', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showQuickPick: (...items: unknown[]) => Thenable<{ remote?: { name: string; url: string } } | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const originalQuickPick = windowAny.showQuickPick;
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string' && message.includes('Promote it to a git-backed source?')) {
+                return 'Promote';
+            }
+            return undefined;
+        };
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const candidates = items as Array<{ remote?: { name: string; url: string } }>;
+            return candidates.find(candidate => candidate.remote?.name === 'upstream');
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; url?: string }>;
+            };
+            const repo = updatedConfig.metadataRepos?.find(candidate => candidate.id === 'local-multi');
+            assert.strictEqual(
+                repo?.url,
+                'https://example.com/meta-upstream.git',
+                'Promotion should persist the user-selected remote URL when multiple remotes exist'
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+            windowAny.showQuickPick = originalQuickPick;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoPath, { recursive: true, force: true });
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
