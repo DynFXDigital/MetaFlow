@@ -8,6 +8,7 @@
 
 | Last Updated | Notes |
 |---|---|
+| 2026-03-03 | RUN-007: Executed full test matrix (`test:engine`, `test:cli`, `test:unit`, `test:integration`) with all suites passing; updated FTR evidence and readiness rationale |
 | 2026-02-28 | RUN-006: Implemented agent-controlled gate model (`gate:quick`, `gate:integration`, `gate:full`) and executed all gates with passing results |
 | 2026-02-23 | F-001: Reconciled arithmetic — Summary corrected to 174 (TP table sum); Rationale clarified; FTP cross-ref added |
 | 2026-02-23 | RUN-005: TP-A017 unblocked and executed — TC-0331 through TC-0334 all Pass; readiness upgraded to Ready |
@@ -21,6 +22,7 @@
 
 | Run ID | Executor | Date | Build/Commit | Environment |
 |---|---|---|---|---|
+| RUN-007 | AI | 2026-03-03 | `e103fcc` | Node.js 18+, Mocha, VS Code Extension Host 1.109.5; explicit suite execution: `npm run test:engine`, `npm run test:cli`, `npm run test:unit`, `npm run test:integration` |
 | RUN-006 | AI | 2026-02-28 | HEAD | Node.js 18+, Mocha, VS Code Extension Host 1.109.5; gate scripts executed (`gate:quick`, `gate:integration`, `gate:full`) |
 | RUN-005 | AI | 2026-02-23 | HEAD | Node.js 18+, Mocha, VS Code Extension Host 1.109.5 (update-lock resolved by killing stale CodeSetup processes) |
 | RUN-004 | AI | 2026-02-22 | HEAD | Node.js 18+, Mocha, VS Code Extension Host (still blocked after cache reset + disable-updates launch arg) |
@@ -52,6 +54,25 @@
 | TC-0245–TC-0250 | TP-A018 | Pass (37/37) | HEAD | `npm run test:unit`; `npx c8 --reporter=text node ./out/test/runTest.js --unit` | Helper extraction + deterministic runner seams + 100% unit coverage on instrumented support scope |
 | TC-0600–TC-0603 | TP-A019 | Pass (8/8) | HEAD | `npm run test:unit` output (RUN-006) | Safety requirement constraints: TC-0600 deterministic body+hash, TC-0601 no child_process + output-only file writes, TC-0602 .env exclusion from overlay, TC-0603 path traversal rejection |
 
+## Execution Evidence — RUN-007
+
+| Suite Category | Command | Result | Notes |
+|---|---|---|---|
+| Unit (engine package) | `npm run test:engine` | Pass (80/80) | Includes config, overlay, materialization, drift, settings injector, and capability manifest coverage |
+| Functional (CLI package) | `npm run test:cli` | Pass (58/58) | Includes init/status/preview/apply/clean/profile/watch/promote/validate and full lifecycle scenarios |
+| Unit (extension/unit harness) | `npm run test:unit` | Pass (269/269) | Includes command helpers, diagnostics, views, scheduler, safety constraints, config writer, overlay/materializer units |
+| E2E (Extension Host integration) | `npm run test:integration` | Pass (58/58) | Runs compile+bundle+Extension Host integration flow (`test:integration:run`) |
+
+| Cross-suite Totals | Value |
+|---|---:|
+| Total Passing Tests (RUN-007 raw runner totals) | 465 |
+| Total Failing Tests (RUN-007) | 0 |
+| Total Skipped Tests (RUN-007) | 0 |
+
+Observations (RUN-007):
+- Integration run reported `Error mutex already exists` from VS Code main process startup logs, but the Extension Host run completed successfully with exit code 0 and all tests passing.
+- Integration run also surfaced Node deprecation warning `DEP0190` for shell-arg concatenation in child-process invocation; this did not affect test outcomes.
+
 ## Results — Manual Tests
 
 | TC-ID | TP-ID | Result | Build/Commit | Evidence Link(s) | Notes |
@@ -67,11 +88,14 @@
 | Automated Skip | 0 |
 | Manual Pass | 0 |
 | Manual Pending | 12 |
+| RUN-007 Raw Runner Pass (Engine+CLI+Unit+E2E) | 465 |
 
 ## Readiness Recommendation
 
 - Decision: **Ready**
 - Rationale:
+  - RUN-007 full matrix execution passed: 80/80 engine unit, 58/58 CLI functional, 269/269 extension unit, 58/58 extension-host integration/e2e.
+  - RUN-007 was executed on commit `e103fcc` with explicit per-suite commands, improving evidence granularity versus aggregate gate-only runs.
   - All 182 **TP-mapped automated checks** pass across 19 procedures with zero failures.
   - Underlying test runners confirm zero failures (RUN-006): 209 unit tests, 46 integration tests, plus engine test coverage via TP-A016.
   - TP-A019 (TC-0600–TC-0603) safety requirement tests implemented and passing: deterministic output, no auto-commit structural guards, .env exclusion, and path traversal rejection.
@@ -93,6 +117,7 @@
 
 | Date | Change | Author |
 |---|---|---|
+| 2026-03-03 | RUN-007: Executed full explicit test matrix (`test:engine`, `test:cli`, `test:unit`, `test:integration`) on commit `e103fcc`; recorded per-suite pass totals and cross-suite raw total (465) with no failures | AI |
 | 2026-02-28 | Added explicit accepted-risk disposition for GAP-009 (activation weak-oracle hardening branch) to keep FTP/FTR tracking aligned | AI |
 | 2026-02-28 | Added explicit accepted-risk dispositions for GAP-004, GAP-005, and GAP-007 (owner/date) to remove readiness ambiguity with FTP tracking | AI |
 | 2026-02-28 | RUN-006: Implemented and verified agent-controlled gate model (`gate:quick`, `gate:integration`, `gate:full`); integration now runs through decoupled script path; updated TP-A013–TP-A017 evidence references and runner totals (209 unit, 46 integration) | AI |
