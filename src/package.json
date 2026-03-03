@@ -244,7 +244,7 @@
         },
         {
           "command": "metaflow.checkRepoUpdates",
-          "when": "view == metaflow-config",
+          "when": "view == metaflow-config && metaflow.hasGitBackedRepo",
           "group": "navigation@3"
         },
         {

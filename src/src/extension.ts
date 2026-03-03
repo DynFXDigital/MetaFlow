@@ -38,6 +38,31 @@ function workspaceHasMetaFlowConfig(): boolean {
     return folders.some(folder => fs.existsSync(path.join(folder.uri.fsPath, '.metaflow', 'config.jsonc')));
 }
 
+function isGitRemoteUrl(repoUrl: string | undefined): boolean {
+    if (!repoUrl) {
+        return false;
+    }
+
+    const trimmed = repoUrl.trim();
+    if (!trimmed) {
+        return false;
+    }
+
+    return /^(git@|git:\/\/|ssh:\/\/|https?:\/\/)/i.test(trimmed);
+}
+
+function hasGitBackedRepo(config: ReturnType<typeof createState>['config']): boolean {
+    if (!config) {
+        return false;
+    }
+
+    if (config.metadataRepos) {
+        return config.metadataRepos.some(repo => isGitRemoteUrl(repo.url));
+    }
+
+    return isGitRemoteUrl(config.metadataRepo?.url);
+}
+
 /**
  * Recursively reveals all collapsible nodes in a tree view.
  * Calling reveal() with expand:1 on each node overrides VS Code's cached
@@ -108,6 +133,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', getFilesViewMode());
     vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', getLayersViewMode());
+    vscode.commands.executeCommand('setContext', 'metaflow.hasGitBackedRepo', false);
 
     const configTreeView = vscode.window.createTreeView('metaflow-config', {
         treeDataProvider: configTreeViewProvider,
@@ -169,6 +195,13 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     context.subscriptions.push(
+        state.onDidChange.event(() => {
+            vscode.commands.executeCommand(
+                'setContext',
+                'metaflow.hasGitBackedRepo',
+                hasGitBackedRepo(state.config)
+            );
+        }),
         configTreeView.onDidChangeCheckboxState(async e => {
             for (const [item, checkboxState] of e.items) {
                 const repoId = (item as { repoId?: unknown }).repoId;
