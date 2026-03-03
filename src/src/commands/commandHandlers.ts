@@ -719,15 +719,22 @@ async function injectWorkspaceSettings(
 }
 
 async function clearManagedWorkspaceSettings(workspace: vscode.WorkspaceFolder): Promise<void> {
-    try {
-        const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
-        const keysToRemove = computeSettingsKeysToRemove();
-        for (const key of keysToRemove) {
-            await wsConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace);
+    const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
+    const keysToRemove = computeSettingsKeysToRemove();
+    const targets: Array<{ value: vscode.ConfigurationTarget; label: string }> = [
+        { value: vscode.ConfigurationTarget.Workspace, label: 'workspace' },
+        { value: vscode.ConfigurationTarget.WorkspaceFolder, label: 'workspaceFolder' },
+    ];
+
+    for (const key of keysToRemove) {
+        for (const target of targets) {
+            try {
+                await wsConfig.update(key, undefined, target.value);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                logWarn(`Settings cleanup skipped (${key}, ${target.label}): ${msg}`);
+            }
         }
-    } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logWarn(`Settings cleanup skipped: ${msg}`);
     }
 }
 
