@@ -24,25 +24,39 @@ jobs:
         language: ["javascript-typescript"]
 
     steps:
+      - name: GHAS workflow gate
+        run: |
+          if [ "${{ vars.ENABLE_GHAS_WORKFLOWS }}" = "true" ]; then
+            echo "GHAS workflows enabled; running CodeQL analysis."
+          else
+            echo "GHAS workflows disabled; skipping CodeQL analysis."
+          fi
+
       - name: Checkout
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Initialize CodeQL
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: github/codeql-action/init@60d8f0d1f1f8c8d07ef53bd027032705d414ec28 # v3
         with:
           languages: ${{ matrix.language }}
 
       - name: Setup Node.js
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         run: npm ci
 
       - name: Build workspace
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         run: npm run build
 
       - name: Perform CodeQL Analysis
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: github/codeql-action/analyze@60d8f0d1f1f8c8d07ef53bd027032705d414ec28 # v3

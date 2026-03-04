@@ -11,10 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: GHAS workflow gate
+        run: |
+          if [ "${{ vars.ENABLE_GHAS_WORKFLOWS }}" = "true" ]; then
+            echo "GHAS workflows enabled; running dependency review."
+          else
+            echo "GHAS workflows disabled; skipping dependency review."
+          fi
+
       - name: Checkout
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Dependency review
+        if: ${{ vars.ENABLE_GHAS_WORKFLOWS == 'true' }}
         uses: actions/dependency-review-action@46a3c492319c890177366b6ef46d6b4f89743ed4 # v4
         with:
           fail-on-severity: high
