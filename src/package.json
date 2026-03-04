@@ -254,13 +254,13 @@
         },
         {
           "command": "metaflow.initMetaFlowAiMetadata",
-          "when": "view == metaflow-config",
+          "when": "view == metaflow-config && !metaflow.capabilityInstalled",
           "group": "navigation@4"
         },
         {
           "command": "metaflow.removeMetaFlowCapability",
-          "when": "view == metaflow-config",
-          "group": "navigation@5"
+          "when": "view == metaflow-config && metaflow.capabilityInstalled",
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.toggleFilesViewMode",
