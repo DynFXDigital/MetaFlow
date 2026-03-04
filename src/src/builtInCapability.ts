@@ -2,7 +2,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export const BUILT_IN_CAPABILITY_STATE_KEY = 'metaflow.builtInCapability.v1';
-export const BUILT_IN_CAPABILITY_LEGACY_ENABLED_KEY = 'metaflow.builtInCapability.enabled';
 export const BUILT_IN_CAPABILITY_REPO_ID = '__metaflow_builtin__';
 export const BUILT_IN_CAPABILITY_REPO_LABEL = 'MetaFlow capability (built-in)';
 export const BUILT_IN_CAPABILITY_LAYER_PATH = '.github';
@@ -34,10 +33,9 @@ export function readBuiltInCapabilityRuntimeState(
     extensionPath: string
 ): BuiltInCapabilityRuntimeState {
     const payload = workspaceState.get<BuiltInCapabilityWorkspaceState>(BUILT_IN_CAPABILITY_STATE_KEY);
-    const legacyEnabled = workspaceState.get<boolean>(BUILT_IN_CAPABILITY_LEGACY_ENABLED_KEY);
     const sourceRoot = resolveBuiltInCapabilitySourceRoot(extensionPath);
     const enabled = sourceRoot
-        ? (payload?.enabled ?? legacyEnabled ?? false)
+        ? (payload?.enabled ?? false)
         : false;
 
     return {

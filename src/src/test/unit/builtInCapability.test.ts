@@ -74,4 +74,31 @@ suite('builtInCapability', () => {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
     });
+
+    test('readBuiltInCapabilityRuntimeState ignores unknown legacy-only payloads', () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-built-in-no-legacy-'));
+        const extensionPath = path.join(tempRoot, 'extension');
+        const sourceRoot = path.join(extensionPath, 'assets', 'metaflow-ai-metadata');
+        fs.mkdirSync(sourceRoot, { recursive: true });
+
+        const memento = {
+            get<T>(key: string): T | undefined {
+                if (key === BUILT_IN_CAPABILITY_STATE_KEY) {
+                    return undefined;
+                }
+                if (key === 'metaflow.builtInCapability.enabled') {
+                    return true as T;
+                }
+                return undefined;
+            },
+        };
+
+        try {
+            const runtime = readBuiltInCapabilityRuntimeState(memento, extensionPath);
+            assert.strictEqual(runtime.enabled, false);
+            assert.strictEqual(runtime.sourceRoot, sourceRoot);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
 });
