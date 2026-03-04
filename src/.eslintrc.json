@@ -56,5 +56,13 @@
     "no-throw-literal": "warn",
     "semi": "off"
   },
+  "overrides": [
+    {
+      "files": ["src/test/**/*.ts"],
+      "rules": {
+        "@typescript-eslint/naming-convention": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["out", "dist", "**/*.d.ts"]
 }
