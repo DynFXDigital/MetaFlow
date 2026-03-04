@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
 import { RepoSyncStatus } from '../commands/repoSyncStatus';
+import { BUILT_IN_CAPABILITY_REPO_LABEL } from '../builtInCapability';
 
 class SectionItem extends vscode.TreeItem {
     constructor(
@@ -204,8 +205,13 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         }
 
         if (element instanceof SectionItem) {
+            const builtInSource = this.state.builtInCapability.enabled
+                ? [this.createBuiltInSourceItem()]
+                : [];
+
             if (config.metadataRepos) {
-                return config.metadataRepos.map(repo =>
+                return [
+                    ...config.metadataRepos.map(repo =>
                     new RepoSourceItem(
                         repo.name?.trim() || repo.id,
                         repo.id,
@@ -214,7 +220,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         repo.url,
                         this.state.repoSyncByRepoId[repo.id]
                     )
-                );
+                    ),
+                    ...builtInSource,
+                ];
             }
 
             if (config.metadataRepo) {
@@ -227,10 +235,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         config.metadataRepo.url,
                         this.state.repoSyncByRepoId.primary
                     ),
+                    ...builtInSource,
                 ];
             }
 
-            return [];
+            return builtInSource;
         }
 
         if (element) {
@@ -238,5 +247,25 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         }
 
         return [new SectionItem('Repositories')];
+    }
+
+    private createBuiltInSourceItem(): RepoSourceItem {
+        const item = new RepoSourceItem(
+            BUILT_IN_CAPABILITY_REPO_LABEL,
+            undefined,
+            this.state.builtInCapability.layerEnabled,
+            'bundled extension metadata',
+            undefined,
+            undefined
+        );
+        item.contextValue = 'configRepoSourceBuiltin';
+        item.description = this.state.builtInCapability.layerEnabled
+            ? 'bundled extension metadata (enabled)'
+            : 'bundled extension metadata (disabled)';
+        item.iconPath = new vscode.ThemeIcon('package');
+        item.tooltip = new vscode.MarkdownString(
+            '**Built-in MetaFlow capability**\n\nManaged by extension workspace state. Toggle the layer checkbox in the Layers view to enable or disable contribution.'
+        );
+        return item;
     }
 }

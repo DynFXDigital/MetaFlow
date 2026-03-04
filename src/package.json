@@ -101,7 +101,12 @@
       },
       {
         "command": "metaflow.initMetaFlowAiMetadata",
-        "title": "MetaFlow: Initialize MetaFlow AI Metadata",
+        "title": "MetaFlow: Initialize MetaFlow Capability",
+        "icon": "$(package)"
+      },
+      {
+        "command": "metaflow.removeMetaFlowCapability",
+        "title": "MetaFlow: Remove MetaFlow Capability",
         "icon": "$(package)"
       },
       {
@@ -251,6 +256,11 @@
           "command": "metaflow.initMetaFlowAiMetadata",
           "when": "view == metaflow-config",
           "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.removeMetaFlowCapability",
+          "when": "view == metaflow-config",
+          "group": "navigation@5"
         },
         {
           "command": "metaflow.toggleFilesViewMode",

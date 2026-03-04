@@ -150,7 +150,8 @@ Core VS Code commands (manual controls and diagnostics):
 - `MetaFlow: Toggle Layer`
 - `MetaFlow: Check Repository Updates`
 - `MetaFlow: Pull Repository Updates`
-- `MetaFlow: Initialize MetaFlow AI Metadata`
+- `MetaFlow: Initialize MetaFlow Capability`
+- `MetaFlow: Remove MetaFlow Capability`
 - `MetaFlow: Open Config`
 - `MetaFlow: Initialize Configuration`
 - `MetaFlow: Promote`
@@ -173,7 +174,7 @@ For full command and setting details, see [src/README.md](src/README.md).
 
 ## Roadmap
 
-- Improve first-run onboarding with clearer starter metadata templates and usage examples.
+- Improve first-run onboarding with clearer capability setup guidance and usage examples.
 - Expand integration and release rehearsal coverage for open-source launch confidence.
 - Harden repository update ergonomics and background status visibility.
 - Continue tightening documentation traceability across requirements, design, and tests.

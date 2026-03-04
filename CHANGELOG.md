@@ -11,10 +11,13 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Starter AI metadata scaffolding command in the extension.
 - Extension-shipped starter metadata templates under `src/assets/metaflow-ai-metadata/`.
 - Additional unit and integration coverage for scaffolding behavior.
+- Built-in MetaFlow capability mode persisted in extension workspace state with synthetic source/layer projection.
+- `MetaFlow: Remove MetaFlow Capability` command for disabling built-in mode and removing tracked materialized capability files.
 
 ### Changed
 
 - Minor version bump across workspace packages.
+- Renamed command surface to `MetaFlow: Initialize MetaFlow Capability` with two setup paths: materialize (overwrite managed files) and built-in settings-only mode.
 
 ### Package Changelogs
 

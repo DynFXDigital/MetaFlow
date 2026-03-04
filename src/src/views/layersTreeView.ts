@@ -7,6 +7,11 @@
 import * as vscode from 'vscode';
 import { ExcludableArtifactType, EffectiveFile, getArtifactType } from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
+import {
+    BUILT_IN_CAPABILITY_LAYER_PATH,
+    BUILT_IN_CAPABILITY_REPO_ID,
+    BUILT_IN_CAPABILITY_REPO_LABEL,
+} from '../builtInCapability';
 
 type LayersViewMode = 'flat' | 'tree';
 
@@ -224,7 +229,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const repoEnabled = new Map(config.metadataRepos.map(repo => [repo.id, repo.enabled !== false]));
             const repoLabels = new Map(config.metadataRepos.map(repo => [repo.id, repo.name?.trim() || repo.id]));
 
-            return config.layerSources.map((ls, i) => {
+            const entries: LayerEntry[] = config.layerSources.map((ls, i) => {
                 const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
                 const isLayerEnabled = ls.enabled !== false;
                 const layerId = `${ls.repoId}/${ls.path}`;
@@ -241,11 +246,28 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     capability,
                 };
             });
+
+            if (this.state.builtInCapability.enabled) {
+                const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
+                entries.push({
+                    label: this.formatLayerLabel(BUILT_IN_CAPABILITY_LAYER_PATH, BUILT_IN_CAPABILITY_REPO_LABEL),
+                    layerIndex: config.layerSources.length,
+                    enabled: this.state.builtInCapability.layerEnabled,
+                    repoId: BUILT_IN_CAPABILITY_REPO_ID,
+                    repoLabel: BUILT_IN_CAPABILITY_REPO_LABEL,
+                    repoDisabled: false,
+                    toggleable: true,
+                    normalizedPath: this.normalizeLayerPath(BUILT_IN_CAPABILITY_LAYER_PATH),
+                    capability: capabilityByLayer.get(this.normalizeLayerId(builtInLayerId)),
+                });
+            }
+
+            return entries;
         }
 
         if (config.layers) {
             const singleRepoLabel = config.metadataRepo?.name?.trim() || 'primary';
-            return config.layers.map((layer, i) => {
+            const entries: LayerEntry[] = config.layers.map((layer, i) => {
                 const normalizedLayerId = this.normalizeLayerId(layer);
                 const capability = capabilityByLayer.get(normalizedLayerId);
                 return {
@@ -258,6 +280,23 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     capability,
                 };
             });
+
+            if (this.state.builtInCapability.enabled) {
+                const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
+                entries.push({
+                    label: this.formatLayerLabel(BUILT_IN_CAPABILITY_LAYER_PATH, BUILT_IN_CAPABILITY_REPO_LABEL),
+                    layerIndex: config.layers.length,
+                    enabled: this.state.builtInCapability.layerEnabled,
+                    repoId: BUILT_IN_CAPABILITY_REPO_ID,
+                    repoLabel: BUILT_IN_CAPABILITY_REPO_LABEL,
+                    repoDisabled: false,
+                    toggleable: true,
+                    normalizedPath: this.normalizeLayerPath(BUILT_IN_CAPABILITY_LAYER_PATH),
+                    capability: capabilityByLayer.get(this.normalizeLayerId(builtInLayerId)),
+                });
+            }
+
+            return entries;
         }
 
         return [];
@@ -477,10 +516,16 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const repoDisabled = new Map(this.state.config.metadataRepos.map(repo => [repo.id, repo.enabled === false]));
             const repoLabels = new Map(this.state.config.metadataRepos.map(repo => [repo.id, repo.name?.trim() || repo.id]));
 
-            return this.trackChildren(this.state.config.metadataRepos
-                .filter(repo => entries.some(entry => entry.repoId === repo.id))
-                .sort((a, b) => (repoOrder.get(a.id) ?? 0) - (repoOrder.get(b.id) ?? 0))
-                .map(repo => new LayerRepoItem(repoLabels.get(repo.id) || repo.id, repo.id, repoDisabled.get(repo.id) === true)), undefined);
+            if (this.state.builtInCapability.enabled) {
+                repoOrder.set(BUILT_IN_CAPABILITY_REPO_ID, Number.MAX_SAFE_INTEGER);
+                repoDisabled.set(BUILT_IN_CAPABILITY_REPO_ID, false);
+                repoLabels.set(BUILT_IN_CAPABILITY_REPO_ID, BUILT_IN_CAPABILITY_REPO_LABEL);
+            }
+
+            const repoIds = Array.from(new Set(entries.map(entry => entry.repoId).filter((id): id is string => typeof id === 'string')));
+            return this.trackChildren(repoIds
+                .sort((a, b) => (repoOrder.get(a) ?? Number.MAX_SAFE_INTEGER) - (repoOrder.get(b) ?? Number.MAX_SAFE_INTEGER))
+                .map(repoId => new LayerRepoItem(repoLabels.get(repoId) || repoId, repoId, repoDisabled.get(repoId) === true)), undefined);
         }
 
         return this.trackChildren(this.getTreeChildrenForPrefix(entries, ''), undefined);

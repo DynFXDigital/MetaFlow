@@ -1217,7 +1217,7 @@ suite('Command Execution', () => {
         }
     });
 
-    test('initMetaFlowAiMetadata scaffolds metadata files and preserves existing edits by default', async function () {
+    test('initMetaFlowAiMetadata materialize mode overwrites managed files', async function () {
         this.timeout(20000);
 
         const instructionPath = path.join(workspaceRoot, '.github', 'instructions', 'metaflow-constructs.instructions.md');
@@ -1226,10 +1226,13 @@ suite('Command Execution', () => {
             : undefined;
 
         const windowAny = vscode.window as unknown as {
-            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
         };
-        const originalWarning = windowAny.showWarningMessage;
-        windowAny.showWarningMessage = async () => 'Keep Existing';
+        const originalQuickPick = windowAny.showQuickPick;
+        windowAny.showQuickPick = async (items: unknown) => {
+            const picks = items as Array<{ mode?: string }>;
+            return picks.find(pick => pick.mode === 'materialize') ?? picks[0];
+        };
 
         if (fs.existsSync(instructionPath)) {
             fs.rmSync(instructionPath, { force: true });
@@ -1243,14 +1246,58 @@ suite('Command Execution', () => {
             await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
 
             const after = fs.readFileSync(instructionPath, 'utf-8');
-            assert.ok(after.includes('# local customization'), 'Starter scaffold should preserve existing files unless overwrite is selected');
+            assert.ok(!after.includes('# local customization'), 'Materialize mode should overwrite managed files deterministically');
         } finally {
-            windowAny.showWarningMessage = originalWarning;
+            windowAny.showQuickPick = originalQuickPick;
             if (originalInstruction === undefined) {
                 fs.rmSync(instructionPath, { force: true });
             } else {
                 fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
             }
+        }
+    });
+
+    test('initMetaFlowAiMetadata built-in mode leaves config unchanged and remove disables built-in mode', async function () {
+        this.timeout(20000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+
+        let builtInEnabledPickCount = 0;
+        windowAny.showQuickPick = async (items: unknown) => {
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some(pick => pick.mode === 'builtin')) {
+                builtInEnabledPickCount += 1;
+                return picks.find(pick => pick.mode === 'builtin') ?? picks[0];
+            }
+            if (picks.some(pick => pick.mode === 'disableBuiltin')) {
+                return picks.find(pick => pick.mode === 'disableBuiltin') ?? picks[0];
+            }
+            return picks[0];
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const afterInitConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(afterInitConfig, originalConfig, 'Built-in mode should not mutate .metaflow/config.jsonc');
+
+            await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const afterRemoveConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(afterRemoveConfig, originalConfig, 'Removing built-in mode should not mutate .metaflow/config.jsonc');
+            assert.ok(builtInEnabledPickCount > 0, 'Test should exercise built-in initialization mode');
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 

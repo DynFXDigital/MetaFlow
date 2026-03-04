@@ -93,7 +93,8 @@ This metadata is shown in `metaflow status` and in the Layers/Effective Files vi
 | `MetaFlow: Rescan Repository` | Force runtime discovery rescan for the selected metadata repo row | |
 | `MetaFlow: Check Repository Updates` | Fetch and compute upstream ahead/behind status for git-backed metadata repos | |
 | `MetaFlow: Pull Repository Updates` | Run `git pull --ff-only` for a selected git-backed metadata repo | |
-| `MetaFlow: Initialize MetaFlow AI Metadata` | Scaffold `.github` metadata templates (instructions, prompts, skills, agents) for MetaFlow AI metadata workflows | |
+| `MetaFlow: Initialize MetaFlow Capability` | Choose materialize mode (overwrite managed `.github` capability files) or built-in settings-only mode persisted in workspace state | |
+| `MetaFlow: Remove MetaFlow Capability` | Disable built-in capability mode or remove tracked materialized capability files from `.github` | |
 | `MetaFlow: Open Config` | Open `.metaflow/config.jsonc` in editor | |
 | `MetaFlow: Initialize Configuration` | Scaffold new `.metaflow/config.jsonc` | |
 | `MetaFlow: Promote` | Detect drifted files for upstream promotion | |

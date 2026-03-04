@@ -63,6 +63,15 @@ import {
     RepoSyncStatus,
     runGitCommand,
 } from './repoSyncStatus';
+import {
+    BUILT_IN_CAPABILITY_REPO_ID,
+    BUILT_IN_CAPABILITY_REPO_LABEL,
+    BUILT_IN_CAPABILITY_STATE_KEY,
+    BuiltInCapabilityRuntimeState,
+    BuiltInCapabilityWorkspaceState,
+    readBuiltInCapabilityRuntimeState,
+    sanitizeMaterializedFiles,
+} from '../builtInCapability';
 
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 type InjectionKey = typeof INJECTION_KEYS[number];
@@ -78,6 +87,7 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'materialize'> =
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const FILES_VIEW_MODE_SETTING_KEY = 'filesViewMode';
 const LAYERS_VIEW_MODE_SETTING_KEY = 'layersViewMode';
+const BUILT_IN_CAPABILITY_LAYER_PATH = '.github';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -100,6 +110,7 @@ export interface ExtensionState {
     }>;
     capabilityWarnings: string[];
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
+    builtInCapability: BuiltInCapabilityRuntimeState;
     activeProfile?: string;
     /** Event emitter to notify TreeViews of changes. */
     onDidChange: vscode.EventEmitter<void>;
@@ -114,6 +125,12 @@ export function createState(): ExtensionState {
         capabilityByLayer: {},
         capabilityWarnings: [],
         repoSyncByRepoId: {},
+        builtInCapability: {
+            enabled: false,
+            layerEnabled: true,
+            materializedFiles: [],
+            sourceRoot: undefined,
+        },
         onDidChange: new vscode.EventEmitter<void>(),
     };
 }
@@ -292,6 +309,99 @@ function collectConfiguredCapabilityWarnings(config: MetaFlowConfig, workspaceRo
     }
 
     return Array.from(warnings);
+}
+
+function cloneConfig(config: MetaFlowConfig): MetaFlowConfig {
+    return JSON.parse(JSON.stringify(config)) as MetaFlowConfig;
+}
+
+function withBuiltInCapabilityProjected(
+    config: MetaFlowConfig,
+    builtInState: BuiltInCapabilityRuntimeState
+): MetaFlowConfig {
+    if (!builtInState.enabled || !builtInState.sourceRoot) {
+        return config;
+    }
+
+    const projected = cloneConfig(config);
+    const multiRepo = ensureMultiRepoConfig(projected);
+
+    const existingRepo = multiRepo.metadataRepos.find(repo => repo.id === BUILT_IN_CAPABILITY_REPO_ID);
+    if (!existingRepo) {
+        multiRepo.metadataRepos.push({
+            id: BUILT_IN_CAPABILITY_REPO_ID,
+            name: BUILT_IN_CAPABILITY_REPO_LABEL,
+            localPath: builtInState.sourceRoot,
+            enabled: true,
+        });
+    }
+
+    const existingLayer = multiRepo.layerSources.find(
+        layer => layer.repoId === BUILT_IN_CAPABILITY_REPO_ID && layer.path === BUILT_IN_CAPABILITY_LAYER_PATH
+    );
+
+    if (!existingLayer) {
+        multiRepo.layerSources.push({
+            repoId: BUILT_IN_CAPABILITY_REPO_ID,
+            path: BUILT_IN_CAPABILITY_LAYER_PATH,
+            enabled: builtInState.layerEnabled,
+        });
+    } else {
+        existingLayer.enabled = builtInState.layerEnabled;
+    }
+
+    return projected;
+}
+
+async function writeBuiltInCapabilityWorkspaceState(
+    context: vscode.ExtensionContext,
+    currentState: BuiltInCapabilityRuntimeState,
+    patch: BuiltInCapabilityWorkspaceState
+): Promise<BuiltInCapabilityRuntimeState> {
+    const payload: BuiltInCapabilityWorkspaceState = {
+        enabled: patch.enabled ?? currentState.enabled,
+        layerEnabled: patch.layerEnabled ?? currentState.layerEnabled,
+        materializedFiles: sanitizeMaterializedFiles(
+            patch.materializedFiles ?? currentState.materializedFiles
+        ),
+    };
+
+    await context.workspaceState.update(BUILT_IN_CAPABILITY_STATE_KEY, payload);
+    return readBuiltInCapabilityRuntimeState(context.workspaceState, context.extensionPath);
+}
+
+async function removeMaterializedCapabilityFiles(
+    workspaceRoot: string,
+    trackedFiles: string[]
+): Promise<number> {
+    let removedCount = 0;
+
+    for (const trackedRelativePath of sanitizeMaterializedFiles(trackedFiles)) {
+        const normalized = trackedRelativePath.replace(/\\/g, '/');
+        if (!normalized.startsWith('.github/')) {
+            continue;
+        }
+
+        const destination = path.join(workspaceRoot, normalized);
+        if (!fs.existsSync(destination) || !fs.statSync(destination).isFile()) {
+            continue;
+        }
+
+        await fsp.unlink(destination);
+        removedCount += 1;
+
+        let currentDir = path.dirname(destination);
+        while (currentDir !== workspaceRoot && currentDir.startsWith(path.join(workspaceRoot, '.github'))) {
+            const entries = await fsp.readdir(currentDir);
+            if (entries.length > 0) {
+                break;
+            }
+            await fsp.rmdir(currentDir);
+            currentDir = path.dirname(currentDir);
+        }
+    }
+
+    return removedCount;
 }
 
 /**
@@ -746,6 +856,11 @@ export function registerCommands(
     state: ExtensionState,
     diagnosticCollection: vscode.DiagnosticCollection
 ): void {
+    state.builtInCapability = readBuiltInCapabilityRuntimeState(
+        context.workspaceState,
+        context.extensionPath
+    );
+
     const getWorkspace = () => {
         const folders = vscode.workspace.workspaceFolders;
         if (!folders || folders.length === 0) {
@@ -816,6 +931,10 @@ export function registerCommands(
             state.config = result.config;
             state.configPath = result.configPath;
             state.activeProfile = result.config.activeProfile;
+            state.builtInCapability = readBuiltInCapabilityRuntimeState(
+                context.workspaceState,
+                context.extensionPath
+            );
             invalidateRepoSyncStatus(state);
 
             const autoApplyEnabled = vscode.workspace
@@ -825,7 +944,8 @@ export function registerCommands(
             try {
                 const injectionConfig = resolveInjectionConfig(ws, result.config);
                 const shouldEnableDiscovery = autoApplyEnabled || refreshOptions.forceDiscovery === true;
-                const overlay = resolveOverlay(result.config, ws.uri.fsPath, injectionConfig, {
+                const projectedConfig = withBuiltInCapabilityProjected(result.config, state.builtInCapability);
+                const overlay = resolveOverlay(projectedConfig, ws.uri.fsPath, injectionConfig, {
                     enableDiscovery: shouldEnableDiscovery,
                     forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
                         ? [refreshOptions.forceDiscoveryRepoId]
@@ -1056,7 +1176,28 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleLayer', async (arg?: unknown) => {
             const ws = getWorkspace();
-            if (!ws || !state.config) {
+            if (!ws) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            const repoIdFromArg = extractRepoId(arg);
+            const requestedCheckedState = extractLayerCheckedState(arg);
+            if (repoIdFromArg === BUILT_IN_CAPABILITY_REPO_ID) {
+                const nextLayerEnabled = typeof requestedCheckedState === 'boolean'
+                    ? requestedCheckedState
+                    : !state.builtInCapability.layerEnabled;
+                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                    context,
+                    state.builtInCapability,
+                    { layerEnabled: nextLayerEnabled }
+                );
+                logInfo(`Toggled built-in MetaFlow capability layer: ${nextLayerEnabled ? 'enabled' : 'disabled'}`);
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                return;
+            }
+
+            if (!state.config) {
                 vscode.window.showWarningMessage('MetaFlow: No config loaded.');
                 return;
             }
@@ -1075,7 +1216,6 @@ export function registerCommands(
                     return;
                 }
 
-                const requestedCheckedState = extractLayerCheckedState(arg);
                 const nextLayerEnabled = typeof requestedCheckedState === 'boolean'
                     ? requestedCheckedState
                     : layerSource.enabled === false;
@@ -1822,43 +1962,129 @@ export function registerCommands(
                 return;
             }
 
-            const firstPass = await scaffoldMetaFlowAiMetadata({
-                workspaceRoot: ws.uri.fsPath,
-                extensionPath: context.extensionPath,
-            });
-
-            if (!firstPass) {
-                vscode.window.showWarningMessage('MetaFlow: MetaFlow AI metadata assets are unavailable in this extension build.');
-                return;
-            }
-
-            if (firstPass.skippedFiles.length === 0) {
-                vscode.window.showInformationMessage(`MetaFlow: Added ${firstPass.writtenFiles.length} MetaFlow AI metadata file(s) to this workspace.`);
-                return;
-            }
-
-            const overwriteAction = 'Overwrite Existing';
-            const keepAction = 'Keep Existing';
-            const selection = await vscode.window.showWarningMessage(
-                `MetaFlow: Added ${firstPass.writtenFiles.length} starter file(s); ${firstPass.skippedFiles.length} existing file(s) were kept.`,
-                overwriteAction,
-                keepAction
+            const setupMode = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: 'Materialize MetaFlow capability files into .github',
+                        description: 'Overwrite managed MetaFlow capability files in this workspace.',
+                        mode: 'materialize' as const,
+                    },
+                    {
+                        label: 'Enable built-in MetaFlow capability (settings-only)',
+                        description: 'Use bundled MetaFlow capability files without modifying .metaflow/config.jsonc.',
+                        mode: 'builtin' as const,
+                    },
+                ],
+                {
+                    title: 'MetaFlow: Initialize MetaFlow Capability',
+                    placeHolder: 'Choose how to initialize MetaFlow capability support',
+                    ignoreFocusOut: true,
+                }
             );
 
-            if (selection !== overwriteAction) {
+            if (!setupMode) {
                 return;
             }
 
-            const overwritePass = await scaffoldMetaFlowAiMetadata({
-                workspaceRoot: ws.uri.fsPath,
-                extensionPath: context.extensionPath,
-                overwriteExisting: true,
-            });
+            if (setupMode.mode === 'materialize') {
+                const materialized = await scaffoldMetaFlowAiMetadata({
+                    workspaceRoot: ws.uri.fsPath,
+                    extensionPath: context.extensionPath,
+                    overwriteExisting: true,
+                });
 
-            const overwriteCount = overwritePass?.writtenFiles.length ?? 0;
-            vscode.window.showInformationMessage(
-                `MetaFlow: Overwrote ${overwriteCount} MetaFlow AI metadata file(s).`
+                if (!materialized) {
+                    vscode.window.showWarningMessage('MetaFlow: MetaFlow capability assets are unavailable in this extension build.');
+                    return;
+                }
+
+                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                    context,
+                    state.builtInCapability,
+                    {
+                        materializedFiles: materialized.writtenFiles,
+                    }
+                );
+
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Materialized ${materialized.writtenFiles.length} MetaFlow capability file(s) into .github.`
+                );
+                return;
+            }
+
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                {
+                    enabled: true,
+                    layerEnabled: true,
+                }
             );
+
+            vscode.window.showInformationMessage('MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).');
+            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.removeMetaFlowCapability', async () => {
+            const ws = getWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            const removeOptions: Array<{ label: string; detail: string; mode: 'disableBuiltin' | 'removeMaterialized' }> = [];
+            if (state.builtInCapability.enabled) {
+                removeOptions.push({
+                    label: 'Disable built-in MetaFlow capability mode',
+                    detail: 'Turn off settings-only built-in capability projection.',
+                    mode: 'disableBuiltin',
+                });
+            }
+            if (state.builtInCapability.materializedFiles.length > 0) {
+                removeOptions.push({
+                    label: 'Remove materialized MetaFlow capability files from .github',
+                    detail: `Delete ${state.builtInCapability.materializedFiles.length} tracked file(s) created by initialization.`,
+                    mode: 'removeMaterialized',
+                });
+            }
+
+            if (removeOptions.length === 0) {
+                vscode.window.showInformationMessage('MetaFlow: No built-in mode or materialized capability files are currently tracked.');
+                return;
+            }
+
+            const selected = await vscode.window.showQuickPick(removeOptions, {
+                title: 'MetaFlow: Remove MetaFlow Capability',
+                placeHolder: 'Choose what to remove',
+                ignoreFocusOut: true,
+            });
+            if (!selected) {
+                return;
+            }
+
+            if (selected.mode === 'disableBuiltin') {
+                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                    context,
+                    state.builtInCapability,
+                    { enabled: false, layerEnabled: false }
+                );
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                vscode.window.showInformationMessage('MetaFlow: Built-in MetaFlow capability mode disabled.');
+                return;
+            }
+
+            const removed = await removeMaterializedCapabilityFiles(
+                ws.uri.fsPath,
+                state.builtInCapability.materializedFiles
+            );
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                { materializedFiles: [] }
+            );
+
+            vscode.window.showInformationMessage(`MetaFlow: Removed ${removed} tracked MetaFlow capability materialized file(s).`);
         })
     );
 

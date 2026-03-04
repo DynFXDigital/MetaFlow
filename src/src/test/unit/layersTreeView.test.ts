@@ -132,7 +132,13 @@ function makeEffectiveFile(
 function makeState(
     config?: unknown,
     effectiveFiles: unknown[] = [],
-    capabilityByLayer: Record<string, { id?: string; name?: string; description?: string; license?: string }> = {}
+    capabilityByLayer: Record<string, { id?: string; name?: string; description?: string; license?: string }> = {},
+    builtInCapability: { enabled: boolean; layerEnabled: boolean; materializedFiles: string[]; sourceRoot?: string } = {
+        enabled: false,
+        layerEnabled: true,
+        materializedFiles: [],
+        sourceRoot: undefined,
+    }
 ) {
     const event = (listener: unknown): { dispose: () => void } => {
         void listener;
@@ -143,6 +149,7 @@ function makeState(
         config,
         effectiveFiles,
         capabilityByLayer,
+        builtInCapability,
         onDidChange: {
             event,
         },
@@ -338,6 +345,34 @@ suite('LayersTreeView – artifact-type children', () => {
 
         const children = provider.getChildren(layerItem);
         assert.strictEqual(children.length, 0, 'should have no artifact-type children');
+    });
+
+    test('LTV-AT-10: built-in layer appears with repo id and checkbox in tree mode', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                config,
+                [makeEffectiveFile('instructions/a.md', '__metaflow_builtin__', '.github')],
+                {},
+                {
+                    enabled: true,
+                    layerEnabled: true,
+                    materializedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                }
+            ),
+            () => 'tree'
+        );
+
+        const repoItems = provider.getChildren();
+        const builtInRepo = repoItems.find(item => item.repoId === '__metaflow_builtin__');
+        assert.ok(builtInRepo, 'expected built-in repository node');
+
+        const builtInLayer = provider.getChildren(builtInRepo)[0];
+        assert.strictEqual(builtInLayer.repoId, '__metaflow_builtin__');
+        assert.strictEqual(builtInLayer.contextValue, 'layer');
+        assert.strictEqual(builtInLayer.checkboxState, 1);
     });
 
     test('LTV-AT-10: only types with files are shown (partial coverage)', () => {

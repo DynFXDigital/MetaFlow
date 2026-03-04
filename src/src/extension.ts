@@ -230,6 +230,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
                 const contextValue = (item as { contextValue?: unknown }).contextValue;
                 const layerIndex = (item as { layerIndex?: unknown }).layerIndex;
+                const repoId = (item as { repoId?: unknown }).repoId;
 
                 if (typeof layerIndex !== 'number') {
                     continue;
@@ -240,6 +241,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 } else {
                     await vscode.commands.executeCommand('metaflow.toggleLayer', {
                         layerIndex,
+                        repoId: typeof repoId === 'string' ? repoId : undefined,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
                 }

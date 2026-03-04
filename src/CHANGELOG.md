@@ -8,9 +8,12 @@
 
 ### Added
 
-- MetaFlow AI metadata scaffolding command: `MetaFlow: Initialize MetaFlow AI Metadata`.
+- MetaFlow capability setup commands:
+	- `MetaFlow: Initialize MetaFlow Capability`
+	- `MetaFlow: Remove MetaFlow Capability`
 - Extension-shipped MetaFlow AI metadata templates under `src/assets/metaflow-ai-metadata/.github/` (instructions, prompts, skills, agents).
-- Integration and unit coverage for MetaFlow AI metadata scaffolding behavior.
+- Built-in capability mode persisted in extension workspace state and projected as synthetic source/layer nodes.
+- Integration and unit coverage for capability setup, built-in mode, and synthetic layer behavior.
 
 All notable changes to the MetaFlow extension will be documented in this file.
 
