@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha module rewiring */
-
 import * as assert from 'assert';
 
 class MockTreeItem {
