@@ -48,6 +48,11 @@ module.exports = [
                 },
                 {
                     selector: 'property',
+                    modifiers: ['requiresQuotes'],
+                    format: null,
+                },
+                {
+                    selector: 'property',
                     format: ['camelCase', 'snake_case'],
                     leadingUnderscore: 'allow',
                 },

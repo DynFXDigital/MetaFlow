@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha proxyquire module rewiring */
-
 import * as assert from 'assert';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import * as os from 'os';
