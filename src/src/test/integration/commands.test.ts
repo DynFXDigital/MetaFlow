@@ -90,7 +90,7 @@ suite('Command Execution', () => {
         return Object.keys(locations).some((location) => {
             const normalized = location.replace(/\\/g, '/').toLowerCase();
             return (
-                normalized.includes('/extensions/dynfxdigital.metaflow-') &&
+                normalized.includes('/extensions/dynfxdigital.metaflow-ai-') &&
                 normalized.includes('assets/metaflow-ai-metadata/.github/instructions')
             );
         });
@@ -135,7 +135,7 @@ suite('Command Execution', () => {
         this.timeout(15000);
 
         // Ensure extension is active
-        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow');
+        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {
             await ext.activate();
         }

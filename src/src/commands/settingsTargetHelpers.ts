@@ -104,7 +104,7 @@ function isBundledMetaFlowPath(value: string, expectedSuffix: string): boolean {
     const normalized = normalizeSettingsPath(value);
     return (
         normalized.includes(
-            '/globalstorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata',
+            '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata',
         ) && normalized.endsWith(expectedSuffix)
     );
 }

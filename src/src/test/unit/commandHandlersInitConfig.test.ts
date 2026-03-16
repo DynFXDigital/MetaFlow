@@ -243,7 +243,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                         layerEnabled: payload?.layerEnabled ?? true,
                         synchronizedFiles: payload?.synchronizedFiles ?? [],
                         sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
-                        sourceId: 'dynfxdigital.metaflow',
+                        sourceId: 'dynfxdigital.metaflow-ai',
                         sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
                     };
                 },
@@ -321,7 +321,7 @@ function createCommandHandlersHarness(initResult: boolean) {
             },
             extensionPath: 'C:/extension',
             extension: {
-                id: 'dynfxdigital.metaflow',
+                id: 'dynfxdigital.metaflow-ai',
                 packageJSON: {
                     displayName: 'MetaFlow: AI Metadata Overlay',
                     version: EXTENSION_VERSION,

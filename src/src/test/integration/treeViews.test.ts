@@ -23,7 +23,7 @@ suite('TreeView Providers', () => {
         this.timeout(15000);
 
         // Ensure extension is active
-        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow');
+        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {
             await ext.activate();
         }
