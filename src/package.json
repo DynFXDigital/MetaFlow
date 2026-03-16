@@ -751,18 +751,18 @@
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.6",
-    "@types/node": "18.x",
-    "@types/vscode": "^1.80.0",
-    "@typescript-eslint/eslint-plugin": "^8.56.1",
-    "@typescript-eslint/parser": "^8.56.1",
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.110.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
     "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^3.7.1",
-    "c8": "^10.1.2",
-    "esbuild": "^0.27.3",
-    "eslint": "^8.54.0",
-    "glob": "^10.3.10",
-    "minimatch": "^9.0.3",
-    "mocha": "^10.2.0",
+    "c8": "^11.0.0",
+    "esbuild": "^0.27.4",
+    "eslint": "^10.0.3",
+    "glob": "^13.0.6",
+    "minimatch": "^10.2.4",
+    "mocha": "^11.7.5",
     "typescript": "^5.3.2"
   }
 }

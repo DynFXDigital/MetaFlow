@@ -61,7 +61,7 @@ Notes:
 - Run `npm run gate:integration` (alias: `npm run test:integration`) for extension-host integration tests.
 - Run `npm run gate:quick` for the local CI-equivalent quality gate.
 - Run `npm run gate:full` before release-sensitive changes.
-- For non-blocking lint monitoring, run `npm -w metaflow run lint:monitor:summary` (or in `src/`: `npm run lint:monitor:summary`).
+- For non-blocking lint monitoring, run `npm -w metaflow-ai run lint:monitor:summary` (or in `src/`: `npm run lint:monitor:summary`).
 - Coverage: `npm -w @metaflow/engine run test:coverage` (95%+ stmts) and `npm -w @metaflow/cli run test:coverage` (92%+ stmts).
 - Unit tests use `tmp_path` pattern (`os.tmpdir()` + `mkdtemp`) for isolation.
 - Integration tests use `test-workspace/` fixture.
