@@ -1,0 +1,12 @@
+{
+  "metadataRepo": {
+    "url": "git@github.com:org/ai-metadata.git",
+    "localPath": ".ai/ai-metadata",
+    "commit": "def5678"
+  },
+  "layers": ["company/core"],
+  "activeProfile": "baseline",
+  "profiles": {
+    "baseline": {}
+  }
+}

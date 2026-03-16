@@ -1,0 +1,10 @@
+{
+  "mode": "pre",
+  "tag": "preview",
+  "initialVersions": {
+    "@metaflow/cli": "0.1.0",
+    "@metaflow/engine": "0.1.0",
+    "metaflow": "0.1.0"
+  },
+  "changesets": ["minor-release-bump"]
+}

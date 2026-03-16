@@ -1,0 +1,274 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MetaFlow: Install Dependencies",
+      "type": "npm",
+      "script": "install",
+      "path": ".",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build Workspace",
+      "type": "npm",
+      "script": "build",
+      "path": ".",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Format Workspace",
+      "type": "npm",
+      "script": "format",
+      "path": ".",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Format Check",
+      "type": "npm",
+      "script": "format:check",
+      "path": ".",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Watch Extension",
+      "type": "npm",
+      "script": "watch:esbuild",
+      "path": "src",
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^✘ \\[ERROR\\] (.+)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\[watch\\] build started$",
+          "endsPattern": "^\\[watch\\] build finished$"
+        }
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "never"
+      },
+      "group": "build"
+    },
+    {
+      "label": "MetaFlow: Build Extension",
+      "type": "npm",
+      "script": "bundle:dev",
+      "path": "src",
+      "problemMatcher": "$tsc",
+      "group": "build"
+    },
+    {
+      "label": "MetaFlow: Lint Extension",
+      "type": "npm",
+      "script": "lint",
+      "path": "src",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Test Extension Unit",
+      "dependsOrder": "sequence",
+      "dependsOn": ["MetaFlow: Compile Extension (TS)", "MetaFlow: Test Extension Unit (Raw)"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Compile Extension (TS)",
+      "type": "npm",
+      "script": "compile",
+      "path": "src",
+      "problemMatcher": "$tsc",
+      "group": "build"
+    },
+    {
+      "label": "MetaFlow: Test Extension Unit (Raw)",
+      "type": "npm",
+      "script": "test:unit",
+      "path": "src",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Test Extension Integration",
+      "type": "npm",
+      "script": "test",
+      "path": "src",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Package Extension VSIX",
+      "type": "npm",
+      "script": "package",
+      "path": "src",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build + Package VSIX",
+      "dependsOrder": "sequence",
+      "dependsOn": ["MetaFlow: Build Extension", "MetaFlow: Package Extension VSIX"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Install Latest VSIX",
+      "type": "shell",
+      "command": "pwsh",
+      "windows": {
+        "command": "powershell"
+      },
+      "args": [
+        "-File",
+        "./src/scripts/install-latest-vsix.ps1",
+        "-WorkspaceRoot",
+        "${workspaceFolder}",
+        "-CliPath",
+        "${execPath}",
+        "-TimeoutSeconds",
+        "120"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Install Latest VSIX (Both: VS Code + Insiders)",
+      "type": "shell",
+      "command": "pwsh",
+      "windows": {
+        "command": "powershell"
+      },
+      "args": [
+        "-File",
+        "./src/scripts/install-latest-vsix.ps1",
+        "-WorkspaceRoot",
+        "${workspaceFolder}",
+        "-Cli",
+        "code,code-insiders",
+        "-TimeoutSeconds",
+        "120"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Install Latest VSIX (All Profiles: Current VS Code)",
+      "type": "shell",
+      "command": "pwsh",
+      "windows": {
+        "command": "powershell"
+      },
+      "args": [
+        "-File",
+        "./src/scripts/install-latest-vsix.ps1",
+        "-WorkspaceRoot",
+        "${workspaceFolder}",
+        "-CliPath",
+        "${execPath}",
+        "-AllProfiles",
+        "-TimeoutSeconds",
+        "120"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Install Latest VSIX (All Profiles: VS Code + Insiders)",
+      "type": "shell",
+      "command": "pwsh",
+      "windows": {
+        "command": "powershell"
+      },
+      "args": [
+        "-File",
+        "./src/scripts/install-latest-vsix.ps1",
+        "-WorkspaceRoot",
+        "${workspaceFolder}",
+        "-Cli",
+        "code,code-insiders",
+        "-AllProfiles",
+        "-TimeoutSeconds",
+        "120"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build, Package & Install VSIX",
+      "dependsOrder": "sequence",
+      "dependsOn": ["MetaFlow: Build + Package VSIX", "MetaFlow: Install Latest VSIX"],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build, Package & Install VSIX (Both: VS Code + Insiders)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MetaFlow: Build + Package VSIX",
+        "MetaFlow: Install Latest VSIX (Both: VS Code + Insiders)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build, Package & Install VSIX (All Profiles: Current VS Code)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MetaFlow: Build + Package VSIX",
+        "MetaFlow: Install Latest VSIX (All Profiles: Current VS Code)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Build, Package & Install VSIX (All Profiles: VS Code + Insiders)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MetaFlow: Build + Package VSIX",
+        "MetaFlow: Install Latest VSIX (All Profiles: VS Code + Insiders)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Coverage: Engine",
+      "type": "npm",
+      "script": "test:coverage",
+      "path": "packages/engine",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Coverage: CLI",
+      "type": "npm",
+      "script": "test:coverage",
+      "path": "packages/cli",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Coverage: Extension (Unit)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MetaFlow: Compile Extension (TS)",
+        "MetaFlow: Coverage: Extension (Unit, Raw)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Coverage: Extension (Unit, Raw)",
+      "type": "npm",
+      "script": "test:coverage:unit",
+      "path": "src",
+      "problemMatcher": []
+    },
+    {
+      "label": "MetaFlow: Coverage: All",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MetaFlow: Coverage: Engine",
+        "MetaFlow: Coverage: CLI",
+        "MetaFlow: Coverage: Extension (Unit)"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

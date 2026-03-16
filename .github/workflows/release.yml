@@ -1,0 +1,257 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git tag to release (v*)
+        required: false
+        default: ''
+      publish_to_marketplaces:
+        description: Publish VSIX to VS Code Marketplace and Open VSX (requires approval)
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name }}-${{ github.ref_name || inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Package and create GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    outputs:
+      ref_to_build: ${{ steps.ref.outputs.ref_to_build }}
+      release_tag: ${{ steps.ref.outputs.release_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release ref
+        id: ref
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REF_INPUT="${{ inputs.ref }}"
+            if [ -z "$REF_INPUT" ]; then
+              REF_INPUT="$(git tag --list 'v*' --sort=-v:refname | head -1)"
+              if [ -z "$REF_INPUT" ]; then
+                echo "No release tags found. Provide a tag in the ref input (for example: v0.1.0)."
+                exit 1
+              fi
+            fi
+          else
+            REF_INPUT="${{ github.ref }}"
+          fi
+
+          if [[ "$REF_INPUT" == refs/tags/v* ]]; then
+            REF_NAME="${REF_INPUT#refs/tags/}"
+            RELEASE_TAG="$REF_NAME"
+          elif [[ "$REF_INPUT" == v* ]]; then
+            REF_NAME="$REF_INPUT"
+            RELEASE_TAG="$REF_NAME"
+          else
+            echo "Unsupported ref '$REF_INPUT'. Allowed values are Git tags matching v* (for example: v0.1.0)."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_TAG" =~ -alpha|-beta|-rc|-preview ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          echo "ref_to_build=$REF_INPUT" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release ref
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.ref.outputs.ref_to_build }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Quick gate
+        run: npm run gate:quick
+
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Resolve VSIX path
+        id: vsix
+        shell: bash
+        run: |
+          VSIX_PATH="$(find src -maxdepth 1 -type f -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found under src/."
+            exit 1
+          fi
+          VSIX_NAME="$(basename "$VSIX_PATH")"
+          echo "VSIX_PATH=$VSIX_PATH" >> "$GITHUB_ENV"
+          echo "vsix_path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
+          echo "vsix_name=$VSIX_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ steps.vsix.outputs.vsix_name }}
+          path: ${{ steps.vsix.outputs.vsix_path }}
+          retention-days: 30
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [ "${{ steps.ref.outputs.is_prerelease }}" = "true" ]; then
+            EXTRA_ARGS="--prerelease"
+          fi
+
+          if gh release view "${{ steps.ref.outputs.release_tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.ref.outputs.release_tag }}" "$VSIX_PATH" --clobber
+          else
+            gh release create "${{ steps.ref.outputs.release_tag }}" \
+              "$VSIX_PATH" \
+              --verify-tag \
+              --title "${{ steps.ref.outputs.release_tag }}" \
+              --generate-notes \
+              $EXTRA_ARGS
+          fi
+
+  publish-marketplaces:
+    name: Publish to marketplaces (manual + approval)
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_to_marketplaces == true
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: marketplace-publish
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release.outputs.ref_to_build }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect publish targets
+        id: publish_targets
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          has_vsce=false
+          has_ovsx=false
+
+          if [ -n "$VSCE_PAT" ]; then
+            has_vsce=true
+          else
+            echo "::warning::Skipping VS Code Marketplace publish because VSCE_PAT is not configured."
+          fi
+
+          if [ -n "$OVSX_PAT" ]; then
+            has_ovsx=true
+          else
+            echo "::warning::Skipping Open VSX publish because OVSX_PAT is not configured."
+          fi
+
+          if [ "$has_vsce" = false ] && [ "$has_ovsx" = false ]; then
+            echo "::warning::No marketplace secrets configured; the workflow will package the VSIX but skip registry publishing."
+          fi
+
+          echo "vsce=$has_vsce" >> "$GITHUB_OUTPUT"
+          echo "ovsx=$has_ovsx" >> "$GITHUB_OUTPUT"
+
+      # Publish gate: same policy as release job above.
+      - name: Quick gate
+        run: npm run gate:quick
+
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration
+
+      - name: Package extension
+        working-directory: src
+        run: npm run package
+
+      - name: Resolve VSIX path
+        shell: bash
+        run: |
+          VSIX_PATH="$(find src -maxdepth 1 -type f -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found under src/."
+            exit 1
+          fi
+          echo "VSIX_PATH=$VSIX_PATH" >> "$GITHUB_ENV"
+
+      - name: Publish to VS Code Marketplace
+        if: steps.publish_targets.outputs.vsce == 'true'
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          npx @vscode/vsce publish \
+            --packagePath "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        if: steps.publish_targets.outputs.ovsx == 'true'
+        shell: bash
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          npx ovsx publish "$VSIX_PATH" \
+            --skip-duplicate \
+            -p "$OVSX_PAT"

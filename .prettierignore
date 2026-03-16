@@ -1,0 +1,10 @@
+.git
+.metaflow
+node_modules
+package-lock.json
+packages/*/out
+src/out
+src/dist
+src/.eslint-report.json
+src/test-workspace/invalid-config/
+*.vsix

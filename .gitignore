@@ -1,0 +1,63 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Node / npm
+node_modules/
+**/node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+out/
+**/out/
+*.tsbuildinfo
+
+# VS Code extension artifacts
+**/.vscode-test/
+**/.vscode-test-user-data/
+**/.vscode-test-extensions/
+.vscode-dev-host/
+*.vsix
+
+# Coverage / test output
+coverage/
+.nyc_output/
+*.cover
+test-results/
+**/.eslint-report.json
+
+# Integration test workspace runtime artifacts
+src/test-workspace/.github/
+src/test-workspace/.vscode/
+.ai/temp/
+.ai/plan/
+.ai/issues/
+.ai/tasks/
+
+# Local env
+.env
+.env.*
+
+# Local tooling caches
+.cache/
+.turbo/
+.pytest_cache/
+do_icon.ps1
+
+# Ignore synchronized AI metadata files
+.github/**/_*
+
+# Ignore Metaflow state and config files
+.metaflow/
+!src/test-workspace/.metaflow/
+src/test-workspace/.metaflow/*
+!src/test-workspace/.metaflow/config.jsonc
