@@ -64,16 +64,54 @@ Required setup:
 2. Create a GitHub Environment named `marketplace-publish`.
 3. Add required reviewers on that environment for manual approval before publish.
 
+Token sources:
+
+- `VSCE_PAT` is an Azure DevOps / Visual Studio Marketplace Personal Access Token with `Marketplace (Manage)` scope.
+- `OVSX_PAT` is an Open VSX access token from `https://open-vsx.org/user-settings/tokens`.
+
+Publisher permissions:
+
+- The account used to create `VSCE_PAT` must already have permission to publish under the existing Marketplace publisher (`dynfxdigital`).
+- A valid token without publisher membership is not sufficient; publish will fail with an access-denied error for publishing new extensions to the existing publisher.
+
+Extension identity constraints:
+
+- The VS Code Marketplace requires the extension `name` in `src/package.json` to be globally unique.
+- Publisher scope alone does not avoid collisions. If Marketplace reports that the extension already exists, choose a new unique `name` and repackage before publishing.
+- The current Marketplace extension ID is `dynfxdigital.metaflow-ai`.
+
 Token handling policy:
 
 - Keep `VSCE_PAT` and `OVSX_PAT` only in GitHub Actions secrets.
 - Never commit tokens, place them in tracked `.env` files, or paste them into issues/PRs.
 - Rotate tokens immediately if exposure is suspected.
 
+Packaging and publish path:
+
+- Publish the already-built VSIX rather than running a plain `vsce publish` from `src/`.
+- This repository's extension package depends on a local workspace package (`@metaflow/engine` via `file:../packages/engine`), so a plain `vsce publish` can try to package parent-workspace content.
+- Use the checked-in package script to create the VSIX:
+
+```powershell
+npm -C src run package
+```
+
+- Then publish that VSIX explicitly:
+
+```powershell
+$pat = $env:VSCE_PAT
+if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','User') }
+if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','Machine') }
+npx @vscode/vsce publish --packagePath .\src\metaflow-ai-0.1.0.vsix -p $pat
+```
+
+- The GitHub workflow already follows this `--packagePath` pattern for marketplace publishing.
+
 Recommended flow:
 
 1. Push release tag (`vX.Y.Z`) to create GitHub Release + VSIX asset.
 2. (Optional) Run **Release Extension** manually for that same tag with `publish_to_marketplaces=true` after approval.
+3. If CLI publishing is blocked by publisher permissions, use the Marketplace management UI to upload the generated VSIX as a fallback while publisher membership is being corrected.
 
 ## Rollback and hotfix
 
