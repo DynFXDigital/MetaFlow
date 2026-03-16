@@ -23,7 +23,7 @@
     "version-packages": "changeset version && npm install --package-lock-only"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.6",
+    "@changesets/cli": "^2.30.0",
     "prettier": "^3.8.1"
   }
 }
