@@ -16,7 +16,7 @@ suite('Diagnostics Integration', () => {
     suiteSetup(async function () {
         this.timeout(15000);
 
-        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow');
+        const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {
             await ext.activate();
         }

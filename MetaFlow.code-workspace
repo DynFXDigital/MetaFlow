@@ -25,7 +25,7 @@
       "npm -C src": true
     },
     "chat.instructionsFilesLocations": {
-      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/instructions": true,
+      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/instructions": true,
       "../DFX-AI-Metadata/capabilities/agent-commit-coordination/.github/instructions": true,
       "../DFX-AI-Metadata/capabilities/auto-commits/.github/instructions": true,
       "../DFX-AI-Metadata/capabilities/communication/.github/instructions": true,
@@ -35,19 +35,19 @@
       "../DFX-AI-Metadata/communications/concise-engineer/.github/instructions": true
     },
     "chat.promptFilesLocations": {
-      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts": true,
+      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts": true,
       "../DFX-AI-Metadata/capabilities/manual-commit/.github/prompts": true,
       "../DFX-AI-Metadata/capabilities/metadata-authoring/.github/prompts": true,
       "../DFX-AI-Metadata/capabilities/planning/.github/prompts": true,
       "../DFX-AI-Metadata/capabilities/reflection/.github/prompts": true
     },
     "chat.agentFilesLocations": {
-      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/agents": true,
+      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/agents": true,
       "../DFX-AI-Metadata/capabilities/metadata-authoring/.github/agents": true,
       "../DFX-AI-Metadata/capabilities/planning/.github/agents": true
     },
     "chat.agentSkillsLocations": {
-      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/skills": true,
+      "../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills": true,
       "../DFX-AI-Metadata/capabilities/agent-commit-coordination/.github/skills": true,
       "../DFX-AI-Metadata/capabilities/metadata-authoring/.github/skills": true,
       "../DFX-AI-Metadata/capabilities/planning/.github/skills": true

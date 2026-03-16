@@ -4535,12 +4535,25 @@ export function registerCommands(
                 const cleanupResult = await removeKnownMetaFlowFilesAndPruneDirectory(
                     ws.uri.fsPath,
                 );
+                await clearManagedWorkspaceSettings(ws, context);
+                clearDiagnostics(diagnosticCollection);
+                state.config = undefined;
+                state.configPath = undefined;
+                state.activeProfile = undefined;
+                state.baseProfileFiles = [];
+                state.effectiveFiles = [];
+                state.capabilityByLayer = {};
+                state.repoMetadataById = {};
+                state.capabilityWarnings = [];
+                state.treeSummaryCache = undefined;
+                invalidateRepoSyncStatus(state);
+                updateStatusBar('idle');
+                state.onDidChange.fire();
                 logInfo(
                     `Removed final repo source ${repoId}; cleaned ${cleanupResult.removedKnownFileCount} known .metaflow file(s). ` +
                         `Directory removed: ${cleanupResult.removedDirectory}.`,
                 );
                 vscode.window.showInformationMessage(buildMetaFlowCleanupMessage(cleanupResult));
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
                 return;
             }
 

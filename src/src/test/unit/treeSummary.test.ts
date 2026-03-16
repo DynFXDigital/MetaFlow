@@ -109,7 +109,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: undefined,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );
@@ -205,7 +205,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: undefined,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );
@@ -275,7 +275,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: builtInRoot,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );
@@ -409,7 +409,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: undefined,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );
@@ -620,7 +620,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: undefined,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );
@@ -696,7 +696,7 @@ suite('treeSummary', () => {
                 layerEnabled: true,
                 synchronizedFiles: [],
                 sourceRoot: undefined,
-                sourceId: 'dynfxdigital.metaflow',
+                sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
             },
         );

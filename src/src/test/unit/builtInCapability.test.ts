@@ -44,12 +44,12 @@ suite('builtInCapability', () => {
         const runtime = readBuiltInCapabilityRuntimeState(
             memento,
             path.join(os.tmpdir(), 'missing-extension-root'),
-            'dynfxdigital.metaflow',
+            'dynfxdigital.metaflow-ai',
         );
         assert.strictEqual(runtime.enabled, false);
         assert.strictEqual(runtime.sourceRoot, undefined);
-        assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow');
-        assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow');
+        assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow-ai');
+        assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow-ai');
         assert.strictEqual(runtime.layerEnabled, true);
         assert.deepStrictEqual(runtime.synchronizedFiles, ['.github/instructions/a.md']);
     });
@@ -77,13 +77,13 @@ suite('builtInCapability', () => {
             const runtime = readBuiltInCapabilityRuntimeState(
                 memento,
                 extensionPath,
-                'dynfxdigital.metaflow',
+                'dynfxdigital.metaflow-ai',
             );
             assert.strictEqual(runtime.enabled, true);
             assert.strictEqual(runtime.layerEnabled, false);
             assert.strictEqual(runtime.sourceRoot, sourceRoot);
-            assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow');
-            assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow');
+            assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow-ai');
+            assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow-ai');
             assert.deepStrictEqual(runtime.synchronizedFiles, ['.github/skills/s.skill.md']);
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -112,12 +112,12 @@ suite('builtInCapability', () => {
             const runtime = readBuiltInCapabilityRuntimeState(
                 memento,
                 extensionPath,
-                'dynfxdigital.metaflow',
+                'dynfxdigital.metaflow-ai',
             );
             assert.strictEqual(runtime.enabled, false);
             assert.strictEqual(runtime.sourceRoot, sourceRoot);
-            assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow');
-            assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow');
+            assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow-ai');
+            assert.strictEqual(runtime.sourceDisplayName, 'dynfxdigital.metaflow-ai');
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -136,10 +136,10 @@ suite('builtInCapability', () => {
         const runtime = readBuiltInCapabilityRuntimeState(
             { get: () => undefined },
             path.join(os.tmpdir(), 'missing-extension-root'),
-            'dynfxdigital.metaflow',
+            'dynfxdigital.metaflow-ai',
             'MetaFlow: AI Metadata Overlay',
         );
-        assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow');
+        assert.strictEqual(runtime.sourceId, 'dynfxdigital.metaflow-ai');
         assert.strictEqual(runtime.sourceDisplayName, 'MetaFlow: AI Metadata Overlay');
     });
 
@@ -172,7 +172,7 @@ suite('builtInCapability', () => {
                     },
                 },
                 extensionPath,
-                'dynfxdigital.metaflow',
+                'dynfxdigital.metaflow-ai',
                 'MetaFlow: AI Metadata Overlay',
                 overrideRoot,
             );

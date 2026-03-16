@@ -635,8 +635,8 @@ function Get-LegacyExtensionIds {
         [string]$ExtensionId
     )
 
-    if ($ExtensionId -eq 'dynfxdigital.metaflow') {
-        return @('metaflow.metaflow')
+    if ($ExtensionId -eq 'dynfxdigital.metaflow-ai') {
+        return @('dynfxdigital.metaflow')
     }
 
     return @()

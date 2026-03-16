@@ -172,12 +172,12 @@ suite('settingsTargetHelpers', () => {
     suite('pruneBundledMetaFlowSettingsEntries', () => {
         test('SIT-PB-01 prunes stale bundled prompt map entries from other clients', () => {
             const existing = {
-                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
-                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 '.ai/dfx-ai-metadata/capabilities/planning/.github/prompts': true,
             };
             const retained = {
-                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
             };
 
             const result = pruneBundledMetaFlowSettingsEntries(
@@ -187,15 +187,15 @@ suite('settingsTargetHelpers', () => {
             );
 
             assert.deepStrictEqual(result, {
-                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 '.ai/dfx-ai-metadata/capabilities/planning/.github/prompts': true,
             });
         });
 
         test('SIT-PB-02 prunes stale bundled skill array entries when no bundled root is retained', () => {
             const existing = [
-                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/skills',
-                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/skills',
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
+                '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
                 '.ai/dfx-ai-metadata/capabilities/metadata-authoring/.github/skills',
             ];
 
@@ -212,7 +212,7 @@ suite('settingsTargetHelpers', () => {
 
         test('SIT-PB-03 leaves unrelated settings keys unchanged', () => {
             const existing = {
-                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 'user/path': true,
             };
 
