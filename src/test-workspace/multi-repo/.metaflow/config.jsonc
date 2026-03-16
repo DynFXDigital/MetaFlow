@@ -1,0 +1,32 @@
+{
+  "metadataRepos": [
+    {
+      "id": "primary",
+      "url": "git@github.com:org/ai-metadata.git",
+      "localPath": ".ai/ai-metadata",
+      "commit": "abc1234"
+    },
+    {
+      "id": "team",
+      "url": "git@github.com:org/team-metadata.git",
+      "localPath": "../shared/ai-metadata-team",
+      "commit": "3b12a9c"
+    }
+  ],
+  "layerSources": [
+    { "repoId": "primary", "path": "company/core" },
+    { "repoId": "primary", "path": "standards/sdlc" },
+    { "repoId": "team", "path": "overlays/team" }
+  ],
+  "filters": {
+    "include": ["**"],
+    "exclude": []
+  },
+  "profiles": {
+    "baseline": {},
+    "lean": {
+      "disable": ["agents/**"]
+    }
+  },
+  "activeProfile": "baseline"
+}

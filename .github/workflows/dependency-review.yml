@@ -1,0 +1,48 @@
+name: Dependency Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: GHAS workflow gate
+        id: ghas_gate
+        env:
+          GHAS_VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          enabled=$(printf '%s' "$GHAS_VARS_JSON" | jq -r '."ENABLE_GHAS_WORKFLOWS" // "false"')
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+          if [ "$enabled" = "true" ]; then
+            echo "GHAS workflows enabled; running dependency review."
+          else
+            echo "GHAS workflows disabled; skipping dependency review."
+          fi
+
+      - name: Checkout
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Dependency review (blocking on main/release)
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' && (github.base_ref == 'main' || startsWith(github.base_ref, 'release/')) }}
+        uses: actions/dependency-review-action@46a3c492319c890177366b6ef46d6b4f89743ed4 # v4
+        with:
+          fail-on-severity: high
+
+      - name: Dependency review (advisory on develop)
+        id: dependency_review_advisory
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' && github.base_ref == 'develop' }}
+        continue-on-error: true
+        uses: actions/dependency-review-action@46a3c492319c890177366b6ef46d6b4f89743ed4 # v4
+        with:
+          fail-on-severity: high
+
+      - name: Dependency review advisory notice
+        if: steps.dependency_review_advisory.outcome == 'failure'
+        run: echo "::warning::Dependency review findings detected on develop PR. This is non-blocking on develop but blocks on main/release branches."

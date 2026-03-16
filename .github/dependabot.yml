@@ -1,0 +1,92 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - root
+    reviewers:
+      - dynfxdigital
+    groups:
+      root-dev-dependencies:
+        dependency-type: development
+      root-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /src
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - extension
+    reviewers:
+      - dynfxdigital
+    groups:
+      extension-dev-dependencies:
+        dependency-type: development
+      extension-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /packages/engine
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - engine
+    reviewers:
+      - dynfxdigital
+    groups:
+      engine-dev-dependencies:
+        dependency-type: development
+      engine-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: npm
+    directory: /packages/cli
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - cli
+    reviewers:
+      - dynfxdigital
+    groups:
+      cli-dev-dependencies:
+        dependency-type: development
+      cli-runtime-dependencies:
+        dependency-type: production
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    reviewers:
+      - dynfxdigital
+    commit-message:
+      prefix: 'chore(deps)'
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - '*'

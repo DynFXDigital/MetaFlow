@@ -1,0 +1,78 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: '20 4 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+
+    steps:
+      - name: GHAS workflow gate
+        id: ghas_gate
+        env:
+          GHAS_VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          enabled=$(printf '%s' "$GHAS_VARS_JSON" | jq -r '."ENABLE_GHAS_WORKFLOWS" // "false"')
+          echo "enabled=$enabled" >> "$GITHUB_OUTPUT"
+
+          if [ "$enabled" = "true" ]; then
+            echo "GHAS workflows enabled; running CodeQL analysis."
+          else
+            echo "GHAS workflows disabled; skipping CodeQL analysis."
+          fi
+
+      - name: Checkout
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Initialize CodeQL
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        uses: github/codeql-action/init@60d8f0d1f1f8c8d07ef53bd027032705d414ec28 # v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Setup Node.js
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        run: npm ci
+
+      - name: Build workspace
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' }}
+        run: npm run build
+
+      - name: Perform CodeQL Analysis
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' && (github.event_name != 'pull_request' || github.base_ref != 'develop') }}
+        uses: github/codeql-action/analyze@60d8f0d1f1f8c8d07ef53bd027032705d414ec28 # v3
+
+      - name: Perform CodeQL Analysis (advisory on develop)
+        id: codeql_advisory
+        if: ${{ steps.ghas_gate.outputs.enabled == 'true' && github.event_name == 'pull_request' && github.base_ref == 'develop' }}
+        continue-on-error: true
+        uses: github/codeql-action/analyze@60d8f0d1f1f8c8d07ef53bd027032705d414ec28 # v3
+
+      - name: CodeQL advisory notice
+        if: steps.codeql_advisory.outcome == 'failure'
+        run: echo "::warning::CodeQL findings detected on develop PR. This is non-blocking on develop but blocks on main/release branches."

@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - release/**
+  push:
+    branches:
+      - main
+      - develop
+      - release/**
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-unit:
+    name: Lint, build, and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build workspace
+        run: npm run build
+
+      - name: Lint (blocking on main/release)
+        if: >
+          (github.event_name == 'pull_request' && (github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))) ||
+          (github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')))
+        run: npm -w metaflow run lint
+
+      - name: Lint (advisory on develop)
+        id: lint_advisory
+        if: >
+          (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+          (github.event_name == 'push' && github.ref_name == 'develop')
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          npm -w metaflow run lint:monitor
+          lint_exit=$?
+          npm -w metaflow run lint:summary
+          exit $lint_exit
+
+      - name: Lint advisory notice
+        if: steps.lint_advisory.outcome == 'failure'
+        run: echo "::warning::Lint issues detected on develop. This is non-blocking on develop but blocks on main/release branches."
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Ensure xvfb is available
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+
+      - name: Integration gate (headless)
+        shell: bash
+        run: xvfb-run -a npm run gate:integration

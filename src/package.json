@@ -1,0 +1,768 @@
+{
+  "name": "metaflow",
+  "displayName": "MetaFlow: AI Metadata Overlay",
+  "description": "Layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
+  "version": "0.1.0-preview.0",
+  "publisher": "dynfxdigital",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dynfxdigital/MetaFlow.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "metadata",
+    "overlay",
+    "metaflow"
+  ],
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1b4b",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "workspaceContains:**/.metaflow/config.jsonc"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "metaflow.refresh",
+        "title": "MetaFlow: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "metaflow.preview",
+        "title": "MetaFlow: Preview Overlay",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "metaflow.apply",
+        "title": "MetaFlow: Apply Overlay",
+        "icon": "$(check)"
+      },
+      {
+        "command": "metaflow.clean",
+        "title": "MetaFlow: Clean Synchronized Files",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "metaflow.status",
+        "title": "MetaFlow: Status",
+        "icon": "$(info)"
+      },
+      {
+        "command": "metaflow.switchProfile",
+        "title": "MetaFlow: Switch Profile",
+        "icon": "$(symbol-enum)"
+      },
+      {
+        "command": "metaflow.createProfile",
+        "title": "MetaFlow: Create Profile",
+        "icon": "$(add)"
+      },
+      {
+        "command": "metaflow.duplicateProfile",
+        "title": "MetaFlow: Duplicate Profile",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "metaflow.deleteProfile",
+        "title": "MetaFlow: Delete Profile",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "metaflow.toggleLayer",
+        "title": "MetaFlow: Toggle Capability",
+        "icon": "$(check)"
+      },
+      {
+        "command": "metaflow.toggleRepoSource",
+        "title": "MetaFlow: Toggle Repo Source",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "metaflow.addRepoSource",
+        "title": "MetaFlow: Add Repo Source",
+        "icon": "$(add)"
+      },
+      {
+        "command": "metaflow.removeRepoSource",
+        "title": "MetaFlow: Remove Repo Source",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "metaflow.rescanRepository",
+        "title": "MetaFlow: Rescan Repository",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "metaflow.checkRepoUpdates",
+        "title": "MetaFlow: Check Repository Updates",
+        "icon": "$(repo-fetch)"
+      },
+      {
+        "command": "metaflow.pullRepository",
+        "title": "MetaFlow: Pull Repository Updates",
+        "icon": "$(repo-pull)"
+      },
+      {
+        "command": "metaflow.initMetaFlowAiMetadata",
+        "title": "MetaFlow: Initialize MetaFlow Capability",
+        "icon": "$(package)"
+      },
+      {
+        "command": "metaflow.removeMetaFlowCapability",
+        "title": "MetaFlow: Remove MetaFlow Capability",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "metaflow.openConfig",
+        "title": "MetaFlow: Open Config File",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "metaflow.openCapabilityDetails",
+        "title": "MetaFlow: View Capability Details",
+        "icon": "$(book)"
+      },
+      {
+        "command": "metaflow.configureCapabilityInjection",
+        "title": "MetaFlow: Configure Capability Injection"
+      },
+      {
+        "command": "metaflow.configureRepoInjectionDefaults",
+        "title": "MetaFlow: Configure Repository Injection Defaults"
+      },
+      {
+        "command": "metaflow.configureGlobalInjectionDefaults",
+        "title": "MetaFlow: Configure Global Injection Defaults"
+      },
+      {
+        "command": "metaflow.injectionPolicy.global.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.injectionPolicy.global.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.injectionPolicy.global.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.instructions.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.synchronization.instructions.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.instructions.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.prompts.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.synchronization.prompts.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.prompts.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.skills.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.synchronization.skills.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.skills.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.agents.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.synchronization.agents.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.agents.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.hooks.settings",
+        "title": "Settings"
+      },
+      {
+        "command": "metaflow.synchronization.hooks.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.hooks.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.initConfig",
+        "title": "MetaFlow: Initialize Configuration",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "metaflow.promote",
+        "title": "MetaFlow: Promote Changes",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "metaflow.toggleFilesViewMode",
+        "title": "MetaFlow: Toggle Effective Files View Mode",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "metaflow.toggleLayersViewMode",
+        "title": "MetaFlow: Toggle Capabilities View Mode",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "metaflow.collapseAllLayers",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.expandAllLayers",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseAllFiles",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.expandAllFiles",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.expandLayersBranch",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseLayersBranch",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.selectAllLayers",
+        "title": "Select All",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "metaflow.deselectAllLayers",
+        "title": "Deselect All",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "metaflow.expandFilesBranch",
+        "title": "Expand",
+        "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.collapseFilesBranch",
+        "title": "Collapse",
+        "icon": "$(collapse-all)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "metaflow.synchronization",
+        "label": "Injection Policy"
+      }
+    ],
+    "views": {
+      "metaflow-container": [
+        {
+          "id": "metaflow-config",
+          "name": "AI Metadata",
+          "icon": "$(repo)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "metaflow-profiles",
+          "name": "Profiles",
+          "icon": "$(symbol-enum)",
+          "visibility": "collapsed"
+        },
+        {
+          "id": "metaflow-layers",
+          "name": "Capabilities",
+          "icon": "$(layers)"
+        },
+        {
+          "id": "metaflow-files",
+          "name": "Effective Files",
+          "icon": "$(files)"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "metaflow-container",
+          "title": "MetaFlow",
+          "icon": "images/metaflow-activity.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "metaflow-config",
+        "contents": "No MetaFlow configuration found.\n[Initialize Configuration](command:metaflow.initConfig)\n[Learn More](https://github.com/dynfxdigital/MetaFlow)",
+        "when": "workspaceFolderCount > 0 && metaflow.active == true && metaflow.loading == false && metaflow.hasConfig == false"
+      },
+      {
+        "view": "metaflow-config",
+        "contents": "Open a folder or workspace to get started with MetaFlow.\n[Open Folder](command:vscode.openFolder)",
+        "when": "workspaceFolderCount == 0"
+      },
+      {
+        "view": "metaflow-profiles",
+        "contents": "No MetaFlow configuration found.",
+        "when": "workspaceFolderCount > 0 && metaflow.active == true && metaflow.loading == false && metaflow.hasConfig == false"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "metaflow.openConfig",
+          "when": "view == metaflow-config",
+          "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.refresh",
+          "when": "view == metaflow-config",
+          "group": "navigation@2"
+        },
+        {
+          "command": "metaflow.initMetaFlowAiMetadata",
+          "when": "view == metaflow-config && !metaflow.capabilityInstalled",
+          "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.toggleFilesViewMode",
+          "when": "view == metaflow-files",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.toggleLayersViewMode",
+          "when": "view == metaflow-layers",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.collapseAllLayers",
+          "when": "view == metaflow-layers",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.expandAllLayers",
+          "when": "view == metaflow-layers",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.collapseAllFiles",
+          "when": "view == metaflow-files",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.expandAllFiles",
+          "when": "view == metaflow-files",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.createProfile",
+          "when": "view == metaflow-profiles",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "metaflow.switchProfile",
+          "when": "view == metaflow-profiles && (viewItem == profile || viewItem == profileDefault)",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.duplicateProfile",
+          "when": "view == metaflow-profiles && (viewItem == profile || viewItem == profileDefault)",
+          "group": "inline@2"
+        },
+        {
+          "command": "metaflow.deleteProfile",
+          "when": "view == metaflow-profiles && viewItem == profile",
+          "group": "inline@3"
+        },
+        {
+          "command": "metaflow.removeRepoSource",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
+          "group": "inline@3"
+        },
+        {
+          "command": "metaflow.removeMetaFlowCapability",
+          "when": "view == metaflow-config && viewItem == configRepoSourceBuiltin",
+          "group": "inline@3"
+        },
+        {
+          "command": "metaflow.pullRepository",
+          "when": "view == metaflow-config && viewItem == configRepoSourceGitBehind",
+          "group": "inline@1"
+        },
+        {
+          "command": "metaflow.rescanRepository",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
+          "group": "inline@2"
+        },
+        {
+          "submenu": "metaflow.synchronization",
+          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
+          "group": "3_configure@1"
+        },
+        {
+          "command": "metaflow.addRepoSource",
+          "when": "view == metaflow-config && viewItem == configRepoSection",
+          "group": "inline"
+        },
+        {
+          "command": "metaflow.expandLayersBranch",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.collapseLayersBranch",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@2"
+        },
+        {
+          "command": "metaflow.selectAllLayers",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.deselectAllLayers",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "navigation@4"
+        },
+        {
+          "command": "metaflow.openCapabilityDetails",
+          "when": "view == metaflow-layers && viewItem == layer",
+          "group": "inline@1"
+        },
+        {
+          "command": "metaflow.expandFilesBranch",
+          "when": "view == metaflow-files && (viewItem == effectiveRepo || viewItem == artifactTypeFolder || viewItem == effectiveFolder)",
+          "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.collapseFilesBranch",
+          "when": "view == metaflow-files && (viewItem == effectiveRepo || viewItem == artifactTypeFolder || viewItem == effectiveFolder)",
+          "group": "navigation@2"
+        }
+      ],
+      "metaflow.synchronization": [
+        {
+          "command": "metaflow.injectionPolicy.global.inherit",
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+        },
+        {
+          "command": "metaflow.injectionPolicy.global.settings",
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+        },
+        {
+          "command": "metaflow.injectionPolicy.global.synchronize",
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+        },
+        {
+          "command": "metaflow.synchronization.instructions.settings",
+          "when": "viewItem == layerArtifactType:instructions"
+        },
+        {
+          "command": "metaflow.synchronization.instructions.synchronize",
+          "when": "viewItem == layerArtifactType:instructions"
+        },
+        {
+          "command": "metaflow.synchronization.instructions.inherit",
+          "when": "viewItem == layerArtifactType:instructions"
+        },
+        {
+          "command": "metaflow.synchronization.prompts.settings",
+          "when": "viewItem == layerArtifactType:prompts"
+        },
+        {
+          "command": "metaflow.synchronization.prompts.synchronize",
+          "when": "viewItem == layerArtifactType:prompts"
+        },
+        {
+          "command": "metaflow.synchronization.prompts.inherit",
+          "when": "viewItem == layerArtifactType:prompts"
+        },
+        {
+          "command": "metaflow.synchronization.skills.settings",
+          "when": "viewItem == layerArtifactType:skills"
+        },
+        {
+          "command": "metaflow.synchronization.skills.synchronize",
+          "when": "viewItem == layerArtifactType:skills"
+        },
+        {
+          "command": "metaflow.synchronization.skills.inherit",
+          "when": "viewItem == layerArtifactType:skills"
+        },
+        {
+          "command": "metaflow.synchronization.agents.settings",
+          "when": "viewItem == layerArtifactType:agents"
+        },
+        {
+          "command": "metaflow.synchronization.agents.synchronize",
+          "when": "viewItem == layerArtifactType:agents"
+        },
+        {
+          "command": "metaflow.synchronization.agents.inherit",
+          "when": "viewItem == layerArtifactType:agents"
+        },
+        {
+          "command": "metaflow.synchronization.hooks.settings",
+          "when": "viewItem == layerArtifactType:hooks"
+        },
+        {
+          "command": "metaflow.synchronization.hooks.synchronize",
+          "when": "viewItem == layerArtifactType:hooks"
+        },
+        {
+          "command": "metaflow.synchronization.hooks.inherit",
+          "when": "viewItem == layerArtifactType:hooks"
+        }
+      ]
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "/.metaflow/config.jsonc",
+        "url": "./schemas/metaflow-config.schema.json"
+      }
+    ],
+    "configuration": {
+      "title": "MetaFlow",
+      "properties": {
+        "metaflow.enabled": {
+          "type": "boolean",
+          "default": true,
+          "order": 1,
+          "description": "Enable MetaFlow extension features"
+        },
+        "metaflow.autoApply": {
+          "type": "boolean",
+          "default": true,
+          "order": 2,
+          "description": "Automatically apply overlay when configuration changes"
+        },
+        "metaflow.aiMetadataAutoApplyMode": {
+          "type": "string",
+          "default": "off",
+          "order": 9,
+          "enum": [
+            "off",
+            "synchronize",
+            "builtinLayer"
+          ],
+          "description": "Controls built-in AI metadata setup during refresh: `off` disables it, `synchronize` writes capability files into .github, and `builtinLayer` enables the built-in capability projection."
+        },
+        "metaflow.logLevel": {
+          "type": "string",
+          "default": "info",
+          "order": 6,
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "description": "Output channel log verbosity"
+        },
+        "metaflow.hooksEnabled": {
+          "type": "boolean",
+          "default": true,
+          "order": 3,
+          "description": "Enable hook path injection into VS Code settings"
+        },
+        "metaflow.injection.modes": {
+          "type": "object",
+          "order": 4,
+          "title": "Injection Modes",
+          "default": {
+            "instructions": "settings",
+            "prompts": "settings",
+            "skills": "settings",
+            "agents": "settings",
+            "hooks": "settings"
+          },
+          "description": "Injection mode by artifact type (Item = artifact type, Value = mode)",
+          "additionalProperties": false,
+          "properties": {
+            "instructions": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "synchronize"
+              ],
+              "default": "settings",
+              "description": "Injection mode for instructions artifacts"
+            },
+            "prompts": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "synchronize"
+              ],
+              "default": "settings",
+              "description": "Injection mode for prompts artifacts"
+            },
+            "skills": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "synchronize"
+              ],
+              "default": "settings",
+              "description": "Injection mode for skills artifacts"
+            },
+            "agents": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "synchronize"
+              ],
+              "default": "settings",
+              "description": "Injection mode for agents artifacts"
+            },
+            "hooks": {
+              "type": "string",
+              "enum": [
+                "settings",
+                "synchronize"
+              ],
+              "default": "settings",
+              "description": "Injection mode for hooks artifacts"
+            }
+          }
+        },
+        "metaflow.injection.target": {
+          "type": "string",
+          "order": 5,
+          "enum": [
+            "user",
+            "workspace",
+            "workspaceFolder"
+          ],
+          "description": "VS Code configuration scope for settings-backed injection. Overrides the repository default (settingsInjectionTarget in config.jsonc). In single-folder workspaces, workspaceFolder is treated as workspace."
+        },
+        "metaflow.filesViewMode": {
+          "type": "string",
+          "default": "unified",
+          "order": 5,
+          "enum": [
+            "unified",
+            "repoTree"
+          ],
+          "description": "Display mode for the Effective Files view: unified hierarchy or grouped by repository"
+        },
+        "metaflow.layersViewMode": {
+          "type": "string",
+          "default": "flat",
+          "order": 7,
+          "enum": [
+            "flat",
+            "tree"
+          ],
+          "description": "Display mode for the Capabilities view: flat precedence list or hierarchical tree"
+        },
+        "metaflow.repoUpdateCheckInterval": {
+          "type": "string",
+          "default": "daily",
+          "order": 8,
+          "enum": [
+            "hourly",
+            "daily",
+            "weekly",
+            "monthly"
+          ],
+          "description": "How often MetaFlow checks git-backed metadata repositories for upstream updates in the background"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "metaflow.refresh",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "metaflow.active"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run bundle",
+    "precompile": "npm -C ../packages/engine run build",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "bundle": "npm run precompile && node esbuild.js --production",
+    "bundle:dev": "npm run precompile && node esbuild.js",
+    "watch:esbuild": "npm run precompile && node esbuild.js --watch",
+    "pretest": "npm run compile && npm run bundle:dev && npm run lint",
+    "gate:quick": "npm run compile && npm run lint && npm run test:unit",
+    "gate:integration": "npm run compile && npm run bundle:dev && npm run test:integration:run",
+    "lint": "eslint src --ext ts --max-warnings=-1",
+    "lint:monitor": "eslint src --ext ts --max-warnings=-1 --format json --output-file .eslint-report.json",
+    "lint:summary": "node ./scripts/lint-summary.js",
+    "lint:monitor:summary": "npm run lint:monitor && npm run lint:summary",
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "npm run compile && node ./out/test/runTest.js --unit",
+    "test:integration:run": "node ./out/test/runTest.js",
+    "test:integration": "npm run gate:integration",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node ./out/test/runTest.js",
+    "test:coverage:unit": "c8 --reporter=text node ./out/test/runTest.js --unit",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@metaflow/engine": "file:../packages/engine",
+    "jsonc-parser": "^3.3.1",
+    "markdown-it": "^14.1.1"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^3.7.1",
+    "c8": "^10.1.2",
+    "esbuild": "^0.27.3",
+    "eslint": "^8.54.0",
+    "glob": "^10.3.10",
+    "minimatch": "^9.0.3",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.2"
+  }
+}

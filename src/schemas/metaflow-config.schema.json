@@ -1,0 +1,278 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MetaFlow Configuration",
+  "type": "object",
+  "description": "MetaFlow config for AI metadata repository sources, capabilities, profiles, and injection behavior.",
+  "additionalProperties": false,
+  "properties": {
+    "metadataRepos": {
+      "type": "array",
+      "description": "Public authored repository sources with grouped capability entries.",
+      "items": {
+        "$ref": "#/definitions/namedMetadataRepo"
+      }
+    },
+    "metadataRepo": {
+      "$ref": "#/definitions/metadataRepo",
+      "description": "Legacy single-repo compatibility field. MetaFlow migrates this to metadataRepos[*].capabilities on load."
+    },
+    "layers": {
+      "type": "array",
+      "description": "Legacy single-repo compatibility field. MetaFlow migrates this to metadataRepos[*].capabilities on load.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "layerSources": {
+      "type": "array",
+      "description": "Legacy/internal compatibility field. MetaFlow migrates this to metadataRepos[*].capabilities on load.",
+      "items": {
+        "$ref": "#/definitions/layerSource"
+      }
+    },
+    "filters": {
+      "$ref": "#/definitions/filterConfig"
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named activation profiles.",
+      "additionalProperties": {
+        "$ref": "#/definitions/profileConfig"
+      }
+    },
+    "activeProfile": {
+      "type": "string",
+      "description": "Currently active profile name."
+    },
+    "injection": {
+      "$ref": "#/definitions/injectionConfig"
+    },
+    "settingsInjectionTarget": {
+      "type": "string",
+      "enum": ["user", "workspace", "workspaceFolder"],
+      "default": "workspace",
+      "description": "Default VS Code configuration scope for settings-backed injection. Can be overridden locally via the metaflow.injection.target VS Code setting."
+    },
+    "hooks": {
+      "$ref": "#/definitions/hooksConfig"
+    }
+  },
+  "anyOf": [
+    {
+      "required": ["metadataRepos"]
+    },
+    {
+      "required": ["metadataRepo"]
+    }
+  ],
+  "definitions": {
+    "metadataRepo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localPath"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "localPath": {
+          "type": "string",
+          "description": "Absolute path or workspace-relative path to the metadata repository clone."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Optional pinned commit SHA for determinism."
+        }
+      }
+    },
+    "repoDiscoveryConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "capabilitySource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path within the metadata repository, such as company/core."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this capability is enabled. Defaults to true when omitted."
+        },
+        "excludedTypes": {
+          "type": "array",
+          "description": "Artifact-type directories to exclude for this capability.",
+          "items": {
+            "type": "string",
+            "enum": ["instructions", "prompts", "agents", "skills"]
+          }
+        },
+        "injection": {
+          "$ref": "#/definitions/injectionConfig",
+          "description": "Capability-scoped injection mode overrides. Overrides repo-level and top-level defaults."
+        }
+      }
+    },
+    "namedMetadataRepo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "localPath"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this repository source."
+        },
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "localPath": {
+          "type": "string",
+          "description": "Absolute path or workspace-relative path to the metadata repository clone."
+        },
+        "commit": {
+          "type": "string",
+          "description": "Optional pinned commit SHA for determinism."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this repository source is enabled. Defaults to true when omitted."
+        },
+        "discover": {
+          "$ref": "#/definitions/repoDiscoveryConfig"
+        },
+        "capabilities": {
+          "type": "array",
+          "description": "Ordered capability entries for this repository.",
+          "items": {
+            "$ref": "#/definitions/capabilitySource"
+          }
+        },
+        "injection": {
+          "$ref": "#/definitions/injectionConfig",
+          "description": "Repo-scoped injection mode defaults. Overrides top-level defaults; overridden by capability-level."
+        }
+      }
+    },
+    "layerSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repoId", "path"],
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "excludedTypes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["instructions", "prompts", "agents", "skills"]
+          }
+        }
+      }
+    },
+    "filterConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "profileConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "enable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "injectionConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "prompts": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "skills": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "agents": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "hooks": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "chatmodes": {
+          "$ref": "#/definitions/injectionMode"
+        }
+      }
+    },
+    "injectionMode": {
+      "type": "string",
+      "enum": ["settings", "synchronize"]
+    },
+    "hooksConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preApply": {
+          "type": "string"
+        },
+        "postApply": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

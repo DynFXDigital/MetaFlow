@@ -1,0 +1,7 @@
+# MetaFlow managed state fixture
+.metaflow/*
+!.metaflow/config.jsonc
+
+# MetaFlow managed state (choose one rule):
+# Track .metaflow/config.jsonc; ignore .metaflow/state.json, or ignore .metaflow/ for local-only setup.
+.metaflow/
