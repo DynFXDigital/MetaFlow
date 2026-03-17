@@ -44,7 +44,6 @@ Notes:
 - `src/src/test/unit/` — Mocha unit tests (run in Node)
 - `src/src/test/integration/` — Mocha integration tests (run in Extension Host)
 - `src/test-workspace/` — Fixture for both test types
-- `.ai/plan/` — Private phase plans (read-only reference)
 
 ## Key Conventions
 

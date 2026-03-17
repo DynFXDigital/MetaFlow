@@ -38,10 +38,6 @@ test-results/
 # Integration test workspace runtime artifacts
 src/test-workspace/.github/
 src/test-workspace/.vscode/
-.ai/temp/
-.ai/plan/
-.ai/issues/
-.ai/tasks/
 
 # Local env
 .env
