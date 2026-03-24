@@ -416,7 +416,7 @@ suite('Command Helpers', () => {
         assert.strictEqual(normalizeLayersViewMode('other'), DEFAULT_LAYERS_VIEW_MODE);
     });
 
-    test('reads managed view mode defaults when no state exists', () => {
+    test('TC-0605: reads managed view mode defaults when no state exists', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
 
         try {
@@ -429,7 +429,7 @@ suite('Command Helpers', () => {
         }
     });
 
-    test('writes managed view modes to state.json without overwriting the other preference', () => {
+    test('TC-0606: writes managed view modes to state.json without overwriting the other preference', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
 
         try {

@@ -116,7 +116,7 @@ This metadata is shown in `metaflow status`, in the Capabilities/Effective Files
 
 ### Capabilities tree branch toggles
 
-When `metaflow.layersViewMode` is set to `tree`, folder rows in the Capabilities view expose checkboxes for branch-wide enable or disable operations.
+The Capabilities view uses hierarchical mode by default. When the view is in tree mode, folder rows expose checkboxes for branch-wide enable or disable operations.
 
 - Checking a folder enables every descendant capability under that path prefix.
 - Unchecking a folder disables every descendant capability under that path prefix.
@@ -179,6 +179,15 @@ description: Shared repository-level metadata for this workspace.
 | `metaflow.logLevel`                | `info`  | Log verbosity (debug/info/warn/error)                                                                                                        |
 | `metaflow.hooksEnabled`            | `true`  | Enable Copilot hooks injection                                                                                                               |
 | `metaflow.repoUpdateCheckInterval` | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                      |
+
+## Managed State
+
+MetaFlow persists local operational state in `.metaflow/state.json`.
+
+- Synchronized file tracking, hashes, and provenance state are stored there for drift detection and clean/apply workflows.
+- Capabilities view layout is persisted there and defaults to hierarchical `tree` mode.
+- Effective Files view layout is persisted there and defaults to flat `unified` mode.
+- These layout preferences are not stored in VS Code settings.
 
 ### Copilot settings injected by `MetaFlow: Apply`
 

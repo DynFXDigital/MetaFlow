@@ -14,6 +14,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 ### Changed
 
 - Capabilities tree folder rows now report deterministic mixed-branch state: checked means all descendants enabled, while unchecked covers partial and fully disabled branches.
+- Capabilities and Effective Files view layouts now persist in `.metaflow/state.json` instead of VS Code settings, with hierarchical Capabilities and flat Effective Files as the defaults.
 
 ## [0.1.0-preview.0] - 2026-03-03
 

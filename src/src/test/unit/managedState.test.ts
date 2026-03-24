@@ -119,7 +119,7 @@ suite('managedState', () => {
         assert.strictEqual(raw, expected);
     });
 
-    test('saveManagedState preserves canonical view preference ordering', () => {
+    test('TC-0604: saveManagedState preserves canonical view preference ordering', () => {
         const state = createEmptyState();
         state.lastApply = '2026-03-15T00:00:00.000Z';
         state.views = {
