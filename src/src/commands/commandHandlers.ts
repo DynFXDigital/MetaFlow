@@ -63,8 +63,6 @@ import {
     extractApplyCommandOptions,
     getProfileDisplayName,
     readManagedViewsState,
-    normalizeFilesViewMode,
-    normalizeLayersViewMode,
     normalizeAiMetadataAutoApplyMode,
     projectConfigForProfile,
     type FilesViewMode,
