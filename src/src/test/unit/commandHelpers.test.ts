@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    DEFAULT_FILES_VIEW_MODE,
+    DEFAULT_LAYERS_VIEW_MODE,
     DEFAULT_PROFILE_ID,
     addProfileToConfig,
     cloneProfileConfig,
@@ -27,6 +29,8 @@ import {
     normalizeLayerPath,
     normalizeAndDeduplicateLayerPaths,
     pruneStaleLayerSources,
+    readManagedViewsState,
+    writeManagedViewsState,
 } from '../../commands/commandHelpers';
 
 suite('Command Helpers', () => {
@@ -405,10 +409,46 @@ suite('Command Helpers', () => {
 
     test('normalizes view mode settings to safe defaults', () => {
         assert.strictEqual(normalizeFilesViewMode('repoTree'), 'repoTree');
-        assert.strictEqual(normalizeFilesViewMode('other'), 'unified');
+        assert.strictEqual(normalizeFilesViewMode('other'), DEFAULT_FILES_VIEW_MODE);
 
         assert.strictEqual(normalizeLayersViewMode('tree'), 'tree');
-        assert.strictEqual(normalizeLayersViewMode('other'), 'flat');
+        assert.strictEqual(normalizeLayersViewMode('flat'), 'flat');
+        assert.strictEqual(normalizeLayersViewMode('other'), DEFAULT_LAYERS_VIEW_MODE);
+    });
+
+    test('reads managed view mode defaults when no state exists', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
+
+        try {
+            assert.deepStrictEqual(readManagedViewsState(tmpDir), {
+                filesViewMode: DEFAULT_FILES_VIEW_MODE,
+                layersViewMode: DEFAULT_LAYERS_VIEW_MODE,
+            });
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    test('writes managed view modes to state.json without overwriting the other preference', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
+
+        try {
+            const first = writeManagedViewsState(tmpDir, { layersViewMode: 'flat' });
+            assert.deepStrictEqual(first, {
+                filesViewMode: DEFAULT_FILES_VIEW_MODE,
+                layersViewMode: 'flat',
+            });
+
+            const second = writeManagedViewsState(tmpDir, { filesViewMode: 'repoTree' });
+            assert.deepStrictEqual(second, {
+                filesViewMode: 'repoTree',
+                layersViewMode: 'flat',
+            });
+
+            assert.deepStrictEqual(readManagedViewsState(tmpDir), second);
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
     });
 
     test('normalizes ai metadata auto-apply mode settings', () => {

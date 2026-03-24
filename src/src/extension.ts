@@ -29,7 +29,11 @@ import {
     loadCapabilityDetailModel,
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
-import { extractLayerPath, extractRepoId } from './commands/commandHelpers';
+import {
+    extractLayerPath,
+    extractRepoId,
+    readManagedViewsState,
+} from './commands/commandHelpers';
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
@@ -38,15 +42,13 @@ type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
 
 function getFilesViewMode(): FilesViewMode {
-    return vscode.workspace
-        .getConfiguration('metaflow')
-        .get<FilesViewMode>('filesViewMode', 'unified');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return readManagedViewsState(workspaceRoot).filesViewMode;
 }
 
 function getLayersViewMode(): LayersViewMode {
-    return vscode.workspace
-        .getConfiguration('metaflow')
-        .get<LayersViewMode>('layersViewMode', 'flat');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return readManagedViewsState(workspaceRoot).layersViewMode;
 }
 
 function workspaceHasMetaFlowConfig(): boolean {
@@ -162,8 +164,16 @@ export function activate(context: vscode.ExtensionContext): void {
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
 
-    vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', getFilesViewMode());
-    vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', getLayersViewMode());
+    const syncManagedViewModeContext = (): void => {
+        const filesMode = getFilesViewMode();
+        const layersMode = getLayersViewMode();
+        vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', filesMode);
+        vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', layersMode);
+        filesTreeViewProvider.refresh();
+        layersTreeViewProvider.refresh();
+    };
+
+    syncManagedViewModeContext();
     vscode.commands.executeCommand('setContext', 'metaflow.hasGitBackedRepo', false);
     vscode.commands.executeCommand(
         'setContext',
@@ -395,16 +405,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (e.affectsConfiguration('metaflow.aiMetadataAutoApplyMode')) {
                 vscode.commands.executeCommand('metaflow.refresh');
             }
-            if (e.affectsConfiguration('metaflow.filesViewMode')) {
-                const mode = getFilesViewMode();
-                vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', mode);
-                filesTreeViewProvider.refresh();
-            }
-            if (e.affectsConfiguration('metaflow.layersViewMode')) {
-                const mode = getLayersViewMode();
-                vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', mode);
-                layersTreeViewProvider.refresh();
-            }
         }),
     );
 
@@ -416,6 +416,9 @@ export function activate(context: vscode.ExtensionContext): void {
     for (const folder of workspaceFolders) {
         const configWatcher = vscode.workspace.createFileSystemWatcher(
             new vscode.RelativePattern(folder, '.metaflow/config.jsonc'),
+        );
+        const stateWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, '.metaflow/state.json'),
         );
 
         const registerWatcher = (watcher: vscode.FileSystemWatcher, label: string) => {
@@ -460,6 +463,21 @@ export function activate(context: vscode.ExtensionContext): void {
         };
 
         registerWatcher(configWatcher, '.metaflow/config.jsonc');
+        context.subscriptions.push(
+            stateWatcher,
+            stateWatcher.onDidCreate(() => {
+                logInfo('Managed state created (.metaflow/state.json); refreshing view mode contexts.');
+                syncManagedViewModeContext();
+            }),
+            stateWatcher.onDidChange(() => {
+                logInfo('Managed state changed (.metaflow/state.json); refreshing view mode contexts.');
+                syncManagedViewModeContext();
+            }),
+            stateWatcher.onDidDelete(() => {
+                logInfo('Managed state deleted (.metaflow/state.json); restoring default view modes.');
+                syncManagedViewModeContext();
+            }),
+        );
     }
 
     // Set context for keybindings/menus

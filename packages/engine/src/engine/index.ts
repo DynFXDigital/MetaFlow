@@ -50,7 +50,7 @@ export type {
     PendingChange,
 } from './types';
 export type { ProvenanceData } from './provenanceHeader';
-export type { ManagedState, ManagedFileState } from './managedState';
+export type { ManagedState, ManagedFileState, ManagedViewsState } from './managedState';
 export type { DriftStatus, DriftResult } from './driftDetector';
 export type { ApplyOptions, ApplyResult } from './synchronizer';
 export type { SettingsEntry } from './settingsInjector';

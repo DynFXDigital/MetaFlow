@@ -62,6 +62,7 @@ import {
     extractRefreshCommandOptions,
     extractApplyCommandOptions,
     getProfileDisplayName,
+    readManagedViewsState,
     normalizeFilesViewMode,
     normalizeLayersViewMode,
     normalizeAiMetadataAutoApplyMode,
@@ -72,6 +73,7 @@ import {
     normalizeAndDeduplicateLayerPaths,
     pruneStaleLayerSources,
     updateProfileLayerOverride,
+    writeManagedViewsState,
 } from './commandHelpers';
 import { ensureMetaFlowAiMetadataCache, scaffoldMetaFlowAiMetadata } from './starterMetadata';
 import {
@@ -114,8 +116,6 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize'> =
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
-const FILES_VIEW_MODE_SETTING_KEY = 'filesViewMode';
-const LAYERS_VIEW_MODE_SETTING_KEY = 'layersViewMode';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
 const BUILT_IN_CAPABILITY_LAYER_PATH = '.github';
 const ENABLE_METAFLOW_AI_METADATA_ACTION = 'Enable Now';
@@ -4630,16 +4630,14 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleFilesViewMode', async () => {
             const ws = getWorkspace();
-            const config = vscode.workspace.getConfiguration('metaflow', ws?.uri);
-            const currentMode = normalizeFilesViewMode(
-                config.get<unknown>(FILES_VIEW_MODE_SETTING_KEY, 'unified'),
-            );
-            const nextMode: FilesViewMode = currentMode === 'unified' ? 'repoTree' : 'unified';
-            const target = ws
-                ? vscode.ConfigurationTarget.Workspace
-                : vscode.ConfigurationTarget.Global;
+            if (!ws) {
+                return;
+            }
 
-            await config.update(FILES_VIEW_MODE_SETTING_KEY, nextMode, target);
+            const currentMode = readManagedViewsState(ws.uri.fsPath).filesViewMode;
+            const nextMode: FilesViewMode = currentMode === 'unified' ? 'repoTree' : 'unified';
+
+            writeManagedViewsState(ws.uri.fsPath, { filesViewMode: nextMode });
             await vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', nextMode);
             logInfo(`Effective Files view mode set to: ${nextMode}`);
         }),
@@ -4649,16 +4647,14 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleLayersViewMode', async () => {
             const ws = getWorkspace();
-            const config = vscode.workspace.getConfiguration('metaflow', ws?.uri);
-            const currentMode = normalizeLayersViewMode(
-                config.get<unknown>(LAYERS_VIEW_MODE_SETTING_KEY, 'flat'),
-            );
-            const nextMode: LayersViewMode = currentMode === 'flat' ? 'tree' : 'flat';
-            const target = ws
-                ? vscode.ConfigurationTarget.Workspace
-                : vscode.ConfigurationTarget.Global;
+            if (!ws) {
+                return;
+            }
 
-            await config.update(LAYERS_VIEW_MODE_SETTING_KEY, nextMode, target);
+            const currentMode = readManagedViewsState(ws.uri.fsPath).layersViewMode;
+            const nextMode: LayersViewMode = currentMode === 'flat' ? 'tree' : 'flat';
+
+            writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
             await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
             logInfo(`Layers view mode set to: ${nextMode}`);
         }),

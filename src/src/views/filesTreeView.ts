@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EffectiveFile, getArtifactType, ArtifactType, parseFrontmatter } from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
+import { readManagedViewsState } from '../commands/commandHelpers';
 import {
     BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
@@ -362,9 +363,8 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     constructor(
         private state: ExtensionState,
         private readonly modeResolver: () => FilesViewMode = () =>
-            vscode.workspace
-                .getConfiguration('metaflow')
-                .get<FilesViewMode>('filesViewMode', 'unified'),
+            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
+                .filesViewMode,
     ) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
     }

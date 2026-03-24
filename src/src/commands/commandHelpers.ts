@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { resolvePathFromWorkspace } from '@metaflow/engine';
+import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@metaflow/engine';
 import type {
     ExcludableArtifactType,
     MetaFlowConfig,
@@ -29,6 +29,14 @@ export type AiMetadataAutoApplyMode = 'off' | 'synchronize' | 'builtinLayer';
 
 export type FilesViewMode = 'unified' | 'repoTree';
 export type LayersViewMode = 'flat' | 'tree';
+
+export const DEFAULT_FILES_VIEW_MODE: FilesViewMode = 'unified';
+export const DEFAULT_LAYERS_VIEW_MODE: LayersViewMode = 'tree';
+
+export interface ManagedViewsState {
+    filesViewMode: FilesViewMode;
+    layersViewMode: LayersViewMode;
+}
 
 export const DEFAULT_PROFILE_ID = 'default';
 
@@ -524,11 +532,49 @@ export function extractRepoScopeOptions(arg: unknown): RepoScopeOptions {
 }
 
 export function normalizeFilesViewMode(value: unknown): FilesViewMode {
-    return value === 'repoTree' ? 'repoTree' : 'unified';
+    return value === 'repoTree' ? 'repoTree' : DEFAULT_FILES_VIEW_MODE;
 }
 
 export function normalizeLayersViewMode(value: unknown): LayersViewMode {
-    return value === 'tree' ? 'tree' : 'flat';
+    if (value === 'flat' || value === 'tree') {
+        return value;
+    }
+
+    return DEFAULT_LAYERS_VIEW_MODE;
+}
+
+export function readManagedViewsState(workspaceRoot?: string): ManagedViewsState {
+    if (!workspaceRoot) {
+        return {
+            filesViewMode: DEFAULT_FILES_VIEW_MODE,
+            layersViewMode: DEFAULT_LAYERS_VIEW_MODE,
+        };
+    }
+
+    const managedState = loadManagedState(workspaceRoot);
+    return {
+        filesViewMode: normalizeFilesViewMode(managedState.views?.filesViewMode),
+        layersViewMode: normalizeLayersViewMode(managedState.views?.layersViewMode),
+    };
+}
+
+export function writeManagedViewsState(
+    workspaceRoot: string,
+    patch: Partial<Record<keyof ManagedViewsState, unknown>>,
+): ManagedViewsState {
+    const managedState = loadManagedState(workspaceRoot);
+    const nextViews: ManagedViewsState = {
+        filesViewMode: normalizeFilesViewMode(
+            patch.filesViewMode ?? managedState.views?.filesViewMode,
+        ),
+        layersViewMode: normalizeLayersViewMode(
+            patch.layersViewMode ?? managedState.views?.layersViewMode,
+        ),
+    };
+
+    managedState.views = nextViews;
+    saveManagedState(workspaceRoot, managedState);
+    return nextViews;
 }
 
 export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAutoApplyMode {

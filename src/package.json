@@ -677,26 +677,6 @@
           ],
           "description": "VS Code configuration scope for settings-backed injection. Overrides the repository default (settingsInjectionTarget in config.jsonc). In single-folder workspaces, workspaceFolder is treated as workspace."
         },
-        "metaflow.filesViewMode": {
-          "type": "string",
-          "default": "unified",
-          "order": 5,
-          "enum": [
-            "unified",
-            "repoTree"
-          ],
-          "description": "Display mode for the Effective Files view: unified hierarchy or grouped by repository"
-        },
-        "metaflow.layersViewMode": {
-          "type": "string",
-          "default": "flat",
-          "order": 7,
-          "enum": [
-            "flat",
-            "tree"
-          ],
-          "description": "Display mode for the Capabilities view: flat precedence list or hierarchical tree"
-        },
         "metaflow.repoUpdateCheckInterval": {
           "type": "string",
           "default": "daily",

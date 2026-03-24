@@ -118,4 +118,31 @@ suite('managedState', () => {
 
         assert.strictEqual(raw, expected);
     });
+
+    test('saveManagedState preserves canonical view preference ordering', () => {
+        const state = createEmptyState();
+        state.lastApply = '2026-03-15T00:00:00.000Z';
+        state.views = {
+            layersViewMode: 'tree',
+            filesViewMode: 'unified',
+        };
+
+        saveManagedState(tmpDir, state);
+
+        const raw = fs.readFileSync(path.join(tmpDir, '.metaflow', 'state.json'), 'utf-8');
+        const expected = [
+            '{',
+            '  "version": 1,',
+            '  "lastApply": "2026-03-15T00:00:00.000Z",',
+            '  "files": {},',
+            '  "views": {',
+            '    "filesViewMode": "unified",',
+            '    "layersViewMode": "tree"',
+            '  }',
+            '}',
+            '',
+        ].join('\n');
+
+        assert.strictEqual(raw, expected);
+    });
 });

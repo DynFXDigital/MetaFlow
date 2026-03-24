@@ -192,6 +192,14 @@ function createCommandHandlersHarness(initResult: boolean) {
                 extractRepoScopeOptions: () => ({}),
                 extractRefreshCommandOptions: (arg: unknown) => arg ?? {},
                 extractApplyCommandOptions: (arg: unknown) => arg ?? {},
+                readManagedViewsState: () => ({
+                    filesViewMode: 'unified',
+                    layersViewMode: 'tree',
+                }),
+                writeManagedViewsState: () => ({
+                    filesViewMode: 'unified',
+                    layersViewMode: 'tree',
+                }),
                 normalizeFilesViewMode: () => 'unified',
                 normalizeLayersViewMode: () => 'flat',
                 normalizeAiMetadataAutoApplyMode: () => 'off',

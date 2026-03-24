@@ -25,6 +25,14 @@ export interface ManagedFileState {
     sourceCommit?: string;
 }
 
+/** Extension-owned UI state persisted alongside managed file state. */
+export interface ManagedViewsState {
+    /** Display mode for the Effective Files view. */
+    filesViewMode?: string;
+    /** Display mode for the Capabilities view. */
+    layersViewMode?: string;
+}
+
 /** Full managed state document. */
 export interface ManagedState {
     /** Schema version for forward compatibility. */
@@ -33,6 +41,8 @@ export interface ManagedState {
     lastApply: string;
     /** Map of relative path → file state. */
     files: Record<string, ManagedFileState>;
+    /** Optional extension-owned UI state. */
+    views?: ManagedViewsState;
 }
 
 /** Default state directory relative to workspace root. */
@@ -67,16 +77,37 @@ function canonicalizeManagedFileState(state: ManagedFileState): ManagedFileState
     return ordered;
 }
 
+function canonicalizeManagedViewsState(state: ManagedViewsState | undefined):
+    | ManagedViewsState
+    | undefined {
+    if (!state) {
+        return undefined;
+    }
+
+    const ordered: ManagedViewsState = {};
+    if (typeof state.filesViewMode === 'string' && state.filesViewMode.trim().length > 0) {
+        ordered.filesViewMode = state.filesViewMode;
+    }
+    if (typeof state.layersViewMode === 'string' && state.layersViewMode.trim().length > 0) {
+        ordered.layersViewMode = state.layersViewMode;
+    }
+
+    return Object.keys(ordered).length > 0 ? ordered : undefined;
+}
+
 function canonicalizeManagedState(state: ManagedState): ManagedState {
     const files: Record<string, ManagedFileState> = {};
     for (const relativePath of Object.keys(state.files ?? {}).sort()) {
         files[relativePath] = canonicalizeManagedFileState(state.files[relativePath]);
     }
 
+    const views = canonicalizeManagedViewsState(state.views);
+
     return {
         version: state.version,
         lastApply: state.lastApply,
         files,
+        ...(views ? { views } : {}),
     };
 }
 

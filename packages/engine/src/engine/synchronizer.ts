@@ -211,6 +211,9 @@ export function clean(workspaceRoot: string, outputDir?: string): ApplyResult {
 
     // Reset state
     const emptyState = createEmptyState();
+    if (state.views) {
+        emptyState.views = { ...state.views };
+    }
     // Preserve drifted files in state
     for (const rel of result.skipped) {
         if (state.files[rel]) {

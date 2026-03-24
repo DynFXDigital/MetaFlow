@@ -20,7 +20,7 @@ import {
     isBuiltInCapabilityActive,
     resolveBuiltInCapabilityDisplayName,
 } from '../builtInCapability';
-import { projectConfigForProfile } from '../commands/commandHelpers';
+import { projectConfigForProfile, readManagedViewsState } from '../commands/commandHelpers';
 import {
     ArtifactSummaryCounts,
     ArtifactSummary,
@@ -704,9 +704,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     constructor(
         private state: ExtensionState,
         private readonly modeResolver: () => LayersViewMode = () =>
-            vscode.workspace
-                .getConfiguration('metaflow')
-                .get<LayersViewMode>('layersViewMode', 'flat'),
+            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
+                .layersViewMode,
     ) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
     }
