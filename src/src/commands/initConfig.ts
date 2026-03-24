@@ -7,7 +7,7 @@
  * - a new empty directory scaffold.
  */
 
-import { execFile } from 'child_process';
+import { execFile, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
@@ -23,6 +23,100 @@ import {
 } from './initConfigHelpers';
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Default timeout for git clone operations (10 minutes).
+ * Can be increased for very large repositories.
+ */
+const DEFAULT_CLONE_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
+ * Execute a git clone with cancellation support and timeout protection.
+ * @param url Repository URL to clone
+ * @param targetPath Target directory for clone
+ * @param token Cancellation token
+ * @returns Promise that resolves on success or rejects on timeout/cancellation
+ */
+async function execCloneWithTimeout(
+    url: string,
+    targetPath: string,
+    token: vscode.CancellationToken,
+    timeoutMs: number = DEFAULT_CLONE_TIMEOUT_MS,
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        let childProcess: ChildProcess | null = null;
+        let timeoutHandle: NodeJS.Timeout | null = null;
+        let cancelled = false;
+
+        // Handle cancellation token
+        const cancellationSubscription = token.onCancellationRequested(() => {
+            cancelled = true;
+            if (childProcess && childProcess.pid) {
+                try {
+                    // Kill the process tree (works cross-platform via SIGTERM)
+                    process.kill(-childProcess.pid);
+                } catch (e) {
+                    // Process may have already exited, ignore
+                }
+            }
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+            reject(new Error('Clone operation cancelled by user'));
+        });
+
+        // Set up timeout
+        timeoutHandle = setTimeout(() => {
+            if (childProcess && childProcess.pid && !cancelled) {
+                try {
+                    process.kill(-childProcess.pid);
+                } catch (e) {
+                    // Process may have already exited, ignore
+                }
+            }
+            cancellationSubscription.dispose();
+            reject(
+                new Error(
+                    `Clone operation timed out after ${Math.round(timeoutMs / 1000)} seconds. ` +
+                    'Try checking your network connection or using a smaller repository.',
+                ),
+            );
+        }, timeoutMs);
+
+        // Execute git clone
+        try {
+            childProcess = execFile(
+                'git',
+                ['clone', url, targetPath],
+                { maxBuffer: 10 * 1024 * 1024 }, // 10MB buffer for large outputs
+                (error) => {
+                    if (timeoutHandle) {
+                        clearTimeout(timeoutHandle);
+                    }
+                    cancellationSubscription.dispose();
+
+                    if (error) {
+                        if (cancelled) {
+                            reject(new Error('Clone operation cancelled by user'));
+                        } else if (error.signal) {
+                            reject(new Error(`Clone process terminated: ${error.signal}`));
+                        } else {
+                            reject(error);
+                        }
+                    } else {
+                        resolve();
+                    }
+                },
+            );
+        } catch (error) {
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+            cancellationSubscription.dispose();
+            reject(error);
+        }
+    });
+}
 
 export type InitSourceMode = 'existing' | 'url' | 'empty';
 
@@ -125,19 +219,54 @@ async function promptUrlSource(
 
     await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(cloneTarget.fsPath)));
 
+    let cloneSucceeded = false;
     try {
         await vscode.window.withProgress(
             {
                 location: vscode.ProgressLocation.Notification,
                 title: 'MetaFlow: Cloning metadata repository...',
+                cancellable: true, // Allows user to click "Cancel" button
             },
-            async () => {
-                await execFileAsync('git', ['clone', metadataUrl, cloneTarget.fsPath]);
+            async (progress, token) => {
+                progress.report({ message: 'Starting clone...' });
+                try {
+                    await execCloneWithTimeout(metadataUrl, cloneTarget.fsPath, token);
+                    cloneSucceeded = true;
+                    progress.report({ message: 'Clone complete!' });
+                } catch (error) {
+                    throw error;
+                }
             },
         );
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`MetaFlow: Failed to clone metadata repo. ${message}`);
+        
+        // If clone was cancelled, offer to clean up partial clone
+        if (message.includes('cancelled')) {
+            vscode.window.showWarningMessage(
+                `Clone was cancelled. Partial clone may remain at ${cloneTarget.fsPath}`,
+            );
+            // Optionally clean up partial clone
+            try {
+                const stat = await vscode.workspace.fs.stat(cloneTarget);
+                if (stat.type === vscode.FileType.Directory) {
+                    const cleanup = await vscode.window.showQuickPick(['Clean up', 'Keep'], {
+                        placeHolder: 'Would you like to delete the partial clone?',
+                    });
+                    if (cleanup === 'Clean up') {
+                        await vscode.workspace.fs.delete(cloneTarget, { recursive: true });
+                    }
+                }
+            } catch {
+                // Directory might not exist, ignore
+            }
+        } else {
+            vscode.window.showErrorMessage(`MetaFlow: Failed to clone metadata repo. ${message}`);
+        }
+        return undefined;
+    }
+
+    if (!cloneSucceeded) {
         return undefined;
     }
 
