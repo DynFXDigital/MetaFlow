@@ -69,6 +69,14 @@ function cleanupDir(dir: string): void {
     fs.rmSync(dir, { recursive: true, force: true });
 }
 
+function createDirectoryLink(targetPath: string, linkPath: string): void {
+    fs.symlinkSync(
+        path.resolve(targetPath),
+        linkPath,
+        process.platform === 'win32' ? 'junction' : 'dir',
+    );
+}
+
 function expectedSynchronizedPath(
     relativePath: string,
     sourceLayer = 'core',
@@ -1104,6 +1112,22 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.ok(layerIds.includes('company/dynamic'));
     });
 
+    it('discovers layers when .github is mounted through a directory link', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const backingGithub = path.join(tmpDir, 'mounted', 'company-core', '.github');
+
+        fs.mkdirSync(path.join(repoRoot, 'company', 'core'), { recursive: true });
+        fs.mkdirSync(path.join(backingGithub, 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(backingGithub, 'instructions', 'mounted.instructions.md'),
+            '# Mounted',
+        );
+        createDirectoryLink(backingGithub, path.join(repoRoot, 'company', 'core', '.github'));
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('company/core'));
+    });
+
     it('skips runtime discovery when resolve option disables discovery', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
@@ -1159,6 +1183,34 @@ describe('Engine: overlay multi-repo resolution', () => {
         const layerIds = layers.map((layer) => layer.layerId);
         assert.ok(layerIds.includes('company/base'));
         assert.ok(layerIds.includes('company/dynamic'));
+    });
+
+    it('resolves files from a layer whose .github directory is mounted through a directory link', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'company', 'core');
+        const backingGithub = path.join(tmpDir, 'mounted', 'company-core', '.github');
+
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.mkdirSync(path.join(backingGithub, 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(backingGithub, 'instructions', 'mounted.instructions.md'),
+            '# Mounted',
+        );
+        createDirectoryLink(backingGithub, path.join(layerRoot, '.github'));
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [{ id: 'company', localPath: 'repos/company' }],
+            layerSources: [{ repoId: 'company', path: 'company/core' }],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].layerId, 'company/company/core');
+        assert.deepStrictEqual(
+            layers[0].files.map((file) => file.relativePath),
+            ['instructions/mounted.instructions.md'],
+        );
     });
 
     it('forces discovery in single-repo mode for primary repo id', () => {

@@ -106,6 +106,45 @@ export function buildEffectiveFileMap(layers: LayerContent[]): Map<string, Effec
     return fileMap;
 }
 
+type EntryKind = 'directory' | 'file' | 'other';
+
+function getCanonicalDirectoryKey(dirPath: string): string | undefined {
+    try {
+        const canonical = fs.realpathSync(dirPath);
+        return process.platform === 'win32' ? canonical.toLowerCase() : canonical;
+    } catch {
+        return undefined;
+    }
+}
+
+function getEntryKind(entry: fs.Dirent, fullPath: string): EntryKind {
+    if (entry.isDirectory()) {
+        return 'directory';
+    }
+
+    if (entry.isFile()) {
+        return 'file';
+    }
+
+    if (!entry.isSymbolicLink()) {
+        return 'other';
+    }
+
+    try {
+        const stats = fs.statSync(fullPath);
+        if (stats.isDirectory()) {
+            return 'directory';
+        }
+        if (stats.isFile()) {
+            return 'file';
+        }
+    } catch {
+        return 'other';
+    }
+
+    return 'other';
+}
+
 // ── Internal helpers ───────────────────────────────────────────────
 
 function resolveSingleRepoLayers(
@@ -251,19 +290,38 @@ function resolveMultiRepoLayers(
 /**
  * Recursively walk a directory and collect all files (relative to layerRoot).
  */
-function walkDirectory(dirPath: string, layerRoot: string): LayerFile[] {
+function walkDirectory(
+    dirPath: string,
+    layerRoot: string,
+    visitedDirectories = new Set<string>(),
+): LayerFile[] {
     const files: LayerFile[] = [];
 
     if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
         return files;
     }
 
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const canonicalDir = getCanonicalDirectoryKey(dirPath);
+    if (canonicalDir) {
+        if (visitedDirectories.has(canonicalDir)) {
+            return files;
+        }
+        visitedDirectories.add(canonicalDir);
+    }
+
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+        return files;
+    }
+
     for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
-        if (entry.isDirectory()) {
-            files.push(...walkDirectory(fullPath, layerRoot));
-        } else if (entry.isFile()) {
+        const entryKind = getEntryKind(entry, fullPath);
+        if (entryKind === 'directory') {
+            files.push(...walkDirectory(fullPath, layerRoot, visitedDirectories));
+        } else if (entryKind === 'file') {
             const relativePath = normalizeLayerRelativePath(path.relative(layerRoot, fullPath));
             if (!isKnownArtifactPath(relativePath)) {
                 continue;
@@ -315,6 +373,7 @@ function isKnownArtifactPath(relativePath: string): boolean {
  */
 export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[] = []): string[] {
     const discovered = new Set<string>();
+    const visitedDirectories = new Set<string>();
 
     if (!fs.existsSync(repoRoot)) {
         return [];
@@ -332,6 +391,14 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
     }
 
     const walk = (currentDir: string): void => {
+        const canonicalDir = getCanonicalDirectoryKey(currentDir);
+        if (canonicalDir) {
+            if (visitedDirectories.has(canonicalDir)) {
+                return;
+            }
+            visitedDirectories.add(canonicalDir);
+        }
+
         const currentBase = path.basename(currentDir);
         if (currentBase === '.github') {
             // Parent directory is the layer boundary for .github-based packs.
@@ -361,13 +428,14 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         }
 
         for (const entry of entries) {
-            if (!entry.isDirectory()) {
+            const fullPath = path.join(currentDir, entry.name);
+            if (getEntryKind(entry, fullPath) !== 'directory') {
                 continue;
             }
             if (entry.name === '.git' || entry.name === 'node_modules') {
                 continue;
             }
-            walk(path.join(currentDir, entry.name));
+            walk(fullPath);
         }
     };
 
