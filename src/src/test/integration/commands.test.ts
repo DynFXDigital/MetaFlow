@@ -1083,6 +1083,53 @@ suite('Command Execution', () => {
         }
     });
 
+    test('status reports missing metadata repo paths when effective files resolve empty', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const missingRepoConfig = {
+            metadataRepos: [
+                {
+                    id: 'missing-meta',
+                    localPath: '.ai/missing-mounted-metadata',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'missing-meta', path: '.', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(missingRepoConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const lines = (await vscode.commands.executeCommand('metaflow.status')) as
+                | string[]
+                | undefined;
+            assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
+
+            const warningLine = lines.find((line) => line.includes('REPO_PATH_MISSING'));
+            assert.ok(
+                warningLine,
+                'Status should include a warning when a configured metadata repo path is missing',
+            );
+            assert.ok(
+                warningLine?.includes('.ai/missing-mounted-metadata'),
+                `Expected missing repo warning to include configured localPath, got: ${warningLine}`,
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('TC-0317: openCapabilityDetails reuses a capability details webview panel in the current editor group (Verifies: REQ-0311, REQ-0412)', async function () {
         this.timeout(15000);
 

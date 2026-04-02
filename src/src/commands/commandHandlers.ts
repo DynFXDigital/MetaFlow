@@ -1187,6 +1187,137 @@ function collectConfiguredCapabilityWarnings(
     return Array.from(warnings);
 }
 
+type DirectoryAccessibility =
+    | { state: 'ok' }
+    | { state: 'missing' }
+    | { state: 'not-directory' }
+    | { state: 'unreadable'; detail: string };
+
+function inspectDirectoryAccessibility(targetPath: string): DirectoryAccessibility {
+    try {
+        const stats = fs.statSync(targetPath);
+        if (!stats.isDirectory()) {
+            return { state: 'not-directory' };
+        }
+
+        return { state: 'ok' };
+    } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException)?.code;
+        if (code === 'ENOENT') {
+            return { state: 'missing' };
+        }
+
+        const detail = err instanceof Error ? err.message : String(err);
+        return { state: 'unreadable', detail };
+    }
+}
+
+function formatRepoPathWarning(
+    repoId: string,
+    configuredLocalPath: string,
+    accessibility: Exclude<DirectoryAccessibility, { state: 'ok' }>,
+): string {
+    const normalizedPath = configuredLocalPath.replace(/\\/g, '/');
+
+    switch (accessibility.state) {
+        case 'missing':
+            return `[REPO_PATH_MISSING] Metadata repo "${repoId}" localPath "${normalizedPath}" does not exist or is not currently mounted.`;
+        case 'not-directory':
+            return `[REPO_PATH_INVALID] Metadata repo "${repoId}" localPath "${normalizedPath}" is not a directory.`;
+        case 'unreadable':
+            return `[REPO_PATH_UNREADABLE] Metadata repo "${repoId}" localPath "${normalizedPath}" could not be read: ${accessibility.detail}`;
+    }
+}
+
+function formatLayerPathWarning(
+    repoId: string,
+    layerPath: string,
+    accessibility: Exclude<DirectoryAccessibility, { state: 'ok' }>,
+): string {
+    const normalizedLayerPath = layerPath.replace(/\\/g, '/');
+    const layerLabel = `${repoId}/${normalizedLayerPath}`;
+
+    switch (accessibility.state) {
+        case 'missing':
+            return `[LAYER_PATH_MISSING] Configured layer "${layerLabel}" does not exist or is not currently mounted.`;
+        case 'not-directory':
+            return `[LAYER_PATH_INVALID] Configured layer "${layerLabel}" is not a directory.`;
+        case 'unreadable':
+            return `[LAYER_PATH_UNREADABLE] Configured layer "${layerLabel}" could not be read: ${accessibility.detail}`;
+    }
+}
+
+function collectConfiguredSourceWarnings(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): string[] {
+    const warnings = new Set<string>();
+
+    const appendWarningsForRepoLayers = (
+        repoId: string,
+        configuredLocalPath: string,
+        layerPaths: string[],
+    ): void => {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, configuredLocalPath);
+        const repoAccessibility = inspectDirectoryAccessibility(repoRoot);
+        if (repoAccessibility.state !== 'ok') {
+            warnings.add(formatRepoPathWarning(repoId, configuredLocalPath, repoAccessibility));
+            return;
+        }
+
+        for (const layerPath of layerPaths) {
+            const layerAbsPath = path.join(repoRoot, layerPath);
+            const layerAccessibility = inspectDirectoryAccessibility(layerAbsPath);
+            if (layerAccessibility.state === 'ok') {
+                continue;
+            }
+
+            warnings.add(formatLayerPathWarning(repoId, layerPath, layerAccessibility));
+        }
+    };
+
+    if (config.metadataRepos && config.layerSources) {
+        const repoById = new Map(config.metadataRepos.map((repo) => [repo.id, repo]));
+        const layerPathsByRepoId = new Map<string, string[]>();
+
+        for (const source of config.layerSources) {
+            const existing = layerPathsByRepoId.get(source.repoId) ?? [];
+            existing.push(source.path);
+            layerPathsByRepoId.set(source.repoId, existing);
+        }
+
+        for (const repo of config.metadataRepos) {
+            if (repo.enabled === false) {
+                continue;
+            }
+
+            appendWarningsForRepoLayers(
+                repo.id,
+                repo.localPath,
+                layerPathsByRepoId.get(repo.id) ?? [],
+            );
+        }
+
+        for (const [repoId] of layerPathsByRepoId) {
+            if (repoById.has(repoId)) {
+                continue;
+            }
+
+            warnings.add(
+                `[LAYER_SOURCE_REPO_MISSING] Configured layer source references repoId "${repoId}", but no enabled metadata repo with that id is available.`,
+            );
+        }
+
+        return Array.from(warnings);
+    }
+
+    if (config.metadataRepo && config.layers) {
+        appendWarningsForRepoLayers('primary', config.metadataRepo.localPath, config.layers);
+    }
+
+    return Array.from(warnings);
+}
+
 function cloneConfig(config: MetaFlowConfig): MetaFlowConfig {
     return JSON.parse(JSON.stringify(config)) as MetaFlowConfig;
 }
@@ -1665,6 +1796,13 @@ function resolveOverlay(
                 capabilityWarnings.push(message);
                 logWarn(message);
             }
+        }
+    }
+
+    for (const warning of collectConfiguredSourceWarnings(config, workspaceRoot)) {
+        if (!capabilityWarnings.includes(warning)) {
+            capabilityWarnings.push(warning);
+            logWarn(warning);
         }
     }
 
