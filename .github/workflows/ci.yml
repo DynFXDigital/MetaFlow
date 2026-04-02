@@ -43,7 +43,7 @@ jobs:
         if: >
           (github.event_name == 'pull_request' && (github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))) ||
           (github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')))
-        run: npm -w metaflow run lint
+        run: npm -w metaflow-ai run lint
 
       - name: Lint (advisory on develop)
         id: lint_advisory
@@ -54,9 +54,9 @@ jobs:
         shell: bash
         run: |
           set +e
-          npm -w metaflow run lint:monitor
+          npm -w metaflow-ai run lint:monitor
           lint_exit=$?
-          npm -w metaflow run lint:summary
+          npm -w metaflow-ai run lint:summary
           exit $lint_exit
 
       - name: Lint advisory notice
