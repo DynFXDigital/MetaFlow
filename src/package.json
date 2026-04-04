@@ -2,7 +2,7 @@
   "name": "metaflow-ai",
   "displayName": "MetaFlow: AI Metadata Overlay",
   "description": "Layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "dynfxdigital",
   "license": "MIT",
   "repository": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/dynfxdigital/MetaFlow.git"
   },
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.110.0"
   },
   "categories": [
     "Other"
