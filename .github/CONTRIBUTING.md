@@ -45,6 +45,8 @@ npm run test:integration
 
 - No runtime `.env` file is required for normal development, testing, or extension usage.
 - Do not commit secrets, private keys, or internal service endpoints.
+- Use `npm ci` for clean verification and packaging runs; use `npm install` only when intentionally changing dependencies and reviewing the lockfile diff.
+- When a PR changes dependencies, call out new packages, lifecycle scripts, or unusual lockfile drift in the PR description.
 - Route vulnerability disclosures through `.github/SECURITY.md` instead of public issues.
 
 ## Maintainer operations

@@ -8,7 +8,7 @@ MetaFlow is a VS Code extension that implements the MetaFlow Reference Architect
 
 ```powershell
 cd .
-npm install
+npm ci
 npm -w @metaflow/engine run build
 npm -w @metaflow/cli run build
 cd src
@@ -60,6 +60,8 @@ Notes:
 - Run `npm run gate:integration` (alias: `npm run test:integration`) for extension-host integration tests.
 - Run `npm run gate:quick` for the local CI-equivalent quality gate.
 - Run `npm run gate:full` before release-sensitive changes.
+- Use `npm ci` for clean validation, packaging, and release verification; reserve `npm install` for intentional dependency-update flows that also review lockfile changes.
+- Prefer workspace-pinned tooling over bare latest-tag package execution in validation or release flows.
 - For non-blocking lint monitoring, run `npm -w metaflow-ai run lint:monitor:summary` (or in `src/`: `npm run lint:monitor:summary`).
 - Coverage: `npm -w @metaflow/engine run test:coverage` (95%+ stmts) and `npm -w @metaflow/cli run test:coverage` (92%+ stmts).
 - Unit tests use `tmp_path` pattern (`os.tmpdir()` + `mkdtemp`) for isolation.
@@ -76,3 +78,5 @@ Notes:
 
 - Never commit `.env*` files or secrets.
 - No private data in config fixtures.
+- Before accepting dependency updates or tagging a release, inspect `package-lock.json` and manifest diffs for new packages, lifecycle scripts, or unexpected dependency drift.
+- If an install or package step shows an unexpected package, `postinstall`, or unexplained outbound network access, stop and treat the runner or workstation as potentially compromised until secrets are rotated and the environment is rebuilt from clean state.

@@ -45,7 +45,16 @@ After merging the version PR, tag the merge commit with `vX.Y.Z` to trigger rele
 ## Preconditions
 
 - CI checks must be green.
+- Release packaging should start from a clean checkout with `npm ci`.
+- Dependency and lockfile diffs should be reviewed for new packages, lifecycle scripts, and unexpected transitive additions before tagging.
 - Push permission to create tags and releases.
+
+## Dependency and artifact hardening
+
+- Prefer the GitHub Actions release workflow as the default publish path; it keeps install, package, and publish steps on the reviewed CI path.
+- Use workspace-pinned tools from the committed lockfile for package and publish steps; avoid bare latest-tag package execution for normal releases.
+- Before publish, verify the VSIX contents and dependency graph are the reviewed ones, not a fresh install-time surprise.
+- If an install or packaging step shows unexpected network access, unexpected packages, or new lifecycle scripts, stop the release and treat the environment as potentially compromised until secrets are rotated and the environment is rebuilt from clean state.
 
 ## Publishing to marketplaces
 
@@ -96,13 +105,13 @@ Packaging and publish path:
 npm -C src run package
 ```
 
-- Then publish that VSIX explicitly:
+- In exceptional local fallback cases only, publish that VSIX explicitly with the workspace-pinned CLI after the same release verification used in CI:
 
 ```powershell
 $pat = $env:VSCE_PAT
 if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','User') }
 if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','Machine') }
-npx @vscode/vsce publish --packagePath .\src\metaflow-ai-0.1.0.vsix -p $pat
+npm exec --workspace src vsce -- publish --packagePath .\src\metaflow-ai-0.2.0.vsix -p $pat
 ```
 
 - The GitHub workflow already follows this `--packagePath` pattern for marketplace publishing.

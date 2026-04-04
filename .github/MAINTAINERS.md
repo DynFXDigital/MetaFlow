@@ -3,14 +3,18 @@
 ## Weekly cadence
 
 - Review Dependabot PRs and merge low-risk updates.
+- Review dependency updates for provenance, soak time, and unexpected install-time behavior before merge.
 - Review open issues and assign labels/owners.
 - Check CI/release workflow health and flaky failures.
 
 ## Pre-release checklist
 
+- Confirm release build starts from a clean checkout and `npm ci` state.
 - Confirm required CI checks pass.
+- Confirm dependency and lockfile diffs were reviewed for new packages, lifecycle scripts, and unexpected transitive changes.
 - Confirm release notes draft is accurate.
 - Confirm publish secrets are valid.
+- Confirm VSIX contents are intentional and match the reviewed source and dependency diff.
 - Confirm VSIX artifact is attached to GitHub release.
 
 ## Open-source launch checklist (v0.x preview)
@@ -27,9 +31,10 @@
 1. Triage severity and impact.
 2. Create minimal hotfix branch.
 3. Add/adjust tests for the defect.
-4. Run build + tests before tag.
-5. Tag and publish patch release.
-6. Communicate impact and mitigation in release notes.
+4. Review any dependency delta for provenance and install-time risk before proceeding.
+5. Run build + tests before tag.
+6. Tag and publish patch release.
+7. Communicate impact and mitigation in release notes.
 
 ## Triage automation policy
 
