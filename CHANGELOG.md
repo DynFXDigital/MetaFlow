@@ -10,6 +10,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 
 - Capabilities tree folder checkboxes for branch-wide enable or disable operations in tree mode.
 - Browse-only artifact folders and files beneath Capabilities tree artifact rows, with friendly labels and metadata tooltips.
+- Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability, with regression coverage to prevent exact `applyTo: "**"` instruction scopes.
 
 ### Changed
 

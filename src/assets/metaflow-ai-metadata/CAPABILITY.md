@@ -1,6 +1,6 @@
 ---
 name: MetaFlow
-description: MetaFlow construct guidance, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
+description: MetaFlow construct guidance, GitHub Copilot metadata authoring standards, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
 license: MIT
 ---
 
@@ -13,6 +13,7 @@ Provide a small built-in MetaFlow metadata layer that works out of the box in th
 ## Scope
 
 - Guidance for authoring MetaFlow configuration constructs under `.metaflow/`.
+- Guidance for authoring GitHub Copilot metadata artifacts such as instructions, prompts, agents, skills, hooks, and reusable capability docs.
 - A review skill for assessing reusable MetaFlow capabilities and promotion readiness.
 - A reconciliation workflow for comparing repository-local metadata against linked or candidate shared metadata repositories.
 - Guidance for capability composition that prefers optional adjacent workflows over hard dependencies.
@@ -28,3 +29,4 @@ Provide a small built-in MetaFlow metadata layer that works out of the box in th
 - Prefer soft, optional composition with adjacent capabilities or local workflows when they provide related functionality.
 - Do not hard-code one neighboring capability as a mandatory dependency when the same concern could be satisfied by a different compatible workflow.
 - Capability behavior should degrade cleanly when the adjacent workflow is absent.
+- Bundled metadata-authoring instructions should stay narrowly scoped and avoid exact `applyTo: "**"` ambient injection.

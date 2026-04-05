@@ -87,7 +87,9 @@ Artifact rows inside a capability stay toggleable at the class level, but they a
 MetaFlow includes a bundled starter capability so you can try the workflow before setting up a larger shared metadata repository.
 
 - Use it to understand the capability model quickly.
+- Use the bundled metadata-authoring guidance when you need to create or refine instructions, prompts, agents, skills, hooks, or capability manifests from the current context.
 - Synchronize it locally when you want editable files.
+- Bundled authoring instructions stay narrowly scoped; the built-in set does not rely on exact `applyTo: "**"` injections.
 - Externalize the patterns that work into a shared team or organization metadata repository.
 
 ## Where to go next
