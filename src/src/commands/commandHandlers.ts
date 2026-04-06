@@ -39,7 +39,11 @@ import {
     loadManagedState,
     toAuthoredConfig,
 } from '@metaflow/engine';
-import { publishConfigDiagnostics, clearDiagnostics } from '../diagnostics/configDiagnostics';
+import {
+    publishConfigDiagnostics,
+    clearDiagnostics,
+    getDiagnosticsSnapshot,
+} from '../diagnostics/configDiagnostics';
 import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
@@ -5176,6 +5180,16 @@ export function registerCommands(
                 logInfo(`  ${d.relativePath}`);
             }
             logInfo(`${drifted.length} file(s) drifted. Copy changes to metadata repo manually.`);
+        }),
+    );
+
+    // ── metaflow.getDiagnosticsSnapshot ────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.getDiagnosticsSnapshot', () => {
+            return {
+                capabilityWarnings: [...state.capabilityWarnings],
+                configDiagnostics: getDiagnosticsSnapshot(diagnosticCollection),
+            };
         }),
     );
 }

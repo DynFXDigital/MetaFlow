@@ -60,3 +60,39 @@ export function clearDiagnostics(collection: vscode.DiagnosticCollection): void 
 export function disposeDiagnostics(): void {
     // Collection disposed via context.subscriptions in extension.ts
 }
+
+/** A single serialized config diagnostic entry — plain JSON-compatible. */
+export interface ConfigDiagnosticEntry {
+    file: string;
+    message: string;
+    /** Mirrors vscode.DiagnosticSeverity numeric values (0=Error, 1=Warning, 2=Information, 3=Hint). */
+    severity: number;
+    startLine: number;
+    startColumn: number;
+    source?: string;
+}
+
+/**
+ * Serialize all entries in a diagnostic collection to a plain JSON-compatible array.
+ * The returned array is a new snapshot — mutating it does not affect the collection.
+ *
+ * @param collection The diagnostic collection to snapshot.
+ */
+export function getDiagnosticsSnapshot(
+    collection: vscode.DiagnosticCollection,
+): ConfigDiagnosticEntry[] {
+    const entries: ConfigDiagnosticEntry[] = [];
+    collection.forEach((uri, diagnostics) => {
+        for (const d of diagnostics) {
+            entries.push({
+                file: uri.fsPath,
+                message: d.message,
+                severity: d.severity,
+                startLine: d.range.start.line,
+                startColumn: d.range.start.character,
+                source: d.source,
+            });
+        }
+    });
+    return entries;
+}
