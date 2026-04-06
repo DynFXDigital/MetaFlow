@@ -6,6 +6,10 @@
 
 - Folder branch checkboxes in the Capabilities tree for enabling or disabling all descendant capabilities in tree mode.
 - Browse-only artifact folders and files beneath Capabilities tree artifact rows, using user-facing metadata names and tooltip details when available.
+- Capability Details Contents tab now renders `.github` artifacts grouped by labeled artifact-type sections (Instructions, Prompts, Agents, Skills) instead of a flat directory tree, making bundled content discoverable at a glance.
+- Test coverage: new unit test validates that the actual bundled `metaflow-ai-metadata` source root generates a well-formed capability details model with all four artifact-type buckets populated and correct HTML output.
+- Test coverage: new unit test verifies bundled `.github` artifacts classify into the correct artifact buckets (instructions, prompts, agents, skills) via the engine's `getArtifactType` helper.
+- Test coverage: new unit test confirms bundled instruction files cover GitHub Copilot, Claude (CLAUDE.md), and Codex/OpenAI (AGENTS.md) authoring surfaces.
 
 ### Changed
 

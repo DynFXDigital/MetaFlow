@@ -1,5 +1,8 @@
 import MarkdownIt, { type RenderRule } from 'markdown-it';
-import { CapabilityDetailModel } from '../commands/capabilityDetails';
+import {
+    CapabilityDetailArtifactBucket,
+    CapabilityDetailModel,
+} from '../commands/capabilityDetails';
 import { getInstructionScopeStatusLabel, type InstructionScopeRecord } from '../treeSummary';
 
 export interface CapabilityDetailsHtmlOptions {
@@ -8,11 +11,6 @@ export interface CapabilityDetailsHtmlOptions {
 }
 
 const markdownRenderer = createMarkdownRenderer();
-
-interface DirectoryTreeNode {
-    directories: Map<string, DirectoryTreeNode>;
-    files: string[];
-}
 
 function createMarkdownRenderer(): MarkdownIt {
     const renderer = new MarkdownIt({
@@ -74,90 +72,57 @@ function buildCommandUri(command: string, args: unknown[]): string {
     return `command:${command}?${encodeURIComponent(JSON.stringify(args))}`;
 }
 
-function createDirectoryTreeNode(): DirectoryTreeNode {
-    return {
-        directories: new Map<string, DirectoryTreeNode>(),
-        files: [],
-    };
-}
-
-function buildDirectoryTree(paths: string[]): DirectoryTreeNode {
-    const root = createDirectoryTreeNode();
-
-    for (const relativePath of paths) {
-        const segments = relativePath.split('/').filter(Boolean);
-        if (segments.length === 0) {
-            continue;
-        }
-
-        let current = root;
-        for (let index = 0; index < segments.length; index += 1) {
-            const segment = segments[index];
-            if (index === segments.length - 1) {
-                current.files.push(segment);
-                continue;
-            }
-
-            let next = current.directories.get(segment);
-            if (!next) {
-                next = createDirectoryTreeNode();
-                current.directories.set(segment, next);
-            }
-            current = next;
-        }
+function titleCaseArtifactType(type: string): string {
+    switch (type) {
+        case 'instructions':
+            return 'Instructions';
+        case 'prompts':
+            return 'Prompts';
+        case 'agents':
+            return 'Agents';
+        case 'skills':
+            return 'Skills';
+        default:
+            return 'Other';
     }
-
-    return root;
 }
 
-function renderDirectoryTreeNode(node: DirectoryTreeNode, isRoot = false): string {
-    const directoryMarkup = Array.from(node.directories.entries())
-        .sort(([left], [right]) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
-        .map(
-            ([name, child]) => `
-                        <li class="directory-tree-node directory-tree-node-folder">
-                            <span class="directory-tree-entry directory-tree-entry-folder">${escapeHtml(name)}</span>
-                            ${renderDirectoryTreeNode(child)}
-                        </li>`,
-        )
-        .join('');
-
-    const fileMarkup = [...node.files]
-        .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }))
-        .map(
-            (name) => `
-                        <li class="directory-tree-node directory-tree-node-file">
-                            <span class="directory-tree-entry directory-tree-entry-file">${escapeHtml(name)}</span>
-                        </li>`,
-        )
+function renderArtifactBucketSection(bucket: CapabilityDetailArtifactBucket): string {
+    const label = titleCaseArtifactType(bucket.type);
+    const bucketPrefix = `.github/${bucket.type}/`;
+    const fileItems = bucket.files
+        .map((relativePath) => {
+            const posixPath = relativePath.replace(/\\/g, '/');
+            const displayPath = posixPath.startsWith(bucketPrefix)
+                ? posixPath.slice(bucketPrefix.length)
+                : posixPath;
+            return `<li class="artifact-file-item">${escapeHtml(displayPath)}</li>`;
+        })
         .join('');
 
     return `
-                    <ul class="directory-tree-list${isRoot ? ' directory-tree-root' : ''}">
-                        ${directoryMarkup}${fileMarkup}
-                    </ul>`;
+                <section class="artifact-bucket">
+                    <h3 class="artifact-bucket-heading">
+                        <span class="artifact-type-label">${escapeHtml(label)}</span>
+                        <span class="count">${bucket.files.length}</span>
+                    </h3>
+                    <ul class="file-list artifact-file-list">
+                        ${fileItems}
+                    </ul>
+                </section>`;
 }
 
-function renderGitHubTree(model: CapabilityDetailModel): string {
-    const githubFiles = model.layerFiles
-        .filter((relativePath) => relativePath.startsWith('.github/'))
-        .map((relativePath) => relativePath.slice('.github/'.length))
-        .filter(Boolean);
+function renderArtifactBucketSections(model: CapabilityDetailModel): string {
+    const githubBuckets = model.artifactBuckets.filter((bucket) => bucket.type !== 'other');
 
-    if (githubFiles.length === 0) {
+    if (githubBuckets.length === 0) {
         return '<p class="empty-state">No <code>.github</code> content was found under this capability.</p>';
     }
 
     return `
-                <details class="content-tree" open>
-                    <summary class="content-tree-summary">
-                        <span class="content-tree-title">.github</span>
-                        <span class="count">${githubFiles.length}</span>
-                    </summary>
-                    <div class="content-tree-body">
-                        ${renderDirectoryTreeNode(buildDirectoryTree(githubFiles), true)}
-                    </div>
-                </details>`;
+                <div class="artifact-buckets">
+                    ${githubBuckets.map(renderArtifactBucketSection).join('')}
+                </div>`;
 }
 
 function renderSupplementalFiles(model: CapabilityDetailModel): string {
@@ -310,7 +275,7 @@ function renderContentSections(model: CapabilityDetailModel): string {
 
     return `
                 <div class="content-groups">
-                    ${renderGitHubTree(model)}
+                    ${renderArtifactBucketSections(model)}
                     ${renderSupplementalFiles(model)}
                 </div>`;
 }
@@ -591,7 +556,6 @@ export function renderCapabilityDetailsHtml(
         }
 
         .action-button:focus-visible,
-        .content-tree-summary:focus-visible,
         .sidebar-disclosure summary:focus-visible {
             outline: 1px solid var(--vscode-focusBorder);
             outline-offset: 2px;
@@ -791,52 +755,41 @@ export function renderCapabilityDetailsHtml(
             gap: 14px;
         }
 
-        .content-tree,
+        .artifact-bucket,
         .supporting-files {
             padding-top: 12px;
             border-top: 1px solid var(--vscode-panel-border);
         }
 
-        .content-tree:first-child,
+        .artifact-bucket:first-child,
         .supporting-files:first-child {
             padding-top: 0;
             border-top: 0;
         }
 
-        .content-tree-summary {
-            position: relative;
-            display: inline-grid;
-            grid-template-columns: minmax(0, auto) auto;
+        .artifact-buckets {
+            display: grid;
+            gap: 14px;
+        }
+
+        .artifact-bucket-heading {
+            display: flex;
             align-items: center;
-            gap: 10px;
-            padding-left: 16px;
-            cursor: pointer;
-            list-style: none;
-            font-weight: 600;
-        }
-
-        .content-tree-summary::-webkit-details-marker,
-        .sidebar-disclosure summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .content-tree-summary::before {
-            content: '▾';
-            position: absolute;
-            left: 0;
+            gap: 8px;
+            margin: 0 0 10px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
             color: var(--vscode-descriptionForeground);
         }
 
-        .content-tree:not([open]) > .content-tree-summary::before {
-            content: '▸';
+        .artifact-type-label {
+            color: var(--vscode-foreground);
         }
 
-        .content-tree-title {
-            font-size: 14px;
-        }
-
-        .content-tree-body {
-            margin-top: 12px;
+        .sidebar-disclosure summary::-webkit-details-marker {
+            display: none;
         }
 
         .count {
@@ -849,45 +802,6 @@ export function renderCapabilityDetailsHtml(
             color: var(--vscode-badge-foreground);
             font-size: 11px;
             font-weight: 700;
-        }
-
-        .directory-tree-list {
-            margin: 0;
-            padding-left: 18px;
-            list-style: none;
-        }
-
-        .directory-tree-root {
-            padding-left: 0;
-        }
-
-        .directory-tree-node + .directory-tree-node {
-            margin-top: 6px;
-        }
-
-        .directory-tree-entry {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            min-width: 0;
-            word-break: break-word;
-        }
-
-        .directory-tree-entry-folder {
-            font-weight: 600;
-        }
-
-        .directory-tree-entry-folder::before,
-        .directory-tree-entry-file::before {
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .directory-tree-entry-folder::before {
-            content: '▸';
-        }
-
-        .directory-tree-entry-file::before {
-            content: '•';
         }
 
         .file-list,
@@ -1113,7 +1027,7 @@ export function renderCapabilityDetailsHtml(
 
                 <section class="tab-panel tab-panel-contents">
                     <section class="panel-surface">
-                        <p class="section-caption">Source files found under this capability layer, with <code>.github</code> grouped as a directory tree and the manifest excluded.</p>
+                        <p class="section-caption">Source files found under this capability layer, grouped by artifact type, with the manifest excluded.</p>
                         ${renderContentSections(model)}
                     </section>
                 </section>
