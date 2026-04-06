@@ -286,6 +286,10 @@
         "command": "metaflow.collapseFilesBranch",
         "title": "Collapse",
         "icon": "$(collapse-all)"
+      },
+      {
+        "command": "metaflow.getDiagnosticsSnapshot",
+        "title": "MetaFlow: Get Diagnostics Snapshot"
       }
     ],
     "submenus": [

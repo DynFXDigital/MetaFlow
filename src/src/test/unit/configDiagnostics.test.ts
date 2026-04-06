@@ -3,7 +3,7 @@ import * as assert from 'assert';
 type DiagnosticEntry = {
     range: { start: { line: number; character: number }; end: { line: number; character: number } };
     message: string;
-    severity: unknown;
+    severity: number;
     source?: string;
 };
 
@@ -11,9 +11,11 @@ type DiagnosticCollectionMock = {
     setCalls: Array<{ uri: { fsPath: string }; diagnostics: DiagnosticEntry[] }>;
     deleteCalls: Array<{ fsPath: string }>;
     clearCalls: number;
+    entries: Array<{ uri: { fsPath: string }; diagnostics: DiagnosticEntry[] }>;
     set: (uri: { fsPath: string }, diagnostics: DiagnosticEntry[]) => void;
     delete: (uri: { fsPath: string }) => void;
     clear: () => void;
+    forEach: (callback: (uri: { fsPath: string }, diagnostics: DiagnosticEntry[]) => void) => void;
 };
 
 type ConfigDiagnosticsModule = {
@@ -27,6 +29,14 @@ type ConfigDiagnosticsModule = {
     ) => void;
     clearDiagnostics: (collection: DiagnosticCollectionMock) => void;
     disposeDiagnostics: () => void;
+    getDiagnosticsSnapshot: (collection: DiagnosticCollectionMock) => Array<{
+        file: string;
+        message: string;
+        severity: number;
+        startLine: number;
+        startColumn: number;
+        source?: string;
+    }>;
 };
 
 function loadConfigDiagnosticsWithMock(mockVscode: unknown): ConfigDiagnosticsModule {
@@ -56,12 +66,14 @@ function loadConfigDiagnosticsWithMock(mockVscode: unknown): ConfigDiagnosticsMo
 }
 
 function createCollectionMock(): DiagnosticCollectionMock {
-    return {
+    const mock: DiagnosticCollectionMock = {
         setCalls: [],
         deleteCalls: [],
         clearCalls: 0,
+        entries: [],
         set(uri, diagnostics): void {
             this.setCalls.push({ uri, diagnostics });
+            this.entries.push({ uri, diagnostics });
         },
         delete(uri): void {
             this.deleteCalls.push(uri);
@@ -69,7 +81,13 @@ function createCollectionMock(): DiagnosticCollectionMock {
         clear(): void {
             this.clearCalls += 1;
         },
+        forEach(callback): void {
+            for (const entry of this.entries) {
+                callback(entry.uri, entry.diagnostics);
+            }
+        },
     };
+    return mock;
 }
 
 suite('Config Diagnostics', () => {
@@ -185,5 +203,134 @@ suite('Config Diagnostics', () => {
         module.disposeDiagnostics();
 
         assert.strictEqual(collection.clearCalls, 1);
+    });
+
+    test('getDiagnosticsSnapshot returns empty array when collection is empty', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 0 },
+        });
+
+        const collection = createCollectionMock();
+        const snapshot = module.getDiagnosticsSnapshot(collection);
+
+        assert.deepStrictEqual(snapshot, []);
+    });
+
+    test('getDiagnosticsSnapshot serializes entries to plain JSON-compatible objects', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 0 },
+        });
+
+        const collection = createCollectionMock();
+        collection.entries.push({
+            uri: { fsPath: '/ws/.metaflow/config.jsonc' },
+            diagnostics: [
+                {
+                    message: 'missing layers',
+                    severity: 0,
+                    source: 'MetaFlow',
+                    range: {
+                        start: { line: 2, character: 4 },
+                        end: { line: 2, character: 5 },
+                    },
+                },
+                {
+                    message: 'unknown field',
+                    severity: 1,
+                    source: 'MetaFlow',
+                    range: {
+                        start: { line: 7, character: 0 },
+                        end: { line: 7, character: 1 },
+                    },
+                },
+            ],
+        });
+
+        const snapshot = module.getDiagnosticsSnapshot(collection);
+
+        assert.strictEqual(snapshot.length, 2);
+        assert.deepStrictEqual(snapshot[0], {
+            file: '/ws/.metaflow/config.jsonc',
+            message: 'missing layers',
+            severity: 0,
+            startLine: 2,
+            startColumn: 4,
+            source: 'MetaFlow',
+        });
+        assert.deepStrictEqual(snapshot[1], {
+            file: '/ws/.metaflow/config.jsonc',
+            message: 'unknown field',
+            severity: 1,
+            startLine: 7,
+            startColumn: 0,
+            source: 'MetaFlow',
+        });
+    });
+
+    test('getDiagnosticsSnapshot is read-only — mutating the result does not affect the collection', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 0 },
+        });
+
+        const collection = createCollectionMock();
+        collection.entries.push({
+            uri: { fsPath: '/ws/.metaflow/config.jsonc' },
+            diagnostics: [
+                {
+                    message: 'err',
+                    severity: 0,
+                    source: 'MetaFlow',
+                    range: {
+                        start: { line: 0, character: 0 },
+                        end: { line: 0, character: 1 },
+                    },
+                },
+            ],
+        });
+
+        const snapshot1 = module.getDiagnosticsSnapshot(collection);
+        snapshot1.splice(0, 1);
+
+        const snapshot2 = module.getDiagnosticsSnapshot(collection);
+        assert.strictEqual(snapshot2.length, 1, 'Collection should be unaffected by mutation of snapshot');
+    });
+
+    test('getDiagnosticsSnapshot returns same data on repeated calls (mutation-free)', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 0 },
+        });
+
+        const collection = createCollectionMock();
+        collection.entries.push({
+            uri: { fsPath: '/ws/.metaflow/config.jsonc' },
+            diagnostics: [
+                {
+                    message: 'parse error',
+                    severity: 0,
+                    source: 'MetaFlow',
+                    range: {
+                        start: { line: 1, character: 0 },
+                        end: { line: 1, character: 1 },
+                    },
+                },
+            ],
+        });
+
+        const first = module.getDiagnosticsSnapshot(collection);
+        const second = module.getDiagnosticsSnapshot(collection);
+
+        assert.deepStrictEqual(first, second);
     });
 });
