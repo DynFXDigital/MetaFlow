@@ -880,42 +880,30 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(builtInRepo, 'expected built-in repository node');
         assert.strictEqual(builtInRepo.checkboxState, 1);
 
-        const visited = new Set<unknown>();
-        const findDescendant = (
-            root: unknown,
-            predicate: (candidate: { label?: unknown; contextValue?: string }) => boolean,
-        ): unknown => {
-            if (visited.has(root)) {
-                return undefined;
-            }
-            visited.add(root);
-
-            const children = provider.getChildren(root as never);
-            for (const child of children) {
-                if (predicate(child as { label?: unknown; contextValue?: string })) {
-                    return child;
-                }
-                const nested = findDescendant(child, predicate);
-                if (nested) {
-                    return nested;
-                }
-            }
-            return undefined;
-        };
-
-        const metadataAuthoringFolder = findDescendant(
-            builtInRepo,
-            (candidate) =>
-                candidate.contextValue === 'layerFolder' &&
-                String(candidate.label).toLowerCase().includes('metadata'),
+        const repoChildren = provider.getChildren(builtInRepo as never);
+        assert.deepStrictEqual(
+            repoChildren.map((item) => String(item.label)).sort(),
+            ['MetaFlow', 'metadata-authoring'],
+            'built-in repo should expose the root MetaFlow capability alongside the metadata-authoring directory',
         );
-        assert.ok(
-            metadataAuthoringFolder,
-            'expected metadata-authoring grouping folder somewhere under the built-in repo',
+
+        const rootCapability = repoChildren.find((item) => String(item.label) === 'MetaFlow');
+        assert.ok(rootCapability, 'expected built-in root MetaFlow capability');
+
+        const metadataAuthoringFolder = repoChildren.find(
+            (item) => String(item.label) === 'metadata-authoring',
         );
+        assert.ok(metadataAuthoringFolder, 'expected metadata-authoring sibling folder');
         assert.strictEqual(
             (metadataAuthoringFolder as { contextValue?: unknown }).contextValue,
             'layerFolder',
+        );
+
+        const rootChildren = provider.getChildren(rootCapability as never);
+        assert.deepStrictEqual(
+            rootChildren.map((item) => String(item.label)).sort(),
+            ['instructions'],
+            'built-in root capability should expose only its own artifact buckets from the root layer fixture',
         );
 
         const metadataChildren = provider.getChildren(metadataAuthoringFolder as never);

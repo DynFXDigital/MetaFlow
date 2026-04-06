@@ -134,6 +134,10 @@ function projectBuiltInCapabilityConfig(
         });
     }
 
+    // .filter() above created new arrays — sync references back to the returned config.
+    projected.metadataRepos = multiRepoConfig.metadataRepos;
+    projected.layerSources = multiRepoConfig.layerSources;
+
     return projected;
 }
 
@@ -1387,14 +1391,34 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const remainder = prefix
                 ? entry.normalizedPath.slice(prefix.length + 1)
                 : entry.normalizedPath;
-            const [segment] = remainder.split('/');
-            if (!segment) {
+            let childPath: string | undefined;
+            let childLabel: string | undefined;
+
+            if (
+                !prefix &&
+                repoId === BUILT_IN_CAPABILITY_REPO_ID &&
+                remainder.startsWith('capabilities/')
+            ) {
+                const hiddenPrefixRemainder = remainder.slice('capabilities/'.length);
+                const [segment] = hiddenPrefixRemainder.split('/');
+                if (segment) {
+                    childPath = `capabilities/${segment}`;
+                    childLabel = segment;
+                }
+            } else {
+                const [segment] = remainder.split('/');
+                if (segment) {
+                    childPath = prefix ? `${prefix}/${segment}` : segment;
+                    childLabel = segment;
+                }
+            }
+
+            if (!childPath || !childLabel) {
                 continue;
             }
 
-            const childPath = prefix ? `${prefix}/${segment}` : segment;
             if (!children.has(childPath)) {
-                children.set(childPath, { path: childPath, label: segment });
+                children.set(childPath, { path: childPath, label: childLabel });
             }
         }
 
@@ -1670,10 +1694,19 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         if (element instanceof LayerRepoItem) {
             const repoEntries = entries.filter((entry) => entry.repoId === element.repoId);
-            return this.trackChildren(
-                this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode),
-                element,
-            );
+            const repoChildren = this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode);
+            if (mode === 'tree' && repoEntries.some((entry) => entry.normalizedPath === '')) {
+                if (element.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                    return this.trackChildren(repoChildren, element);
+                }
+
+                const rootLayer = repoChildren.find((child) => child.pathKey === '(root)');
+                if (rootLayer) {
+                    return this.trackChildren([rootLayer], element);
+                }
+            }
+
+            return this.trackChildren(repoChildren, element);
         }
 
         if (element instanceof LayerItem) {
@@ -1692,10 +1725,18 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             ).filter((child) => child.pathKey !== '(root)');
 
             if (typeof element.layerIndex === 'number' && mode === 'tree') {
+                const builtInRootLayer =
+                    element.repoId === BUILT_IN_CAPABILITY_REPO_ID &&
+                    element.layerPath === BUILT_IN_CAPABILITY_LAYER_PATH;
                 const artifactChildren = this.getArtifactTypeChildren(
                     element.layerIndex,
                     element.repoId,
                 );
+
+                if (builtInRootLayer) {
+                    return this.trackChildren(artifactChildren, element);
+                }
+
                 return this.trackChildren([...folderChildren, ...artifactChildren], element);
             }
 
