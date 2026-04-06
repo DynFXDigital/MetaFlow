@@ -73,18 +73,7 @@ function buildCommandUri(command: string, args: unknown[]): string {
 }
 
 function titleCaseArtifactType(type: string): string {
-    switch (type) {
-        case 'instructions':
-            return 'Instructions';
-        case 'prompts':
-            return 'Prompts';
-        case 'agents':
-            return 'Agents';
-        case 'skills':
-            return 'Skills';
-        default:
-            return 'Other';
-    }
+    return type.length > 0 ? type.charAt(0).toUpperCase() + type.slice(1) : 'Other';
 }
 
 function renderArtifactBucketSection(bucket: CapabilityDetailArtifactBucket): string {
