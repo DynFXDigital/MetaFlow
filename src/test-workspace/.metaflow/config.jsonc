@@ -1,20 +1,13 @@
 {
   "metadataRepos": [
     {
-      "id": "ai-metadata",
+      "id": "primary",
       "localPath": ".ai/ai-metadata",
       "enabled": true,
       "capabilities": [
         {
           "path": "company/core",
-          "enabled": true,
-          "injection": {
-            "instructions": "synchronize",
-            "prompts": "synchronize",
-            "skills": "synchronize",
-            "agents": "synchronize",
-            "hooks": "synchronize"
-          }
+          "enabled": false
         },
         {
           "path": "standards/sdlc",
@@ -25,24 +18,23 @@
   ],
   "filters": {
     "include": [
-      "**"
+      "**/*"
     ],
     "exclude": []
   },
   "profiles": {
     "default": {
+      "displayName": "Default",
       "enable": [
         "**/*"
-      ],
-      "disable": []
+      ]
+    },
+    "review": {
+      "displayName": "Review",
+      "enable": [
+        "**/*"
+      ]
     }
   },
-  "activeProfile": "default",
-  "injection": {
-    "instructions": "settings",
-    "prompts": "settings",
-    "skills": "settings",
-    "agents": "settings",
-    "hooks": "settings"
-  }
+  "activeProfile": "default"
 }

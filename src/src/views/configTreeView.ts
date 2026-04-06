@@ -13,6 +13,7 @@ import {
     BUILT_IN_CAPABILITY_REPO_ID,
     isBuiltInCapabilityActive,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInRepoEnabled,
 } from '../builtInCapability';
 import {
     ArtifactSummary,
@@ -338,6 +339,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
     private createBuiltInSourceItem(): RepoSourceItem {
         const repoMetadata = this.getRepoMetadataById();
         const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
+        const summary = summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID);
+        const builtInEnabled =
+            resolveBuiltInRepoEnabled(this.state.builtInCapability) || summary.totalActive > 0;
         const builtInCapabilityName =
             repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.name?.trim() ||
             resolveBuiltInCapabilityDisplayName(
@@ -347,11 +351,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         const item = new RepoSourceItem(
             builtInCapabilityName,
             undefined,
-            this.state.builtInCapability.layerEnabled,
+            builtInEnabled,
             'bundled extension metadata',
             undefined,
             undefined,
-            summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
+            summary,
             summarizeRepoInstructionScope(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
             {
                 title: builtInCapabilityName,
@@ -360,11 +364,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             },
         );
         item.contextValue = 'configRepoSourceBuiltin';
-        item.description = formatSummaryDescription(
-            'bundled extension metadata',
-            summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
-            [this.state.builtInCapability.layerEnabled ? 'enabled' : 'disabled'],
-        );
+        item.description = `bundled extension metadata (${summary.totalActive}/${summary.totalAvailable}, ${builtInEnabled ? 'enabled' : 'disabled'})`;
         item.iconPath = new vscode.ThemeIcon('package');
         return item;
     }

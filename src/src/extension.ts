@@ -319,6 +319,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
                     typeof repoId === 'string' &&
                     (contextValue === 'configRepoSourceRescannable' ||
+                        contextValue === 'configRepoSourceBuiltin' ||
                         contextValue === 'configRepoSourceGit' ||
                         contextValue === 'configRepoSourceGitBehind')
                 ) {
@@ -344,6 +345,14 @@ export function activate(context: vscode.ExtensionContext): void {
                 const layerIndex = (item as { layerIndex?: unknown }).layerIndex;
                 const repoId = extractRepoId(item);
                 const layerPath = extractLayerPath(item);
+
+                if (contextValue === 'layerRepo' && typeof repoId === 'string') {
+                    await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                        repoId,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
+                    continue;
+                }
 
                 if (
                     typeof contextValue === 'string' &&

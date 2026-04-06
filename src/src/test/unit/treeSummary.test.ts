@@ -240,7 +240,7 @@ suite('treeSummary', () => {
             layerSources: [
                 {
                     repoId: '__metaflow_builtin__',
-                    path: '.github',
+                    path: '.',
                     enabled: true,
                 },
             ],
@@ -259,7 +259,7 @@ suite('treeSummary', () => {
                     'instructions',
                     'metaflow.instructions.md',
                 ),
-                sourceLayer: '__metaflow_builtin__/.github',
+                sourceLayer: '__metaflow_builtin__/.',
                 sourceRepo: builtInRoot,
                 classification: 'settings',
             },
@@ -284,7 +284,7 @@ suite('treeSummary', () => {
         assert.strictEqual(repoSummary.totalActive, 1);
         assert.strictEqual(repoSummary.totalAvailable, 1);
 
-        const layerSummary = summarizeLayerPrefix(cache, '__metaflow_builtin__', '.github');
+        const layerSummary = summarizeLayerPrefix(cache, '__metaflow_builtin__', '.');
         assert.strictEqual(layerSummary.totalActive, 1);
         assert.strictEqual(layerSummary.totalAvailable, 1);
     });

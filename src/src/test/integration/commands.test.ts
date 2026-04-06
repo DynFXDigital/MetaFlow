@@ -28,6 +28,37 @@ suite('Command Execution', () => {
         assert.fail(`Condition not met within ${timeoutMs}ms`);
     }
 
+    async function updateConfigAndWait(
+        section: string,
+        value: unknown,
+        target: vscode.ConfigurationTarget,
+        wsFolder?: vscode.WorkspaceFolder,
+    ): Promise<void> {
+        const wsConfig = vscode.workspace.getConfiguration(
+            undefined,
+            wsFolder?.uri,
+        );
+        await wsConfig.update(section, value, target);
+        // In a clean Extension Host sandbox, configuration writes may not
+        // propagate synchronously.  Poll until a fresh getConfiguration()
+        // read returns the expected value.
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+            const fresh = vscode.workspace.getConfiguration(undefined, wsFolder?.uri);
+            const inspected = fresh.inspect(section);
+            const scoped =
+                target === vscode.ConfigurationTarget.Workspace
+                    ? inspected?.workspaceValue
+                    : target === vscode.ConfigurationTarget.WorkspaceFolder
+                      ? inspected?.workspaceFolderValue
+                      : inspected?.globalValue;
+            if (scoped === value) {
+                return;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+    }
+
     function removeDirectoryRecursive(targetPath: string): void {
         fs.rmSync(targetPath, {
             recursive: true,
@@ -70,30 +101,57 @@ suite('Command Execution', () => {
         };
     }
 
-    function hasBuiltInInstructionPath(locations: Record<string, boolean> | undefined): boolean {
-        if (!locations) {
-            return false;
-        }
-
-        return Object.keys(locations).some((location) =>
-            location.replace(/\\/g, '/').includes('metaflow-ai-metadata/.github/instructions'),
-        );
-    }
-
-    function hasExtensionInstallInstructionPath(
-        locations: Record<string, boolean> | undefined,
+    function hasBuiltInInstructionPath(
+        locations: Record<string, boolean> | string[] | undefined,
     ): boolean {
         if (!locations) {
             return false;
         }
 
-        return Object.keys(locations).some((location) => {
+        const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
+        return candidates.some((location) =>
+            location.replace(/\\/g, '/').includes('metaflow-ai-metadata/.github/instructions'),
+        );
+    }
+
+    function hasExtensionInstallInstructionPath(
+        locations: Record<string, boolean> | string[] | undefined,
+    ): boolean {
+        if (!locations) {
+            return false;
+        }
+
+        const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
+        return candidates.some((location) => {
             const normalized = location.replace(/\\/g, '/').toLowerCase();
             return (
                 normalized.includes('/extensions/dynfxdigital.metaflow-ai-') &&
                 normalized.includes('assets/metaflow-ai-metadata/.github/instructions')
             );
         });
+    }
+
+    function getBuiltInInstructionSettingsPresence(
+        wsConfig: vscode.WorkspaceConfiguration,
+    ): {
+        hasBuiltIn: boolean;
+        hasExtensionInstall: boolean;
+    } {
+        const instructionLocations = getInjectedLocationValue(
+            wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+        );
+        const instructionFiles = getInjectedLocationValue(
+            wsConfig.inspect<string[]>('github.copilot.chat.codeGeneration.instructionFiles'),
+        );
+
+        return {
+            hasBuiltIn:
+                hasBuiltInInstructionPath(instructionLocations) ||
+                hasBuiltInInstructionPath(instructionFiles),
+            hasExtensionInstall:
+                hasExtensionInstallInstructionPath(instructionLocations) ||
+                hasExtensionInstallInstructionPath(instructionFiles),
+        };
     }
 
     async function resetBuiltInCapabilityState(): Promise<void> {
@@ -4409,10 +4467,11 @@ suite('Command Execution', () => {
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
-        await wsConfig.update(
+        await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
             'off',
             vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
         );
         await resetBuiltInCapabilityState();
         await wsConfig.update(
@@ -4422,23 +4481,22 @@ suite('Command Execution', () => {
         );
 
         try {
-            await wsConfig.update(
+            await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
                 'builtinLayer',
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const instructionLocations = getInjectedLocationValue(
-                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-            );
+            const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
             assert.strictEqual(
-                hasBuiltInInstructionPath(instructionLocations),
+                instructionSettings.hasBuiltIn,
                 true,
                 'builtinLayer mode should inject built-in capability instruction paths',
             );
             assert.strictEqual(
-                hasExtensionInstallInstructionPath(instructionLocations),
+                instructionSettings.hasExtensionInstall,
                 false,
                 'builtinLayer mode should not inject paths from the installed extension directory',
             );
@@ -4464,4 +4522,91 @@ suite('Command Execution', () => {
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
+
+    test('TC-0318: toggleRepoSource toggles the built-in MetaFlow repo without mutating config', async function () {
+        this.timeout(25000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+        await wsConfig.update(
+            'chat.instructionsFilesLocations',
+            undefined,
+            vscode.ConfigurationTarget.Workspace,
+        );
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
+                return instructionSettings.hasBuiltIn;
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
+                return !instructionSettings.hasBuiltIn;
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
+                return instructionSettings.hasBuiltIn;
+            }, 10000);
+
+            const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(
+                afterToggleConfig,
+                originalConfig,
+                'Built-in repo toggling should not mutate .metaflow/config.jsonc in builtinLayer mode',
+            );
+        } finally {
+            await wsConfig.update(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.instructionsFilesLocations',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
 });

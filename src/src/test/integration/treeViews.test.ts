@@ -391,7 +391,7 @@ suite('TreeView Providers', () => {
     // ── LayersTreeView ─────────────────────────────────────────
 
     test('LayersTreeView returns empty when no config', () => {
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
         assert.strictEqual(items.length, 0, 'Should return no items without config');
     });
@@ -399,7 +399,7 @@ suite('TreeView Providers', () => {
     test('LayersTreeView shows loading placeholder while config is resolving', () => {
         state.isLoading = true;
 
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
 
         assert.strictEqual(items.length, 1, 'Should show one loading placeholder item');
@@ -413,7 +413,7 @@ suite('TreeView Providers', () => {
             layers: ['company/core', 'standards/sdlc'],
         };
 
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
         assert.strictEqual(items.length, 2, 'Should return 2 layers');
         assert.strictEqual(
@@ -436,7 +436,7 @@ suite('TreeView Providers', () => {
             ],
         };
 
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
 
         assert.strictEqual(items.length, 2, 'Should return only layer rows');
@@ -459,7 +459,7 @@ suite('TreeView Providers', () => {
             layerSources: [{ repoId: 'ai-metadata', path: '.', enabled: true }],
         };
 
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
 
         assert.strictEqual(items.length, 1, 'Should return the root layer row');
@@ -875,7 +875,7 @@ suite('TreeView Providers', () => {
             },
         };
 
-        const provider = new LayersTreeViewProvider(state);
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
         assert.strictEqual(items.length, 1);
         assert.strictEqual(

@@ -21,8 +21,34 @@ suite('bundled metadata assets', () => {
         );
     });
 
-    test('bundled metadata-authoring assets are present and avoid exact global applyTo scopes', () => {
-        const assetRoot = path.resolve(__dirname, '../../../assets/metaflow-ai-metadata/.github');
+    test('bundled metadata-authoring packs are present and avoid exact global applyTo scopes', () => {
+        const metadataAuthoringRoot = path.resolve(
+            __dirname,
+            '../../../assets/metaflow-ai-metadata/capabilities/metadata-authoring',
+        );
+        const capabilityRoots = [
+            'github-copilot-metadata-authoring',
+            'claude-code-metadata-authoring',
+            'codex-metadata-authoring',
+        ];
+
+        for (const capabilityRoot of capabilityRoots) {
+            assert.ok(
+                fs.existsSync(path.join(metadataAuthoringRoot, capabilityRoot, 'CAPABILITY.md')),
+                `Expected bundled metadata-authoring capability manifest: ${capabilityRoot}`,
+            );
+        }
+
+        assert.ok(
+            !fs.existsSync(path.join(metadataAuthoringRoot, 'CAPABILITY.md')),
+            'Expected metadata-authoring to be a folder-only grouping node, not a leaf capability.',
+        );
+
+        const assetRoot = path.join(
+            metadataAuthoringRoot,
+            'github-copilot-metadata-authoring',
+            '.github',
+        );
         const requiredPaths = [
             'agents/github-copilot-metadata-authoring-steward.agent.md',
             'prompts/create-agents-md.prompt.md',

@@ -905,7 +905,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             relativePath: '.github/instructions/traceability.instructions.md',
             sourcePath:
                 '/tmp/ext/assets/metaflow-ai-metadata/.github/instructions/traceability.instructions.md',
-            sourceLayer: '__metaflow_builtin__/.github',
+            sourceLayer: '__metaflow_builtin__/.',
             classification: 'settings',
         } as EffectiveFile;
 
@@ -939,7 +939,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         const builtInFile = {
             relativePath: '.github/skills/review/SKILL.md',
             sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/skills/review/SKILL.md',
-            sourceLayer: '__metaflow_builtin__/.github',
+            sourceLayer: '__metaflow_builtin__/.',
             classification: 'settings',
         } as EffectiveFile;
 
@@ -974,14 +974,14 @@ suite('FilesTreeView – artifact-type grouping', () => {
             {
                 relativePath: 'instructions/a.md',
                 sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/instructions/a.md',
-                sourceLayer: '__metaflow_builtin__/.github',
+                sourceLayer: '__metaflow_builtin__/.',
                 sourceRepo: '__metaflow_builtin__',
                 classification: 'settings',
             } as EffectiveFile,
             {
                 relativePath: 'prompts/b.md',
                 sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/prompts/b.md',
-                sourceLayer: '__metaflow_builtin__/.github',
+                sourceLayer: '__metaflow_builtin__/.',
                 sourceRepo: '__metaflow_builtin__',
                 classification: 'settings',
             } as EffectiveFile,

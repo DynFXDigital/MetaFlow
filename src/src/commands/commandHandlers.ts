@@ -82,13 +82,18 @@ import {
 } from './repoSyncStatus';
 import { loadCapabilityDetailModel, resolveCapabilityDetailTarget } from './capabilityDetails';
 import {
+    BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
     BUILT_IN_CAPABILITY_STATE_KEY,
     BuiltInCapabilityRuntimeState,
     BuiltInCapabilityWorkspaceState,
     isBuiltInCapabilityActive,
+    normalizeBuiltInLayerPath,
     readBuiltInCapabilityRuntimeState,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInLayerEnabled,
+    resolveBuiltInRepoEnabled,
+    sanitizeBuiltInLayerStates,
     sanitizeSynchronizedFiles,
 } from '../builtInCapability';
 import { CapabilityDetailsPanelManager } from '../views/capabilityDetailsPanel';
@@ -115,7 +120,6 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize'> =
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
-const BUILT_IN_CAPABILITY_LAYER_PATH = '.github';
 const ENABLE_METAFLOW_AI_METADATA_ACTION = 'Enable Now';
 const NOT_NOW_ACTION = 'Not Now';
 
@@ -1019,13 +1023,16 @@ function deriveCapabilityIdFromLayerPath(layerPath: string, repoRoot: string): s
     return segments[segments.length - 1] || path.basename(repoRoot);
 }
 
-function loadBuiltInCapabilityManifest(sourceRoot: string | undefined) {
+function loadBuiltInCapabilityManifest(
+    sourceRoot: string | undefined,
+    layerPath: string = BUILT_IN_CAPABILITY_LAYER_PATH,
+) {
     if (!sourceRoot) {
         return undefined;
     }
 
-    const capabilityId = deriveCapabilityIdFromLayerPath('.', sourceRoot);
-    return loadCapabilityManifestForLayer(sourceRoot, capabilityId);
+    const capabilityId = deriveCapabilityIdFromLayerPath(layerPath, sourceRoot);
+    return loadCapabilityManifestForLayer(path.join(sourceRoot, layerPath), capabilityId);
 }
 
 function loadBuiltInRepoManifest(sourceRoot: string | undefined) {
@@ -1034,6 +1041,32 @@ function loadBuiltInRepoManifest(sourceRoot: string | undefined) {
     }
 
     return loadRepoManifestForRoot(sourceRoot);
+}
+
+function discoverBuiltInCapabilityLayerPaths(sourceRoot: string | undefined): string[] {
+    if (!sourceRoot) {
+        return [];
+    }
+
+    const discovered = Array.from(
+        new Set(
+            discoverLayersInRepo(sourceRoot).map((layerPath) => normalizeBuiltInLayerPath(layerPath)),
+        ),
+    );
+
+    if (discovered.length === 0) {
+        return [BUILT_IN_CAPABILITY_LAYER_PATH];
+    }
+
+    return discovered.sort((left, right) => {
+        if (left === BUILT_IN_CAPABILITY_LAYER_PATH) {
+            return -1;
+        }
+        if (right === BUILT_IN_CAPABILITY_LAYER_PATH) {
+            return 1;
+        }
+        return left.localeCompare(right, undefined, { sensitivity: 'base' });
+    });
 }
 
 function collectConfiguredCapabilityMetadata(
@@ -1341,32 +1374,36 @@ function withBuiltInCapabilityProjected(
     const existingRepo = multiRepo.metadataRepos.find(
         (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,
     );
+    const builtInRepoEnabled = resolveBuiltInRepoEnabled(builtInState);
     if (!existingRepo) {
         multiRepo.metadataRepos.push({
             id: BUILT_IN_CAPABILITY_REPO_ID,
             name: builtInRepoLabel,
             localPath: builtInState.sourceRoot,
-            enabled: true,
+            enabled: builtInRepoEnabled,
         });
     } else {
         existingRepo.name = builtInRepoLabel;
+        existingRepo.localPath = builtInState.sourceRoot;
+        existingRepo.enabled = builtInRepoEnabled;
     }
 
-    const existingLayer = multiRepo.layerSources.find(
-        (layer) =>
-            layer.repoId === BUILT_IN_CAPABILITY_REPO_ID &&
-            layer.path === BUILT_IN_CAPABILITY_LAYER_PATH,
+    multiRepo.layerSources = multiRepo.layerSources.filter(
+        (layer) => layer.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
     );
 
-    if (!existingLayer) {
+    const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
+    for (const layerPath of builtInLayerPaths) {
         multiRepo.layerSources.push({
             repoId: BUILT_IN_CAPABILITY_REPO_ID,
-            path: BUILT_IN_CAPABILITY_LAYER_PATH,
-            enabled: builtInState.layerEnabled,
+            path: layerPath,
+            enabled: resolveBuiltInLayerEnabled(builtInState, layerPath),
         });
-    } else {
-        existingLayer.enabled = builtInState.layerEnabled;
     }
+
+    // ensureMultiRepoConfig returns references to config arrays, but
+    // .filter() above created a new array — sync it back to the returned config.
+    projected.layerSources = multiRepo.layerSources;
 
     return projected;
 }
@@ -1416,10 +1453,53 @@ async function writeBuiltInCapabilityWorkspaceState(
         synchronizedFiles: sanitizeSynchronizedFiles(
             patch.synchronizedFiles ?? currentState.synchronizedFiles,
         ),
+        layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
     };
 
     await context.workspaceState.update(BUILT_IN_CAPABILITY_STATE_KEY, payload);
     return loadBuiltInCapabilityRuntimeState(context);
+}
+
+async function writeBuiltInLayerEnabledState(
+    context: vscode.ExtensionContext,
+    currentState: BuiltInCapabilityRuntimeState,
+    layerPath: string,
+    enabled: boolean,
+): Promise<BuiltInCapabilityRuntimeState> {
+    const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    const nextLayerStates = { ...(currentState.layerStates ?? {}) };
+
+    if (enabled === currentState.layerEnabled) {
+        delete nextLayerStates[normalizedLayerPath];
+    } else {
+        nextLayerStates[normalizedLayerPath] = enabled;
+    }
+
+    return writeBuiltInCapabilityWorkspaceState(context, currentState, {
+        layerStates: nextLayerStates,
+    });
+}
+
+async function writeBuiltInLayerEnabledStates(
+    context: vscode.ExtensionContext,
+    currentState: BuiltInCapabilityRuntimeState,
+    layerPaths: Iterable<string>,
+    enabled: boolean,
+): Promise<BuiltInCapabilityRuntimeState> {
+    const nextLayerStates = { ...(currentState.layerStates ?? {}) };
+
+    for (const layerPath of layerPaths) {
+        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+        if (enabled === currentState.layerEnabled) {
+            delete nextLayerStates[normalizedLayerPath];
+        } else {
+            nextLayerStates[normalizedLayerPath] = enabled;
+        }
+    }
+
+    return writeBuiltInCapabilityWorkspaceState(context, currentState, {
+        layerStates: nextLayerStates,
+    });
 }
 
 async function enableBuiltInCapabilityInSettingsMode(
@@ -1648,7 +1728,7 @@ async function ensureBuiltInCapabilityFromAutoApplySetting(
     }
 
     if (mode === 'builtinLayer') {
-        if (currentState.enabled && currentState.layerEnabled) {
+        if (currentState.enabled) {
             return currentState;
         }
 
@@ -1726,22 +1806,6 @@ function resolveOverlay(
         enableDiscovery: options?.enableDiscovery,
         forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
     });
-    const builtInLayerId = normalizeLayerId(
-        `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`,
-    );
-    const builtInManifest = loadBuiltInCapabilityManifest(options?.builtInCapability?.sourceRoot);
-    let builtInLayerResolved = false;
-
-    if (builtInManifest) {
-        for (const layer of layers) {
-            if (normalizeLayerId(layer.layerId) !== builtInLayerId) {
-                continue;
-            }
-
-            layer.capability = builtInManifest;
-            builtInLayerResolved = true;
-        }
-    }
 
     const capabilityByLayer: Record<
         string,
@@ -1777,25 +1841,6 @@ function resolveOverlay(
     for (const [layerId, metadata] of Object.entries(configuredCapabilityByLayer)) {
         if (!capabilityByLayer[layerId]) {
             capabilityByLayer[layerId] = metadata;
-        }
-    }
-
-    if (builtInManifest && !capabilityByLayer[builtInLayerId]) {
-        capabilityByLayer[builtInLayerId] = {
-            id: builtInManifest.id,
-            name: builtInManifest.name,
-            description: builtInManifest.description,
-            license: builtInManifest.license,
-        };
-    }
-
-    if (builtInManifest && !builtInLayerResolved) {
-        for (const warning of builtInManifest.warnings) {
-            const message = formatCapabilityWarningMessage(warning);
-            if (!capabilityWarnings.includes(message)) {
-                capabilityWarnings.push(message);
-                logWarn(message);
-            }
         }
     }
 
@@ -3344,13 +3389,21 @@ export function registerCommands(
                     typeof requestedCheckedState === 'boolean'
                         ? requestedCheckedState
                         : !state.builtInCapability.layerEnabled;
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
-                    state.builtInCapability,
-                    { layerEnabled: nextLayerEnabled },
-                );
+                state.builtInCapability =
+                    typeof requestedLayerPath === 'string'
+                        ? await writeBuiltInLayerEnabledState(
+                              context,
+                              state.builtInCapability,
+                              requestedLayerPath,
+                              nextLayerEnabled,
+                          )
+                        : await writeBuiltInCapabilityWorkspaceState(
+                              context,
+                              state.builtInCapability,
+                              { layerEnabled: nextLayerEnabled, layerStates: {} },
+                          );
                 logInfo(
-                    `Toggled built-in MetaFlow capability layer: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
+                    `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
                 return;
@@ -3499,13 +3552,18 @@ export function registerCommands(
 
             const normalizedBranchPath = normalizeCommandLayerPath(requestedLayerPath);
             const runtimeConfig = ensureMultiRepoConfig(state.config);
-            const { metadataRepos, layerSources } = runtimeConfig;
+            const projectedConfig = withBuiltInCapabilityProjected(
+                projectConfigForProfile(state.config),
+                state.builtInCapability,
+            );
+            const { metadataRepos } = runtimeConfig;
+            const { layerSources: projectedLayerSources } = ensureMultiRepoConfig(projectedConfig);
             const matchedLayers = new Map<
                 string,
                 {
                     repoId: string;
                     path: string;
-                    layerSource?: (typeof layerSources)[number];
+                    layerSource?: (typeof runtimeConfig.layerSources)[number];
                     capability?: NonNullable<
                         NonNullable<(typeof metadataRepos)[number]['capabilities']>
                     >[number];
@@ -3514,7 +3572,7 @@ export function registerCommands(
             const updatedLayerIds = new Set<string>();
             const scopedMutation = getScopedLayerMutationProfile(state.config);
 
-            for (const layerSource of layerSources) {
+            for (const layerSource of projectedLayerSources) {
                 if (typeof requestedRepoId === 'string' && layerSource.repoId !== requestedRepoId) {
                     continue;
                 }
@@ -3554,7 +3612,17 @@ export function registerCommands(
                 }
             }
 
+            const updatedBuiltInLayerPaths = new Set<string>();
+
             for (const matchedLayer of matchedLayers.values()) {
+                if (matchedLayer.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                    updatedBuiltInLayerPaths.add(matchedLayer.path);
+                    updatedLayerIds.add(
+                        `${matchedLayer.repoId}:${normalizeCommandLayerPath(matchedLayer.path)}`,
+                    );
+                    continue;
+                }
+
                 if (scopedMutation) {
                     updateProfileLayerOverride(
                         scopedMutation.profile,
@@ -3571,6 +3639,15 @@ export function registerCommands(
 
                 updatedLayerIds.add(
                     `${matchedLayer.repoId}:${normalizeCommandLayerPath(matchedLayer.path)}`,
+                );
+            }
+
+            if (updatedBuiltInLayerPaths.size > 0) {
+                state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                    context,
+                    state.builtInCapability,
+                    updatedBuiltInLayerPaths,
+                    requestedCheckedState,
                 );
             }
 
@@ -3601,13 +3678,21 @@ export function registerCommands(
                 return;
             }
             try {
-                const projectedConfig = projectConfigForProfile(state.config);
+                const projectedConfig = withBuiltInCapabilityProjected(
+                    projectConfigForProfile(state.config),
+                    state.builtInCapability,
+                );
                 const { layerSources } = ensureMultiRepoConfig(projectedConfig);
                 const indices = resolveLayerIndicesForItem(layerSources, item);
                 const scopedMutation = getScopedLayerMutationProfile(state.config);
+                const builtInLayerPaths = new Set<string>();
                 for (const i of indices) {
                     const layerSource = layerSources[i];
                     if (!layerSource) {
+                        continue;
+                    }
+                    if (layerSource.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                        builtInLayerPaths.add(layerSource.path);
                         continue;
                     }
                     if (scopedMutation) {
@@ -3622,6 +3707,14 @@ export function registerCommands(
                         runtime.layerSources[i].enabled = true;
                         syncLayerSourceToCapabilityConfig(state.config, runtime.layerSources[i]);
                     }
+                }
+                if (builtInLayerPaths.size > 0) {
+                    state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                        context,
+                        state.builtInCapability,
+                        builtInLayerPaths,
+                        true,
+                    );
                 }
                 if (state.configPath) {
                     await persistConfig(state.configPath, state.config, state);
@@ -3646,13 +3739,21 @@ export function registerCommands(
                 return;
             }
             try {
-                const projectedConfig = projectConfigForProfile(state.config);
+                const projectedConfig = withBuiltInCapabilityProjected(
+                    projectConfigForProfile(state.config),
+                    state.builtInCapability,
+                );
                 const { layerSources } = ensureMultiRepoConfig(projectedConfig);
                 const indices = resolveLayerIndicesForItem(layerSources, item);
                 const scopedMutation = getScopedLayerMutationProfile(state.config);
+                const builtInLayerPaths = new Set<string>();
                 for (const i of indices) {
                     const layerSource = layerSources[i];
                     if (!layerSource) {
+                        continue;
+                    }
+                    if (layerSource.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                        builtInLayerPaths.add(layerSource.path);
                         continue;
                     }
                     if (scopedMutation) {
@@ -3667,6 +3768,14 @@ export function registerCommands(
                         runtime.layerSources[i].enabled = false;
                         syncLayerSourceToCapabilityConfig(state.config, runtime.layerSources[i]);
                     }
+                }
+                if (builtInLayerPaths.size > 0) {
+                    state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                        context,
+                        state.builtInCapability,
+                        builtInLayerPaths,
+                        false,
+                    );
                 }
                 if (state.configPath) {
                     await persistConfig(state.configPath, state.config, state);
@@ -4043,17 +4152,46 @@ export function registerCommands(
     // ── metaflow.toggleRepoSource ──────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleRepoSource', async (arg?: unknown) => {
-            const ws = getWorkspace();
-            if (!ws || !state.config) {
-                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
-                return;
-            }
-
             const repoId = extractRepoId(arg);
             const requestedCheckedState = extractLayerCheckedState(arg);
 
             if (typeof repoId !== 'string' || repoId.length === 0) {
                 logWarn('Toggle repo source requires a valid repo id.');
+                return;
+            }
+
+            const ws = getWorkspace();
+            if (!ws) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
+                return;
+            }
+
+            if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                const nextEnabled =
+                    typeof requestedCheckedState === 'boolean'
+                        ? requestedCheckedState
+                        : !state.builtInCapability.layerEnabled;
+
+                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                    context,
+                    state.builtInCapability,
+                    {
+                        layerEnabled: nextEnabled,
+                        layerStates: {},
+                    },
+                );
+
+                logInfo(
+                    `Toggled built-in repo source ${repoId}: ${nextEnabled ? 'enabled' : 'disabled'}`,
+                );
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                });
+                return;
+            }
+
+            if (!state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded.');
                 return;
             }
 

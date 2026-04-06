@@ -9,7 +9,6 @@
 
 import { execFile, ChildProcess } from 'child_process';
 import * as path from 'path';
-import { promisify } from 'util';
 import * as vscode from 'vscode';
 import { logInfo } from '../views/outputChannel';
 import {
@@ -21,8 +20,6 @@ import {
     detectMetaflowGitIgnoreMode,
     ensureMetaflowGitIgnoreEntry,
 } from './initConfigHelpers';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Default timeout for git clone operations (10 minutes).
@@ -55,7 +52,7 @@ async function execCloneWithTimeout(
                 try {
                     // Kill the process tree (works cross-platform via SIGTERM)
                     process.kill(-childProcess.pid);
-                } catch (e) {
+                } catch {
                     // Process may have already exited, ignore
                 }
             }
@@ -70,7 +67,7 @@ async function execCloneWithTimeout(
             if (childProcess && childProcess.pid && !cancelled) {
                 try {
                     process.kill(-childProcess.pid);
-                } catch (e) {
+                } catch {
                     // Process may have already exited, ignore
                 }
             }

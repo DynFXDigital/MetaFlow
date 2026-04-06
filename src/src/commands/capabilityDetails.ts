@@ -14,9 +14,12 @@ import {
 } from '../treeSummary';
 
 import {
+    BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
     BuiltInCapabilityRuntimeState,
+    normalizeBuiltInLayerPath,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInLayerEnabled,
 } from '../builtInCapability';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 
@@ -32,6 +35,7 @@ const DETAIL_ARTIFACT_ORDER: DetailArtifactType[] = [
 
 export interface CapabilityDetailCommandArg {
     layerIndex?: number;
+    layerPath?: string;
     repoId?: string;
     skipPreview?: boolean;
 }
@@ -166,12 +170,13 @@ export function resolveCapabilityDetailTarget(
             return undefined;
         }
 
+        const layerPath = normalizeBuiltInLayerPath(arg.layerPath ?? BUILT_IN_CAPABILITY_LAYER_PATH);
         const derivedCapabilityId = deriveCapabilityIdFromLayerPath(
-            '.',
+            layerPath,
             builtInCapability.sourceRoot,
         );
         const manifest = loadCapabilityManifestForLayer(
-            builtInCapability.sourceRoot,
+            path.join(builtInCapability.sourceRoot, layerPath),
             derivedCapabilityId,
         );
         const fallbackTitle = resolveBuiltInCapabilityDisplayName(
@@ -180,12 +185,12 @@ export function resolveCapabilityDetailTarget(
         );
         return {
             capabilityId: manifest?.id ?? derivedCapabilityId,
-            layerId: `${BUILT_IN_CAPABILITY_REPO_ID}/.github`,
-            layerPath: '.github',
-            layerRoot: builtInCapability.sourceRoot,
+            layerId: `${BUILT_IN_CAPABILITY_REPO_ID}/${layerPath}`,
+            layerPath,
+            layerRoot: path.join(builtInCapability.sourceRoot, layerPath),
             repoId: BUILT_IN_CAPABILITY_REPO_ID,
             repoLabel: fallbackTitle,
-            enabled: builtInCapability.layerEnabled,
+            enabled: resolveBuiltInLayerEnabled(builtInCapability, layerPath),
             builtIn: true,
             fallbackTitle,
         };

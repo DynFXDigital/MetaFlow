@@ -565,7 +565,7 @@ suite('ConfigTreeView', () => {
             makeState({
                 config: {},
                 capabilityByLayer: {
-                    '__metaflow_builtin__/.github': {
+                    '__metaflow_builtin__/.': {
                         name: ' Bundled Capability ',
                     },
                 },

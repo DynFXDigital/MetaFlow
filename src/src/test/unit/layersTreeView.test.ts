@@ -729,7 +729,7 @@ suite('LayersTreeView – artifact-type children', () => {
         const provider = new LayersTreeViewProvider(
             makeState(
                 config,
-                [makeEffectiveFile('instructions/a.md', '__metaflow_builtin__', '.github')],
+                [makeEffectiveFile('instructions/a.md', '__metaflow_builtin__', '.')],
                 {},
                 {
                     enabled: true,
@@ -769,7 +769,7 @@ suite('LayersTreeView – artifact-type children', () => {
 
         const builtInLayer = provider.getChildren(builtInRepo)[0];
         assert.strictEqual(builtInLayer.repoId, '__metaflow_builtin__');
-        assert.strictEqual(String(builtInLayer.label), '.github');
+        assert.strictEqual(String(builtInLayer.label), 'root');
         assert.strictEqual(String(builtInLayer.description), '(0/0)');
         assert.ok(!String(builtInLayer.description).includes('__metaflow_builtin__'));
         assert.strictEqual(builtInLayer.contextValue, 'layer');
@@ -786,7 +786,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     makeEffectiveFile(
                         'skills/metaflow-capability-review/SKILL.md',
                         '__metaflow_builtin__',
-                        '.github',
+                        '.',
                     ),
                 ],
                 {},
@@ -805,6 +805,128 @@ suite('LayersTreeView – artifact-type children', () => {
         const repoItems = provider.getChildren();
         const builtInRepo = repoItems.find((item) => item.repoId === '__metaflow_builtin__');
         assert.ok(builtInRepo, 'expected built-in repository node for Synchronized legacy install');
+    });
+
+    test('LTV-AT-10c: built-in repo exposes metadata-authoring folder with three child capabilities', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const capabilityByLayer = {
+            '__metaflow_builtin__/.': { name: 'MetaFlow' },
+            '__metaflow_builtin__/capabilities/metadata-authoring/github-copilot-metadata-authoring': {
+                name: 'GitHub Copilot Metadata Authoring',
+            },
+            '__metaflow_builtin__/capabilities/metadata-authoring/claude-code-metadata-authoring': {
+                name: 'Claude Code Metadata Authoring',
+            },
+            '__metaflow_builtin__/capabilities/metadata-authoring/codex-metadata-authoring': {
+                name: 'Codex Metadata Authoring',
+            },
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                {
+                    metadataRepos: [
+                        {
+                            id: '__metaflow_builtin__',
+                            name: 'MetaFlow',
+                            localPath: '/tmp/ext/assets/metaflow-ai-metadata',
+                            enabled: true,
+                        },
+                    ],
+                    layerSources: [
+                        { repoId: '__metaflow_builtin__', path: '.', enabled: true },
+                        {
+                            repoId: '__metaflow_builtin__',
+                            path: 'capabilities/metadata-authoring/github-copilot-metadata-authoring',
+                            enabled: true,
+                        },
+                        {
+                            repoId: '__metaflow_builtin__',
+                            path: 'capabilities/metadata-authoring/claude-code-metadata-authoring',
+                            enabled: true,
+                        },
+                        {
+                            repoId: '__metaflow_builtin__',
+                            path: 'capabilities/metadata-authoring/codex-metadata-authoring',
+                            enabled: true,
+                        },
+                    ],
+                },
+                [
+                    makeEffectiveFile('instructions/root.md', '__metaflow_builtin__', '.'),
+                    makeEffectiveFile(
+                        'instructions/copilot.md',
+                        '__metaflow_builtin__',
+                        'capabilities/metadata-authoring/github-copilot-metadata-authoring',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/claude.md',
+                        '__metaflow_builtin__',
+                        'capabilities/metadata-authoring/claude-code-metadata-authoring',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/codex.md',
+                        '__metaflow_builtin__',
+                        'capabilities/metadata-authoring/codex-metadata-authoring',
+                    ),
+                ],
+                capabilityByLayer,
+            ),
+            () => 'tree',
+        );
+
+        const repoItems = provider.getChildren();
+        const builtInRepo = repoItems.find((item) => item.repoId === '__metaflow_builtin__');
+        assert.ok(builtInRepo, 'expected built-in repository node');
+        assert.strictEqual(builtInRepo.checkboxState, 1);
+
+        const visited = new Set<unknown>();
+        const findDescendant = (
+            root: unknown,
+            predicate: (candidate: { label?: unknown; contextValue?: string }) => boolean,
+        ): unknown => {
+            if (visited.has(root)) {
+                return undefined;
+            }
+            visited.add(root);
+
+            const children = provider.getChildren(root as never);
+            for (const child of children) {
+                if (predicate(child as { label?: unknown; contextValue?: string })) {
+                    return child;
+                }
+                const nested = findDescendant(child, predicate);
+                if (nested) {
+                    return nested;
+                }
+            }
+            return undefined;
+        };
+
+        const metadataAuthoringFolder = findDescendant(
+            builtInRepo,
+            (candidate) =>
+                candidate.contextValue === 'layerFolder' &&
+                String(candidate.label).toLowerCase().includes('metadata'),
+        );
+        assert.ok(
+            metadataAuthoringFolder,
+            'expected metadata-authoring grouping folder somewhere under the built-in repo',
+        );
+        assert.strictEqual(
+            (metadataAuthoringFolder as { contextValue?: unknown }).contextValue,
+            'layerFolder',
+        );
+
+        const metadataChildren = provider.getChildren(metadataAuthoringFolder as never);
+        assert.deepStrictEqual(
+            metadataChildren.map((item) => String(item.label)).sort(),
+            [
+                'Claude Code Metadata Authoring',
+                'Codex Metadata Authoring',
+                'GitHub Copilot Metadata Authoring',
+            ],
+        );
     });
 
     test('LTV-AT-10: only types with files are shown (partial coverage)', () => {
@@ -1624,12 +1746,12 @@ suite('LayersTreeView – artifact-type children', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = makeMultiRepoConfig();
         const capabilityByLayer = {
-            '__metaflow_builtin__/.github': { name: 'MetaFlow AI Metadata' },
+            '__metaflow_builtin__/.': { name: 'MetaFlow AI Metadata' },
         };
         const provider = new LayersTreeViewProvider(
             makeState(
                 config,
-                [makeEffectiveFile('instructions/a.md', '__metaflow_builtin__', '.github')],
+                [makeEffectiveFile('instructions/a.md', '__metaflow_builtin__', '.')],
                 capabilityByLayer,
                 {
                     enabled: true,

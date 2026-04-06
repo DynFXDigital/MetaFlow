@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
+    discoverLayersInRepo,
     ExcludableArtifactType,
     EffectiveFile,
     getArtifactType,
@@ -18,9 +19,16 @@ import {
     BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
     isBuiltInCapabilityActive,
+    normalizeBuiltInLayerPath,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInLayerEnabled,
+    resolveBuiltInRepoEnabled,
 } from '../builtInCapability';
-import { projectConfigForProfile, readManagedViewsState } from '../commands/commandHelpers';
+import {
+    ensureMultiRepoConfig,
+    projectConfigForProfile,
+    readManagedViewsState,
+} from '../commands/commandHelpers';
 import {
     ArtifactSummaryCounts,
     ArtifactSummary,
@@ -67,6 +75,66 @@ function normalizeRelativePath(value: string): string {
         .replace(/^\.\//, '')
         .replace(/^\/+|\/+$/g, '');
     return normalized || '.';
+}
+
+function projectBuiltInCapabilityConfig(
+    config: ExtensionState['config'],
+    builtInCapability: ExtensionState['builtInCapability'],
+    repoMetadataById: Record<string, { name?: string; description?: string }> | undefined,
+): ExtensionState['config'] {
+    if (!config || !isBuiltInCapabilityActive(builtInCapability) || !builtInCapability.sourceRoot) {
+        return config;
+    }
+
+    const projected = JSON.parse(JSON.stringify(config)) as NonNullable<ExtensionState['config']>;
+    const multiRepoConfig = ensureMultiRepoConfig(projected);
+    const builtInRepoLabel =
+        repoMetadataById?.[BUILT_IN_CAPABILITY_REPO_ID]?.name?.trim() ||
+        resolveBuiltInCapabilityDisplayName(undefined, builtInCapability.sourceDisplayName);
+    const builtInRepoEnabled = resolveBuiltInRepoEnabled(builtInCapability);
+    const builtInLayerPaths = Array.from(
+        new Set(
+            discoverLayersInRepo(builtInCapability.sourceRoot).map((layerPath) =>
+                normalizeBuiltInLayerPath(layerPath),
+            ),
+        ),
+    );
+    if (builtInLayerPaths.length === 0) {
+        builtInLayerPaths.push(BUILT_IN_CAPABILITY_LAYER_PATH);
+    }
+
+    builtInLayerPaths.sort((left, right) => {
+        if (left === BUILT_IN_CAPABILITY_LAYER_PATH) {
+            return -1;
+        }
+        if (right === BUILT_IN_CAPABILITY_LAYER_PATH) {
+            return 1;
+        }
+        return left.localeCompare(right, undefined, { sensitivity: 'base' });
+    });
+
+    multiRepoConfig.metadataRepos = multiRepoConfig.metadataRepos.filter(
+        (repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID,
+    );
+    multiRepoConfig.metadataRepos.push({
+        id: BUILT_IN_CAPABILITY_REPO_ID,
+        name: builtInRepoLabel,
+        localPath: builtInCapability.sourceRoot,
+        enabled: builtInRepoEnabled,
+    });
+
+    multiRepoConfig.layerSources = multiRepoConfig.layerSources.filter(
+        (layer) => layer.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+    );
+    for (const layerPath of builtInLayerPaths) {
+        multiRepoConfig.layerSources.push({
+            repoId: BUILT_IN_CAPABILITY_REPO_ID,
+            path: layerPath,
+            enabled: resolveBuiltInLayerEnabled(builtInCapability, layerPath),
+        });
+    }
+
+    return projected;
 }
 
 function pathStartsWith(candidate: string, prefix: string): boolean {
@@ -324,6 +392,9 @@ class LayerRepoItem extends vscode.TreeItem {
         this.id = buildLayerTreeItemId('repo', 'tree', repoId, '.');
         this.contextValue = 'layerRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
+        this.checkboxState = repoDisabled
+            ? vscode.TreeItemCheckboxState.Unchecked
+            : vscode.TreeItemCheckboxState.Checked;
         this.description = formatSummaryDescription(
             undefined,
             summary,
@@ -347,6 +418,10 @@ class LayerRepoItem extends vscode.TreeItem {
             detailLines,
             options?.description ? `*${options.description}*` : undefined,
         );
+        this.accessibilityInformation = {
+            label: `${label} ${repoDisabled ? 'disabled' : 'enabled'}`,
+            role: 'checkbox',
+        };
     }
 }
 
@@ -415,7 +490,7 @@ class LayerItem extends vscode.TreeItem {
             this.command = {
                 command: 'metaflow.openCapabilityDetails',
                 title: 'View Capability Details',
-                arguments: [{ layerIndex, repoId: options?.repoId }],
+                arguments: [{ layerIndex, repoId: options?.repoId, layerPath: options?.layerPath }],
             };
         } else {
             this.contextValue = 'layerFolder';
@@ -1078,7 +1153,48 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private getProjectedConfig(): ExtensionState['config'] {
         const config = this.state.config;
-        return config ? projectConfigForProfile(config) : undefined;
+        if (!config) {
+            return undefined;
+        }
+
+        const projected = projectBuiltInCapabilityConfig(
+            projectConfigForProfile(config),
+            this.state.builtInCapability,
+            this.state.repoMetadataById,
+        );
+
+        if (
+            !projected ||
+            !isBuiltInCapabilityActive(this.state.builtInCapability) ||
+            !this.state.builtInCapability.sourceRoot ||
+            projected.metadataRepos?.some((repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID)
+        ) {
+            return projected;
+        }
+
+        const fallback = JSON.parse(JSON.stringify(projected)) as NonNullable<ExtensionState['config']>;
+        const multiRepoConfig = ensureMultiRepoConfig(fallback);
+        const builtInRepoLabel =
+            this.state.repoMetadataById?.[BUILT_IN_CAPABILITY_REPO_ID]?.name?.trim() ||
+            resolveBuiltInCapabilityDisplayName(
+                undefined,
+                this.state.builtInCapability.sourceDisplayName,
+            );
+        multiRepoConfig.metadataRepos.push({
+            id: BUILT_IN_CAPABILITY_REPO_ID,
+            name: builtInRepoLabel,
+            localPath: this.state.builtInCapability.sourceRoot,
+            enabled: true,
+        });
+        multiRepoConfig.layerSources.push({
+            repoId: BUILT_IN_CAPABILITY_REPO_ID,
+            path: BUILT_IN_CAPABILITY_LAYER_PATH,
+            enabled: resolveBuiltInLayerEnabled(
+                this.state.builtInCapability,
+                BUILT_IN_CAPABILITY_LAYER_PATH,
+            ),
+        });
+        return fallback;
     }
 
     private getLayerEntries(): LayerEntry[] {
@@ -1124,33 +1240,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 };
             });
 
-            if (isBuiltInCapabilityActive(this.state.builtInCapability)) {
-                const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
-                const builtInCapability = capabilityByLayer.get(
-                    this.normalizeLayerId(builtInLayerId),
-                );
-                const builtInManifestName = this.getRepoMetadataById()
-                    .get(BUILT_IN_CAPABILITY_REPO_ID)
-                    ?.name?.trim();
-                const builtInDisplayName =
-                    builtInManifestName ||
-                    resolveBuiltInCapabilityDisplayName(
-                        builtInCapability?.name,
-                        this.state.builtInCapability.sourceDisplayName,
-                    );
-                entries.push({
-                    label: builtInDisplayName,
-                    layerIndex: config.layerSources.length,
-                    enabled: this.state.builtInCapability.layerEnabled,
-                    repoId: BUILT_IN_CAPABILITY_REPO_ID,
-                    repoLabel: builtInDisplayName,
-                    repoDisabled: false,
-                    toggleable: true,
-                    normalizedPath: this.normalizeLayerPath(BUILT_IN_CAPABILITY_LAYER_PATH),
-                    capability: builtInCapability,
-                });
-            }
-
             return entries;
         }
 
@@ -1175,33 +1264,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     capability,
                 };
             });
-
-            if (isBuiltInCapabilityActive(this.state.builtInCapability)) {
-                const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
-                const builtInCapability = capabilityByLayer.get(
-                    this.normalizeLayerId(builtInLayerId),
-                );
-                const builtInManifestName = this.getRepoMetadataById()
-                    .get(BUILT_IN_CAPABILITY_REPO_ID)
-                    ?.name?.trim();
-                const builtInDisplayName =
-                    builtInManifestName ||
-                    resolveBuiltInCapabilityDisplayName(
-                        builtInCapability?.name,
-                        this.state.builtInCapability.sourceDisplayName,
-                    );
-                entries.push({
-                    label: builtInDisplayName,
-                    layerIndex: config.layers.length,
-                    enabled: this.state.builtInCapability.layerEnabled,
-                    repoId: BUILT_IN_CAPABILITY_REPO_ID,
-                    repoLabel: builtInDisplayName,
-                    repoDisabled: false,
-                    toggleable: true,
-                    normalizedPath: this.normalizeLayerPath(BUILT_IN_CAPABILITY_LAYER_PATH),
-                    capability: builtInCapability,
-                });
-            }
 
             return entries;
         }
@@ -1397,6 +1459,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         if (!prefix && rootEntry) {
             const rootLabel = entries[0]?.repoId ? 'root' : rootEntry.label;
+            const rootHasDescendantLayers = entries.some((entry) => entry.normalizedPath !== '');
             const rootHasArtifactChildren =
                 mode === 'tree' &&
                 typeof rootEntry.layerIndex === 'number' &&
@@ -1416,7 +1479,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     showRepoLabelInDescription: false,
                     repoDisabled: rootEntry.repoDisabled,
                     toggleable: rootEntry.toggleable,
-                    hasChildren: rootHasArtifactChildren,
+                    hasChildren: rootHasDescendantLayers || rootHasArtifactChildren,
                     path: '(root)',
                     layerPath: '.',
                     showPathInDescription: false,
@@ -1691,7 +1754,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     (entry) => entry.repoId === BUILT_IN_CAPABILITY_REPO_ID,
                 );
                 repoOrder.set(BUILT_IN_CAPABILITY_REPO_ID, Number.MAX_SAFE_INTEGER);
-                repoDisabled.set(BUILT_IN_CAPABILITY_REPO_ID, false);
+                repoDisabled.set(
+                    BUILT_IN_CAPABILITY_REPO_ID,
+                    !resolveBuiltInRepoEnabled(this.state.builtInCapability),
+                );
                 repoLabels.set(
                     BUILT_IN_CAPABILITY_REPO_ID,
                     builtInEntry?.repoLabel ??

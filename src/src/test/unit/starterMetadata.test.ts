@@ -133,6 +133,70 @@ suite('metaFlowAiMetadata', () => {
         }
     });
 
+    test('flattens nested bundled capability .github assets when scaffolding into a workspace', async () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-starter-nested-cap-'));
+        const workspaceRoot = path.join(tempRoot, 'workspace');
+        const extensionPath = path.join(tempRoot, 'extension');
+
+        const nestedInstruction = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            'capabilities',
+            'metadata-authoring',
+            'github-copilot-metadata-authoring',
+            '.github',
+            'instructions',
+            'ai-metadata-agent.instructions.md',
+        );
+        const nestedManifest = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            'capabilities',
+            'metadata-authoring',
+            'github-copilot-metadata-authoring',
+            'CAPABILITY.md',
+        );
+
+        fs.mkdirSync(path.dirname(nestedInstruction), { recursive: true });
+        fs.writeFileSync(nestedInstruction, '# nested authoring\n', 'utf-8');
+        fs.writeFileSync(nestedManifest, '# nested capability\n', 'utf-8');
+        fs.mkdirSync(workspaceRoot, { recursive: true });
+
+        try {
+            const result = await scaffoldMetaFlowAiMetadata({ workspaceRoot, extensionPath });
+            assert.ok(result, 'Expected scaffold result for nested capability assets');
+            assert.deepStrictEqual(result?.writtenFiles, ['.github/instructions/ai-metadata-agent.instructions.md']);
+            assert.strictEqual(
+                fs.readFileSync(
+                    path.join(
+                        workspaceRoot,
+                        '.github',
+                        'instructions',
+                        'ai-metadata-agent.instructions.md',
+                    ),
+                    'utf-8',
+                ),
+                '# nested authoring\n',
+            );
+            assert.ok(
+                !fs.existsSync(
+                    path.join(
+                        workspaceRoot,
+                        'capabilities',
+                        'metadata-authoring',
+                        'github-copilot-metadata-authoring',
+                        'CAPABILITY.md',
+                    ),
+                ),
+                'Workspace scaffolding should not materialize nested bundled capability manifests.',
+            );
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
     test('mirrors bundled metadata into a stable cache root outside the extension install directory', async () => {
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-starter-cache-'));
         const extensionPath = path.join(tempRoot, 'extension');
