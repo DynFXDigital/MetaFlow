@@ -37,6 +37,10 @@ function synchronizedPath(relativePath: string, layer = 'company/core', repo = '
     return dir === '.' ? prefixed : `${dir}/${prefixed}`;
 }
 
+function originalSynchronizedPath(relativePath: string): string {
+    return relativePath.replace(/\\/g, '/');
+}
+
 // ── Init command ───────────────────────────────────────────────────
 
 describe('CLI: init', () => {
@@ -232,6 +236,55 @@ describe('CLI: preview', () => {
 
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('No files in overlay'));
+    });
+
+    it('should preserve original relative paths when fileNamingStrategy is original-unless-conflict', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+            layers: STANDARD_LAYERS,
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')));
+        assert.ok(!previewResult.stdout.includes(synchronizedPath('skills/testing/SKILL.md')));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+        assert.ok(
+            fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')),
+        );
+
+        const validateResult = await runCli(['validate', '-w', ws.root]);
+        assert.strictEqual(validateResult.exitCode, 0);
+    });
+
+    it('should fail preview and apply with the same remap message after prefixed outputs already exist', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        const initialApply = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(initialApply.exitCode, 0);
+
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(previewResult.exitCode, 1);
+        assert.strictEqual(applyResult.exitCode, 1);
+        assert.ok(previewResult.stderr.includes('Automatic migration is not supported'));
+        assert.ok(applyResult.stderr.includes('Automatic migration is not supported'));
     });
 });
 

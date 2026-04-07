@@ -13,34 +13,41 @@ export function registerApplyCommand(program: Command): void {
             if (!loaded) {
                 return;
             }
-            const { config } = loaded;
-            const files = resolveEffectiveFiles(config, workspaceRoot);
+            try {
+                const { config } = loaded;
+                const files = resolveEffectiveFiles(config, workspaceRoot);
 
-            const result = apply({
-                workspaceRoot,
-                effectiveFiles: files,
-                activeProfile: config.activeProfile,
-                force: options.force ?? false,
-            });
+                const result = apply({
+                    workspaceRoot,
+                    effectiveFiles: files,
+                    activeProfile: config.activeProfile,
+                    fileNamingStrategy: config.fileNamingStrategy,
+                    layerSources: config.layerSources,
+                    force: options.force ?? false,
+                });
 
-            for (const rel of result.written) {
-                console.log(`write  ${rel}`);
-            }
-            for (const rel of result.removed) {
-                console.log(`remove ${rel}`);
-            }
-            for (const rel of result.skipped) {
-                console.log(`skip   ${rel}`);
-            }
-
-            if (result.warnings.length > 0) {
-                for (const w of result.warnings) {
-                    console.warn(`Warning: ${w}`);
+                for (const rel of result.written) {
+                    console.log(`write  ${rel}`);
                 }
-            }
+                for (const rel of result.removed) {
+                    console.log(`remove ${rel}`);
+                }
+                for (const rel of result.skipped) {
+                    console.log(`skip   ${rel}`);
+                }
 
-            console.log(
-                `\nDone: ${result.written.length} written, ${result.removed.length} removed, ${result.skipped.length} skipped.`,
-            );
+                if (result.warnings.length > 0) {
+                    for (const w of result.warnings) {
+                        console.warn(`Warning: ${w}`);
+                    }
+                }
+
+                console.log(
+                    `\nDone: ${result.written.length} written, ${result.removed.length} removed, ${result.skipped.length} skipped.`,
+                );
+            } catch (err: unknown) {
+                console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+                process.exitCode = 1;
+            }
         });
 }

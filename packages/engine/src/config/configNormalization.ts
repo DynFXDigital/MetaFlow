@@ -10,6 +10,7 @@ import {
     ProfileConfig,
     ProfileLayerOverride,
     RepoDiscoveryConfig,
+    SyncFileNamingStrategy,
 } from './configSchema';
 import { normalizeInputPath } from './configPathUtils';
 
@@ -157,6 +158,9 @@ function cloneCapabilitySource(source: CapabilitySource): CapabilitySource {
         ...(source.injection !== undefined
             ? { injection: orderInjectionConfig(source.injection) }
             : {}),
+        ...(source.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: source.fileNamingStrategy }
+            : {}),
     };
 }
 
@@ -170,6 +174,9 @@ function cloneLayerSource(source: LayerSource): LayerSource {
             : {}),
         ...(source.injection !== undefined
             ? { injection: orderInjectionConfig(source.injection) }
+            : {}),
+        ...(source.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: source.fileNamingStrategy }
             : {}),
     };
 }
@@ -191,6 +198,9 @@ function cloneNamedRepo(
         ...(repo.injection !== undefined
             ? { injection: orderInjectionConfig(repo.injection) }
             : {}),
+        ...(repo.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: repo.fileNamingStrategy }
+            : {}),
         capabilities,
     };
 }
@@ -203,6 +213,9 @@ function layerSourceToCapabilitySource(source: LayerSource): CapabilitySource {
             ? { excludedTypes: cloneJson(source.excludedTypes) }
             : {}),
         ...(source.injection !== undefined ? { injection: cloneJson(source.injection) } : {}),
+        ...(source.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: source.fileNamingStrategy }
+            : {}),
     };
 }
 
@@ -215,6 +228,9 @@ function capabilitySourceToLayerSource(repoId: string, source: CapabilitySource)
             ? { excludedTypes: cloneJson(source.excludedTypes) }
             : {}),
         ...(source.injection !== undefined ? { injection: cloneJson(source.injection) } : {}),
+        ...(source.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: source.fileNamingStrategy }
+            : {}),
     };
 }
 
@@ -243,12 +259,19 @@ function mergeCapabilitySource(
             : capability.injection !== undefined
               ? { injection: cloneJson(capability.injection) }
               : {}),
+                ...(fallback.fileNamingStrategy !== undefined
+                        ? { fileNamingStrategy: fallback.fileNamingStrategy }
+                        : capability.fileNamingStrategy !== undefined
+                            ? { fileNamingStrategy: capability.fileNamingStrategy }
+                            : {}),
     };
 }
 
 function buildRestOfConfig(
     config: MetaFlowConfig,
 ): Omit<MetaFlowConfig, 'metadataRepo' | 'layers' | 'metadataRepos' | 'layerSources'> {
+    const fileNamingStrategy = config.fileNamingStrategy as SyncFileNamingStrategy | undefined;
+
     return {
         ...(config.filters !== undefined ? { filters: orderFilterConfig(config.filters) } : {}),
         ...(config.profiles !== undefined ? { profiles: orderProfiles(config.profiles) } : {}),
@@ -256,6 +279,7 @@ function buildRestOfConfig(
         ...(config.injection !== undefined
             ? { injection: orderInjectionConfig(config.injection) }
             : {}),
+        ...(fileNamingStrategy !== undefined ? { fileNamingStrategy } : {}),
         ...(config.settingsInjectionTarget !== undefined
             ? { settingsInjectionTarget: config.settingsInjectionTarget }
             : {}),
@@ -307,6 +331,13 @@ function flattenCapabilities(repos: NamedMetadataRepo[] | undefined): LayerSourc
                     ...(repo.injection ?? {}),
                     ...(capability.injection ?? {}),
                 });
+            }
+            if (
+                capability.fileNamingStrategy !== undefined ||
+                repo.fileNamingStrategy !== undefined
+            ) {
+                layer.fileNamingStrategy =
+                    capability.fileNamingStrategy ?? repo.fileNamingStrategy;
             }
             sources.push(layer);
         }

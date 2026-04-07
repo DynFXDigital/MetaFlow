@@ -17,6 +17,7 @@ export type {
     ProfileLayerOverride,
     InjectionMode,
     InjectionConfig,
+    SyncFileNamingStrategy,
     SettingsInjectionTarget,
     HooksConfig,
     ConfigError,

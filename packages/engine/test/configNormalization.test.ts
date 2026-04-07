@@ -478,6 +478,33 @@ describe('configNormalization: normalizeConfigShape — flattenCapabilities with
         assert.ok(core);
         assert.strictEqual(core!.injection, undefined);
     });
+
+    it('flattens repo and capability fileNamingStrategy onto layerSources with capability precedence', () => {
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    fileNamingStrategy: 'original-unless-conflict',
+                    capabilities: [
+                        { path: 'core' },
+                        { path: 'override', fileNamingStrategy: 'prefixed' },
+                    ],
+                },
+            ],
+            fileNamingStrategy: 'prefixed',
+        };
+
+        const result = normalizeConfigShape(config);
+        const core = result.config.layerSources?.find((source) => source.path === 'core');
+        const override = result.config.layerSources?.find((source) => source.path === 'override');
+
+        assert.ok(core);
+        assert.ok(override);
+        assert.strictEqual(core!.fileNamingStrategy, 'original-unless-conflict');
+        assert.strictEqual(override!.fileNamingStrategy, 'prefixed');
+        assert.strictEqual(result.config.fileNamingStrategy, 'prefixed');
+    });
 });
 
 describe('configNormalization: normalizeConfigShape — migration messages', () => {

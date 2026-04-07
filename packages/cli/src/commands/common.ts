@@ -33,6 +33,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'profiles',
     'activeProfile',
     'injection',
+    'fileNamingStrategy',
     'settingsInjectionTarget',
     'hooks',
 ]);

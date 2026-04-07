@@ -21,7 +21,7 @@ export {
     getStateDirPath,
 } from './managedState';
 export { checkDrift, checkAllDrift } from './driftDetector';
-export { apply, clean, preview, toSynchronizedRelativePath } from './synchronizer';
+export { apply, clean, planSynchronization, preview, toSynchronizedRelativePath } from './synchronizer';
 export { computeSettingsEntries, computeSettingsKeysToRemove } from './settingsInjector';
 export {
     parseCapabilityManifestContent,
@@ -52,5 +52,11 @@ export type {
 export type { ProvenanceData } from './provenanceHeader';
 export type { ManagedState, ManagedFileState, ManagedViewsState } from './managedState';
 export type { DriftStatus, DriftResult } from './driftDetector';
-export type { ApplyOptions, ApplyResult } from './synchronizer';
+export type {
+    ApplyOptions,
+    ApplyResult,
+    PlannedSynchronizedFile,
+    PlanSynchronizationOptions,
+    SynchronizationPlan,
+} from './synchronizer';
 export type { SettingsEntry } from './settingsInjector';

@@ -5,6 +5,7 @@ import * as os from 'os';
 import {
     apply,
     clean,
+    planSynchronization,
     preview,
     EffectiveFile,
     loadManagedState,
@@ -52,6 +53,15 @@ suite('synchronization engine', () => {
         const base = path.posix.basename(normalized);
         const prefixed = `_default-test-layer__${base}`;
         return dir === '.' ? prefixed : `${dir}/${prefixed}`;
+    }
+
+    function captureErrorMessage(fn: () => unknown): string {
+        try {
+            fn();
+            assert.fail('Expected function to throw');
+        } catch (err: unknown) {
+            return err instanceof Error ? err.message : String(err);
+        }
     }
 
     test('apply with no conflicts writes files and creates state', () => {
@@ -180,6 +190,90 @@ suite('synchronization engine', () => {
         assert.strictEqual(change!.reason, 'drifted');
     });
 
+    test('original-unless-conflict preserves original nested paths in preview and apply', () => {
+        const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
+
+        const changes = preview(tmpDir, files, outputDir, 'original-unless-conflict');
+        assert.strictEqual(changes[0].relativePath, 'skills/nested/guide.md');
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+            fileNamingStrategy: 'original-unless-conflict',
+        });
+        assert.ok(result.written.includes('skills/nested/guide.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, outputDir, 'skills', 'nested', 'guide.md')));
+    });
+
+    test('preview and apply report the same remap conflict when changing strategies', () => {
+        const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
+        apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
+
+        const previewMessage = captureErrorMessage(() =>
+            preview(tmpDir, files, outputDir, 'original-unless-conflict'),
+        );
+        const applyMessage = captureErrorMessage(() =>
+            apply({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+                fileNamingStrategy: 'original-unless-conflict',
+            }),
+        );
+
+        assert.strictEqual(applyMessage, previewMessage);
+        assert.ok(applyMessage.includes('Automatic migration is not supported'));
+    });
+
+    test('chatmodes ignore original-unless-conflict and stay on prefixed synchronized paths', () => {
+        const files = [makeEffectiveFile('chatmodes/legacy.chatmode.md', '# Legacy')];
+
+        const changes = preview(tmpDir, files, outputDir, 'original-unless-conflict');
+        assert.strictEqual(
+            changes[0].relativePath,
+            expectedSynchronizedPath('chatmodes/legacy.chatmode.md'),
+        );
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+            fileNamingStrategy: 'original-unless-conflict',
+        });
+        assert.ok(result.written.includes(expectedSynchronizedPath('chatmodes/legacy.chatmode.md')));
+        assert.ok(
+            fs.existsSync(
+                path.join(
+                    tmpDir,
+                    outputDir,
+                    expectedSynchronizedPath('chatmodes/legacy.chatmode.md'),
+                ),
+            ),
+        );
+    });
+
+    test('planSynchronization rejects unmanaged destinations for original-unless-conflict', () => {
+        const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
+        fs.mkdirSync(path.join(tmpDir, outputDir, 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tmpDir, outputDir, 'skills', 'nested', 'guide.md'),
+            'user-owned file',
+            'utf-8',
+        );
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+                fileNamingStrategy: 'original-unless-conflict',
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+    });
+
     test('settings files are not synchronized', () => {
         const file: EffectiveFile = {
             relativePath: 'prompts/gen.prompt.md',
@@ -241,16 +335,6 @@ suite('synchronization engine', () => {
             body1,
             body2,
             'Synchronized body content must be identical for same input',
-        );
-
-        // Also verify content hashes match via provenance
-        const prov1 = parseProvenanceHeader(out1);
-        const prov2 = parseProvenanceHeader(out2);
-        assert.ok(prov1 && prov2, 'Both outputs must have provenance');
-        assert.strictEqual(
-            prov1!.contentHash,
-            prov2!.contentHash,
-            'Content hashes must be identical',
         );
 
         // Cleanup

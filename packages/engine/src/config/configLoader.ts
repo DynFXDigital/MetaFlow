@@ -190,19 +190,37 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                             return true;
                         }
 
-                        const candidate = capability as { path?: unknown; excludedTypes?: unknown };
+                        const candidate = capability as {
+                            path?: unknown;
+                            excludedTypes?: unknown;
+                            fileNamingStrategy?: unknown;
+                        };
                         return (
                             typeof candidate.path !== 'string' ||
                             (candidate.excludedTypes !== undefined &&
                                 (!Array.isArray(candidate.excludedTypes) ||
                                     candidate.excludedTypes.some(
                                         (item) => typeof item !== 'string',
-                                    )))
+                                    ))) ||
+                            (candidate.fileNamingStrategy !== undefined &&
+                                candidate.fileNamingStrategy !== 'prefixed' &&
+                                candidate.fileNamingStrategy !== 'original-unless-conflict')
                         );
                     }))
             ) {
                 errors.push({
                     message: `"metadataRepos" entry "${repo.id}" has invalid "capabilities" entries.`,
+                });
+            }
+
+            if (
+                repo.fileNamingStrategy !== undefined &&
+                repo.fileNamingStrategy !== 'prefixed' &&
+                repo.fileNamingStrategy !== 'original-unless-conflict'
+            ) {
+                errors.push({
+                    message:
+                        `"metadataRepos" entry "${repo.id}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
                 });
             }
         }
@@ -252,8 +270,29 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                         message: `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "excludedTypes".`,
                     });
                 }
+                if (
+                    ls.fileNamingStrategy !== undefined &&
+                    ls.fileNamingStrategy !== 'prefixed' &&
+                    ls.fileNamingStrategy !== 'original-unless-conflict'
+                ) {
+                    errors.push({
+                        message:
+                            `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
+                    });
+                }
             }
         }
+    }
+
+    if (
+        config.fileNamingStrategy !== undefined &&
+        config.fileNamingStrategy !== 'prefixed' &&
+        config.fileNamingStrategy !== 'original-unless-conflict'
+    ) {
+        errors.push({
+            message:
+                '"fileNamingStrategy" must be either "prefixed" or "original-unless-conflict".',
+        });
     }
 
     // Active profile must exist in profiles if set

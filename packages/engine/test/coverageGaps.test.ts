@@ -380,6 +380,25 @@ describe('Engine gaps: configLoader', () => {
         } as MetaFlowConfig);
         assert.ok(errors.some((e) => e.message.includes('excludedTypes')));
     });
+
+    it('validateConfig reports error for invalid capability fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    capabilities: [
+                        {
+                            path: 'core',
+                            fileNamingStrategy: 'bad-value' as unknown as
+                                MetaFlowConfig['fileNamingStrategy'],
+                        },
+                    ],
+                },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(errors.some((e) => e.message.includes('capabilities')));
+    });
 });
 
 // ── synchronizer ──────────────────────────────────────────────────

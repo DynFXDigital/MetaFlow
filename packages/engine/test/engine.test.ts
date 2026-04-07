@@ -42,6 +42,7 @@ import {
     checkAllDrift,
     apply,
     clean,
+    planSynchronization,
     preview,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
@@ -67,6 +68,15 @@ function createTmpDir(): string {
 
 function cleanupDir(dir: string): void {
     fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function captureErrorMessage(fn: () => unknown): string {
+    try {
+        fn();
+        assert.fail('Expected function to throw');
+    } catch (err: unknown) {
+        return err instanceof Error ? err.message : String(err);
+    }
 }
 
 function createDirectoryLink(targetPath: string, linkPath: string): void {
@@ -214,6 +224,29 @@ describe('Engine package: config loading', () => {
                 excludedTypes: ['instructions'],
             },
         ]);
+    });
+
+    it('loadConfig preserves fileNamingStrategy through normalization', () => {
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+        fs.writeFileSync(
+            path.join(tmpDir, '.metaflow', 'config.jsonc'),
+            JSON.stringify(config),
+            'utf-8',
+        );
+
+        const result = loadConfig(tmpDir);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.fileNamingStrategy, 'original-unless-conflict');
+            assert.strictEqual(
+                toAuthoredConfig(result.config).fileNamingStrategy,
+                'original-unless-conflict',
+            );
+        }
     });
 });
 
@@ -1549,6 +1582,167 @@ describe('Engine: synchronizer advanced', () => {
         const stale = pending.find((p) => p.relativePath === reviewPath);
         assert.ok(stale);
         assert.strictEqual(stale!.action, 'skip');
+    });
+
+    it('original-unless-conflict preserves nested relative paths in preview and apply', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'skills', 'nested', 'guide.md'), '# Guide');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { skills: 'synchronize' },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files, undefined, config.fileNamingStrategy);
+        assert.ok(
+            pending.some((change) => change.relativePath === 'skills/nested/guide.md'),
+            'preview should preserve the original nested relative path',
+        );
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            effectiveFiles: files,
+            fileNamingStrategy: config.fileNamingStrategy,
+        });
+        assert.ok(result.written.includes('skills/nested/guide.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'skills', 'nested', 'guide.md')));
+    });
+
+    it('preview and apply fail with the same message when strategy change would remap managed files', () => {
+        const files = setupAndApply();
+        apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
+
+        const previewMessage = captureErrorMessage(() =>
+            preview(tmpDir, files, undefined, 'original-unless-conflict'),
+        );
+        const applyMessage = captureErrorMessage(() =>
+            apply({
+                workspaceRoot: tmpDir,
+                effectiveFiles: files,
+                fileNamingStrategy: 'original-unless-conflict',
+                force: false,
+            }),
+        );
+
+        assert.strictEqual(applyMessage, previewMessage);
+        assert.ok(applyMessage.includes('Automatic migration is not supported'));
+    });
+
+    it('planSynchronization fails when original-unless-conflict would overwrite an unmanaged file', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'skills', 'nested', 'guide.md'), '# Guide');
+        fs.mkdirSync(path.join(tmpDir, '.github', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tmpDir, '.github', 'skills', 'nested', 'guide.md'),
+            'user-owned file',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { skills: 'synchronize' },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                effectiveFiles: files,
+                fileNamingStrategy: config.fileNamingStrategy,
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('skills/nested/guide.md'));
+    });
+
+    it('layerSources fileNamingStrategy overrides the global default for synchronized files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'base', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'base', 'skills', 'nested', 'guide.md'), '# Guide');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'meta',
+                    localPath: '.ai/ai-metadata',
+                    fileNamingStrategy: 'prefixed',
+                    capabilities: [
+                        {
+                            path: 'base',
+                            fileNamingStrategy: 'original-unless-conflict',
+                            injection: { skills: 'synchronize' },
+                        },
+                    ],
+                },
+            ],
+            fileNamingStrategy: 'prefixed',
+        };
+
+        const normalized = normalizeConfigShape(config).config;
+        const layers = resolveLayers(normalized, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, normalized.injection, normalized.layerSources);
+
+        const pending = preview(
+            tmpDir,
+            files,
+            undefined,
+            normalized.fileNamingStrategy,
+            normalized.layerSources,
+        );
+
+        assert.ok(pending.some((change) => change.relativePath === 'skills/nested/guide.md'));
+    });
+
+    it('chatmodes stay on prefixed synchronized paths even when original-unless-conflict is configured', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'chatmodes', 'legacy.chatmode.md'),
+            '# Legacy chatmode',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files, undefined, config.fileNamingStrategy);
+        const prefixedPath = expectedSynchronizedPath('chatmodes/legacy.chatmode.md');
+        assert.ok(pending.some((change) => change.relativePath === prefixedPath));
+        assert.ok(!pending.some((change) => change.relativePath === 'chatmodes/legacy.chatmode.md'));
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            effectiveFiles: files,
+            fileNamingStrategy: config.fileNamingStrategy,
+        });
+        assert.ok(result.written.includes(prefixedPath));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', prefixedPath)));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'chatmodes', 'legacy.chatmode.md')));
     });
 });
 

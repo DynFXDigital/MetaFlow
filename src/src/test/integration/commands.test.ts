@@ -337,6 +337,104 @@ suite('Command Execution', () => {
         }
     });
 
+    test('apply honors original-unless-conflict except for prefixed chatmodes outputs', async function () {
+        this.timeout(20000);
+
+        await resetBuiltInCapabilityState();
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'sync-naming-repo');
+        const nestedSkillDir = path.join(
+            repoRoot,
+            'core',
+            'skills',
+            'naming-strategy',
+            'nested',
+        );
+        const layerChatmodesDir = path.join(repoRoot, 'core', '.github', 'chatmodes');
+        const originalSkillPath = path.join(
+            workspaceRoot,
+            '.github',
+            'skills',
+            'naming-strategy',
+            'nested',
+            'guide.md',
+        );
+        const prefixedChatmodePath = path.join(
+            workspaceRoot,
+            '.github',
+            'chatmodes',
+            '_default-core__sync-naming-legacy.chatmode.md',
+        );
+        const unprefixedChatmodePath = path.join(
+            workspaceRoot,
+            '.github',
+            'chatmodes',
+            'sync-naming-legacy.chatmode.md',
+        );
+
+        removeDirectoryRecursive(repoRoot);
+        removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+        fs.rmSync(prefixedChatmodePath, { force: true });
+        fs.rmSync(unprefixedChatmodePath, { force: true });
+
+        fs.mkdirSync(nestedSkillDir, { recursive: true });
+        fs.mkdirSync(layerChatmodesDir, { recursive: true });
+        fs.writeFileSync(path.join(nestedSkillDir, 'guide.md'), '# Guide\n', 'utf-8');
+        fs.writeFileSync(
+            path.join(layerChatmodesDir, 'sync-naming-legacy.chatmode.md'),
+            '# Legacy\n',
+            'utf-8',
+        );
+
+        const namingStrategyConfig = {
+            metadataRepo: {
+                localPath: '.ai/sync-naming-repo',
+            },
+            layers: ['core'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                skills: 'synchronize',
+            },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(namingStrategyConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            assert.ok(
+                fs.existsSync(originalSkillPath),
+                'Skills should preserve their original nested path under original-unless-conflict',
+            );
+            assert.ok(
+                fs.existsSync(prefixedChatmodePath),
+                'Deprecated chatmodes should remain on the prefixed synchronized path',
+            );
+            assert.ok(
+                !fs.existsSync(unprefixedChatmodePath),
+                'Deprecated chatmodes should not be written to the original relative path',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+            fs.rmSync(prefixedChatmodePath, { force: true });
+            fs.rmSync(unprefixedChatmodePath, { force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('apply suppresses completion toast when no Synchronized files are written', async function () {
         this.timeout(20000);
 

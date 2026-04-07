@@ -33,6 +33,8 @@ export interface NamedMetadataRepo extends MetadataRepo {
     capabilities?: CapabilitySource[];
     /** Repo-scoped injection mode defaults (overrides top-level). */
     injection?: InjectionConfig;
+    /** Repo-scoped synchronized output naming defaults (overrides top-level). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 /** Runtime layer discovery settings for a metadata repository. */
@@ -62,6 +64,8 @@ export interface CapabilitySource {
     excludedTypes?: ExcludableArtifactType[];
     /** Capability-scoped injection mode overrides (overrides repo and top-level). */
     injection?: InjectionConfig;
+    /** Capability-scoped synchronized output naming override (overrides repo and top-level). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 /** A layer source entry for multi-repo configurations. */
@@ -80,6 +84,8 @@ export interface LayerSource {
     excludedTypes?: ExcludableArtifactType[];
     /** Layer-scoped injection mode overrides (flattened from capability injection during normalization). */
     injection?: InjectionConfig;
+    /** Layer-scoped synchronized output naming override (flattened from capability/repo config during normalization). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 // ── Filters ────────────────────────────────────────────────────────
@@ -125,6 +131,9 @@ export type InjectionMode = 'settings' | 'synchronize';
 
 /** Target VS Code configuration scope for settings-backed injection. */
 export type SettingsInjectionTarget = 'user' | 'workspace' | 'workspaceFolder';
+
+/** Strategy for naming synchronized output files. */
+export type SyncFileNamingStrategy = 'prefixed' | 'original-unless-conflict';
 
 /** Injection configuration for each artifact type. */
 export interface InjectionConfig {
@@ -180,6 +189,8 @@ export interface MetaFlowConfig {
     // ── Injection & hooks ──────────────────────────────────────────
     /** Per-artifact-type injection mode overrides. */
     injection?: InjectionConfig;
+    /** Strategy for naming synchronized output files. */
+    fileNamingStrategy?: SyncFileNamingStrategy;
     /** Repository default VS Code scope for settings-backed injection. */
     settingsInjectionTarget?: SettingsInjectionTarget;
     /** Hook file paths. */

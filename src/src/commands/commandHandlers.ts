@@ -2964,18 +2964,31 @@ export function registerCommands(
                 return;
             }
 
-            const changes = preview(ws.uri.fsPath, state.effectiveFiles);
-            showOutputChannel();
-            logInfo('=== Overlay Preview ===');
-            for (const c of changes) {
-                logInfo(`  [${c.action}] ${c.relativePath}${c.reason ? ` (${c.reason})` : ''}`);
-            }
-            logInfo(`Total: ${changes.length} pending changes.`);
-            if (state.capabilityWarnings.length > 0) {
-                logInfo(`Warnings: ${state.capabilityWarnings.length}`);
-                for (const warning of state.capabilityWarnings) {
-                    logWarn(`  ${warning}`);
+            try {
+                const changes = preview(
+                    ws.uri.fsPath,
+                    state.effectiveFiles,
+                    undefined,
+                    state.config.fileNamingStrategy,
+                    state.config.layerSources,
+                );
+                showOutputChannel();
+                logInfo('=== Overlay Preview ===');
+                for (const c of changes) {
+                    logInfo(`  [${c.action}] ${c.relativePath}${c.reason ? ` (${c.reason})` : ''}`);
                 }
+                logInfo(`Total: ${changes.length} pending changes.`);
+                if (state.capabilityWarnings.length > 0) {
+                    logInfo(`Warnings: ${state.capabilityWarnings.length}`);
+                    for (const warning of state.capabilityWarnings) {
+                        logWarn(`  ${warning}`);
+                    }
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }
         }),
     );
@@ -2990,6 +3003,7 @@ export function registerCommands(
             }
 
             const applyOptions = extractApplyCommandOptions(arg);
+            const config = state.config;
 
             state.isApplying = true;
             try {
@@ -3003,12 +3017,14 @@ export function registerCommands(
                             workspaceRoot: ws.uri.fsPath,
                             effectiveFiles: state.effectiveFiles,
                             activeProfile: state.activeProfile,
+                            fileNamingStrategy: config.fileNamingStrategy,
+                            layerSources: config.layerSources,
                         });
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
                         await injectWorkspaceSettings(
                             ws,
-                            state.config!,
+                            config,
                             state.effectiveFiles,
                             context,
                         );
@@ -3041,6 +3057,11 @@ export function registerCommands(
                         }
                     },
                 );
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             } finally {
                 state.isApplying = false;
             }
