@@ -49,6 +49,12 @@ src/test-workspace/.vscode/
 .pytest_cache/
 do_icon.ps1
 
+# Local AI temp artifacts and test harness logs
+.ai/temp/
+.ai-test-logs/
+.tmp-*.log
+tmp-*.log
+
 # Ignore synchronized AI metadata files
 .github/**/_*
 
