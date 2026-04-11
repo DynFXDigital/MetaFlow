@@ -19,6 +19,43 @@ export function isSettingsInjectionTarget(value: unknown): value is SettingsInje
     );
 }
 
+function sortByNormalizedPath(left: string, right: string): number {
+    const leftNormalized = normalizeSettingsPath(left);
+    const rightNormalized = normalizeSettingsPath(right);
+    const normalizedComparison = leftNormalized.localeCompare(rightNormalized);
+    if (normalizedComparison !== 0) {
+        return normalizedComparison;
+    }
+
+    return left.localeCompare(right);
+}
+
+function buildSortedManagedObjectEntries(
+    managed: Record<string, unknown>,
+): Array<[string, unknown]> {
+    const entriesByNormalizedPath = new Map<string, [string, unknown]>();
+    for (const [key, value] of Object.entries(managed)) {
+        entriesByNormalizedPath.set(normalizeSettingsPath(key), [key, value]);
+    }
+
+    return Array.from(entriesByNormalizedPath.values()).sort((left, right) =>
+        sortByNormalizedPath(left[0], right[0]),
+    );
+}
+
+function buildSortedManagedArrayValues(managed: unknown[]): string[] {
+    const valuesByNormalizedPath = new Map<string, string>();
+    for (const item of managed) {
+        if (typeof item !== 'string') {
+            continue;
+        }
+
+        valuesByNormalizedPath.set(normalizeSettingsPath(item), item);
+    }
+
+    return Array.from(valuesByNormalizedPath.values()).sort(sortByNormalizedPath);
+}
+
 /**
  * Merge MetaFlow entries into existing settings value.
  * Object maps: merge by key union. Arrays: append and deduplicate.
@@ -30,23 +67,32 @@ export function mergeSettingsValue(existing: unknown, managed: unknown): unknown
 
     // Object map merge (e.g., chat.instructionsFilesLocations: { path: true })
     if (typeof managed === 'object' && !Array.isArray(managed)) {
-        const base =
+        const managedObject = managed as Record<string, unknown>;
+        const remainderEntries =
             typeof existing === 'object' && existing !== null && !Array.isArray(existing)
-                ? { ...(existing as Record<string, unknown>) }
-                : {};
-        return { ...base, ...(managed as Record<string, unknown>) };
+                ? Object.entries(existing as Record<string, unknown>).filter(
+                      ([key]) => !Object.prototype.hasOwnProperty.call(managedObject, key),
+                  )
+                : [];
+
+        return Object.fromEntries([
+            ...remainderEntries,
+            ...buildSortedManagedObjectEntries(managedObject),
+        ]);
     }
 
     // Array merge (e.g., github.copilot.chat.codeGeneration.instructionFiles: [path])
     if (Array.isArray(managed)) {
-        const base = Array.isArray(existing) ? existing : [];
-        const merged = [...base];
-        for (const item of managed) {
-            if (!merged.includes(item)) {
-                merged.push(item);
-            }
-        }
-        return merged;
+        const managedValues = buildSortedManagedArrayValues(managed);
+        const managedSet = new Set(managedValues.map((value) => normalizeSettingsPath(value)));
+        const remainder = Array.isArray(existing)
+            ? existing.filter(
+                  (item) =>
+                      typeof item !== 'string' || !managedSet.has(normalizeSettingsPath(item)),
+              )
+            : [];
+
+        return [...remainder, ...managedValues];
     }
 
     return managed;
@@ -67,10 +113,14 @@ export function removeSettingsEntries(existing: unknown, managed: unknown): unkn
         if (typeof existing !== 'object' || existing === null || Array.isArray(existing)) {
             return undefined;
         }
-        const result = { ...(existing as Record<string, unknown>) };
-        for (const key of Object.keys(managed as Record<string, unknown>)) {
-            delete result[key];
-        }
+        const managedKeys = new Set(
+            Object.keys(managed as Record<string, unknown>).map((key) => normalizeSettingsPath(key)),
+        );
+        const result = Object.fromEntries(
+            Object.entries(existing as Record<string, unknown>).filter(
+                ([key]) => !managedKeys.has(normalizeSettingsPath(key)),
+            ),
+        );
         return Object.keys(result).length > 0 ? result : undefined;
     }
 
@@ -79,8 +129,10 @@ export function removeSettingsEntries(existing: unknown, managed: unknown): unkn
         if (!Array.isArray(existing)) {
             return undefined;
         }
-        const managedSet = new Set(managed);
-        const result = existing.filter((item) => !managedSet.has(item));
+        const managedSet = new Set(buildSortedManagedArrayValues(managed).map(normalizeSettingsPath));
+        const result = existing.filter(
+            (item) => typeof item !== 'string' || !managedSet.has(normalizeSettingsPath(item)),
+        );
         return result.length > 0 ? result : undefined;
     }
 

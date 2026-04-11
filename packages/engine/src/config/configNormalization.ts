@@ -45,6 +45,21 @@ const INJECTION_KEY_ORDER: readonly (keyof InjectionConfig)[] = [
     'chatmodes',
 ];
 
+function normalizeLayerPath(pathValue: string): string {
+    const normalized = normalizeInputPath(pathValue).replace(/\/\.github$/, '');
+    return normalized === '' || normalized === '.github' ? '.' : normalized;
+}
+
+function compareLayerPaths(left: string, right: string): number {
+    const leftDepth = left === '.' ? 0 : left.split('/').length;
+    const rightDepth = right === '.' ? 0 : right.split('/').length;
+    if (leftDepth !== rightDepth) {
+        return leftDepth - rightDepth;
+    }
+
+    return left.localeCompare(right);
+}
+
 function sortExcludedTypes(
     excludedTypes: ExcludableArtifactType[] | undefined,
 ): ExcludableArtifactType[] | undefined {
@@ -150,7 +165,7 @@ function orderHooksConfig(config: HooksConfig | undefined): HooksConfig | undefi
 
 function cloneCapabilitySource(source: CapabilitySource): CapabilitySource {
     return {
-        path: normalizeInputPath(source.path),
+        path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
         ...(source.excludedTypes !== undefined
             ? { excludedTypes: sortExcludedTypes(source.excludedTypes) }
@@ -167,7 +182,7 @@ function cloneCapabilitySource(source: CapabilitySource): CapabilitySource {
 function cloneLayerSource(source: LayerSource): LayerSource {
     return {
         repoId: source.repoId,
-        path: normalizeInputPath(source.path),
+        path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
         ...(source.excludedTypes !== undefined
             ? { excludedTypes: sortExcludedTypes(source.excludedTypes) }
@@ -207,7 +222,7 @@ function cloneNamedRepo(
 
 function layerSourceToCapabilitySource(source: LayerSource): CapabilitySource {
     return {
-        path: normalizeInputPath(source.path),
+        path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
         ...(source.excludedTypes !== undefined
             ? { excludedTypes: cloneJson(source.excludedTypes) }
@@ -222,7 +237,7 @@ function layerSourceToCapabilitySource(source: LayerSource): CapabilitySource {
 function capabilitySourceToLayerSource(repoId: string, source: CapabilitySource): LayerSource {
     return {
         repoId,
-        path: normalizeInputPath(source.path),
+        path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
         ...(source.excludedTypes !== undefined
             ? { excludedTypes: cloneJson(source.excludedTypes) }
@@ -243,7 +258,7 @@ function mergeCapabilitySource(
     }
 
     return {
-        path: normalizeInputPath(fallback.path),
+        path: normalizeLayerPath(fallback.path),
         ...(fallback.enabled !== undefined
             ? { enabled: fallback.enabled }
             : capability.enabled !== undefined
@@ -259,12 +274,128 @@ function mergeCapabilitySource(
             : capability.injection !== undefined
               ? { injection: cloneJson(capability.injection) }
               : {}),
-                ...(fallback.fileNamingStrategy !== undefined
-                        ? { fileNamingStrategy: fallback.fileNamingStrategy }
-                        : capability.fileNamingStrategy !== undefined
-                            ? { fileNamingStrategy: capability.fileNamingStrategy }
-                            : {}),
+        ...(fallback.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: fallback.fileNamingStrategy }
+            : capability.fileNamingStrategy !== undefined
+              ? { fileNamingStrategy: capability.fileNamingStrategy }
+              : {}),
     };
+}
+
+function canonicalizeCapabilities(
+    capabilities: CapabilitySource[] | undefined,
+): CapabilitySource[] | undefined {
+    if (capabilities === undefined) {
+        return undefined;
+    }
+
+    return capabilities
+        .map(cloneCapabilitySource)
+        .sort((left, right) => compareLayerPaths(left.path, right.path));
+}
+
+function mergeLayerSource(base: LayerSource, override: LayerSource): LayerSource {
+    return {
+        repoId: base.repoId,
+        path: override.path,
+        ...(override.enabled !== undefined
+            ? { enabled: override.enabled }
+            : base.enabled !== undefined
+              ? { enabled: base.enabled }
+              : {}),
+        ...(override.excludedTypes !== undefined
+            ? { excludedTypes: cloneJson(override.excludedTypes) }
+            : base.excludedTypes !== undefined
+              ? { excludedTypes: cloneJson(base.excludedTypes) }
+              : {}),
+        ...(override.injection !== undefined
+            ? { injection: cloneJson(override.injection) }
+            : base.injection !== undefined
+              ? { injection: cloneJson(base.injection) }
+              : {}),
+        ...(override.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: override.fileNamingStrategy }
+            : base.fileNamingStrategy !== undefined
+              ? { fileNamingStrategy: base.fileNamingStrategy }
+              : {}),
+    };
+}
+
+function canonicalizeLayerSources(
+    layerSources: LayerSource[] | undefined,
+    authoredRepoIds: readonly string[],
+): LayerSource[] | undefined {
+    if (layerSources === undefined) {
+        return undefined;
+    }
+
+    const merged = new Map<string, LayerSource>();
+    for (const source of layerSources) {
+        const canonical = cloneLayerSource(source);
+        const key = `${canonical.repoId}\u0000${canonical.path}`;
+        const existing = merged.get(key);
+        merged.set(key, existing ? mergeLayerSource(existing, canonical) : canonical);
+    }
+
+    const repoOrder = new Map(authoredRepoIds.map((repoId, index) => [repoId, index]));
+    return Array.from(merged.values()).sort((left, right) => {
+        const leftRank = repoOrder.get(left.repoId);
+        const rightRank = repoOrder.get(right.repoId);
+        if (leftRank !== undefined || rightRank !== undefined) {
+            if (leftRank === undefined) {
+                return 1;
+            }
+            if (rightRank === undefined) {
+                return -1;
+            }
+            if (leftRank !== rightRank) {
+                return leftRank - rightRank;
+            }
+        } else if (left.repoId !== right.repoId) {
+            return left.repoId.localeCompare(right.repoId);
+        }
+
+        return compareLayerPaths(left.path, right.path);
+    });
+}
+
+function canonicalizeLegacyLayers(layers: string[] | undefined): string[] | undefined {
+    if (layers === undefined) {
+        return undefined;
+    }
+
+    const unique = new Map<string, string>();
+    for (const layer of layers) {
+        const normalized = normalizeLayerPath(layer);
+        if (!unique.has(normalized)) {
+            unique.set(normalized, normalized);
+        }
+    }
+
+    return Array.from(unique.values()).sort(compareLayerPaths);
+}
+
+export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
+    const canonical: MetaFlowConfig = { ...config };
+
+    if (config.metadataRepos !== undefined) {
+        canonical.metadataRepos = config.metadataRepos.map((repo) =>
+            cloneNamedRepo(repo, canonicalizeCapabilities(repo.capabilities) ?? []),
+        );
+    }
+
+    if (config.layerSources !== undefined) {
+        canonical.layerSources = canonicalizeLayerSources(
+            config.layerSources,
+            config.metadataRepos?.map((repo) => repo.id) ?? [],
+        );
+    }
+
+    if (config.layers !== undefined) {
+        canonical.layers = canonicalizeLegacyLayers(config.layers);
+    }
+
+    return canonical;
 }
 
 function buildRestOfConfig(
@@ -357,12 +488,12 @@ export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
             layerSourcesByRepoId.set(source.repoId, list);
         }
 
-        return {
+        return canonicalizeAuthoredConfig({
             metadataRepos: config.metadataRepos.map((repo) =>
                 cloneNamedRepo(repo, buildCapabilitiesForRepo(repo, layerSourcesByRepoId)),
             ),
             ...rest,
-        };
+        });
     }
 
     if (config.metadataRepo) {
@@ -381,15 +512,15 @@ export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
             })),
         };
 
-        return {
+        return canonicalizeAuthoredConfig({
             metadataRepos: [primaryRepo],
             ...rest,
-        };
+        });
     }
 
-    return {
+    return canonicalizeAuthoredConfig({
         ...rest,
-    };
+    });
 }
 
 export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigShape {

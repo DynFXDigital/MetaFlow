@@ -226,6 +226,36 @@ describe('Engine package: config loading', () => {
         ]);
     });
 
+    it('toAuthoredConfig preserves non-built-in repo order while sorting capabilities canonically', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [
+                {
+                    id: 'repo-z',
+                    localPath: '.ai/repo-z',
+                    capabilities: [{ path: 'team/zeta' }, { path: '.' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: '.ai/repo-a',
+                    capabilities: [{ path: 'gamma/core' }, { path: 'beta/.github' }],
+                },
+            ],
+        });
+
+        assert.deepStrictEqual(
+            authored.metadataRepos?.map((repo) => repo.id),
+            ['repo-z', 'repo-a'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
+            ['.', 'team', 'team/zeta'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
+            ['beta', 'gamma/core'],
+        );
+    });
+
     it('loadConfig preserves fileNamingStrategy through normalization', () => {
         const config = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -763,6 +793,34 @@ describe('Engine: settings injector', () => {
         const locations = hookLocations!.value as Record<string, boolean>;
         assert.ok(locations['scripts/pre.sh']);
         assert.ok(locations['scripts/post.sh']);
+    });
+
+    it('computeSettingsEntries sorts object-map settings paths deterministically', () => {
+        const files: EffectiveFile[] = [
+            {
+                relativePath: 'instructions/root.md',
+                sourcePath: path.join(tmpDir, 'repo', 'team', 'instructions', 'root.md'),
+                sourceLayer: 'team',
+                classification: 'settings',
+            },
+            {
+                relativePath: 'instructions/deep.md',
+                sourcePath: path.join(tmpDir, 'repo', 'team', 'core', 'instructions', 'deep.md'),
+                sourceLayer: 'team/core',
+                classification: 'settings',
+            },
+        ];
+
+        const entries = computeSettingsEntries(files, tmpDir, {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['team', 'team/core'],
+        });
+        const entry = entries.find((candidate) => candidate.key === 'chat.instructionsFilesLocations');
+
+        assert.deepStrictEqual(Object.keys(entry?.value as Record<string, boolean>), [
+            'repo/team/core/instructions',
+            'repo/team/instructions',
+        ]);
     });
 
     it('classifySingle treats .github instructions as settings artifacts', () => {

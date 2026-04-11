@@ -10,6 +10,7 @@
 import * as assert from 'assert';
 import { normalizeConfigShape, toAuthoredConfig } from '../src/index';
 import type { MetaFlowConfig } from '../src/index';
+import { canonicalizeAuthoredConfig } from '../src/config/configNormalization';
 
 describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional fields', () => {
     it('preserves injection config when present', () => {
@@ -195,6 +196,114 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
         ].join('\n');
 
         assert.strictEqual(serialized, expected);
+    });
+
+    it('preserves repo order while canonicalizing capability ordering and path normalization', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team/zeta' }, { path: '.github' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: 'beta\\.github' }, { path: 'alpha/core' }],
+                },
+            ],
+        });
+
+        assert.deepStrictEqual(
+            authored.metadataRepos?.map((repo) => repo.id),
+            ['repo-b', 'repo-a'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
+            ['.', 'team', 'team/zeta'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
+            ['beta', 'alpha/core'],
+        );
+    });
+
+    it('produces byte-stable authored output for logically equivalent repo state', () => {
+        const configA: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team/zeta' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: 'alpha/core' }, { path: '.github' }],
+                },
+            ],
+            layerSources: [
+                { repoId: 'repo-a', path: '.github', enabled: true },
+                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
+                { repoId: 'repo-b', path: 'team', enabled: false },
+            ],
+        };
+
+        const configB: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team' }, { path: 'team/zeta' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: '.github' }, { path: 'alpha\\core' }],
+                },
+            ],
+            layerSources: [
+                { repoId: 'repo-b', path: 'team', enabled: false },
+                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
+                { repoId: 'repo-a', path: '.github', enabled: true },
+            ],
+        };
+
+        assert.strictEqual(
+            JSON.stringify(toAuthoredConfig(configA), null, 2),
+            JSON.stringify(toAuthoredConfig(configB), null, 2),
+        );
+    });
+});
+
+describe('configNormalization: canonicalizeAuthoredConfig', () => {
+    it('deduplicates and sorts layerSources by authored repo order, then orphan repo id, then layer path', () => {
+        const canonical = canonicalizeAuthoredConfig({
+            metadataRepos: [
+                { id: 'repo-b', localPath: 'repos/repo-b' },
+                { id: 'repo-a', localPath: 'repos/repo-a' },
+            ],
+            layerSources: [
+                { repoId: 'orphan-z', path: 'team/z' },
+                { repoId: 'repo-a', path: 'beta/core', enabled: false },
+                { repoId: 'repo-b', path: '.github' },
+                { repoId: 'repo-a', path: 'beta\\.github', enabled: true },
+                { repoId: 'orphan-a', path: 'team' },
+                { repoId: 'repo-b', path: 'alpha/core' },
+                { repoId: 'repo-a', path: 'beta/.github', excludedTypes: ['skills'] },
+            ],
+            layers: ['team/deeper', '.github', 'team', 'team\\.github', 'team/deeper'],
+        });
+
+        assert.deepStrictEqual(canonical.layerSources, [
+            { repoId: 'repo-b', path: '.' },
+            { repoId: 'repo-b', path: 'alpha/core' },
+            { repoId: 'repo-a', path: 'beta', enabled: true, excludedTypes: ['skills'] },
+            { repoId: 'repo-a', path: 'beta/core', enabled: false },
+            { repoId: 'orphan-a', path: 'team' },
+            { repoId: 'orphan-z', path: 'team/z' },
+        ]);
+        assert.deepStrictEqual(canonical.layers, ['.', 'team', 'team/deeper']);
     });
 });
 

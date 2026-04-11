@@ -109,6 +109,21 @@ suite('settingsInjector', () => {
         assert.ok((skillsEntry!.value as Record<string, boolean>)['../repo/.github/skills']);
     });
 
+    test('computes object-map settings paths in deterministic lexical order', () => {
+        const files = [
+            makeFile('instructions/a.md', 'settings', '/repo/team/instructions/a.md'),
+            makeFile('instructions/b.md', 'settings', '/repo/team/core/instructions/b.md'),
+        ];
+
+        const entries = computeSettingsEntries(files, workspaceRoot, {});
+        const instructionsEntry = entries.find((entry) => entry.key === 'chat.instructionsFilesLocations');
+
+        assert.deepStrictEqual(
+            Object.keys(instructionsEntry!.value as Record<string, boolean>),
+            ['../repo/team/core/instructions', '../repo/team/instructions'],
+        );
+    });
+
     test('ignores Synchronized files', () => {
         const files = [makeFile('agents/coder.agent.md', 'synchronized')];
 

@@ -103,7 +103,7 @@ suite('settingsTargetHelpers', () => {
             const existing = ['user/path'];
             const managed = ['metaflow/path', 'user/path'];
             const result = mergeSettingsValue(existing, managed);
-            assert.deepStrictEqual(result, ['user/path', 'metaflow/path']);
+            assert.deepStrictEqual(result, ['metaflow/path', 'user/path']);
         });
 
         test('SIT-MG-05 array merge onto undefined creates array', () => {
@@ -120,6 +120,46 @@ suite('settingsTargetHelpers', () => {
 
         test('SIT-MG-07 scalar managed replaces existing', () => {
             assert.strictEqual(mergeSettingsValue('old', 'new'), 'new');
+        });
+
+        test('SIT-MG-08 object map preserves unmanaged order and appends managed subset in normalized path order', () => {
+            const existing = {
+                'user/zeta': true,
+                'user/alpha': true,
+                'meta/legacy': true,
+            };
+            const managed = {
+                'repo\\team\\instructions': true,
+                'repo/alpha/instructions': true,
+            };
+
+            const result = mergeSettingsValue(existing, managed) as Record<string, boolean>;
+
+            assert.deepStrictEqual(Object.keys(result), [
+                'user/zeta',
+                'user/alpha',
+                'meta/legacy',
+                'repo/alpha/instructions',
+                'repo\\team\\instructions',
+            ]);
+        });
+
+        test('SIT-MG-09 array merge preserves unmanaged remainder and appends sorted unique managed subset', () => {
+            const existing = ['user/path', 'repo/zeta/instructions', 'repo/alpha/instructions'];
+            const managed = [
+                'repo\\zeta\\instructions',
+                'repo/alpha/instructions',
+                'repo/beta/instructions',
+            ];
+
+            const result = mergeSettingsValue(existing, managed);
+
+            assert.deepStrictEqual(result, [
+                'user/path',
+                'repo/alpha/instructions',
+                'repo/beta/instructions',
+                'repo\\zeta\\instructions',
+            ]);
         });
     });
 
@@ -164,6 +204,23 @@ suite('settingsTargetHelpers', () => {
             assert.strictEqual(removeSettingsEntries(['path'], { key: true }), undefined);
             // managed is array, existing is object
             assert.strictEqual(removeSettingsEntries({ key: true }, ['path']), undefined);
+        });
+
+        test('SIT-RM-07 removal matches normalized paths for object maps and arrays', () => {
+            const objectResult = removeSettingsEntries(
+                {
+                    'user/path': true,
+                    'repo\\team\\instructions': true,
+                },
+                { 'repo/team/instructions': true },
+            );
+            const arrayResult = removeSettingsEntries(
+                ['user/path', 'repo\\team\\instructions'],
+                ['repo/team/instructions'],
+            );
+
+            assert.deepStrictEqual(objectResult, { 'user/path': true });
+            assert.deepStrictEqual(arrayResult, ['user/path']);
         });
     });
 
