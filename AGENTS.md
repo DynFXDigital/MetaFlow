@@ -74,6 +74,13 @@ Notes:
 - Prefer safe selective staging over broad `git add` when documentation or shared files contain unrelated local edits.
 - Review both `git diff --cached --name-only` and `git diff --cached` before creating a commit.
 
+## Branch & Release Guardrails
+
+- Default backlog work and application-value implementation to `develop`.
+- Treat `main` as release-controlled: do not push to it, rewrite it, merge version/release PRs into it, or alter branch protection unless the user explicitly asks for that exact operation.
+- Treat tag creation, GitHub Release publication, and preview/stable release execution as opt-in only. Do not infer that a preview should be cut from `main` without explicit user direction.
+- If useful technical fixes are discovered on a local `main` or WIP branch, port them onto `develop` through an ordinary reviewed development path unless the user explicitly wants release work.
+
 ## Security
 
 - Never commit `.env*` files or secrets.
