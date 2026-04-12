@@ -744,7 +744,7 @@
     "package": "vsce package --no-dependencies"
   },
   "dependencies": {
-    "@metaflow/engine": "file:../packages/engine",
+    "@metaflow/engine": "0.1.0-preview.0",
     "jsonc-parser": "^3.3.1",
     "markdown-it": "^14.1.1"
   },

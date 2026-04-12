@@ -18,7 +18,7 @@
     "test:coverage": "c8 --reporter=text --reporter=lcov --include=\"out/src/**\" mocha \"out/test/**/*.test.js\" --timeout 10000"
   },
   "dependencies": {
-    "@metaflow/engine": "file:../engine",
+    "@metaflow/engine": "0.1.0-preview.0",
     "commander": "^11.1.0",
     "jsonc-parser": "^3.3.1"
   },
