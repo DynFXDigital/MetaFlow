@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1-preview.1
+
+### Patch Changes
+
+- aa701d4: Align release-time manifest metadata with the current workspace package names and publishable dependency versions so Changesets and release preflight operate on the intended package graph.
+    - @metaflow/engine@0.1.1-preview.1
+
 ## Unreleased
 
 ### Added

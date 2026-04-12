@@ -1,7 +1,7 @@
 {
   "name": "@metaflow/engine",
   "description": "Engine for layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.1.0-preview.0",
+  "version": "0.1.1-preview.1",
   "license": "MIT",
   "private": true,
   "main": "out/src/index.js",
