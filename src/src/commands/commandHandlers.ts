@@ -304,6 +304,7 @@ export function createState(): ExtensionState {
         builtInCapability: {
             enabled: false,
             layerEnabled: true,
+            disabledByUser: false,
             synchronizedFiles: [],
             sourceRoot: undefined,
             sourceId: 'unknown.extension',
@@ -1396,6 +1397,13 @@ function withBuiltInCapabilityProjected(
         (layer) => layer.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
     );
 
+    if (!builtInRepoEnabled) {
+        // Keep the built-in repo row visible in projected config, but do not
+        // surface any built-in layers while the repo checkbox is off.
+        projected.layerSources = multiRepo.layerSources;
+        return projected;
+    }
+
     const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
     for (const layerPath of builtInLayerPaths) {
         multiRepo.layerSources.push({
@@ -1454,6 +1462,7 @@ async function writeBuiltInCapabilityWorkspaceState(
     const payload: BuiltInCapabilityWorkspaceState = {
         enabled: patch.enabled ?? currentState.enabled,
         layerEnabled: patch.layerEnabled ?? currentState.layerEnabled,
+        disabledByUser: patch.disabledByUser ?? currentState.disabledByUser,
         synchronizedFiles: sanitizeSynchronizedFiles(
             patch.synchronizedFiles ?? currentState.synchronizedFiles,
         ),
@@ -1732,6 +1741,10 @@ async function ensureBuiltInCapabilityFromAutoApplySetting(
     }
 
     if (mode === 'builtinLayer') {
+        if (currentState.disabledByUser) {
+            return currentState;
+        }
+
         if (currentState.enabled) {
             return currentState;
         }
@@ -1740,6 +1753,7 @@ async function ensureBuiltInCapabilityFromAutoApplySetting(
         return writeBuiltInCapabilityWorkspaceState(context, currentState, {
             enabled: true,
             layerEnabled: true,
+            disabledByUser: false,
         });
     }
 
@@ -4201,7 +4215,9 @@ export function registerCommands(
                     context,
                     state.builtInCapability,
                     {
+                        enabled: nextEnabled,
                         layerEnabled: nextEnabled,
+                        disabledByUser: !nextEnabled,
                         layerStates: {},
                     },
                 );
@@ -5139,7 +5155,7 @@ export function registerCommands(
                 state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
                     context,
                     state.builtInCapability,
-                    { enabled: false, layerEnabled: false },
+                    { enabled: false, layerEnabled: false, disabledByUser: false },
                 );
             }
 
@@ -5154,6 +5170,7 @@ export function registerCommands(
                     state.builtInCapability,
                     {
                         layerEnabled: false,
+                        disabledByUser: false,
                         synchronizedFiles: [],
                     },
                 );

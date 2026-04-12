@@ -52,11 +52,27 @@ suite('Command Execution', () => {
                     : target === vscode.ConfigurationTarget.WorkspaceFolder
                       ? inspected?.workspaceFolderValue
                       : inspected?.globalValue;
-            if (scoped === value) {
+            if (JSON.stringify(scoped) === JSON.stringify(value)) {
                 return;
             }
             await new Promise((resolve) => setTimeout(resolve, 50));
         }
+    }
+
+    function getScopedSettingValue<T>(
+        wsConfig: vscode.WorkspaceConfiguration,
+        section: string,
+    ): T | undefined {
+        const inspected = wsConfig.inspect<T>(section);
+        return (inspected?.workspaceValue ?? inspected?.workspaceFolderValue) as T | undefined;
+    }
+
+    function cloneJson<T>(value: T): T {
+        if (value === undefined) {
+            return value;
+        }
+
+        return JSON.parse(JSON.stringify(value)) as T;
     }
 
     function removeDirectoryRecursive(targetPath: string): void {
@@ -109,9 +125,14 @@ suite('Command Execution', () => {
         }
 
         const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
-        return candidates.some((location) =>
-            location.replace(/\\/g, '/').includes('metaflow-ai-metadata/.github/instructions'),
-        );
+        return candidates.some((location) => {
+            const normalized = location.replace(/\\/g, '/').toLowerCase();
+            return (
+                normalized.includes(
+                    '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/',
+                ) && normalized.endsWith('/.github/instructions')
+            );
+        });
     }
 
     function hasExtensionInstallInstructionPath(
@@ -152,6 +173,42 @@ suite('Command Execution', () => {
                 hasExtensionInstallInstructionPath(instructionLocations) ||
                 hasExtensionInstallInstructionPath(instructionFiles),
         };
+    }
+
+    interface InstructionSettingsSnapshot {
+        instructionLocations?: Record<string, boolean>;
+        instructionFiles?: string[];
+    }
+
+    function getInstructionSettingsSnapshot(
+        wsConfig: vscode.WorkspaceConfiguration,
+    ): InstructionSettingsSnapshot {
+        return {
+            instructionLocations: cloneJson(
+                getScopedSettingValue<Record<string, boolean>>(
+                    wsConfig,
+                    'chat.instructionsFilesLocations',
+                ),
+            ),
+            instructionFiles: cloneJson(
+                getScopedSettingValue<string[]>(
+                    wsConfig,
+                    'github.copilot.chat.codeGeneration.instructionFiles',
+                ),
+            ),
+        };
+    }
+
+    function snapshotHasBuiltInInstructions(snapshot: InstructionSettingsSnapshot): boolean {
+        return hasBuiltInInstructionPath(snapshot.instructionLocations);
+    }
+
+    function getUnmanagedInstructionLocationKeys(
+        snapshot: InstructionSettingsSnapshot,
+    ): string[] {
+        return Object.keys(snapshot.instructionLocations ?? {}).filter(
+            (location) => !hasBuiltInInstructionPath([location]),
+        );
     }
 
     async function resetBuiltInCapabilityState(): Promise<void> {
@@ -4658,8 +4715,10 @@ suite('Command Execution', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(() => {
-                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
-                return instructionSettings.hasBuiltIn;
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return hasBuiltInInstructionPath(instructionLocations);
             }, 10000);
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
@@ -4669,8 +4728,10 @@ suite('Command Execution', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(() => {
-                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
-                return !instructionSettings.hasBuiltIn;
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return !hasBuiltInInstructionPath(instructionLocations);
             }, 10000);
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
@@ -4680,8 +4741,10 @@ suite('Command Execution', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(() => {
-                const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
-                return instructionSettings.hasBuiltIn;
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return hasBuiltInInstructionPath(instructionLocations);
             }, 10000);
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
@@ -4702,6 +4765,360 @@ suite('Command Execution', () => {
                 vscode.ConfigurationTarget.Workspace,
             );
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0339: built-in remove/re-add preserves deterministic managed settings ordering', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+        const unmanagedInstructionLocations = {
+            [unmanagedZeta]: true,
+            [unmanagedAlpha]: true,
+        };
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            unmanagedInstructionLocations,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const firstEnabledSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            assert.ok(
+                snapshotHasBuiltInInstructions(firstEnabledSnapshot),
+                'First built-in enable cycle should inject managed instruction settings',
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return !snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const secondEnabledSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            assert.deepStrictEqual(
+                secondEnabledSnapshot,
+                firstEnabledSnapshot,
+                'Built-in remove/re-add should restore the same deterministic instruction settings payload',
+            );
+
+            const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(
+                afterToggleConfig,
+                originalConfig,
+                'Built-in remove/re-add should not mutate .metaflow/config.jsonc in builtinLayer mode',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0340: repeated equivalent built-in operations are byte-stable', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            {
+                [unmanagedZeta]: true,
+                [unmanagedAlpha]: true,
+            },
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const firstSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            const firstConfig = fs.readFileSync(configPath, 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const secondSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            const secondConfig = fs.readFileSync(configPath, 'utf-8');
+
+            assert.deepStrictEqual(
+                secondSnapshot,
+                firstSnapshot,
+                'Equivalent builtinLayer refresh/apply cycles should preserve the same serialized managed settings payload',
+            );
+            assert.strictEqual(
+                secondConfig,
+                firstConfig,
+                'Equivalent builtinLayer cycles should keep .metaflow/config.jsonc byte-stable',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0341: unmanaged user settings entries survive managed ordering rewrites', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+        const unmanagedInstructionLocations = {
+            [unmanagedZeta]: true,
+            [unmanagedAlpha]: true,
+        };
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            unmanagedInstructionLocations,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        const baselineSnapshot = getInstructionSettingsSnapshot(
+            vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+        );
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return !snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const finalSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+
+            assert.deepStrictEqual(
+                getUnmanagedInstructionLocationKeys(finalSnapshot),
+                getUnmanagedInstructionLocationKeys(baselineSnapshot),
+                'Unmanaged instruction location entries should survive built-in managed rewrites in their original relative order',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
             await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh');
         }

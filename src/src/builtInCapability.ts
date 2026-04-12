@@ -9,6 +9,7 @@ export const BUILT_IN_CAPABILITY_LAYER_LABEL = 'MetaFlow';
 export interface BuiltInCapabilityWorkspaceState {
     enabled?: boolean;
     layerEnabled?: boolean;
+    disabledByUser?: boolean;
     synchronizedFiles?: string[];
     layerStates?: Record<string, boolean>;
 }
@@ -16,6 +17,7 @@ export interface BuiltInCapabilityWorkspaceState {
 export interface BuiltInCapabilityRuntimeState {
     enabled: boolean;
     layerEnabled: boolean;
+    disabledByUser?: boolean;
     synchronizedFiles: string[];
     layerStates?: Record<string, boolean>;
     sourceRoot?: string;
@@ -26,6 +28,7 @@ export interface BuiltInCapabilityRuntimeState {
 export interface BuiltInCapabilityActivationState {
     enabled: boolean;
     layerEnabled: boolean;
+    disabledByUser?: boolean;
     synchronizedFiles: string[];
     layerStates?: Record<string, boolean>;
 }
@@ -57,6 +60,7 @@ export function readBuiltInCapabilityRuntimeState(
     return {
         enabled,
         layerEnabled: payload?.layerEnabled ?? true,
+        disabledByUser: payload?.disabledByUser ?? false,
         synchronizedFiles: sanitizeSynchronizedFiles(payload?.synchronizedFiles),
         layerStates: sanitizeBuiltInLayerStates(payload?.layerStates),
         sourceRoot,

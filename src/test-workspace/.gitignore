@@ -5,3 +5,6 @@
 # MetaFlow managed state (choose one rule):
 # Track .metaflow/config.jsonc; ignore .metaflow/state.json, or ignore .metaflow/ for local-only setup.
 .metaflow/
+
+# Generated built-in capability fixtures created by integration runs.
+capabilities/
