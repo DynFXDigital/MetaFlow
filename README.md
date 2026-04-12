@@ -99,7 +99,7 @@ MetaFlow includes a bundled starter capability so you can try the workflow befor
 | Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                   |
 | CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md) |
 | Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                         |
-| Contributor workflow, testing, release readiness                              | [AGENTS.md](AGENTS.md)                           |
+| Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) |
 | Release process                                                               | [RELEASING.md](RELEASING.md)                     |
 
 ## Support
