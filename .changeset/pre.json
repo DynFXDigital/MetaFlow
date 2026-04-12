@@ -4,7 +4,11 @@
   "initialVersions": {
     "@metaflow/cli": "0.1.0",
     "@metaflow/engine": "0.1.0",
-    "metaflow": "0.1.0"
+    "metaflow": "0.1.0",
+    "metaflow-ai": "0.1.0"
   },
-  "changesets": ["minor-release-bump"]
+  "changesets": [
+    "minor-release-bump",
+    "release-manifest-alignment"
+  ]
 }
