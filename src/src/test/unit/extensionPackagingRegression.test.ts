@@ -192,6 +192,29 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(pullCommand, 'Expected metaflow.pullRepository command contribution');
     });
 
+    test('Create CAPABILITY.md is contributed for the command palette and config view title', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const createCommand = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.createCapabilityManifest',
+        );
+        assert.ok(
+            createCommand,
+            'Expected metaflow.createCapabilityManifest command contribution',
+        );
+        assert.strictEqual(createCommand?.icon, '$(new-file)');
+
+        const titleMenuEntries = packageJson.contributes?.menus?.['view/title'] ?? [];
+        const titleEntry = titleMenuEntries.find(
+            (entry) => entry.command === 'metaflow.createCapabilityManifest',
+        );
+        assert.ok(titleEntry, 'Expected Create CAPABILITY.md in the config view title menu');
+        assert.strictEqual(titleEntry?.when, 'view == metaflow-config');
+    });
+
     test('built-in capability removal uses trash icon and row-level context action', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
