@@ -240,6 +240,56 @@ suite('CapabilityDetails helpers', () => {
         }
     });
 
+    test('TC-0252: resolves capability details by layer path when the saved layer index is stale', () => {
+        const workspaceRoot = fs.mkdtempSync(
+            path.join(os.tmpdir(), 'metaflow-capability-details-stale-index-'),
+        );
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'ai-metadata');
+            const targetLayerRoot = path.join(repoRoot, 'standards', 'sdlc');
+            const otherLayerRoot = path.join(repoRoot, 'other');
+            fs.mkdirSync(targetLayerRoot, { recursive: true });
+            fs.mkdirSync(otherLayerRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(targetLayerRoot, 'CAPABILITY.md'),
+                ['---', 'name: SDLC Traceability', '---'].join('\n'),
+                'utf-8',
+            );
+
+            const target = resolveCapabilityDetailTarget(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'other', enabled: true },
+                        { repoId: 'primary', path: 'standards/sdlc', enabled: true },
+                    ],
+                },
+                workspaceRoot,
+                {
+                    enabled: false,
+                    layerEnabled: true,
+                    synchronizedFiles: [],
+                    sourceRoot: undefined,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow',
+                },
+                {
+                    layerIndex: 0,
+                    layerPath: 'standards/sdlc',
+                    repoId: 'primary',
+                },
+            );
+
+            assert.ok(target, 'expected detail target');
+            assert.strictEqual(target?.layerIndex, 1);
+            assert.strictEqual(target?.layerPath, 'standards/sdlc');
+            assert.strictEqual(target?.repoId, 'primary');
+            assert.strictEqual(target?.capabilityId, 'sdlc');
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('TC-0252: builds a capability detail model for the built-in MetaFlow capability (Verifies: REQ-0311)', async () => {
         const sourceRoot = fs.mkdtempSync(
             path.join(os.tmpdir(), 'metaflow-built-in-capability-details-'),

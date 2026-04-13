@@ -4962,6 +4962,7 @@ export function registerCommands(
             const model = await loadCapabilityDetailModel(target, state.treeSummaryCache);
             return capabilityDetailsPanel.show(model, {
                 layerIndex: target.layerIndex,
+                layerPath: target.layerPath,
                 repoId: target.repoId,
             });
         }),

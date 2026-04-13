@@ -159,11 +159,8 @@ export function resolveCapabilityDetailTarget(
     builtInCapability: BuiltInCapabilityRuntimeState,
     arg: CapabilityDetailCommandArg,
 ): CapabilityDetailTarget | undefined {
-    const layerIndex = typeof arg.layerIndex === 'number' ? arg.layerIndex : undefined;
-
-    if (typeof layerIndex !== 'number') {
-        return undefined;
-    }
+    const requestedLayerIndex = typeof arg.layerIndex === 'number' ? arg.layerIndex : undefined;
+    const requestedLayerPath = arg.layerPath ? toPosixPath(arg.layerPath) : undefined;
 
     if (arg.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
         if (!builtInCapability.sourceRoot) {
@@ -197,7 +194,23 @@ export function resolveCapabilityDetailTarget(
     }
 
     if (config.metadataRepos && config.layerSources) {
-        const source = config.layerSources[layerIndex];
+        let layerIndex = requestedLayerIndex;
+        let source = typeof layerIndex === 'number' ? config.layerSources[layerIndex] : undefined;
+
+        if (
+            requestedLayerPath &&
+            (!source ||
+                (typeof arg.repoId === 'string' && source.repoId !== arg.repoId) ||
+                toPosixPath(source.path) !== requestedLayerPath)
+        ) {
+            layerIndex = config.layerSources.findIndex(
+                (candidate) =>
+                    (typeof arg.repoId !== 'string' || candidate.repoId === arg.repoId) &&
+                    toPosixPath(candidate.path) === requestedLayerPath,
+            );
+            source = layerIndex >= 0 ? config.layerSources[layerIndex] : undefined;
+        }
+
         if (!source) {
             return undefined;
         }
@@ -235,7 +248,16 @@ export function resolveCapabilityDetailTarget(
     }
 
     if (config.metadataRepo && config.layers) {
-        const layerPath = config.layers[layerIndex];
+        let layerIndex = requestedLayerIndex;
+        let layerPath = typeof layerIndex === 'number' ? config.layers[layerIndex] : undefined;
+
+        if (requestedLayerPath && (!layerPath || toPosixPath(layerPath) !== requestedLayerPath)) {
+            layerIndex = config.layers.findIndex(
+                (candidate) => toPosixPath(candidate) === requestedLayerPath,
+            );
+            layerPath = layerIndex >= 0 ? config.layers[layerIndex] : undefined;
+        }
+
         if (typeof layerPath !== 'string') {
             return undefined;
         }

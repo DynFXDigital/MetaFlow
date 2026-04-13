@@ -139,6 +139,7 @@ function renderToggleAction(model: CapabilityDetailModel): string {
     const href = buildCommandUri('metaflow.toggleLayer', [
         {
             layerIndex: model.layerIndex,
+            layerPath: model.layerPath,
             repoId: model.repoId,
             checked: !model.enabled,
         },

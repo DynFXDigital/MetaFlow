@@ -1343,6 +1343,87 @@ suite('Command Execution', () => {
         }
     });
 
+    test('top-level refresh exposes user-facing capability names for newly discovered capabilities', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const priorAutoApply = wsConfig.inspect<boolean>('metaflow.autoApply')?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'refresh-name-repo');
+        const baseLayerRoot = path.join(repoRoot, 'base', 'chatmodes');
+        const discoveredLayerRoot = path.join(repoRoot, 'named-capability');
+        const discoveredChatmodesRoot = path.join(discoveredLayerRoot, 'chatmodes');
+        fs.mkdirSync(baseLayerRoot, { recursive: true });
+        fs.mkdirSync(discoveredChatmodesRoot, { recursive: true });
+        fs.writeFileSync(path.join(baseLayerRoot, 'base.chatmode.md'), '# Base chatmode', 'utf-8');
+        fs.writeFileSync(
+            path.join(discoveredLayerRoot, 'CAPABILITY.md'),
+            ['---', 'name: Named Capability', 'description: Friendly display name.', '---'].join(
+                '\n',
+            ),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(discoveredChatmodesRoot, 'named.chatmode.md'),
+            '# Named chatmode',
+            'utf-8',
+        );
+
+        const discoveryConfig = {
+            metadataRepos: [
+                {
+                    id: 'refresh-name-repo',
+                    localPath: '.ai/refresh-name-repo',
+                },
+            ],
+            layerSources: [{ repoId: 'refresh-name-repo', path: 'base' }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(discoveryConfig, null, 2), 'utf-8');
+            await wsConfig.update(
+                'metaflow.autoApply',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
+                repoId: 'refresh-name-repo',
+                layerPath: 'named-capability',
+            })) as { title?: string; html?: string } | undefined;
+
+            assert.ok(snapshot, 'Expected capability details snapshot for discovered capability');
+            assert.strictEqual(snapshot?.title, 'Capability Details: Named Capability');
+            assert.ok(
+                snapshot?.html?.includes('Named Capability'),
+                'Capability details HTML should use the user-facing name after top-level refresh',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await wsConfig.update(
+                'metaflow.autoApply',
+                priorAutoApply,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('TC-0317: openCapabilityDetails reuses a capability details webview panel in the current editor group (Verifies: REQ-0311, REQ-0412)', async function () {
         this.timeout(15000);
 
