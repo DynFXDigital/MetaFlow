@@ -350,7 +350,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             );
         const item = new RepoSourceItem(
             builtInCapabilityName,
-            undefined,
+            BUILT_IN_CAPABILITY_REPO_ID,
             builtInEnabled,
             'bundled extension metadata',
             undefined,

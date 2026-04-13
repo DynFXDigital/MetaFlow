@@ -276,6 +276,7 @@ suite('ConfigTreeView', () => {
 
         assert.ok(builtInItem, 'expected built-in repo item');
         assert.strictEqual(String(builtInItem?.label), 'MetaFlow');
+        assert.strictEqual(builtInItem?.checkboxState, 1, 'built-in repo should expose a checked checkbox');
         assert.strictEqual(
             extractTooltipText(builtInItem?.tooltip),
             joinTooltip(
@@ -342,6 +343,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(section.section, 'repositories');
         assert.strictEqual(String(builtInItem.label), 'MetaFlow: AI Metadata Overlay');
         assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
+        assert.strictEqual(builtInItem.checkboxState, 0, 'disabled built-in repo should expose an unchecked checkbox');
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
         assert.deepStrictEqual(provider.getChildren(builtInItem), []);
     });
