@@ -6,7 +6,11 @@
  */
 
 import * as vscode from 'vscode';
-import { ConfigLoadResult } from '@metaflow/engine';
+import { ConfigLoadResult, GovernanceContractLoadResult } from '@metaflow/engine';
+
+function mapSeverity(value: 'error' | 'warning' | undefined): vscode.DiagnosticSeverity {
+    return value === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+}
 
 /**
  * Publish config errors as VS Code diagnostics.
@@ -38,12 +42,46 @@ export function publishConfigDiagnostics(
         const diagnostic = new vscode.Diagnostic(
             range,
             err.message,
-            vscode.DiagnosticSeverity.Error,
+            mapSeverity(err.severity),
         );
         diagnostic.source = 'MetaFlow';
+        if (err.code) {
+            diagnostic.code = err.code;
+        }
         return diagnostic;
     });
     collection.set(configUri, diagnostics);
+}
+
+export function publishGovernanceDiagnostics(
+    collection: vscode.DiagnosticCollection,
+    result: GovernanceContractLoadResult,
+): void {
+    const contractPath = result.contractPath;
+    if (result.ok) {
+        if (contractPath) {
+            collection.delete(vscode.Uri.file(contractPath));
+        }
+        return;
+    }
+
+    if (!contractPath) {
+        return;
+    }
+
+    const contractUri = vscode.Uri.file(contractPath);
+    const diagnostics: vscode.Diagnostic[] = result.errors.map((err) => {
+        const line = err.line ?? 0;
+        const col = err.column ?? 0;
+        const range = new vscode.Range(line, col, line, col + 1);
+        const diagnostic = new vscode.Diagnostic(range, err.message, mapSeverity(err.severity));
+        diagnostic.source = 'MetaFlow';
+        if (err.code) {
+            diagnostic.code = err.code;
+        }
+        return diagnostic;
+    });
+    collection.set(contractUri, diagnostics);
 }
 
 /**

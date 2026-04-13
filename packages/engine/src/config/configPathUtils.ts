@@ -12,6 +12,7 @@ import * as fs from 'fs';
 
 /** Config file names in discovery order. */
 const CONFIG_FILENAMES = [path.join('.metaflow', 'config.jsonc')];
+const GOVERNANCE_CONTRACT_FILENAMES = [path.join('.metaflow', 'governance.jsonc')];
 
 /**
  * Discover the config file path in the given workspace root.
@@ -21,6 +22,22 @@ const CONFIG_FILENAMES = [path.join('.metaflow', 'config.jsonc')];
  */
 export function discoverConfigPath(workspaceRoot: string): string | undefined {
     for (const relName of CONFIG_FILENAMES) {
+        const candidate = path.join(workspaceRoot, relName);
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Discover the governance contract file path in the given workspace root.
+ *
+ * @param workspaceRoot Absolute path to the workspace root.
+ * @returns Absolute path to the governance contract file, or `undefined` if not found.
+ */
+export function discoverGovernanceContractPath(workspaceRoot: string): string | undefined {
+    for (const relName of GOVERNANCE_CONTRACT_FILENAMES) {
         const candidate = path.join(workspaceRoot, relName);
         if (fs.existsSync(candidate)) {
             return candidate;

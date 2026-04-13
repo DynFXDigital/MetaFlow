@@ -202,6 +202,10 @@ export interface MetaFlowConfig {
 /** A config validation error with optional location. */
 export interface ConfigError {
     message: string;
+    /** Stable machine-readable diagnostic identifier. */
+    code?: string;
+    /** Diagnostic severity for downstream consumers. */
+    severity?: 'error' | 'warning';
     /** 0-based line in the config file (if available). */
     line?: number;
     /** 0-based column in the config file (if available). */

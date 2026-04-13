@@ -24,8 +24,18 @@ type ConfigDiagnosticsModule = {
         result: {
             ok: boolean;
             configPath?: string;
-            errors: Array<{ message: string; line?: number; column?: number }>;
+            errors: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
         },
+    ) => void;
+    publishGovernanceDiagnostics: (
+        collection: DiagnosticCollectionMock,
+        result:
+            | { ok: true; contractPath?: string }
+            | {
+                  ok: false;
+                  contractPath: string;
+                  errors: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
+              },
     ) => void;
     clearDiagnostics: (collection: DiagnosticCollectionMock) => void;
     disposeDiagnostics: () => void;
@@ -149,6 +159,75 @@ suite('Config Diagnostics', () => {
         assert.deepStrictEqual(call.diagnostics[0].range.start, { line: 3, character: 5 });
         assert.deepStrictEqual(call.diagnostics[0].range.end, { line: 3, character: 6 });
         assert.deepStrictEqual(call.diagnostics[1].range.start, { line: 0, character: 0 });
+    });
+
+    test('publishGovernanceDiagnostics maps warning/error severities and stable codes', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: {
+                file: (value: string): { fsPath: string } => ({ fsPath: value }),
+            },
+            Range: class Range {
+                constructor(
+                    public startLine: number,
+                    public startCol: number,
+                    public endLine: number,
+                    public endCol: number,
+                ) {}
+
+                get start(): { line: number; character: number } {
+                    return { line: this.startLine, character: this.startCol };
+                }
+
+                get end(): { line: number; character: number } {
+                    return { line: this.endLine, character: this.endCol };
+                }
+            },
+            Diagnostic: class Diagnostic {
+                public source?: string;
+                public code?: string;
+
+                constructor(
+                    public range: {
+                        start: { line: number; character: number };
+                        end: { line: number; character: number };
+                    },
+                    public message: string,
+                    public severity: unknown,
+                ) {}
+            },
+            DiagnosticSeverity: {
+                Error: 'error',
+                Warning: 'warning',
+            },
+        });
+
+        const collection = createCollectionMock();
+        module.publishGovernanceDiagnostics(collection, {
+            ok: false,
+            contractPath: '/workspace/.metaflow/governance.jsonc',
+            errors: [
+                {
+                    code: 'GOVERNANCE_INVALID_SEVERITY',
+                    severity: 'error',
+                    message: 'bad severity',
+                    line: 2,
+                    column: 1,
+                },
+                {
+                    code: 'GOVERNANCE_ADVISORY',
+                    severity: 'warning',
+                    message: 'warn first',
+                },
+            ],
+        });
+
+        assert.strictEqual(collection.setCalls.length, 1);
+        const call = collection.setCalls[0];
+        assert.strictEqual(call.uri.fsPath, '/workspace/.metaflow/governance.jsonc');
+        assert.strictEqual(call.diagnostics[0].severity, 'error');
+        assert.strictEqual((call.diagnostics[0] as { code?: string }).code, 'GOVERNANCE_INVALID_SEVERITY');
+        assert.strictEqual(call.diagnostics[1].severity, 'warning');
+        assert.strictEqual((call.diagnostics[1] as { code?: string }).code, 'GOVERNANCE_ADVISORY');
     });
 
     test('publishConfigDiagnostics clears stale diagnostics for a successful load', () => {

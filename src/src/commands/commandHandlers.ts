@@ -13,6 +13,7 @@ import { createHash } from 'crypto';
 import type { ApplyResult } from '@metaflow/engine';
 import {
     loadConfig,
+    loadGovernanceContract,
     MetaFlowConfig,
     InjectionConfig,
     SettingsInjectionTarget,
@@ -41,6 +42,7 @@ import {
 } from '@metaflow/engine';
 import {
     publishConfigDiagnostics,
+    publishGovernanceDiagnostics,
     clearDiagnostics,
     getDiagnosticsSnapshot,
 } from '../diagnostics/configDiagnostics';
@@ -2907,6 +2909,8 @@ export function registerCommands(
                 }
 
                 clearDiagnostics(diagnosticCollection);
+                const governanceResult = loadGovernanceContract(ws.uri.fsPath);
+                publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
                 const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
                 const prunedLayers = pruneStaleLayerSources(result.config, ws.uri.fsPath);
                 const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
