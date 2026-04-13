@@ -72,23 +72,28 @@ class RepoSourceItem extends vscode.TreeItem {
             title?: string;
             description?: string;
             builtIn?: boolean;
+            localGit?: boolean;
         },
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         const isReadonly = !repoId;
         const isRemote = RepoSourceItem.isGitRemoteUrl(repoUrl);
+        const isLocalGit = options?.localGit === true && !isRemote;
         this.contextValue = isReadonly
             ? 'configRepoSourceReadonly'
             : isRemote
               ? RepoSourceItem.buildGitContextValue(syncStatus)
-              : 'configRepoSourceRescannable';
+              : isLocalGit
+                ? 'configRepoSourceLocalGit'
+                : 'configRepoSourceRescannable';
         this.description = RepoSourceItem.buildDescription(
             localPath,
             isRemote,
+            isLocalGit,
             syncStatus,
             summary,
         );
-        this.iconPath = RepoSourceItem.buildIcon(isRemote, syncStatus);
+        this.iconPath = RepoSourceItem.buildIcon(isRemote, isLocalGit, syncStatus);
         if (!isReadonly) {
             this.checkboxState = enabled
                 ? vscode.TreeItemCheckboxState.Checked
@@ -117,10 +122,11 @@ class RepoSourceItem extends vscode.TreeItem {
     private static buildDescription(
         localPath: string,
         isRemote: boolean,
+        isLocalGit: boolean,
         syncStatus: RepoSyncStatus | undefined,
         summary: ArtifactSummary | undefined,
     ): string {
-        const base = isRemote ? `${localPath} [git]` : localPath;
+        const base = isRemote ? `${localPath} [git]` : isLocalGit ? `${localPath} [local git]` : localPath;
         const qualifiers = [RepoSourceItem.syncStatusQualifier(syncStatus)].filter(
             (value): value is string => Boolean(value),
         );
@@ -157,9 +163,17 @@ class RepoSourceItem extends vscode.TreeItem {
         }
     }
 
-    private static buildIcon(isRemote: boolean, syncStatus?: RepoSyncStatus): vscode.ThemeIcon {
-        if (!isRemote) {
+    private static buildIcon(
+        isRemote: boolean,
+        isLocalGit: boolean,
+        syncStatus?: RepoSyncStatus,
+    ): vscode.ThemeIcon {
+        if (!isRemote && !isLocalGit) {
             return new vscode.ThemeIcon('folder');
+        }
+
+        if (isLocalGit) {
+            return new vscode.ThemeIcon('source-control');
         }
 
         if (!syncStatus) {
@@ -204,6 +218,7 @@ class RepoSourceItem extends vscode.TreeItem {
         options?: {
             description?: string;
             builtIn?: boolean;
+            localGit?: boolean;
         },
     ): vscode.MarkdownString {
         const detailLines = [`Status: ${enabled ? 'enabled' : 'disabled'}`];
@@ -212,6 +227,10 @@ class RepoSourceItem extends vscode.TreeItem {
             detailLines.push('Source: bundled with the MetaFlow extension');
         } else {
             detailLines.push(`Local path: \`${localPath}\``);
+        }
+
+        if (!options?.builtIn && options?.localGit && !RepoSourceItem.isGitRemoteUrl(repoUrl)) {
+            detailLines.push('Source control: local git repository');
         }
 
         if (!options?.builtIn && RepoSourceItem.isGitRemoteUrl(repoUrl)) {
@@ -410,6 +429,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                 {
                                     title: repoMetadataById.get(repo.id)?.name,
                                     description: repoMetadataById.get(repo.id)?.description,
+                                    localGit: this.state.localGitRepoIds.has(repo.id),
                                 },
                             ),
                     ),
@@ -437,6 +457,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         {
                             title: repoMetadataById.get('primary')?.name,
                             description: repoMetadataById.get('primary')?.description,
+                            localGit: this.state.localGitRepoIds.has('primary'),
                         },
                     ),
                     ...builtInSource,

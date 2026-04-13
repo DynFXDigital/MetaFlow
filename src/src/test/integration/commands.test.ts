@@ -3730,6 +3730,302 @@ suite('Command Execution', () => {
         }
     });
 
+    test('addRepoSource recognizes local git repositories without remotes as local promotion-ready repos', async function () {
+        this.timeout(25000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-local-only');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        execFileSync('git', ['init'], { cwd: repoPath, windowsHide: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let localGitInfoCount = 0;
+        let promotionPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('local git repository with no configured remotes yet')
+            ) {
+                localGitInfoCount += 1;
+            }
+            if (
+                typeof message === 'string' &&
+                message.includes('Promote it to a git-backed source?')
+            ) {
+                promotionPromptCount += 1;
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+            };
+
+            const addedRepo = updatedConfig.metadataRepos?.find(
+                (candidate) =>
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)) ||
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
+            );
+
+            assert.ok(addedRepo, 'Add repo source should add the selected local git directory');
+            assert.strictEqual(addedRepo?.url, undefined, 'Local git repo without remote should remain untracked');
+            assert.ok(localGitInfoCount > 0, 'Local git info message should appear during add repo source flow');
+            assert.strictEqual(promotionPromptCount, 0, 'Remote promotion prompt should not appear when no remotes exist');
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
+    test('addRepoSource offers to initialize non-git metadata directories and creates an empty initial commit only', async function () {
+        this.timeout(30000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-init-local');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let initPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('is not a git repository. Initialize it for local promotion workflows?')
+            ) {
+                initPromptCount += 1;
+                return 'Initialize Git';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            assert.ok(initPromptCount > 0, 'Git initialization prompt should appear for non-git metadata directories');
+            assert.ok(fs.existsSync(path.join(repoPath, '.git')), 'Accepted init flow should create a git repository');
+
+            const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+                cwd: repoPath,
+                windowsHide: true,
+                encoding: 'utf-8',
+            }).trim();
+            assert.ok(head.length > 0, 'Accepted init flow should create an initial HEAD commit');
+
+            const committedFiles = execFileSync('git', ['ls-tree', '--name-only', '-r', 'HEAD'], {
+                cwd: repoPath,
+                windowsHide: true,
+                encoding: 'utf-8',
+            }).trim();
+            assert.strictEqual(
+                committedFiles,
+                '',
+                'Accepted init flow should not stage or commit the directory\'s pre-existing files',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
+    test('addRepoSource keeps non-git metadata directories local-only when git initialization is declined', async function () {
+        this.timeout(25000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-decline-init');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let initPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('is not a git repository. Initialize it for local promotion workflows?')
+            ) {
+                initPromptCount += 1;
+                return 'Skip';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+            };
+
+            const addedRepo = updatedConfig.metadataRepos?.find(
+                (candidate) =>
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)) ||
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
+            );
+
+            assert.ok(initPromptCount > 0, 'Git initialization prompt should appear for non-git metadata directories');
+            assert.ok(addedRepo, 'Declining init should still keep the new repository source configured');
+            assert.strictEqual(addedRepo?.url, undefined, 'Declining init should keep the repo source local-only');
+            assert.strictEqual(fs.existsSync(path.join(repoPath, '.git')), false, 'Declining init should not create a git repository');
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
     test('initConfig immediately offers promotion for existing local git repositories', async function () {
         this.timeout(30000);
 

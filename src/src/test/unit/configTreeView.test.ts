@@ -67,6 +67,7 @@ type ConfigTreeViewModule = {
         isLoading?: boolean;
         config?: unknown;
         capabilityWarnings: string[];
+        localGitRepoIds?: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById?: Record<string, { name?: string; description?: string }>;
         capabilityByLayer?: Record<string, { name?: string }>;
@@ -116,6 +117,7 @@ function makeState(
         isLoading: boolean;
         config: unknown;
         capabilityWarnings: string[];
+        localGitRepoIds: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById: Record<string, { name?: string; description?: string }>;
         capabilityByLayer: Record<string, { name?: string }>;
@@ -138,6 +140,7 @@ function makeState(
         isLoading: false,
         config: undefined,
         capabilityWarnings: [],
+        localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         repoMetadataById: {},
         capabilityByLayer: {},
@@ -442,6 +445,35 @@ suite('ConfigTreeView', () => {
         );
         assert.strictEqual(provider.getChildren(repoItem).length, 0);
         assert.strictEqual(provider.getTreeItem(repoItem), repoItem);
+    });
+
+    test('CTV-09b: local git repos render distinct local-git copy without remote-tracked context', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {
+                    metadataRepos: [
+                        {
+                            id: 'local-git',
+                            localPath: '/workspace/local-git',
+                            enabled: true,
+                        },
+                    ],
+                },
+                localGitRepoIds: new Set(['local-git']),
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [repoItem] = provider.getChildren(section);
+
+        assert.strictEqual(repoItem.contextValue, 'configRepoSourceLocalGit');
+        assert.strictEqual(repoItem.description, 'local-git [local git] (0/0)');
+        assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'source-control');
+        assert.strictEqual(
+            extractTooltipText(repoItem.tooltip),
+            '**local-git**\n\nStatus: enabled  \nLocal path: `local-git`  \nSource control: local git repository  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+        );
     });
 
     test('CTV-10: remote repos show behind sync details in description, icon, and tooltip', () => {

@@ -319,6 +319,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
                     typeof repoId === 'string' &&
                     (contextValue === 'configRepoSourceRescannable' ||
+                        contextValue === 'configRepoSourceLocalGit' ||
                         contextValue === 'configRepoSourceBuiltin' ||
                         contextValue === 'configRepoSourceGit' ||
                         contextValue === 'configRepoSourceGitBehind')

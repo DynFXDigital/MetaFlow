@@ -421,7 +421,7 @@
         },
         {
           "command": "metaflow.removeRepoSource",
-          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
           "group": "inline@3"
         },
         {
@@ -436,12 +436,12 @@
         },
         {
           "command": "metaflow.rescanRepository",
-          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
           "group": "inline@2"
         },
         {
           "submenu": "metaflow.synchronization",
-          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
+          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
           "group": "3_configure@1"
         },
         {
@@ -488,15 +488,15 @@
       "metaflow.synchronization": [
         {
           "command": "metaflow.injectionPolicy.global.inherit",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
         },
         {
           "command": "metaflow.injectionPolicy.global.settings",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
         },
         {
           "command": "metaflow.injectionPolicy.global.synchronize",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind"
         },
         {
           "command": "metaflow.synchronization.instructions.settings",

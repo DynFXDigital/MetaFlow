@@ -279,6 +279,7 @@ export interface ExtensionState {
         }
     >;
     capabilityWarnings: string[];
+    localGitRepoIds: Set<string>;
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
     builtInCapability: BuiltInCapabilityRuntimeState;
     treeSummaryCache?: TreeSummaryCache;
@@ -300,6 +301,7 @@ export function createState(): ExtensionState {
         capabilityByLayer: {},
         repoMetadataById: {},
         capabilityWarnings: [],
+        localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         builtInCapability: {
             enabled: false,
@@ -2267,6 +2269,11 @@ function resolveUntrackedLocalRepoSources(
     return [];
 }
 
+interface LocalGitRepositoryState {
+    isGitRepo: boolean;
+    remotes: GitRemoteInfo[];
+}
+
 function parseGitRemoteVerboseOutput(stdout: string): GitRemoteInfo[] {
     const remotesByName = new Map<string, GitRemoteInfo>();
 
@@ -2291,20 +2298,54 @@ function parseGitRemoteVerboseOutput(stdout: string): GitRemoteInfo[] {
     return Array.from(remotesByName.values());
 }
 
-async function discoverGitRemotes(repoRoot: string): Promise<GitRemoteInfo[]> {
+async function discoverLocalGitRepositoryState(repoRoot: string): Promise<LocalGitRepositoryState> {
     try {
         const insideWorkTree = (
             await runGitCommand(repoRoot, ['rev-parse', '--is-inside-work-tree'])
         ).stdout.trim();
         if (insideWorkTree !== 'true') {
-            return [];
+            return { isGitRepo: false, remotes: [] };
+        }
+
+        const topLevel = (await runGitCommand(repoRoot, ['rev-parse', '--show-toplevel'])).stdout.trim();
+        const normalizedRepoRoot = path.normalize(repoRoot);
+        const normalizedTopLevel = path.normalize(topLevel);
+        const stableRepoRoot =
+            process.platform === 'win32' ? normalizedRepoRoot.toLowerCase() : normalizedRepoRoot;
+        const stableTopLevel =
+            process.platform === 'win32' ? normalizedTopLevel.toLowerCase() : normalizedTopLevel;
+        if (stableTopLevel !== stableRepoRoot) {
+            return { isGitRepo: false, remotes: [] };
         }
 
         const remotes = await runGitCommand(repoRoot, ['remote', '-v']);
-        return parseGitRemoteVerboseOutput(remotes.stdout);
+        return {
+            isGitRepo: true,
+            remotes: parseGitRemoteVerboseOutput(remotes.stdout),
+        };
     } catch {
-        return [];
+        return { isGitRepo: false, remotes: [] };
     }
+}
+
+async function discoverLocalGitRepoIds(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): Promise<Set<string>> {
+    const repoIds = new Set<string>();
+    const candidates = resolveUntrackedLocalRepoSources(config, workspaceRoot);
+    for (const candidate of candidates) {
+        const state = await discoverLocalGitRepositoryState(candidate.localPath);
+        if (state.isGitRepo) {
+            repoIds.add(candidate.repoId);
+        }
+    }
+    return repoIds;
+}
+
+async function initializeLocalGitRepository(repoRoot: string): Promise<void> {
+    await runGitCommand(repoRoot, ['init']);
+    await runGitCommand(repoRoot, ['-c', 'user.name=MetaFlow', '-c', 'user.email=metaflow@local.invalid', 'commit', '--allow-empty', '-m', 'chore: initialize metadata repository']);
 }
 
 function buildGitRemotePromotionSignature(remotes: GitRemoteInfo[]): string {
@@ -2815,6 +2856,7 @@ export function registerCommands(
                     state.capabilityByLayer = {};
                     state.repoMetadataById = {};
                     state.capabilityWarnings = [];
+                    state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     invalidateRepoSyncStatus(state);
                     state.isLoading = false;
@@ -2890,6 +2932,7 @@ export function registerCommands(
                 );
 
                 const gitRepos = resolveGitBackedRepoSources(result.config, ws.uri.fsPath);
+                state.localGitRepoIds = await discoverLocalGitRepoIds(result.config, ws.uri.fsPath);
                 if (refreshOptions.skipRepoSync === true) {
                     pruneRepoSyncStatusToRepos(
                         state,
@@ -2952,6 +2995,7 @@ export function registerCommands(
                     state.effectiveFiles = [];
                     state.capabilityByLayer = {};
                     state.capabilityWarnings = [];
+                    state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     updateStatusBar('error');
                     void vscode.window
@@ -4494,23 +4538,57 @@ export function registerCommands(
             }
 
             const promoted: string[] = [];
+            const initialized: string[] = [];
             const suppressions = readGitRemotePromotionSuppressions(context);
             let suppressionsChanged = false;
 
             for (const candidate of candidates) {
-                const remotes = await discoverGitRemotes(candidate.localPath);
-                if (remotes.length === 0) {
+                const gitState = await discoverLocalGitRepositoryState(candidate.localPath);
+                if (!gitState.isGitRepo) {
+                    const action = await vscode.window.showInformationMessage(
+                        `MetaFlow: Repository source "${candidate.repoId}" is not a git repository. Initialize it for local promotion workflows?`,
+                        'Initialize Git',
+                        'Skip',
+                    );
+
+                    if (action === 'Initialize Git') {
+                        try {
+                            await initializeLocalGitRepository(candidate.localPath);
+                            initialized.push(candidate.repoId);
+                            logInfo(
+                                `Initialized local git repository for ${candidate.repoId} with an empty initial commit.`,
+                            );
+                        } catch (error: unknown) {
+                            const message = error instanceof Error ? error.message : String(error);
+                            logWarn(
+                                `Failed to initialize local git repository for ${candidate.repoId}: ${message}`,
+                            );
+                            vscode.window.showWarningMessage(
+                                `MetaFlow: Failed to initialize git repository for ${candidate.repoId}. ${message}`,
+                            );
+                        }
+                    }
+                    continue;
+                }
+
+                if (gitState.remotes.length === 0) {
+                    logInfo(
+                        `Repository source ${candidate.repoId} is a local git repository with no configured remotes yet.`,
+                    );
+                    vscode.window.showInformationMessage(
+                        `MetaFlow: Repository source "${candidate.repoId}" is a local git repository with no configured remotes yet. Local promotion workflows are available; add a remote later to enable update checks.`,
+                    );
                     continue;
                 }
 
                 const suppressionKey = buildGitRemotePromotionSuppressionKey(candidate);
-                const signature = buildGitRemotePromotionSignature(remotes);
+                const signature = buildGitRemotePromotionSignature(gitState.remotes);
                 if (suppressions[suppressionKey] === signature) {
                     continue;
                 }
 
                 const action = await vscode.window.showInformationMessage(
-                    `MetaFlow: Repository source "${candidate.repoId}" is a local git repo with ${remotes.length} remote${remotes.length === 1 ? '' : 's'} but no configured URL. Promote it to a git-backed source?`,
+                    `MetaFlow: Repository source "${candidate.repoId}" is a local git repo with ${gitState.remotes.length} remote${gitState.remotes.length === 1 ? '' : 's'} but no configured URL. Promote it to a git-backed source?`,
                     'Promote',
                     'Skip',
                 );
@@ -4530,7 +4608,7 @@ export function registerCommands(
                     suppressionsChanged = true;
                 }
 
-                const selectedRemote = await pickRemoteForPromotion(candidate, remotes);
+                const selectedRemote = await pickRemoteForPromotion(candidate, gitState.remotes);
                 if (!selectedRemote) {
                     continue;
                 }
@@ -4552,17 +4630,26 @@ export function registerCommands(
                 );
             }
 
-            if (promoted.length === 0) {
+            if (promoted.length === 0 && initialized.length === 0) {
                 return;
             }
 
-            state.config = workingConfig;
-            await persistConfig(state.configPath, workingConfig, state);
+            if (promoted.length > 0) {
+                state.config = workingConfig;
+                await persistConfig(state.configPath, workingConfig, state);
+            }
             await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
 
-            vscode.window.showInformationMessage(
-                `MetaFlow: Promoted ${promoted.length} repository source${promoted.length === 1 ? '' : 's'} to git-backed tracking.`,
-            );
+            if (promoted.length > 0) {
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Promoted ${promoted.length} repository source${promoted.length === 1 ? '' : 's'} to git-backed tracking.`,
+                );
+            }
+            if (initialized.length > 0) {
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Initialized ${initialized.length} local metadata repositor${initialized.length === 1 ? 'y' : 'ies'} for git-backed local promotion workflows.`,
+                );
+            }
         }),
     );
 
