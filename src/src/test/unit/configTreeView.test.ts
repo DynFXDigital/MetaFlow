@@ -55,6 +55,7 @@ type MockConfigTreeItem = {
     contextValue?: string;
     tooltip?: unknown;
     description?: string | boolean;
+    checkboxState?: number;
     iconPath?: unknown;
     accessibilityInformation?: { label: string; role: string };
     section?: 'repositories' | 'warnings';
