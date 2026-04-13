@@ -1226,12 +1226,25 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 ]),
             );
 
-            const entries: LayerEntry[] = config.layerSources.map((ls, i) => {
+            const entries = config.layerSources.reduce<LayerEntry[]>((acc, ls, i) => {
                 const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
                 const isLayerEnabled = ls.enabled !== false;
                 const layerId = `${ls.repoId}/${ls.path}`;
                 const capability = capabilityByLayer.get(this.normalizeLayerId(layerId));
-                return {
+                const normalizedPath = this.normalizeLayerPath(ls.path);
+                const summary = this.state.treeSummaryCache
+                    ? this.summarizePath(ls.repoId, normalizedPath)
+                    : undefined;
+                const hasRenderableContent =
+                    capability !== undefined ||
+                    !this.state.treeSummaryCache ||
+                    (summary?.totalAvailable ?? 0) > 0;
+
+                if (!hasRenderableContent) {
+                    return acc;
+                }
+
+                acc.push({
                     label: this.formatLayerLabel(ls.path, repoLabels.get(ls.repoId)),
                     layerIndex: i,
                     enabled: isRepoEnabled && isLayerEnabled,
@@ -1239,10 +1252,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     repoLabel: repoLabels.get(ls.repoId) || ls.repoId,
                     repoDisabled: !isRepoEnabled,
                     toggleable: true,
-                    normalizedPath: this.normalizeLayerPath(ls.path),
+                    normalizedPath,
                     capability,
-                };
-            });
+                });
+
+                return acc;
+            }, []);
 
             return entries;
         }
@@ -1255,19 +1270,34 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 config.metadataRepo?.localPath,
                 singleRepoManifestName,
             );
-            const entries: LayerEntry[] = config.layers.map((layer, i) => {
+            const entries = config.layers.reduce<LayerEntry[]>((acc, layer, i) => {
                 const normalizedLayerId = this.normalizeLayerId(layer);
                 const capability = capabilityByLayer.get(normalizedLayerId);
-                return {
+                const normalizedPath = this.normalizeLayerPath(layer);
+                const summary = this.state.treeSummaryCache
+                    ? this.summarizePath('primary', normalizedPath)
+                    : undefined;
+                const hasRenderableContent =
+                    capability !== undefined ||
+                    !this.state.treeSummaryCache ||
+                    (summary?.totalAvailable ?? 0) > 0;
+
+                if (!hasRenderableContent) {
+                    return acc;
+                }
+
+                acc.push({
                     label: this.formatLayerLabel(layer, singleRepoLabel),
                     layerIndex: i,
                     enabled: true,
                     repoLabel: singleRepoLabel,
                     toggleable: true,
-                    normalizedPath: this.normalizeLayerPath(layer),
+                    normalizedPath,
                     capability,
-                };
-            });
+                });
+
+                return acc;
+            }, []);
 
             return entries;
         }

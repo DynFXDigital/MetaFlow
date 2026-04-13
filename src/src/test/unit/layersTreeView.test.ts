@@ -227,6 +227,49 @@ function makeState(
     };
 }
 
+function makeEmptyTreeSummaryCache() {
+    return {
+        availableRecords: [],
+        currentActiveRecords: [],
+        baseActiveRecords: [],
+        instructionScopeRecords: [],
+        currentInstructionScopeSummary: {
+            inspectedCount: 0,
+            activeCount: 0,
+            highRiskCount: 0,
+            mediumRiskCount: 0,
+            lowRiskCount: 0,
+            unknownCount: 0,
+            missingApplyToCount: 0,
+            activeHighRiskCount: 0,
+            topRisks: [],
+            status: 'none',
+        },
+        profileInstructionScopeSummaries: {},
+        profileSummaries: {},
+        currentSummary: {
+            totalActive: 0,
+            totalAvailable: 0,
+            byType: {
+                instructions: { active: 0, available: 0 },
+                prompts: { active: 0, available: 0 },
+                agents: { active: 0, available: 0 },
+                skills: { active: 0, available: 0 },
+            },
+        },
+        availableSummary: {
+            totalActive: 0,
+            totalAvailable: 0,
+            byType: {
+                instructions: { active: 0, available: 0 },
+                prompts: { active: 0, available: 0 },
+                agents: { active: 0, available: 0 },
+                skills: { active: 0, available: 0 },
+            },
+        },
+    };
+}
+
 function createTempDir(prefix: string): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
@@ -609,6 +652,21 @@ suite('LayersTreeView – artifact-type children', () => {
         const provider = new LayersTreeViewProvider(makeState(undefined), () => 'tree');
         const children = provider.getChildren();
         assert.strictEqual(children.length, 0);
+    });
+
+    test('LTV-AT-07b: stale configured layers with no content are omitted when summaries are available', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: true }],
+            layerSources: [{ repoId: 'repo1', path: 'capabilities/obsolete', enabled: true }],
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], {}, undefined, {}, makeEmptyTreeSummaryCache()),
+            () => 'flat',
+        );
+
+        const children = provider.getChildren();
+        assert.strictEqual(children.length, 0, 'stale empty layer should not render');
     });
 
     test('LTV-AT-08: disabled layer remains browseable and exposes artifact-type children', () => {

@@ -1285,16 +1285,28 @@ function formatLayerPathWarning(
     }
 }
 
-function collectConfiguredSourceWarnings(
+export function collectConfiguredSourceWarnings(
     config: MetaFlowConfig,
     workspaceRoot: string,
+    resolvedLayers: ReturnType<typeof resolveLayers>,
 ): string[] {
     const warnings = new Set<string>();
+
+    const layerLookup = new Map<string, (typeof resolvedLayers)[number]>();
+    for (const layer of resolvedLayers) {
+        layerLookup.set(layer.layerId.replace(/\\/g, '/'), layer);
+    }
+
+    const formatEmptyLayerWarning = (repoId: string, layerPath: string): string => {
+        const normalizedLayerPath = layerPath.replace(/\\/g, '/');
+        return `[LAYER_PATH_EMPTY] Configured layer "${repoId}/${normalizedLayerPath}" exists but currently resolves to no capability metadata or surfaced files.`;
+    };
 
     const appendWarningsForRepoLayers = (
         repoId: string,
         configuredLocalPath: string,
         layerPaths: string[],
+        resolveLayerKey: (layerPath: string) => string,
     ): void => {
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, configuredLocalPath);
         const repoAccessibility = inspectDirectoryAccessibility(repoRoot);
@@ -1307,6 +1319,14 @@ function collectConfiguredSourceWarnings(
             const layerAbsPath = path.join(repoRoot, layerPath);
             const layerAccessibility = inspectDirectoryAccessibility(layerAbsPath);
             if (layerAccessibility.state === 'ok') {
+                const resolvedLayer = layerLookup.get(resolveLayerKey(layerPath));
+                if (
+                    resolvedLayer &&
+                    resolvedLayer.files.length === 0 &&
+                    !resolvedLayer.capability
+                ) {
+                    warnings.add(formatEmptyLayerWarning(repoId, layerPath));
+                }
                 continue;
             }
 
@@ -1333,6 +1353,7 @@ function collectConfiguredSourceWarnings(
                 repo.id,
                 repo.localPath,
                 layerPathsByRepoId.get(repo.id) ?? [],
+                (layerPath) => `${repo.id}/${layerPath.replace(/\\/g, '/')}`,
             );
         }
 
@@ -1350,7 +1371,12 @@ function collectConfiguredSourceWarnings(
     }
 
     if (config.metadataRepo && config.layers) {
-        appendWarningsForRepoLayers('primary', config.metadataRepo.localPath, config.layers);
+        appendWarningsForRepoLayers(
+            'primary',
+            config.metadataRepo.localPath,
+            config.layers,
+            (layerPath) => layerPath.replace(/\\/g, '/'),
+        );
     }
 
     return Array.from(warnings);
@@ -1862,7 +1888,7 @@ function resolveOverlay(
         }
     }
 
-    for (const warning of collectConfiguredSourceWarnings(config, workspaceRoot)) {
+    for (const warning of collectConfiguredSourceWarnings(config, workspaceRoot, layers)) {
         if (!capabilityWarnings.includes(warning)) {
             capabilityWarnings.push(warning);
             logWarn(warning);
