@@ -1486,6 +1486,62 @@ suite('Command Execution', () => {
         }
     });
 
+    test('openCapabilityManifest opens the backing CAPABILITY.md from capability details context', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.ai', 'manifest-open-repo');
+        const layerRoot = path.join(repoRoot, 'review', 'capability-open');
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            ['---', 'name: Capability Open', 'description: Open raw manifest.', '---', '', '# Capability Open'].join('\n'),
+            'utf-8',
+        );
+
+        const config = {
+            metadataRepos: [{ id: 'manifest-open', localPath: '.ai/manifest-open-repo', enabled: true }],
+            layerSources: [{ repoId: 'manifest-open', path: 'review/capability-open', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
+                repoId: 'manifest-open',
+                layerPath: 'review/capability-open',
+            })) as { html?: string } | undefined;
+
+            assert.ok(snapshot?.html?.includes('Open CAPABILITY.md'), 'details view should render the open-manifest action');
+            assert.ok(
+                snapshot?.html?.includes('command:metaflow.openCapabilityManifest?'),
+                'details view should expose the open-manifest command uri',
+            );
+
+            const openedPath = (await vscode.commands.executeCommand('metaflow.openCapabilityManifest', {
+                manifestPath: path.join(layerRoot, 'CAPABILITY.md'),
+            })) as string | undefined;
+
+            assert.strictEqual(openedPath, path.join(layerRoot, 'CAPABILITY.md'));
+            assert.ok(vscode.window.activeTextEditor, 'opening the manifest should reveal a text editor');
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(path.join(layerRoot, 'CAPABILITY.md')),
+                'openCapabilityManifest should open the exact backing CAPABILITY.md file',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
     test('checking a layer enables its disabled repo source', async function () {
         this.timeout(15000);
 

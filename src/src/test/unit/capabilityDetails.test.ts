@@ -182,6 +182,8 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(html.includes('trace.instructions.md'));
             assert.ok(html.includes('<h2>Mission</h2>'));
             assert.ok(html.includes('command:metaflow.toggleLayer?'));
+            assert.ok(html.includes('command:metaflow.openCapabilityManifest?'));
+            assert.ok(html.includes('Open CAPABILITY.md'));
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
             assert.ok(html.includes("script-src 'none'"));
@@ -233,6 +235,10 @@ suite('CapabilityDetails helpers', () => {
             );
             assert.ok(
                 html.includes('No <code>CAPABILITY.md</code> file exists for this layer yet.'),
+            );
+            assert.ok(
+                !html.includes('Open CAPABILITY.md'),
+                'missing-manifest details should not render the open-manifest action',
             );
             assert.ok(html.includes('tone.instructions.md'));
         } finally {

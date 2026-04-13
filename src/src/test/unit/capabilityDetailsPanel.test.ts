@@ -153,7 +153,7 @@ suite('CapabilityDetailsPanelManager', () => {
         assert.deepStrictEqual(createWebviewPanelCalls[0].options, {
             enableFindWidget: true,
             enableScripts: false,
-            enableCommandUris: ['metaflow.toggleLayer'],
+            enableCommandUris: ['metaflow.toggleLayer', 'metaflow.openCapabilityManifest'],
             localResourceRoots: [],
         });
         assert.strictEqual(snapshot.viewType, CAPABILITY_DETAILS_WEBVIEW_TYPE);

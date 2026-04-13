@@ -152,6 +152,20 @@ function renderToggleAction(model: CapabilityDetailModel): string {
     return `<a class="${buttonClass}" href="${href}">${model.enabled ? 'Disable' : 'Enable'}</a>`;
 }
 
+function renderOpenManifestAction(model: CapabilityDetailModel): string {
+    if (!model.manifestPath) {
+        return '';
+    }
+
+    const href = buildCommandUri('metaflow.openCapabilityManifest', [
+        {
+            manifestPath: model.manifestPath,
+        },
+    ]);
+
+    return `<a class="action-button action-button-secondary" href="${href}">Open CAPABILITY.md</a>`;
+}
+
 function formatLicenseLabel(license: string | undefined): string {
     return license?.trim() || 'Unknown';
 }
@@ -312,9 +326,10 @@ function renderHeroStats(model: CapabilityDetailModel): string {
 
 function renderHeroActions(model: CapabilityDetailModel): string {
     const toggleAction = renderToggleAction(model);
+    const openManifestAction = renderOpenManifestAction(model);
     const note = `<span class="action-note">${escapeHtml(getStatusDescription(model))}</span>`;
 
-    if (!toggleAction) {
+    if (!toggleAction && !openManifestAction) {
         return `
                     <div class="hero-actions hero-actions-static">
                         ${note}
@@ -324,6 +339,7 @@ function renderHeroActions(model: CapabilityDetailModel): string {
     return `
                     <div class="hero-actions">
                         ${toggleAction}
+                        ${openManifestAction}
                         ${note}
                     </div>`;
 }

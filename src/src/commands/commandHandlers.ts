@@ -5045,6 +5045,35 @@ export function registerCommands(
         }),
     );
 
+    // ── metaflow.openCapabilityManifest ────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.openCapabilityManifest', async (arg?: unknown) => {
+            const manifestPath =
+                typeof (arg as { manifestPath?: unknown } | undefined)?.manifestPath === 'string'
+                    ? ((arg as { manifestPath: string }).manifestPath as string)
+                    : undefined;
+
+            if (!manifestPath) {
+                vscode.window.showWarningMessage(
+                    'MetaFlow: No CAPABILITY.md file is available for the selected capability.',
+                );
+                return;
+            }
+
+            try {
+                const doc = await vscode.workspace.openTextDocument(manifestPath);
+                await vscode.window.showTextDocument(doc);
+                return manifestPath;
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                vscode.window.showWarningMessage(
+                    `MetaFlow: Could not open CAPABILITY.md. ${message}`,
+                );
+                return;
+            }
+        }),
+    );
+
     // ── metaflow.toggleFilesViewMode ───────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleFilesViewMode', async () => {
