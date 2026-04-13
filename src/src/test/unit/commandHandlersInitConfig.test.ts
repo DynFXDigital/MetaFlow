@@ -379,14 +379,12 @@ function createCommandHandlersHarness(initResult: boolean) {
 }
 
 suite('Command Handlers initConfig command', () => {
-    test('refreshes, offers built-in onboarding, and runs promotion after initialization succeeds', async () => {
+    test('refreshes, auto-enables built-in settings mode, and runs promotion after initialization succeeds', async () => {
         const harness = createCommandHandlersHarness(true);
 
         try {
             const callback = harness.registeredCommands.get('metaflow.initConfig');
             assert.ok(callback, 'metaflow.initConfig command should be registered');
-
-            harness.informationMessageResponses.push('Enable Now');
 
             await callback!();
 
@@ -400,11 +398,6 @@ suite('Command Handlers initConfig command', () => {
                     inProgress: entry.inProgress,
                 })),
                 [
-                    {
-                        command: 'metaflow.refresh',
-                        args: [{ skipRepoSync: true }],
-                        inProgress: false,
-                    },
                     {
                         command: 'metaflow.refresh',
                         args: [{ skipRepoSync: true }],
@@ -423,22 +416,33 @@ suite('Command Handlers initConfig command', () => {
                 ],
             );
             assert.deepStrictEqual(harness.informationMessages, [
-                'MetaFlow: Enable the bundled AI metadata capabilities now?',
-                'MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).',
+                'MetaFlow: Built-in MetaFlow capability enabled automatically (settings-only mode).',
             ]);
+            assert.deepStrictEqual(harness.workspaceStateStore.get('metaflow.builtin.state'), {
+                enabled: true,
+                layerEnabled: true,
+                disabledByUser: false,
+                synchronizedFiles: [],
+                layerStates: {},
+            });
         } finally {
             harness.dispose();
         }
     });
 
-    test('continues initialization without enabling built-in capability when user declines onboarding prompt', async () => {
+    test('continues initialization without re-enabling built-in capability when it is already active', async () => {
         const harness = createCommandHandlersHarness(true);
 
         try {
             const callback = harness.registeredCommands.get('metaflow.initConfig');
             assert.ok(callback, 'metaflow.initConfig command should be registered');
-
-            harness.informationMessageResponses.push('Not Now');
+            harness.workspaceStateStore.set('metaflow.builtin.state', {
+                enabled: true,
+                layerEnabled: true,
+                disabledByUser: false,
+                synchronizedFiles: [],
+                layerStates: {},
+            });
 
             await callback!();
 
@@ -469,9 +473,7 @@ suite('Command Handlers initConfig command', () => {
                     },
                 ],
             );
-            assert.deepStrictEqual(harness.informationMessages, [
-                'MetaFlow: Enable the bundled AI metadata capabilities now?',
-            ]);
+            assert.deepStrictEqual(harness.informationMessages, []);
         } finally {
             harness.dispose();
         }
@@ -519,12 +521,13 @@ suite('Command Handlers initConfig command', () => {
             assert.deepStrictEqual(
                 harness.workspaceStateStore.get('metaflow.builtin.state'),
                 {
-                    enabled: true,
+                    enabled: false,
                     layerEnabled: false,
+                    disabledByUser: true,
                     layerStates: {},
                     synchronizedFiles: [],
                 },
-                'built-in repo toggle should preserve built-in availability, persist repo-level disabled state, and clear per-layer overrides',
+                'built-in repo toggle should persist repo-level disabled state, mark the repo as user-disabled, and clear per-layer overrides',
             );
             assert.deepStrictEqual(
                 harness.executedCommands.map((entry) => ({

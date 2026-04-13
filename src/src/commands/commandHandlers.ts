@@ -1548,10 +1548,11 @@ async function enableBuiltInCapabilityInSettingsMode(
     return writeBuiltInCapabilityWorkspaceState(context, currentState, {
         enabled: true,
         layerEnabled: true,
+        disabledByUser: false,
     });
 }
 
-async function offerBuiltInCapabilityOnboarding(
+async function enableBuiltInCapabilityDuringInit(
     context: vscode.ExtensionContext,
     currentState: BuiltInCapabilityRuntimeState,
 ): Promise<BuiltInCapabilityRuntimeState> {
@@ -1559,21 +1560,10 @@ async function offerBuiltInCapabilityOnboarding(
         return currentState;
     }
 
-    const choice = await vscode.window.showInformationMessage(
-        'MetaFlow: Enable the bundled AI metadata capabilities now?',
-        ENABLE_METAFLOW_AI_METADATA_ACTION,
-        NOT_NOW_ACTION,
-    );
-
-    if (choice !== ENABLE_METAFLOW_AI_METADATA_ACTION) {
-        return currentState;
-    }
-
     const nextState = await enableBuiltInCapabilityInSettingsMode(context, currentState);
     vscode.window.showInformationMessage(
-        'MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).',
+        'MetaFlow: Built-in MetaFlow capability enabled automatically (settings-only mode).',
     );
-    await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
     return nextState;
 }
 
@@ -5041,7 +5031,7 @@ export function registerCommands(
                 }
 
                 state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
-                state.builtInCapability = await offerBuiltInCapabilityOnboarding(
+                state.builtInCapability = await enableBuiltInCapabilityDuringInit(
                     context,
                     state.builtInCapability,
                 );

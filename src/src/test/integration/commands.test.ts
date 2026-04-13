@@ -3827,9 +3827,10 @@ suite('Command Execution', () => {
                 'https://example.com/meta-init-config.git',
                 'Initialize configuration should immediately promote local git repositories with remotes',
             );
-            assert.ok(
-                builtInPromptCount > 0,
-                'Built-in capability onboarding prompt should appear during init configuration flow',
+            assert.strictEqual(
+                builtInPromptCount,
+                0,
+                'Built-in capability onboarding prompt should not appear during init configuration flow',
             );
             assert.ok(
                 promotionPromptCount > 0,

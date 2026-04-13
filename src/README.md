@@ -92,6 +92,8 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
 
 `MetaFlow: Initialize Configuration` seeds `primary` as enabled and discovered capabilities as disabled so capability activation is opt-in.
 
+After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability in settings-only mode and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.
+
 Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSources` are accepted during the pre-release window. On load/open, MetaFlow rewrites them to the canonical repo-grouped `metadataRepos[*].capabilities` shape and shows a migration notice.
 
 If enabled capabilities surface the same effective relative path, MetaFlow reports a warning in the Capabilities view, `Preview`, `Status`, and the apply summary. Apply remains non-blocking and uses the later-wins result selected by the engine.
@@ -166,7 +168,7 @@ description: Shared repository-level metadata for this workspace.
 | `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                        |                |
 | `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                           |                |
 | `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                    |                |
-| `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc`                                                                             |                |
+| `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability in settings-only mode |                |
 | `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                       |                |
 
 ## Settings
