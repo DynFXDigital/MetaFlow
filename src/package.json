@@ -134,6 +134,11 @@
         "icon": "$(book)"
       },
       {
+        "command": "metaflow.createCapabilityManifest",
+        "title": "MetaFlow: Create CAPABILITY.md",
+        "icon": "$(new-file)"
+      },
+      {
         "command": "metaflow.configureCapabilityInjection",
         "title": "MetaFlow: Configure Capability Injection"
       },
@@ -366,6 +371,11 @@
           "command": "metaflow.initMetaFlowAiMetadata",
           "when": "view == metaflow-config && !metaflow.capabilityInstalled",
           "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.createCapabilityManifest",
+          "when": "view == metaflow-config",
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.toggleFilesViewMode",

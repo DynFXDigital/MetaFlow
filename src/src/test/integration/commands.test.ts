@@ -1542,6 +1542,58 @@ suite('Command Execution', () => {
         }
     });
 
+    test('createCapabilityManifest opens bundled guidance and seeds a CAPABILITY.md draft', async function () {
+        this.timeout(15000);
+
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+        const result = (await vscode.commands.executeCommand(
+            'metaflow.createCapabilityManifest',
+        )) as
+            | {
+                  guidancePath?: string;
+                  examplePath?: string;
+                  draftUri?: string;
+              }
+            | undefined;
+
+        assert.ok(result?.guidancePath, 'guided create should return the bundled guidance path');
+        assert.ok(result?.examplePath, 'guided create should return the bundled example path');
+        assert.strictEqual(result?.draftUri, 'untitled:CAPABILITY.md');
+
+        assert.ok(
+            vscode.workspace.textDocuments.some(
+                (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
+            ),
+            'guided create should open the bundled capability-contract guidance',
+        );
+        assert.ok(
+            vscode.workspace.textDocuments.some(
+                (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
+            ),
+            'guided create should open the bundled example CAPABILITY.md',
+        );
+
+        assert.ok(vscode.window.activeTextEditor, 'guided create should leave the draft editor active');
+        assert.strictEqual(
+            vscode.window.activeTextEditor!.document.uri.toString(),
+            'untitled:CAPABILITY.md',
+            'guided create should open a CAPABILITY.md draft editor',
+        );
+        assert.ok(
+            vscode.window.activeTextEditor!.document.getText().includes('name: Capability Name'),
+            'guided create should seed the draft with frontmatter guidance',
+        );
+        assert.ok(
+            vscode.window.activeTextEditor!.document
+                .getText()
+                .includes('# Capability: Capability Name'),
+            'guided create should seed the draft with the recommended heading structure',
+        );
+
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    });
+
     test('checking a layer enables its disabled repo source', async function () {
         this.timeout(15000);
 

@@ -2466,6 +2466,48 @@ function pruneRepoSyncStatusToRepos(state: ExtensionState, repoIds: Iterable<str
     );
 }
 
+const BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
+    'assets',
+    'metaflow-ai-metadata',
+    '.github',
+    'instructions',
+    'metaflow-capability-contract.instructions.md',
+);
+
+const BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
+    'assets',
+    'metaflow-ai-metadata',
+    'capabilities',
+    'metadata-authoring',
+    'github-copilot-metadata-authoring',
+    'CAPABILITY.md',
+);
+
+function buildCapabilityManifestStarterTemplate(): string {
+    return [
+        '---',
+        'name: Capability Name',
+        'description: Describe what this capability offers in one direct declarative sentence.',
+        'license: SEE-LICENSE-IN-REPO',
+        '---',
+        '',
+        '# Capability: Capability Name',
+        '',
+        '## Mission',
+        '',
+        'Describe the primary purpose of this capability.',
+        '',
+        '## Scope',
+        '',
+        '- List the main assets, workflows, or concerns this capability owns.',
+        '',
+        '## Non-Goals',
+        '',
+        '- List adjacent concerns this capability does not own.',
+        '',
+    ].join('\n');
+}
+
 async function refreshRepoSyncStatusCache(
     state: ExtensionState,
     targets: ResolvedRepoSource[],
@@ -5071,6 +5113,64 @@ export function registerCommands(
                 );
                 return;
             }
+        }),
+    );
+
+    // ── metaflow.createCapabilityManifest ─────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.createCapabilityManifest', async () => {
+            const guidancePath = path.join(
+                context.extensionPath,
+                BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+            );
+            const examplePath = path.join(
+                context.extensionPath,
+                BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH,
+            );
+
+            if (!fs.existsSync(guidancePath) || !fs.existsSync(examplePath)) {
+                vscode.window.showWarningMessage(
+                    'MetaFlow: Bundled CAPABILITY.md authoring guidance is unavailable in this extension build.',
+                );
+                return;
+            }
+
+            const guidanceDoc = await vscode.workspace.openTextDocument(guidancePath);
+            await vscode.window.showTextDocument(guidanceDoc, {
+                viewColumn: vscode.ViewColumn.Beside,
+                preview: true,
+                preserveFocus: true,
+            });
+
+            const exampleDoc = await vscode.workspace.openTextDocument(examplePath);
+            await vscode.window.showTextDocument(exampleDoc, {
+                viewColumn: vscode.ViewColumn.Beside,
+                preview: true,
+                preserveFocus: true,
+            });
+
+            const untitledUri = vscode.Uri.parse('untitled:CAPABILITY.md');
+            const draftDoc = await vscode.workspace.openTextDocument(untitledUri);
+            const editor = await vscode.window.showTextDocument(draftDoc, {
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active,
+            });
+
+            if (draftDoc.getText().length === 0) {
+                await editor.edit((editBuilder) => {
+                    editBuilder.insert(new vscode.Position(0, 0), buildCapabilityManifestStarterTemplate());
+                });
+            }
+
+            vscode.window.showInformationMessage(
+                'MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and a new CAPABILITY.md draft.',
+            );
+
+            return {
+                guidancePath,
+                examplePath,
+                draftUri: untitledUri.toString(),
+            };
         }),
     );
 
