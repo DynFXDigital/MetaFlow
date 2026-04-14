@@ -29,6 +29,7 @@ import {
     loadCapabilityDetailModel,
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
+import { isBuiltInCapabilityActive } from './builtInCapability';
 import {
     extractLayerPath,
     extractRepoId,
@@ -84,7 +85,7 @@ function hasGitBackedRepo(config: ReturnType<typeof createState>['config']): boo
 }
 
 function hasInstalledMetaFlowCapability(state: ReturnType<typeof createState>): boolean {
-    return state.builtInCapability.enabled || state.builtInCapability.synchronizedFiles.length > 0;
+    return isBuiltInCapabilityActive(state.builtInCapability);
 }
 
 function hasLoadedConfig(state: ReturnType<typeof createState>): boolean {

@@ -246,11 +246,24 @@ suite('builtInCapability', () => {
         );
     });
 
+    test('isBuiltInCapabilityActive stays true when the built-in repo was disabled by the user', () => {
+        assert.strictEqual(
+            isBuiltInCapabilityActive({
+                enabled: false,
+                layerEnabled: false,
+                disabledByUser: true,
+                synchronizedFiles: [],
+            }),
+            true,
+        );
+    });
+
     test('isBuiltInCapabilityActive is false when disabled and no tracked files exist', () => {
         assert.strictEqual(
             isBuiltInCapabilityActive({
                 enabled: false,
                 layerEnabled: false,
+                disabledByUser: false,
                 synchronizedFiles: [],
             }),
             false,

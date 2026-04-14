@@ -5365,7 +5365,7 @@ export function registerCommands(
 
             state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
 
-            const hasBuiltInMode = state.builtInCapability.enabled;
+            const hasBuiltInMode = isBuiltInCapabilityActive(state.builtInCapability);
             const trackedFileCount = state.builtInCapability.synchronizedFiles.length;
 
             if (!hasBuiltInMode && trackedFileCount === 0) {

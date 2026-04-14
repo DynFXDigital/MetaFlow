@@ -74,6 +74,7 @@ type ConfigTreeViewModule = {
         builtInCapability: {
             enabled: boolean;
             layerEnabled: boolean;
+            disabledByUser?: boolean;
             synchronizedFiles: string[];
             sourceRoot?: string;
             sourceId: string;
@@ -124,6 +125,7 @@ function makeState(
         builtInCapability: {
             enabled: boolean;
             layerEnabled: boolean;
+            disabledByUser?: boolean;
             synchronizedFiles: string[];
             sourceRoot?: string;
             sourceId: string;
@@ -147,6 +149,7 @@ function makeState(
         builtInCapability: {
             enabled: false,
             layerEnabled: true,
+            disabledByUser: false,
             synchronizedFiles: [],
             sourceRoot: undefined,
             sourceId: 'dynfxdigital.metaflow-ai',
@@ -350,6 +353,36 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(builtInItem.checkboxState, 0, 'disabled built-in repo should expose an unchecked checkbox');
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
         assert.deepStrictEqual(provider.getChildren(builtInItem), []);
+    });
+
+    test('CTV-06b: built-in repo stays visible when it is temporarily disabled by the user', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                builtInCapability: {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [builtInItem] = provider.getChildren(section);
+
+        assert.strictEqual(String(builtInItem.label), 'MetaFlow: AI Metadata Overlay');
+        assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
+        assert.strictEqual(
+            builtInItem.checkboxState,
+            0,
+            'user-disabled built-in repo should remain visible with an unchecked checkbox',
+        );
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
     });
 
     test('CTV-07: warnings section appears with warning leaves alongside repositories', () => {

@@ -132,7 +132,14 @@ export function isBuiltInCapabilityActive(state: BuiltInCapabilityActivationStat
         return true;
     }
 
-    // Keep the node visible even when the layer is unchecked so users can re-enable it.
+    // Keep the built-in source visible when it has been intentionally disabled by the
+    // user so the repo row remains recoverable and the explicit remove command stays
+    // distinct from a temporary disable.
+    if (state.disabledByUser) {
+        return true;
+    }
+
+    // Keep legacy synchronized installs active so users can still manage them.
     return state.synchronizedFiles.length > 0;
 }
 
