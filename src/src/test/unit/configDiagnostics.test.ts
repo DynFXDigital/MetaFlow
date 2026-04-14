@@ -28,6 +28,15 @@ type ConfigDiagnosticsModule = {
             errors: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
         },
     ) => void;
+    publishConfigWarningDiagnostics: (
+        collection: DiagnosticCollectionMock,
+        configPath: string | undefined,
+        warnings: Array<{
+            message: string;
+            code?: string | number;
+            severity?: 'error' | 'warning' | 'warn';
+        }>,
+    ) => void;
     publishGovernanceDiagnostics: (
         collection: DiagnosticCollectionMock,
         result:
@@ -250,6 +259,85 @@ suite('Config Diagnostics', () => {
         assert.strictEqual((call.diagnostics[1] as { code?: string }).code, 'GOVERNANCE_ADVISORY');
     });
 
+    test('publishConfigWarningDiagnostics maps warning entries to config diagnostics with stable codes', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: {
+                file: (value: string): { fsPath: string } => ({ fsPath: value }),
+            },
+            Range: class Range {
+                constructor(
+                    public startLine: number,
+                    public startCol: number,
+                    public endLine: number,
+                    public endCol: number,
+                ) {}
+
+                get start(): { line: number; character: number } {
+                    return { line: this.startLine, character: this.startCol };
+                }
+
+                get end(): { line: number; character: number } {
+                    return { line: this.endLine, character: this.endCol };
+                }
+            },
+            Diagnostic: class Diagnostic {
+                public source?: string;
+                public code?: string | number;
+
+                constructor(
+                    public range: {
+                        start: { line: number; character: number };
+                        end: { line: number; character: number };
+                    },
+                    public message: string,
+                    public severity: unknown,
+                ) {}
+            },
+            DiagnosticSeverity: {
+                Error: 'error',
+                Warning: 'warning',
+            },
+        });
+
+        const collection = createCollectionMock();
+        module.publishConfigWarningDiagnostics(collection, '/workspace/.metaflow/config.jsonc', [
+            {
+                code: 'LAYER_PATH_MISSING',
+                message:
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+            },
+        ]);
+
+        assert.strictEqual(collection.setCalls.length, 1);
+        const call = collection.setCalls[0];
+        assert.strictEqual(call.uri.fsPath, '/workspace/.metaflow/config.jsonc');
+        assert.strictEqual(call.diagnostics.length, 1);
+        assert.strictEqual(call.diagnostics[0].severity, 'warning');
+        assert.strictEqual(call.diagnostics[0].source, 'MetaFlow');
+        assert.strictEqual(
+            (call.diagnostics[0] as { code?: string | number }).code,
+            'LAYER_PATH_MISSING',
+        );
+        assert.deepStrictEqual(call.diagnostics[0].range.start, { line: 0, character: 0 });
+    });
+
+    test('publishConfigWarningDiagnostics clears config warning diagnostics when warnings are resolved', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 'error', Warning: 'warning' },
+        });
+
+        const collection = createCollectionMock();
+        module.publishConfigWarningDiagnostics(collection, '/workspace/.metaflow/config.jsonc', []);
+
+        assert.strictEqual(collection.setCalls.length, 0);
+        assert.deepStrictEqual(collection.deleteCalls, [
+            { fsPath: '/workspace/.metaflow/config.jsonc' },
+        ]);
+    });
+
     test('publishGovernanceComplianceDiagnostics maps violation ids to diagnostic codes', () => {
         const module = loadConfigDiagnosticsWithMock({
             Uri: {
@@ -357,6 +445,23 @@ suite('Config Diagnostics', () => {
             ok: false,
             errors: [{ message: 'bad config' }],
         });
+
+        assert.strictEqual(collection.setCalls.length, 0);
+        assert.strictEqual(collection.deleteCalls.length, 0);
+    });
+
+    test('publishConfigWarningDiagnostics is no-op when config path is missing', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {},
+            Diagnostic: class Diagnostic {},
+            DiagnosticSeverity: { Error: 'error', Warning: 'warning' },
+        });
+
+        const collection = createCollectionMock();
+        module.publishConfigWarningDiagnostics(collection, undefined, [
+            { code: 'LAYER_PATH_MISSING', message: 'missing layer' },
+        ]);
 
         assert.strictEqual(collection.setCalls.length, 0);
         assert.strictEqual(collection.deleteCalls.length, 0);

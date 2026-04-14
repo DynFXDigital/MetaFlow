@@ -18,6 +18,12 @@ function mapSeverity(value: 'error' | 'warning' | 'warn' | undefined): vscode.Di
         : vscode.DiagnosticSeverity.Error;
 }
 
+export interface SupplementalConfigDiagnostic {
+    message: string;
+    code?: string | number;
+    severity?: 'error' | 'warning' | 'warn';
+}
+
 /**
  * Publish config errors as VS Code diagnostics.
  *
@@ -56,6 +62,37 @@ export function publishConfigDiagnostics(
         }
         return diagnostic;
     });
+    collection.set(configUri, diagnostics);
+}
+
+export function publishConfigWarningDiagnostics(
+    collection: vscode.DiagnosticCollection,
+    configPath: string | undefined,
+    warnings: SupplementalConfigDiagnostic[],
+): void {
+    if (!configPath) {
+        return;
+    }
+
+    const configUri = vscode.Uri.file(configPath);
+    if (warnings.length === 0) {
+        collection.delete(configUri);
+        return;
+    }
+
+    const diagnostics: vscode.Diagnostic[] = warnings.map((warning) => {
+        const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 1),
+            warning.message,
+            mapSeverity(warning.severity ?? 'warning'),
+        );
+        diagnostic.source = 'MetaFlow';
+        if (warning.code !== undefined) {
+            diagnostic.code = warning.code;
+        }
+        return diagnostic;
+    });
+
     collection.set(configUri, diagnostics);
 }
 

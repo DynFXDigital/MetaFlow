@@ -56,6 +56,79 @@ function loadCommandHandlers(): typeof import('../../commands/commandHandlers') 
 }
 
 suite('Command handler configured source warnings', () => {
+    test('enabled missing layer path produces a diagnostic warning payload', () => {
+        const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-missing-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: true }],
+                } as never,
+                workspaceRoot,
+            );
+
+            assert.deepStrictEqual(warnings, [
+                {
+                    code: 'LAYER_PATH_MISSING',
+                    message:
+                        '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                },
+            ]);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('disabled missing layer path does not produce a diagnostic warning payload', () => {
+        const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-disabled-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: false }],
+                } as never,
+                workspaceRoot,
+            );
+
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('existing enabled layer path does not produce a diagnostic warning payload', () => {
+        const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-found-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            const layerRoot = path.join(repoRoot, 'capabilities', 'ghost');
+            fs.mkdirSync(layerRoot, { recursive: true });
+
+            const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: true }],
+                } as never,
+                workspaceRoot,
+            );
+
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('LAYER_PATH_EMPTY warning is emitted for stale empty configured layers', () => {
         const { collectConfiguredSourceWarnings } = loadCommandHandlers();
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-empty-layer-'));

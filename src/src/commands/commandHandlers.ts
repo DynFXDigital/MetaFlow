@@ -43,6 +43,7 @@ import {
 } from '@metaflow/engine';
 import {
     publishConfigDiagnostics,
+    publishConfigWarningDiagnostics,
     publishGovernanceComplianceDiagnostics,
     publishGovernanceDiagnostics,
     clearDiagnostics,
@@ -1320,6 +1321,115 @@ function formatLayerPathWarning(
         case 'unreadable':
             return `[LAYER_PATH_UNREADABLE] Configured layer "${layerLabel}" could not be read: ${accessibility.detail}`;
     }
+}
+
+export interface ConfiguredSourceDiagnosticWarning {
+    message: string;
+    code: string;
+}
+
+const DIAGNOSTIC_ELIGIBLE_CONFIGURED_SOURCE_WARNING_CODES = new Set([
+    'LAYER_PATH_MISSING',
+    'LAYER_PATH_INVALID',
+    'LAYER_PATH_UNREADABLE',
+]);
+
+function extractWarningCode(message: string): string | undefined {
+    const match = /^\[([A-Z0-9_]+)\]/.exec(message);
+    return match?.[1];
+}
+
+function addConfiguredSourceDiagnosticWarning(
+    diagnostics: ConfiguredSourceDiagnosticWarning[],
+    seenMessages: Set<string>,
+    message: string,
+): void {
+    const code = extractWarningCode(message);
+    if (!code || !DIAGNOSTIC_ELIGIBLE_CONFIGURED_SOURCE_WARNING_CODES.has(code)) {
+        return;
+    }
+
+    if (seenMessages.has(message)) {
+        return;
+    }
+
+    seenMessages.add(message);
+    diagnostics.push({ message, code });
+}
+
+export function collectEnabledConfiguredSourceDiagnosticWarnings(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ConfiguredSourceDiagnosticWarning[] {
+    const diagnostics: ConfiguredSourceDiagnosticWarning[] = [];
+    const seenMessages = new Set<string>();
+
+    const appendRepoLayerDiagnostics = (
+        repoId: string,
+        configuredLocalPath: string,
+        layerPaths: string[],
+    ): void => {
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, configuredLocalPath);
+        const repoAccessibility = inspectDirectoryAccessibility(repoRoot);
+        if (repoAccessibility.state !== 'ok') {
+            return;
+        }
+
+        for (const layerPath of layerPaths) {
+            const layerAbsPath = path.join(repoRoot, layerPath);
+            const layerAccessibility = inspectDirectoryAccessibility(layerAbsPath);
+            if (layerAccessibility.state === 'ok') {
+                continue;
+            }
+
+            addConfiguredSourceDiagnosticWarning(
+                diagnostics,
+                seenMessages,
+                formatLayerPathWarning(repoId, layerPath, layerAccessibility),
+            );
+        }
+    };
+
+    if (config.metadataRepos && config.layerSources) {
+        const enabledSourcesByRepoId = new Map<string, Set<string>>();
+        for (const source of config.layerSources) {
+            if (source.enabled === false) {
+                continue;
+            }
+
+            const existing = enabledSourcesByRepoId.get(source.repoId) ?? new Set<string>();
+            existing.add(source.path);
+            enabledSourcesByRepoId.set(source.repoId, existing);
+        }
+
+        for (const repo of config.metadataRepos) {
+            if (repo.enabled === false) {
+                continue;
+            }
+
+            const enabledPaths = enabledSourcesByRepoId.get(repo.id) ?? new Set<string>();
+            for (const capability of repo.capabilities ?? []) {
+                if (capability.enabled === false) {
+                    continue;
+                }
+                enabledPaths.add(capability.path);
+            }
+
+            appendRepoLayerDiagnostics(
+                repo.id,
+                repo.localPath,
+                Array.from(enabledPaths),
+            );
+        }
+
+        return diagnostics;
+    }
+
+    if (config.metadataRepo && config.layers) {
+        appendRepoLayerDiagnostics('primary', config.metadataRepo.localPath, config.layers);
+    }
+
+    return diagnostics;
 }
 
 export function collectConfiguredSourceWarnings(
@@ -3035,6 +3145,7 @@ export function registerCommands(
                     const injectionConfig = resolveInjectionConfig(ws, result.config);
                     const shouldEnableDiscovery =
                         autoApplyEnabled || refreshOptions.forceDiscovery === true;
+                    const activeProfileConfig = projectConfigForProfile(result.config);
                     const projectedConfig = withBuiltInCapabilityProjected(
                         result.config,
                         state.builtInCapability,
@@ -3072,6 +3183,22 @@ export function registerCommands(
                     state.effectiveFiles = overlay.effectiveFiles;
                     state.capabilityByLayer = overlay.capabilityByLayer;
                     state.capabilityWarnings = overlay.capabilityWarnings;
+                    const configuredSourceDiagnosticWarnings =
+                        collectEnabledConfiguredSourceDiagnosticWarnings(
+                            activeProfileConfig,
+                            ws.uri.fsPath,
+                        );
+                    for (const warning of configuredSourceDiagnosticWarnings) {
+                        if (!state.capabilityWarnings.includes(warning.message)) {
+                            state.capabilityWarnings.push(warning.message);
+                            logWarn(warning.message);
+                        }
+                    }
+                    publishConfigWarningDiagnostics(
+                        diagnosticCollection,
+                        result.configPath,
+                        configuredSourceDiagnosticWarnings,
+                    );
                     state.treeSummaryCache = await buildTreeSummaryCache(
                         projectedConfig,
                         ws.uri.fsPath,

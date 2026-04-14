@@ -240,6 +240,141 @@ suite('Diagnostics Integration', () => {
         }
     });
 
+    test('refresh publishes enabled missing-layer warnings to Problems and diagnostics snapshot while retaining capability warnings', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const warningConfig = JSON.stringify(
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [{ path: 'standards/missing-capability', enabled: true }],
+                    },
+                ],
+                profiles: {
+                    default: {
+                        displayName: 'Default',
+                        enable: ['**/*'],
+                    },
+                },
+                activeProfile: 'default',
+            },
+            null,
+            2,
+        );
+
+        try {
+            fs.writeFileSync(configPath, warningConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const diagnostics = vscode.languages
+                .getDiagnostics(vscode.Uri.file(configPath))
+                .filter((diagnostic) => diagnostic.source === 'MetaFlow');
+
+            assert.strictEqual(diagnostics.length, 1, 'Expected one enabled missing-layer warning');
+            assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Warning);
+            assert.strictEqual(diagnostics[0].code, 'LAYER_PATH_MISSING');
+            assert.ok(
+                diagnostics[0].message.includes('primary/standards/missing-capability'),
+                `Expected repo/path in diagnostic message, got: ${diagnostics[0].message}`,
+            );
+
+            const snapshot = await vscode.commands.executeCommand<{
+                capabilityWarnings: string[];
+                configDiagnostics: Array<{
+                    file: string;
+                    message: string;
+                    severity: number;
+                    startLine: number;
+                    startColumn: number;
+                    source?: string;
+                    code?: string | number;
+                }>;
+            }>('metaflow.getDiagnosticsSnapshot');
+
+            const snapshotWarnings = snapshot.configDiagnostics.filter(
+                (entry) =>
+                    entry.file === vscode.Uri.file(configPath).fsPath &&
+                    entry.code === 'LAYER_PATH_MISSING',
+            );
+
+            assert.strictEqual(
+                snapshotWarnings.length,
+                1,
+                'Diagnostics snapshot should include the enabled missing-layer warning',
+            );
+            assert.strictEqual(snapshotWarnings[0].message, diagnostics[0].message);
+            assert.ok(
+                snapshot.capabilityWarnings.includes(diagnostics[0].message),
+                'Capability warnings should still carry the same warning for UI/status surfaces',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh does not publish diagnostics for disabled missing-layer overrides', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const disabledWarningConfig = JSON.stringify(
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [{ path: 'standards/missing-capability', enabled: false }],
+                    },
+                ],
+                profiles: {
+                    default: {
+                        displayName: 'Default',
+                        enable: ['**/*'],
+                    },
+                },
+                activeProfile: 'default',
+            },
+            null,
+            2,
+        );
+
+        try {
+            fs.writeFileSync(configPath, disabledWarningConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const diagnostics = vscode.languages
+                .getDiagnostics(vscode.Uri.file(configPath))
+                .filter((diagnostic) => diagnostic.source === 'MetaFlow');
+
+            assert.strictEqual(
+                diagnostics.length,
+                0,
+                'Disabled missing-layer overrides should not publish config diagnostics',
+            );
+
+            const snapshot = await vscode.commands.executeCommand<{
+                capabilityWarnings: string[];
+                configDiagnostics: Array<{
+                    file: string;
+                    code?: string | number;
+                }>;
+            }>('metaflow.getDiagnosticsSnapshot');
+
+            assert.strictEqual(
+                snapshot.configDiagnostics.filter((entry) => entry.code === 'LAYER_PATH_MISSING')
+                    .length,
+                0,
+                'Diagnostics snapshot should stay clean for disabled missing-layer overrides',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('refresh and profile switch update governance diagnostics and status snapshots', async function () {
         this.timeout(15000);
 
