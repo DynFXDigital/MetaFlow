@@ -10,8 +10,9 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import { createHash } from 'crypto';
-import type { ApplyResult } from '@metaflow/engine';
+import type { ApplyResult, ConfigError, GovernanceComplianceResult } from '@metaflow/engine';
 import {
+    evaluateGovernanceCompliance,
     loadConfig,
     loadGovernanceContract,
     MetaFlowConfig,
@@ -42,6 +43,7 @@ import {
 } from '@metaflow/engine';
 import {
     publishConfigDiagnostics,
+    publishGovernanceComplianceDiagnostics,
     publishGovernanceDiagnostics,
     clearDiagnostics,
     getDiagnosticsSnapshot,
@@ -280,6 +282,9 @@ export interface ExtensionState {
             description?: string;
         }
     >;
+    governanceContractPath?: string;
+    governanceContractErrors: ConfigError[];
+    governanceCompliance?: GovernanceComplianceResult;
     capabilityWarnings: string[];
     localGitRepoIds: Set<string>;
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
@@ -302,6 +307,9 @@ export function createState(): ExtensionState {
         effectiveFiles: [],
         capabilityByLayer: {},
         repoMetadataById: {},
+        governanceContractPath: undefined,
+        governanceContractErrors: [],
+        governanceCompliance: undefined,
         capabilityWarnings: [],
         localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
@@ -316,6 +324,31 @@ export function createState(): ExtensionState {
         },
         treeSummaryCache: undefined,
         onDidChange: new vscode.EventEmitter<void>(),
+    };
+}
+
+function cloneConfigError(error: ConfigError): ConfigError {
+    return {
+        message: error.message,
+        ...(error.code !== undefined ? { code: error.code } : {}),
+        ...(error.severity !== undefined ? { severity: error.severity } : {}),
+        ...(error.line !== undefined ? { line: error.line } : {}),
+        ...(error.column !== undefined ? { column: error.column } : {}),
+    };
+}
+
+function cloneGovernanceComplianceResult(
+    result: GovernanceComplianceResult | undefined,
+): GovernanceComplianceResult | undefined {
+    if (!result) {
+        return undefined;
+    }
+
+    return {
+        ...result,
+        allowedProfiles: [...result.allowedProfiles],
+        lockedProfiles: [...result.lockedProfiles],
+        violations: result.violations.map((violation) => ({ ...violation })),
     };
 }
 
@@ -2899,6 +2932,9 @@ export function registerCommands(
                     state.effectiveFiles = [];
                     state.capabilityByLayer = {};
                     state.repoMetadataById = {};
+                    state.governanceContractPath = undefined;
+                    state.governanceContractErrors = [];
+                    state.governanceCompliance = undefined;
                     state.capabilityWarnings = [];
                     state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
@@ -2911,6 +2947,11 @@ export function registerCommands(
                 clearDiagnostics(diagnosticCollection);
                 const governanceResult = loadGovernanceContract(ws.uri.fsPath);
                 publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
+                state.governanceContractPath = governanceResult.contractPath;
+                state.governanceContractErrors = governanceResult.ok
+                    ? []
+                    : governanceResult.errors.map(cloneConfigError);
+                state.governanceCompliance = undefined;
                 const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
                 const prunedLayers = pruneStaleLayerSources(result.config, ws.uri.fsPath);
                 const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
@@ -2999,6 +3040,17 @@ export function registerCommands(
                         state.builtInCapability,
                     );
                     const activeProfileProjectedConfig = projectConfigForProfile(projectedConfig);
+                    if (governanceResult.ok) {
+                        state.governanceCompliance = evaluateGovernanceCompliance(
+                            governanceResult.contract,
+                            activeProfileProjectedConfig,
+                        );
+                        publishGovernanceComplianceDiagnostics(
+                            diagnosticCollection,
+                            governanceResult.contractPath,
+                            state.governanceCompliance,
+                        );
+                    }
                     state.repoMetadataById = collectConfiguredRepoMetadata(
                         result.config,
                         ws.uri.fsPath,
@@ -3266,6 +3318,37 @@ export function registerCommands(
             emitInfo(`Settings Injection Target: ${managedSettingsSummary.target}`);
             emitInfo(`Settings Injection Keys: ${managedSettingsSummary.keys}`);
             emitInfo(`Injection Modes: ${formatInjectionModesSummary(state.config)}`);
+
+            if (state.governanceContractErrors.length > 0) {
+                emitWarn(
+                    `Governance: invalid (${state.governanceContractErrors.length} contract diagnostic(s))`,
+                );
+            } else if (state.governanceCompliance?.status === 'not-applicable') {
+                emitInfo('Governance: not configured');
+            } else if (state.governanceCompliance) {
+                emitInfo(
+                    `Governance: ${state.governanceCompliance.status} (severity: ${state.governanceCompliance.severity})`,
+                );
+                if (state.governanceCompliance.allowedProfiles.length > 0) {
+                    emitInfo(
+                        `Governance Allowed Profiles: ${state.governanceCompliance.allowedProfiles.join(', ')}`,
+                    );
+                }
+                if (state.governanceCompliance.lockedProfiles.length > 0) {
+                    emitInfo(
+                        `Governance Locked Profiles: ${state.governanceCompliance.lockedProfiles.join(', ')}`,
+                    );
+                }
+                if (state.governanceCompliance.activeProfileLocked) {
+                    emitInfo('Governance Active Profile Lock: active');
+                }
+                if (state.governanceCompliance.violations.length > 0) {
+                    emitWarn(`Governance Violations: ${state.governanceCompliance.violations.length}`);
+                    for (const violation of state.governanceCompliance.violations) {
+                        emitWarn(`  [${violation.id}] ${violation.message}`);
+                    }
+                }
+            }
 
             if (trackedCount > 0) {
                 const driftResults = checkAllDrift(ws.uri.fsPath, '.github', managedState);
@@ -5464,6 +5547,11 @@ export function registerCommands(
             return {
                 capabilityWarnings: [...state.capabilityWarnings],
                 configDiagnostics: getDiagnosticsSnapshot(diagnosticCollection),
+                governance: {
+                    contractPath: state.governanceContractPath,
+                    validationErrors: state.governanceContractErrors.map(cloneConfigError),
+                    compliance: cloneGovernanceComplianceResult(state.governanceCompliance),
+                },
             };
         }),
     );

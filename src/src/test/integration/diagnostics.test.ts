@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 suite('Diagnostics Integration', () => {
     let workspaceRoot: string;
     let configPath: string;
+    let governancePath: string;
 
     suiteSetup(async function () {
         this.timeout(15000);
@@ -26,6 +27,7 @@ suite('Diagnostics Integration', () => {
 
         workspaceRoot = ws!.uri.fsPath;
         configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
     });
 
     // Trace: TC-0329
@@ -234,6 +236,149 @@ suite('Diagnostics Integration', () => {
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh and profile switch update governance diagnostics and status snapshots', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const originalGovernanceExists = fs.existsSync(governancePath);
+        const originalGovernance = originalGovernanceExists
+            ? fs.readFileSync(governancePath, 'utf-8')
+            : undefined;
+
+        const governedConfig = JSON.stringify(
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [{ path: 'standards/sdlc', enabled: true }],
+                    },
+                ],
+                profiles: {
+                    default: {
+                        displayName: 'Default',
+                        enable: ['**/*'],
+                    },
+                    review: {
+                        displayName: 'Review',
+                        enable: ['**/*'],
+                    },
+                },
+                activeProfile: 'default',
+            },
+            null,
+            2,
+        );
+        const governanceContract = JSON.stringify(
+            {
+                severity: 'error',
+                requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+                allowedProfiles: ['default'],
+                lockedProfiles: ['default'],
+            },
+            null,
+            2,
+        );
+
+        try {
+            fs.writeFileSync(configPath, governedConfig, 'utf-8');
+            fs.writeFileSync(governancePath, governanceContract, 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            let governanceDiagnostics = vscode.languages
+                .getDiagnostics(vscode.Uri.file(governancePath))
+                .filter((diagnostic) => diagnostic.source === 'MetaFlow');
+            assert.strictEqual(
+                governanceDiagnostics.length,
+                0,
+                'The default profile should start governance-compliant',
+            );
+
+            await vscode.commands.executeCommand('metaflow.switchProfile', {
+                profileId: 'review',
+            });
+
+            governanceDiagnostics = vscode.languages
+                .getDiagnostics(vscode.Uri.file(governancePath))
+                .filter((diagnostic) => diagnostic.source === 'MetaFlow');
+            assert.strictEqual(
+                governanceDiagnostics.length,
+                1,
+                'Switching to a disallowed profile should emit one governance diagnostic',
+            );
+            assert.strictEqual(
+                governanceDiagnostics[0].code,
+                'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review',
+            );
+
+            const snapshot = await vscode.commands.executeCommand<{
+                capabilityWarnings: string[];
+                configDiagnostics: Array<{
+                    file: string;
+                    message: string;
+                    severity: number;
+                    startLine: number;
+                    startColumn: number;
+                    source?: string;
+                    code?: string | number;
+                }>;
+                governance: {
+                    contractPath?: string;
+                    validationErrors: Array<{ message: string; code?: string }>;
+                    compliance?: {
+                        status: 'not-applicable' | 'compliant' | 'non-compliant';
+                        severity: 'warn' | 'error';
+                        activeProfile?: string;
+                        activeProfileLocked: boolean;
+                        allowedProfiles: string[];
+                        lockedProfiles: string[];
+                        violations: Array<{ id: string; code: string; message: string }>;
+                    };
+                };
+            }>('metaflow.getDiagnosticsSnapshot');
+
+            assert.ok(snapshot, 'Snapshot command should return a payload');
+            const governanceSnapshotDiagnostics = snapshot.configDiagnostics.filter(
+                (entry) => entry.file === vscode.Uri.file(governancePath).fsPath,
+            );
+            assert.deepStrictEqual(
+                governanceSnapshotDiagnostics.map((entry) => entry.code),
+                ['GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review'],
+            );
+            assert.strictEqual(snapshot.governance.validationErrors.length, 0);
+            assert.strictEqual(snapshot.governance.compliance?.status, 'non-compliant');
+            assert.strictEqual(snapshot.governance.compliance?.severity, 'error');
+            assert.strictEqual(snapshot.governance.compliance?.activeProfile, 'review');
+            assert.deepStrictEqual(snapshot.governance.compliance?.allowedProfiles, ['default']);
+            assert.deepStrictEqual(snapshot.governance.compliance?.lockedProfiles, ['default']);
+            assert.deepStrictEqual(
+                snapshot.governance.compliance?.violations.map((violation) => violation.id),
+                ['GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review'],
+            );
+
+            const statusLines = (await vscode.commands.executeCommand('metaflow.status')) as string[];
+            assert.ok(
+                statusLines.some((line) => line.includes('Governance: non-compliant')),
+                'Status output should include the governance compliance summary',
+            );
+            assert.ok(
+                statusLines.some((line) =>
+                    line.includes('[GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review]'),
+                ),
+                'Status output should include the stable governance violation id',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            if (originalGovernanceExists) {
+                fs.writeFileSync(governancePath, originalGovernance!, 'utf-8');
+            } else if (fs.existsSync(governancePath)) {
+                fs.unlinkSync(governancePath);
+            }
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });

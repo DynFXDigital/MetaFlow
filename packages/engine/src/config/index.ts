@@ -5,6 +5,7 @@ export {
     parseAndValidateGovernanceContract,
     validateGovernanceContract,
 } from './governanceContract';
+export { evaluateGovernanceCompliance } from './governanceCompliance';
 export {
     discoverConfigPath,
     discoverGovernanceContractPath,
@@ -37,3 +38,11 @@ export type {
     GovernanceContractLoadResult,
     GovernanceSeverity,
 } from './governanceContract';
+export type {
+    GovernanceComplianceResult,
+    GovernanceComplianceStatus,
+    GovernanceViolation,
+    GovernanceViolationCode,
+    GovernanceViolationRule,
+    GovernanceCapabilityObservedState,
+} from './governanceCompliance';

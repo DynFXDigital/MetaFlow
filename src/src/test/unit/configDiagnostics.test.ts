@@ -5,6 +5,7 @@ type DiagnosticEntry = {
     message: string;
     severity: number;
     source?: string;
+    code?: string | number;
 };
 
 type DiagnosticCollectionMock = {
@@ -37,6 +38,24 @@ type ConfigDiagnosticsModule = {
                   errors: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
               },
     ) => void;
+    publishGovernanceComplianceDiagnostics: (
+        collection: DiagnosticCollectionMock,
+        contractPath: string | undefined,
+        result: {
+            status: 'not-applicable' | 'compliant' | 'non-compliant';
+            severity: 'warn' | 'error';
+            activeProfile?: string;
+            activeProfileLocked: boolean;
+            allowedProfiles: string[];
+            lockedProfiles: string[];
+            violations: Array<{
+                id: string;
+                code: string;
+                severity: 'warn' | 'error';
+                message: string;
+            }>;
+        },
+    ) => void;
     clearDiagnostics: (collection: DiagnosticCollectionMock) => void;
     disposeDiagnostics: () => void;
     getDiagnosticsSnapshot: (collection: DiagnosticCollectionMock) => Array<{
@@ -46,6 +65,7 @@ type ConfigDiagnosticsModule = {
         startLine: number;
         startColumn: number;
         source?: string;
+        code?: string | number;
     }>;
 };
 
@@ -230,6 +250,79 @@ suite('Config Diagnostics', () => {
         assert.strictEqual((call.diagnostics[1] as { code?: string }).code, 'GOVERNANCE_ADVISORY');
     });
 
+    test('publishGovernanceComplianceDiagnostics maps violation ids to diagnostic codes', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: {
+                file: (value: string): { fsPath: string } => ({ fsPath: value }),
+            },
+            Range: class Range {
+                constructor(
+                    public startLine: number,
+                    public startCol: number,
+                    public endLine: number,
+                    public endCol: number,
+                ) {}
+
+                get start(): { line: number; character: number } {
+                    return { line: this.startLine, character: this.startCol };
+                }
+
+                get end(): { line: number; character: number } {
+                    return { line: this.endLine, character: this.endCol };
+                }
+            },
+            Diagnostic: class Diagnostic {
+                public source?: string;
+                public code?: string;
+
+                constructor(
+                    public range: {
+                        start: { line: number; character: number };
+                        end: { line: number; character: number };
+                    },
+                    public message: string,
+                    public severity: unknown,
+                ) {}
+            },
+            DiagnosticSeverity: {
+                Error: 'error',
+                Warning: 'warning',
+            },
+        });
+
+        const collection = createCollectionMock();
+        module.publishGovernanceComplianceDiagnostics(
+            collection,
+            '/workspace/.metaflow/governance.jsonc',
+            {
+                status: 'non-compliant',
+                severity: 'warn',
+                activeProfile: 'review',
+                activeProfileLocked: false,
+                allowedProfiles: ['default'],
+                lockedProfiles: ['default'],
+                violations: [
+                    {
+                        id: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review',
+                        code: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED',
+                        severity: 'warn',
+                        message: 'Active profile "review" is not allowed by governance.',
+                    },
+                ],
+            },
+        );
+
+        assert.strictEqual(collection.setCalls.length, 1);
+        const call = collection.setCalls[0];
+        assert.strictEqual(call.uri.fsPath, '/workspace/.metaflow/governance.jsonc');
+        assert.strictEqual(call.diagnostics.length, 1);
+        assert.strictEqual(call.diagnostics[0].severity, 'warning');
+        assert.strictEqual(
+            (call.diagnostics[0] as { code?: string }).code,
+            'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review',
+        );
+    });
+
     test('publishConfigDiagnostics clears stale diagnostics for a successful load', () => {
         const module = loadConfigDiagnosticsWithMock({
             Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
@@ -314,6 +407,7 @@ suite('Config Diagnostics', () => {
                     message: 'missing layers',
                     severity: 0,
                     source: 'MetaFlow',
+                    code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
                     range: {
                         start: { line: 2, character: 4 },
                         end: { line: 2, character: 5 },
@@ -341,6 +435,7 @@ suite('Config Diagnostics', () => {
             startLine: 2,
             startColumn: 4,
             source: 'MetaFlow',
+            code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
         });
         assert.deepStrictEqual(snapshot[1], {
             file: '/ws/.metaflow/config.jsonc',

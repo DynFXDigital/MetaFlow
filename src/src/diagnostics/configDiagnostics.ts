@@ -6,10 +6,16 @@
  */
 
 import * as vscode from 'vscode';
-import { ConfigLoadResult, GovernanceContractLoadResult } from '@metaflow/engine';
+import {
+    ConfigLoadResult,
+    GovernanceComplianceResult,
+    GovernanceContractLoadResult,
+} from '@metaflow/engine';
 
-function mapSeverity(value: 'error' | 'warning' | undefined): vscode.DiagnosticSeverity {
-    return value === 'warning' ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error;
+function mapSeverity(value: 'error' | 'warning' | 'warn' | undefined): vscode.DiagnosticSeverity {
+    return value === 'warning' || value === 'warn'
+        ? vscode.DiagnosticSeverity.Warning
+        : vscode.DiagnosticSeverity.Error;
 }
 
 /**
@@ -84,6 +90,35 @@ export function publishGovernanceDiagnostics(
     collection.set(contractUri, diagnostics);
 }
 
+export function publishGovernanceComplianceDiagnostics(
+    collection: vscode.DiagnosticCollection,
+    contractPath: string | undefined,
+    result: GovernanceComplianceResult,
+): void {
+    if (!contractPath) {
+        return;
+    }
+
+    const contractUri = vscode.Uri.file(contractPath);
+    if (result.status !== 'non-compliant') {
+        collection.delete(contractUri);
+        return;
+    }
+
+    const diagnostics: vscode.Diagnostic[] = result.violations.map((violation) => {
+        const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 1),
+            violation.message,
+            mapSeverity(violation.severity),
+        );
+        diagnostic.source = 'MetaFlow';
+        diagnostic.code = violation.id;
+        return diagnostic;
+    });
+
+    collection.set(contractUri, diagnostics);
+}
+
 /**
  * Clear all diagnostics from the given collection.
  */
@@ -108,6 +143,7 @@ export interface ConfigDiagnosticEntry {
     startLine: number;
     startColumn: number;
     source?: string;
+    code?: string | number;
 }
 
 /**
@@ -129,6 +165,9 @@ export function getDiagnosticsSnapshot(
                 startLine: d.range.start.line,
                 startColumn: d.range.start.character,
                 source: d.source,
+                ...(typeof d.code === 'string' || typeof d.code === 'number'
+                    ? { code: d.code }
+                    : {}),
             });
         }
     });
