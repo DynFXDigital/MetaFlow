@@ -525,6 +525,35 @@ suite('CapabilityDetails helpers', () => {
         assert.ok(html.includes('Repo-wide wildcard pattern.'));
     });
 
+    test('TC-0252: renders a governance notice when the selected capability is governed or violating', () => {
+        const model = makeCapabilityDetailModel({
+            governance: {
+                summary: 'Governance: non-compliant (severity: error)',
+                detailLines: [
+                    'Governance Rule: required capability',
+                    'Governance Violations: 1',
+                    '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::review/capability-review] Required capability "primary/review/capability-review" is not active because the capability is disabled in the active runtime state.',
+                ],
+                variant: 'error',
+            },
+        });
+
+        const html = renderCapabilityDetailsHtml(model, {
+            cspSource: 'https://webview.test',
+            nonce: 'nonce-governance',
+        });
+
+        assert.ok(html.includes('<h2>Governance</h2>'));
+        assert.ok(html.includes('governance-notice-error'));
+        assert.ok(html.includes('Governance: non-compliant (severity: error)'));
+        assert.ok(html.includes('Governance Rule: required capability'));
+        assert.ok(
+            html.includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::review/capability-review] Required capability &quot;primary/review/capability-review&quot; is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+    });
+
     test('TC-0252: renders built-in capability details from actual bundled source root (Verifies: REQ-0311)', async () => {
         const bundledSourceRoot = path.resolve(
             __dirname,

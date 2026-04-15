@@ -1424,6 +1424,66 @@ suite('Command Execution', () => {
         }
     });
 
+    test('TC-0349: openCapabilityDetails renders governance notice in live runtime (Verifies: REQ-0311, REQ-0412)', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const originalGovernanceExists = fs.existsSync(governancePath);
+        const originalGovernance = originalGovernanceExists
+            ? fs.readFileSync(governancePath, 'utf-8')
+            : undefined;
+
+        const governedConfig = {
+            metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+            layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+        const governanceContract = {
+            severity: 'error',
+            requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(governedConfig, null, 2), 'utf-8');
+            fs.writeFileSync(governancePath, JSON.stringify(governanceContract, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
+                repoId: 'primary',
+                layerPath: 'standards/sdlc',
+            })) as { title?: string; html?: string } | undefined;
+
+            assert.ok(snapshot, 'Expected capability details snapshot for governed capability');
+            assert.ok(snapshot?.html?.includes('<h2>Governance</h2>'));
+            assert.ok(snapshot?.html?.includes('governance-notice-error'));
+            assert.ok(snapshot?.html?.includes('Governance: non-compliant (severity: error)'));
+            assert.ok(snapshot?.html?.includes('Governance Rule: required capability'));
+            assert.ok(snapshot?.html?.includes('Governance Violations: 1'));
+            assert.ok(
+                snapshot?.html?.includes(
+                    '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc]',
+                ),
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            if (originalGovernanceExists) {
+                fs.writeFileSync(governancePath, originalGovernance!, 'utf-8');
+            } else if (fs.existsSync(governancePath)) {
+                fs.unlinkSync(governancePath);
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
     test('TC-0317: openCapabilityDetails reuses a capability details webview panel in the current editor group (Verifies: REQ-0311, REQ-0412)', async function () {
         this.timeout(15000);
 

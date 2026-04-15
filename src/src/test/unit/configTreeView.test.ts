@@ -122,6 +122,21 @@ function makeState(
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById: Record<string, { name?: string; description?: string }>;
         capabilityByLayer: Record<string, { name?: string }>;
+        governanceContractErrors: Array<{ message: string; code?: string | number }>;
+        governanceContract: {
+            requiredCapabilities?: Array<{ repoId: string; path: string }>;
+            defaultOnCapabilities?: Array<{ repoId: string; path: string }>;
+            severity?: 'warn' | 'error';
+        };
+        governanceCompliance: {
+            status: 'not-applicable' | 'compliant' | 'non-compliant';
+            severity: 'warn' | 'error';
+            activeProfile?: string;
+            activeProfileLocked: boolean;
+            allowedProfiles: string[];
+            lockedProfiles: string[];
+            violations: Array<{ id: string; message: string; repoId?: string; path?: string }>;
+        };
         builtInCapability: {
             enabled: boolean;
             layerEnabled: boolean;
@@ -146,6 +161,9 @@ function makeState(
         repoSyncByRepoId: {},
         repoMetadataById: {},
         capabilityByLayer: {},
+        governanceContractErrors: [],
+        governanceContract: undefined,
+        governanceCompliance: undefined,
         builtInCapability: {
             enabled: false,
             layerEnabled: true,
@@ -686,6 +704,93 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
             '**Shared Metadata**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+        );
+    });
+
+    test('CTV-14: repo source descriptions and tooltips surface repo-scoped governance violations', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {
+                    metadataRepos: [
+                        {
+                            id: 'primary',
+                            localPath: '/workspace/team',
+                            enabled: true,
+                        },
+                    ],
+                },
+                governanceContract: {
+                    requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+                    severity: 'error',
+                },
+                governanceCompliance: {
+                    status: 'non-compliant',
+                    severity: 'error',
+                    activeProfile: 'default',
+                    activeProfileLocked: false,
+                    allowedProfiles: [],
+                    lockedProfiles: [],
+                    violations: [
+                        {
+                            id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
+                            message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                            repoId: 'primary',
+                            path: 'standards/sdlc',
+                        },
+                    ],
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [repoItem] = provider.getChildren(section);
+
+        assert.strictEqual(repoItem.description, 'team (0/0, governance 1 violation)');
+        assert.ok(
+            extractTooltipText(repoItem.tooltip).includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.ok(
+            extractTooltipText(repoItem.tooltip).includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc] Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+    });
+
+    test('CTV-15: warnings section surfaces concise governance summary when violations are not repo-scoped', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                governanceCompliance: {
+                    status: 'non-compliant',
+                    severity: 'warn',
+                    activeProfile: undefined,
+                    activeProfileLocked: false,
+                    allowedProfiles: ['default'],
+                    lockedProfiles: [],
+                    violations: [
+                        {
+                            id: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::__none__',
+                            message: 'No active profile is selected. Allowed profiles: default.',
+                        },
+                    ],
+                },
+            }),
+        );
+
+        const rootItems = provider.getChildren();
+        assert.deepStrictEqual(
+            rootItems.map((item) => String(item.label)),
+            ['Repositories', 'Warnings (1)'],
+        );
+
+        const warningItems = provider.getChildren(rootItems[1]);
+        assert.deepStrictEqual(
+            warningItems.map((item) => String(item.label)),
+            ['Governance: non-compliant (severity: warn)'],
         );
     });
 });

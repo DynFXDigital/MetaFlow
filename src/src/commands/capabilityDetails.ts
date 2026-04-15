@@ -21,6 +21,10 @@ import {
     resolveBuiltInCapabilityDisplayName,
     resolveBuiltInLayerEnabled,
 } from '../builtInCapability';
+import {
+    buildCapabilityGovernanceProjection,
+    type GovernanceUiState,
+} from '../governanceSignals';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 
 type DetailArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
@@ -78,6 +82,11 @@ export interface CapabilityDetailModel {
     artifactBuckets: CapabilityDetailArtifactBucket[];
     artifactCount: number;
     body?: string;
+    governance?: {
+        summary: string;
+        detailLines: string[];
+        variant: 'info' | 'warning' | 'error';
+    };
 }
 
 function toPosixPath(value: string): string {
@@ -294,6 +303,7 @@ export function resolveCapabilityDetailTarget(
 export async function loadCapabilityDetailModel(
     target: CapabilityDetailTarget,
     treeSummaryCache?: TreeSummaryCache,
+    governanceState?: GovernanceUiState,
 ): Promise<CapabilityDetailModel> {
     const manifest = loadCapabilityManifestForLayer(target.layerRoot, target.capabilityId);
     const layerFiles = await collectLayerFiles(target.layerRoot);
@@ -305,6 +315,11 @@ export async function loadCapabilityDetailModel(
         treeSummaryCache,
         target.repoId,
         target.layerPath,
+    );
+    const governance = buildCapabilityGovernanceProjection(
+        target.repoId,
+        target.layerPath,
+        governanceState ?? {},
     );
 
     return {
@@ -327,5 +342,14 @@ export async function loadCapabilityDetailModel(
         artifactBuckets,
         artifactCount: layerFiles.length,
         body: manifest?.body?.trim(),
+        ...(governance.summary
+            ? {
+                  governance: {
+                      summary: governance.summary,
+                      detailLines: governance.detailLines,
+                      variant: governance.variant ?? 'info',
+                  },
+              }
+            : {}),
     };
 }

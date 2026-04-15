@@ -10,7 +10,13 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import { createHash } from 'crypto';
-import type { ApplyResult, ConfigError, GovernanceComplianceResult } from '@metaflow/engine';
+import type {
+    ApplyResult,
+    ConfigError,
+    GovernanceComplianceResult,
+    GovernanceContract,
+    GovernanceViolation,
+} from '@metaflow/engine';
 import {
     evaluateGovernanceCompliance,
     loadConfig,
@@ -283,6 +289,7 @@ export interface ExtensionState {
             description?: string;
         }
     >;
+    governanceContract?: GovernanceContract;
     governanceContractPath?: string;
     governanceContractErrors: ConfigError[];
     governanceCompliance?: GovernanceComplianceResult;
@@ -308,6 +315,7 @@ export function createState(): ExtensionState {
         effectiveFiles: [],
         capabilityByLayer: {},
         repoMetadataById: {},
+        governanceContract: undefined,
         governanceContractPath: undefined,
         governanceContractErrors: [],
         governanceCompliance: undefined,
@@ -351,6 +359,218 @@ function cloneGovernanceComplianceResult(
         lockedProfiles: [...result.lockedProfiles],
         violations: result.violations.map((violation) => ({ ...violation })),
     };
+}
+
+function cloneBuiltInCapabilityRuntimeState(
+    state: BuiltInCapabilityRuntimeState,
+): BuiltInCapabilityRuntimeState {
+    return {
+        ...state,
+        synchronizedFiles: [...state.synchronizedFiles],
+        layerStates: { ...(state.layerStates ?? {}) },
+    };
+}
+
+function previewBuiltInCapabilityWorkspaceState(
+    currentState: BuiltInCapabilityRuntimeState,
+    patch: BuiltInCapabilityWorkspaceState,
+): BuiltInCapabilityRuntimeState {
+    return {
+        ...cloneBuiltInCapabilityRuntimeState(currentState),
+        enabled: patch.enabled ?? currentState.enabled,
+        layerEnabled: patch.layerEnabled ?? currentState.layerEnabled,
+        disabledByUser: patch.disabledByUser ?? currentState.disabledByUser,
+        synchronizedFiles: sanitizeSynchronizedFiles(
+            patch.synchronizedFiles ?? currentState.synchronizedFiles,
+        ),
+        layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
+    };
+}
+
+function previewBuiltInLayerEnabledState(
+    currentState: BuiltInCapabilityRuntimeState,
+    layerPath: string,
+    enabled: boolean,
+): BuiltInCapabilityRuntimeState {
+    const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    const nextLayerStates = { ...(currentState.layerStates ?? {}) };
+
+    if (enabled === currentState.layerEnabled) {
+        delete nextLayerStates[normalizedLayerPath];
+    } else {
+        nextLayerStates[normalizedLayerPath] = enabled;
+    }
+
+    return previewBuiltInCapabilityWorkspaceState(currentState, {
+        layerStates: nextLayerStates,
+    });
+}
+
+function previewBuiltInLayerEnabledStates(
+    currentState: BuiltInCapabilityRuntimeState,
+    layerPaths: Iterable<string>,
+    enabled: boolean,
+): BuiltInCapabilityRuntimeState {
+    const nextLayerStates = { ...(currentState.layerStates ?? {}) };
+
+    for (const layerPath of layerPaths) {
+        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+        if (enabled === currentState.layerEnabled) {
+            delete nextLayerStates[normalizedLayerPath];
+        } else {
+            nextLayerStates[normalizedLayerPath] = enabled;
+        }
+    }
+
+    return previewBuiltInCapabilityWorkspaceState(currentState, {
+        layerStates: nextLayerStates,
+    });
+}
+
+type GovernedMutationEffect = 'allow' | 'warn' | 'block';
+
+export interface GovernedMutationDecision {
+    effect: GovernedMutationEffect;
+    compliance?: GovernanceComplianceResult;
+    sourceLabel?: string;
+    summary?: string;
+    detailLines: string[];
+}
+
+function buildGovernanceViolationRemediation(
+    violation: GovernanceViolation,
+    compliance: GovernanceComplianceResult,
+): string {
+    switch (violation.code) {
+        case 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED':
+            if (compliance.allowedProfiles.length > 0) {
+                return `Switch to one of the allowed profiles (${compliance.allowedProfiles.join(', ')}) and retry.`;
+            }
+            return 'Select an allowed profile and retry.';
+        case 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING':
+        case 'GOVERNANCE_DEFAULT_ON_CAPABILITY_DISABLED': {
+            const capabilityLabel =
+                violation.repoId && violation.path
+                    ? `${violation.repoId}/${violation.path}`
+                    : 'the governed capability';
+            return `Ensure ${capabilityLabel} is active in the candidate runtime state, then retry.`;
+        }
+        default:
+            return 'Align the candidate state with the governance contract and retry.';
+    }
+}
+
+function buildGovernedMutationDecision(
+    actionLabel: string,
+    contractPath: string | undefined,
+    compliance: GovernanceComplianceResult,
+): GovernedMutationDecision {
+    if (compliance.status !== 'non-compliant') {
+        return {
+            effect: 'allow',
+            compliance,
+            detailLines: [],
+        };
+    }
+
+    const effect: GovernedMutationEffect = compliance.severity === 'error' ? 'block' : 'warn';
+    const sourceLabel = contractPath
+        ? `Governance contract (${path.basename(contractPath)})`
+        : 'Governance contract';
+    const detailLines = compliance.violations.map((violation) => {
+        const remediation = buildGovernanceViolationRemediation(violation, compliance);
+        return `[${violation.id}] ${violation.message} Remediation: ${remediation}`;
+    });
+    const violationIds = compliance.violations.map((violation) => `[${violation.id}]`).join(', ');
+    const summaryRemediation =
+        compliance.violations.length === 1
+            ? buildGovernanceViolationRemediation(compliance.violations[0], compliance)
+            : 'Review the listed governance violations, align the candidate runtime state, and retry.';
+
+    return {
+        effect,
+        compliance,
+        sourceLabel,
+        summary: `${sourceLabel} ${effect === 'block' ? 'blocked' : 'warned'} ${actionLabel}. Violations: ${violationIds}. Remediation: ${summaryRemediation}`,
+        detailLines,
+    };
+}
+
+function buildGovernanceEvaluationConfig(
+    config: MetaFlowConfig,
+    builtInCapability: BuiltInCapabilityRuntimeState,
+): MetaFlowConfig {
+    return projectConfigForProfile(withBuiltInCapabilityProjected(config, builtInCapability));
+}
+
+export function previewGovernedMutationDecision(options: {
+    contract?: GovernanceContract;
+    contractPath?: string;
+    candidateConfig?: MetaFlowConfig;
+    candidateBuiltInCapability: BuiltInCapabilityRuntimeState;
+    actionLabel: string;
+}): GovernedMutationDecision {
+    if (!options.contract || !options.candidateConfig) {
+        return {
+            effect: 'allow',
+            detailLines: [],
+        };
+    }
+
+    const compliance = evaluateGovernanceCompliance(
+        options.contract,
+        buildGovernanceEvaluationConfig(options.candidateConfig, options.candidateBuiltInCapability),
+    );
+    return buildGovernedMutationDecision(options.actionLabel, options.contractPath, compliance);
+}
+
+function notifyGovernedMutationDecision(actionLabel: string, decision: GovernedMutationDecision): void {
+    if (decision.effect === 'allow' || !decision.summary) {
+        return;
+    }
+
+    showOutputChannel();
+    const log = decision.effect === 'block' ? logError : logWarn;
+    const notify =
+        decision.effect === 'block'
+            ? vscode.window.showErrorMessage.bind(vscode.window)
+            : vscode.window.showWarningMessage.bind(vscode.window);
+
+    log(`${decision.sourceLabel ?? 'Governance contract'} ${decision.effect === 'block' ? 'blocked' : 'warned'} ${actionLabel}.`);
+    for (const detailLine of decision.detailLines) {
+        log(`  ${detailLine}`);
+    }
+
+    void notify(`MetaFlow: ${decision.summary}`);
+}
+
+async function executeGovernedMutation(options: {
+    actionLabel: string;
+    state: ExtensionState;
+    candidateConfig?: MetaFlowConfig;
+    candidateBuiltInCapability?: BuiltInCapabilityRuntimeState;
+    persist: () => Promise<void>;
+}): Promise<boolean> {
+    const decision = previewGovernedMutationDecision({
+        contract: options.state.governanceContract,
+        contractPath: options.state.governanceContractPath,
+        candidateConfig: options.candidateConfig,
+        candidateBuiltInCapability:
+            options.candidateBuiltInCapability ?? options.state.builtInCapability,
+        actionLabel: options.actionLabel,
+    });
+
+    if (decision.effect === 'block') {
+        notifyGovernedMutationDecision(options.actionLabel, decision);
+        return false;
+    }
+
+    if (decision.effect === 'warn') {
+        notifyGovernedMutationDecision(options.actionLabel, decision);
+    }
+
+    await options.persist();
+    return true;
 }
 
 function getExtensionDisplayName(context: vscode.ExtensionContext): string | undefined {
@@ -2996,10 +3216,25 @@ export function registerCommands(
             return;
         }
 
-        loaded.config.activeProfile = profileId;
-        await persistConfig(loaded.configPath, loaded.config, state);
+        const candidateConfig = cloneConfig(loaded.config);
+        candidateConfig.activeProfile = profileId;
+        const nextProfile = candidateConfig.profiles?.[profileId];
+        const applied = await executeGovernedMutation({
+            actionLabel: `switching profile to ${getProfileDisplayName(profileId, nextProfile)}`,
+            state,
+            candidateConfig,
+            persist: async () => {
+                await persistConfig(loaded.configPath, candidateConfig, state);
+                state.config = candidateConfig;
+                state.activeProfile = candidateConfig.activeProfile;
+            },
+        });
+        if (!applied) {
+            return;
+        }
+
         logInfo(
-            `Switched profile to: ${getProfileDisplayName(profileId, loaded.config.profiles[profileId])}`,
+            `Switched profile to: ${getProfileDisplayName(profileId, nextProfile)}`,
         );
         await vscode.commands.executeCommand('metaflow.refresh');
     };
@@ -3042,6 +3277,7 @@ export function registerCommands(
                     state.effectiveFiles = [];
                     state.capabilityByLayer = {};
                     state.repoMetadataById = {};
+                    state.governanceContract = undefined;
                     state.governanceContractPath = undefined;
                     state.governanceContractErrors = [];
                     state.governanceCompliance = undefined;
@@ -3057,6 +3293,7 @@ export function registerCommands(
                 clearDiagnostics(diagnosticCollection);
                 const governanceResult = loadGovernanceContract(ws.uri.fsPath);
                 publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
+                state.governanceContract = governanceResult.ok ? governanceResult.contract : undefined;
                 state.governanceContractPath = governanceResult.contractPath;
                 state.governanceContractErrors = governanceResult.ok
                     ? []
@@ -3121,12 +3358,14 @@ export function registerCommands(
                 const aiMetadataAutoApplyMode = normalizeAiMetadataAutoApplyMode(
                     workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, 'off'),
                 );
-                state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
-                    context,
-                    ws.uri.fsPath,
-                    state.builtInCapability,
-                    aiMetadataAutoApplyMode,
-                );
+                if (!refreshOptions.skipBuiltInAutoApply) {
+                    state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
+                        context,
+                        ws.uri.fsPath,
+                        state.builtInCapability,
+                        aiMetadataAutoApplyMode,
+                    );
+                }
 
                 const gitRepos = resolveGitBackedRepoSources(result.config, ws.uri.fsPath);
                 state.localGitRepoIds = await discoverLocalGitRepoIds(result.config, ws.uri.fsPath);
@@ -3744,19 +3983,43 @@ export function registerCommands(
                     typeof requestedCheckedState === 'boolean'
                         ? requestedCheckedState
                         : !state.builtInCapability.layerEnabled;
-                state.builtInCapability =
+                const candidateBuiltInCapability =
                     typeof requestedLayerPath === 'string'
-                        ? await writeBuiltInLayerEnabledState(
-                              context,
+                        ? previewBuiltInLayerEnabledState(
                               state.builtInCapability,
                               requestedLayerPath,
                               nextLayerEnabled,
                           )
-                        : await writeBuiltInCapabilityWorkspaceState(
-                              context,
-                              state.builtInCapability,
-                              { layerEnabled: nextLayerEnabled, layerStates: {} },
-                          );
+                        : previewBuiltInCapabilityWorkspaceState(state.builtInCapability, {
+                              layerEnabled: nextLayerEnabled,
+                              layerStates: {},
+                          });
+                const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+                const applied = await executeGovernedMutation({
+                    actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
+                    state,
+                    candidateConfig,
+                    candidateBuiltInCapability,
+                    persist: async () => {
+                        state.builtInCapability =
+                            typeof requestedLayerPath === 'string'
+                                ? await writeBuiltInLayerEnabledState(
+                                      context,
+                                      state.builtInCapability,
+                                      requestedLayerPath,
+                                      nextLayerEnabled,
+                                  )
+                                : await writeBuiltInCapabilityWorkspaceState(
+                                      context,
+                                      state.builtInCapability,
+                                      { layerEnabled: nextLayerEnabled, layerStates: {} },
+                                  );
+                    },
+                });
+                if (!applied) {
+                    return;
+                }
+
                 logInfo(
                     `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
@@ -3770,7 +4033,8 @@ export function registerCommands(
             }
 
             try {
-                const projectedConfig = projectConfigForProfile(state.config);
+                const candidateConfig = cloneConfig(state.config);
+                const projectedConfig = projectConfigForProfile(candidateConfig);
                 const { layerSources } = ensureMultiRepoConfig(projectedConfig);
                 const expectedLayerPath =
                     typeof requestedLayerPath === 'string'
@@ -3826,14 +4090,14 @@ export function registerCommands(
                         ? requestedCheckedState
                         : layerSource.enabled === false;
                 const scopedMutation = applyLayerMutationToActiveProfile(
-                    state.config,
+                    candidateConfig,
                     layerSource.repoId,
                     layerSource.path,
                     { enabled: nextLayerEnabled },
                 );
 
                 if (!scopedMutation.scopedToProfile) {
-                    const runtimeConfig = ensureMultiRepoConfig(state.config);
+                    const runtimeConfig = ensureMultiRepoConfig(candidateConfig);
                     const runtimeLayerSource = runtimeConfig.layerSources.find(
                         (candidate) =>
                             candidate.repoId === layerSource.repoId &&
@@ -3847,12 +4111,12 @@ export function registerCommands(
                         return;
                     }
                     runtimeLayerSource.enabled = nextLayerEnabled;
-                    syncLayerSourceToCapabilityConfig(state.config, runtimeLayerSource);
+                    syncLayerSourceToCapabilityConfig(candidateConfig, runtimeLayerSource);
                 }
 
                 let repoAutoEnabled = false;
                 if (nextLayerEnabled) {
-                    const runtimeRepos = ensureMultiRepoConfig(state.config).metadataRepos;
+                    const runtimeRepos = ensureMultiRepoConfig(candidateConfig).metadataRepos;
                     const runtimeRepo = runtimeRepos.find(
                         (candidate) => candidate.id === layerSource.repoId,
                     );
@@ -3862,8 +4126,20 @@ export function registerCommands(
                     }
                 }
 
-                if (state.configPath) {
-                    await persistConfig(state.configPath, state.config, state);
+                const applied = await executeGovernedMutation({
+                    actionLabel: `toggling layer ${layerSource.repoId}/${layerSource.path}`,
+                    state,
+                    candidateConfig,
+                    persist: async () => {
+                        if (state.configPath) {
+                            await persistConfig(state.configPath, candidateConfig, state);
+                        }
+                        state.config = candidateConfig;
+                        state.activeProfile = candidateConfig.activeProfile;
+                    },
+                });
+                if (!applied) {
+                    return;
                 }
 
                 logInfo(
@@ -3906,9 +4182,10 @@ export function registerCommands(
             }
 
             const normalizedBranchPath = normalizeCommandLayerPath(requestedLayerPath);
-            const runtimeConfig = ensureMultiRepoConfig(state.config);
+            const candidateConfig = cloneConfig(state.config);
+            const runtimeConfig = ensureMultiRepoConfig(candidateConfig);
             const projectedConfig = withBuiltInCapabilityProjected(
-                projectConfigForProfile(state.config),
+                projectConfigForProfile(candidateConfig),
                 state.builtInCapability,
             );
             const { metadataRepos } = runtimeConfig;
@@ -3925,7 +4202,7 @@ export function registerCommands(
                 }
             >();
             const updatedLayerIds = new Set<string>();
-            const scopedMutation = getScopedLayerMutationProfile(state.config);
+            const scopedMutation = getScopedLayerMutationProfile(candidateConfig);
 
             for (const layerSource of projectedLayerSources) {
                 if (typeof requestedRepoId === 'string' && layerSource.repoId !== requestedRepoId) {
@@ -3987,22 +4264,13 @@ export function registerCommands(
                     );
                 } else if (matchedLayer.layerSource) {
                     matchedLayer.layerSource.enabled = requestedCheckedState;
-                    syncLayerSourceToCapabilityConfig(state.config, matchedLayer.layerSource);
+                    syncLayerSourceToCapabilityConfig(candidateConfig, matchedLayer.layerSource);
                 } else if (matchedLayer.capability) {
                     matchedLayer.capability.enabled = requestedCheckedState;
                 }
 
                 updatedLayerIds.add(
                     `${matchedLayer.repoId}:${normalizeCommandLayerPath(matchedLayer.path)}`,
-                );
-            }
-
-            if (updatedBuiltInLayerPaths.size > 0) {
-                state.builtInCapability = await writeBuiltInLayerEnabledStates(
-                    context,
-                    state.builtInCapability,
-                    updatedBuiltInLayerPaths,
-                    requestedCheckedState,
                 );
             }
 
@@ -4013,8 +4281,38 @@ export function registerCommands(
                 return;
             }
 
-            if (state.configPath) {
-                await persistConfig(state.configPath, state.config, state);
+            const candidateBuiltInCapability =
+                updatedBuiltInLayerPaths.size > 0
+                    ? previewBuiltInLayerEnabledStates(
+                          state.builtInCapability,
+                          updatedBuiltInLayerPaths,
+                          requestedCheckedState,
+                      )
+                    : state.builtInCapability;
+
+            const applied = await executeGovernedMutation({
+                actionLabel: `toggling branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}`,
+                state,
+                candidateConfig,
+                candidateBuiltInCapability,
+                persist: async () => {
+                    if (updatedBuiltInLayerPaths.size > 0) {
+                        state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                            context,
+                            state.builtInCapability,
+                            updatedBuiltInLayerPaths,
+                            requestedCheckedState,
+                        );
+                    }
+                    if (state.configPath) {
+                        await persistConfig(state.configPath, candidateConfig, state);
+                    }
+                    state.config = candidateConfig;
+                    state.activeProfile = candidateConfig.activeProfile;
+                },
+            });
+            if (!applied) {
+                return;
             }
 
             logInfo(
@@ -4033,13 +4331,14 @@ export function registerCommands(
                 return;
             }
             try {
+                const candidateConfig = cloneConfig(state.config);
                 const projectedConfig = withBuiltInCapabilityProjected(
-                    projectConfigForProfile(state.config),
+                    projectConfigForProfile(candidateConfig),
                     state.builtInCapability,
                 );
                 const { layerSources } = ensureMultiRepoConfig(projectedConfig);
                 const indices = resolveLayerIndicesForItem(layerSources, item);
-                const scopedMutation = getScopedLayerMutationProfile(state.config);
+                const scopedMutation = getScopedLayerMutationProfile(candidateConfig);
                 const builtInLayerPaths = new Set<string>();
                 for (const i of indices) {
                     const layerSource = layerSources[i];
@@ -4058,21 +4357,42 @@ export function registerCommands(
                             { enabled: true },
                         );
                     } else {
-                        const runtime = ensureMultiRepoConfig(state.config);
+                        const runtime = ensureMultiRepoConfig(candidateConfig);
                         runtime.layerSources[i].enabled = true;
-                        syncLayerSourceToCapabilityConfig(state.config, runtime.layerSources[i]);
+                        syncLayerSourceToCapabilityConfig(candidateConfig, runtime.layerSources[i]);
                     }
                 }
-                if (builtInLayerPaths.size > 0) {
-                    state.builtInCapability = await writeBuiltInLayerEnabledStates(
-                        context,
-                        state.builtInCapability,
-                        builtInLayerPaths,
-                        true,
-                    );
-                }
-                if (state.configPath) {
-                    await persistConfig(state.configPath, state.config, state);
+                const candidateBuiltInCapability =
+                    builtInLayerPaths.size > 0
+                        ? previewBuiltInLayerEnabledStates(
+                              state.builtInCapability,
+                              builtInLayerPaths,
+                              true,
+                          )
+                        : state.builtInCapability;
+                const applied = await executeGovernedMutation({
+                    actionLabel: 'selecting all matched layers',
+                    state,
+                    candidateConfig,
+                    candidateBuiltInCapability,
+                    persist: async () => {
+                        if (builtInLayerPaths.size > 0) {
+                            state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                                context,
+                                state.builtInCapability,
+                                builtInLayerPaths,
+                                true,
+                            );
+                        }
+                        if (state.configPath) {
+                            await persistConfig(state.configPath, candidateConfig, state);
+                        }
+                        state.config = candidateConfig;
+                        state.activeProfile = candidateConfig.activeProfile;
+                    },
+                });
+                if (!applied) {
+                    return;
                 }
                 logInfo(
                     `Selected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
@@ -4094,13 +4414,14 @@ export function registerCommands(
                 return;
             }
             try {
+                const candidateConfig = cloneConfig(state.config);
                 const projectedConfig = withBuiltInCapabilityProjected(
-                    projectConfigForProfile(state.config),
+                    projectConfigForProfile(candidateConfig),
                     state.builtInCapability,
                 );
                 const { layerSources } = ensureMultiRepoConfig(projectedConfig);
                 const indices = resolveLayerIndicesForItem(layerSources, item);
-                const scopedMutation = getScopedLayerMutationProfile(state.config);
+                const scopedMutation = getScopedLayerMutationProfile(candidateConfig);
                 const builtInLayerPaths = new Set<string>();
                 for (const i of indices) {
                     const layerSource = layerSources[i];
@@ -4119,21 +4440,42 @@ export function registerCommands(
                             { enabled: false },
                         );
                     } else {
-                        const runtime = ensureMultiRepoConfig(state.config);
+                        const runtime = ensureMultiRepoConfig(candidateConfig);
                         runtime.layerSources[i].enabled = false;
-                        syncLayerSourceToCapabilityConfig(state.config, runtime.layerSources[i]);
+                        syncLayerSourceToCapabilityConfig(candidateConfig, runtime.layerSources[i]);
                     }
                 }
-                if (builtInLayerPaths.size > 0) {
-                    state.builtInCapability = await writeBuiltInLayerEnabledStates(
-                        context,
-                        state.builtInCapability,
-                        builtInLayerPaths,
-                        false,
-                    );
-                }
-                if (state.configPath) {
-                    await persistConfig(state.configPath, state.config, state);
+                const candidateBuiltInCapability =
+                    builtInLayerPaths.size > 0
+                        ? previewBuiltInLayerEnabledStates(
+                              state.builtInCapability,
+                              builtInLayerPaths,
+                              false,
+                          )
+                        : state.builtInCapability;
+                const applied = await executeGovernedMutation({
+                    actionLabel: 'deselecting all matched layers',
+                    state,
+                    candidateConfig,
+                    candidateBuiltInCapability,
+                    persist: async () => {
+                        if (builtInLayerPaths.size > 0) {
+                            state.builtInCapability = await writeBuiltInLayerEnabledStates(
+                                context,
+                                state.builtInCapability,
+                                builtInLayerPaths,
+                                false,
+                            );
+                        }
+                        if (state.configPath) {
+                            await persistConfig(state.configPath, candidateConfig, state);
+                        }
+                        state.config = candidateConfig;
+                        state.activeProfile = candidateConfig.activeProfile;
+                    },
+                });
+                if (!applied) {
+                    return;
                 }
                 logInfo(
                     `Deselected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
@@ -4527,8 +4869,7 @@ export function registerCommands(
                         ? requestedCheckedState
                         : !state.builtInCapability.layerEnabled;
 
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
+                const candidateBuiltInCapability = previewBuiltInCapabilityWorkspaceState(
                     state.builtInCapability,
                     {
                         enabled: nextEnabled,
@@ -4537,6 +4878,28 @@ export function registerCommands(
                         layerStates: {},
                     },
                 );
+                const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+                const applied = await executeGovernedMutation({
+                    actionLabel: `toggling repo source ${repoId}`,
+                    state,
+                    candidateConfig,
+                    candidateBuiltInCapability,
+                    persist: async () => {
+                        state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                            context,
+                            state.builtInCapability,
+                            {
+                                enabled: nextEnabled,
+                                layerEnabled: nextEnabled,
+                                disabledByUser: !nextEnabled,
+                                layerStates: {},
+                            },
+                        );
+                    },
+                });
+                if (!applied) {
+                    return;
+                }
 
                 logInfo(
                     `Toggled built-in repo source ${repoId}: ${nextEnabled ? 'enabled' : 'disabled'}`,
@@ -4553,7 +4916,8 @@ export function registerCommands(
             }
 
             try {
-                const { metadataRepos } = ensureMultiRepoConfig(state.config);
+                const candidateConfig = cloneConfig(state.config);
+                const { metadataRepos } = ensureMultiRepoConfig(candidateConfig);
                 const repo = metadataRepos.find((r) => r.id === repoId);
                 if (!repo) {
                     logWarn(`Toggle repo source failed: repoId "${repoId}" not found.`);
@@ -4566,8 +4930,20 @@ export function registerCommands(
                         : repo.enabled !== false;
                 repo.enabled = nextEnabled ? true : false;
 
-                if (state.configPath) {
-                    await persistConfig(state.configPath, state.config, state);
+                const applied = await executeGovernedMutation({
+                    actionLabel: `toggling repo source ${repoId}`,
+                    state,
+                    candidateConfig,
+                    persist: async () => {
+                        if (state.configPath) {
+                            await persistConfig(state.configPath, candidateConfig, state);
+                        }
+                        state.config = candidateConfig;
+                        state.activeProfile = candidateConfig.activeProfile;
+                    },
+                });
+                if (!applied) {
+                    return;
                 }
 
                 logInfo(`Toggled repo source ${repoId}: ${repo.enabled ? 'enabled' : 'disabled'}`);
@@ -5292,7 +5668,11 @@ export function registerCommands(
                 return;
             }
 
-            const model = await loadCapabilityDetailModel(target, state.treeSummaryCache);
+            const model = await loadCapabilityDetailModel(target, state.treeSummaryCache, {
+                governanceContract: state.governanceContract,
+                governanceContractErrors: state.governanceContractErrors,
+                governanceCompliance: state.governanceCompliance,
+            });
             return capabilityDetailsPanel.show(model, {
                 layerIndex: target.layerIndex,
                 layerPath: target.layerPath,
@@ -5623,7 +6003,10 @@ export function registerCommands(
                 );
             }
 
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                skipRepoSync: true,
+                skipBuiltInAutoApply: true,
+            });
             if (hasBuiltInMode && trackedFileCount > 0) {
                 vscode.window.showInformationMessage(
                     `MetaFlow: Removed built-in capability source and ${removed} tracked synchronized file(s).`,

@@ -24,6 +24,11 @@ import {
     summarizeRepoInstructionScope,
     summarizeRepo,
 } from '../treeSummary';
+import {
+    buildConfigGovernanceWarnings,
+    buildRepoGovernanceProjection,
+    type RepoGovernanceProjection,
+} from '../governanceSignals';
 
 function buildMarkdownTooltip(
     title: string,
@@ -73,6 +78,7 @@ class RepoSourceItem extends vscode.TreeItem {
             description?: string;
             builtIn?: boolean;
             localGit?: boolean;
+            governance?: RepoGovernanceProjection;
         },
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
@@ -92,6 +98,7 @@ class RepoSourceItem extends vscode.TreeItem {
             isLocalGit,
             syncStatus,
             summary,
+            options?.governance,
         );
         this.iconPath = RepoSourceItem.buildIcon(isRemote, isLocalGit, syncStatus);
         if (!isReadonly) {
@@ -125,9 +132,13 @@ class RepoSourceItem extends vscode.TreeItem {
         isLocalGit: boolean,
         syncStatus: RepoSyncStatus | undefined,
         summary: ArtifactSummary | undefined,
+        governance: RepoGovernanceProjection | undefined,
     ): string {
         const base = isRemote ? `${localPath} [git]` : isLocalGit ? `${localPath} [local git]` : localPath;
-        const qualifiers = [RepoSourceItem.syncStatusQualifier(syncStatus)].filter(
+        const qualifiers = [
+            RepoSourceItem.syncStatusQualifier(syncStatus),
+            ...(governance?.descriptionQualifiers ?? []),
+        ].filter(
             (value): value is string => Boolean(value),
         );
 
@@ -219,6 +230,7 @@ class RepoSourceItem extends vscode.TreeItem {
             description?: string;
             builtIn?: boolean;
             localGit?: boolean;
+            governance?: RepoGovernanceProjection;
         },
     ): vscode.MarkdownString {
         const detailLines = [`Status: ${enabled ? 'enabled' : 'disabled'}`];
@@ -261,6 +273,7 @@ class RepoSourceItem extends vscode.TreeItem {
         if (scopeSummary) {
             detailLines.push(...getInstructionScopeTooltipLines(scopeSummary));
         }
+        detailLines.push(...(options?.governance?.tooltipLines ?? []));
         return buildMarkdownTooltip(
             `**${title}**`,
             detailLines,
@@ -335,6 +348,14 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         return new Map(Object.entries(this.state.repoMetadataById ?? {}));
     }
 
+    private getGovernanceWarningMessages(): string[] {
+        return buildConfigGovernanceWarnings({
+            governanceContract: this.state.governanceContract,
+            governanceContractErrors: this.state.governanceContractErrors,
+            governanceCompliance: this.state.governanceCompliance,
+        });
+    }
+
     private resolveRepoDisplayLabel(
         repoId: string,
         configName: string | undefined,
@@ -380,6 +401,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                 title: builtInCapabilityName,
                 description: repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.description,
                 builtIn: true,
+                governance: buildRepoGovernanceProjection(BUILT_IN_CAPABILITY_REPO_ID, {
+                    governanceContract: this.state.governanceContract,
+                    governanceContractErrors: this.state.governanceContractErrors,
+                    governanceCompliance: this.state.governanceCompliance,
+                }),
             },
         );
         item.contextValue = 'configRepoSourceBuiltin';
@@ -400,7 +426,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
 
         if (element instanceof SectionItem) {
             if (element.section === 'warnings') {
-                return this.state.capabilityWarnings.map((message) => new WarningItem(message));
+                return [...this.state.capabilityWarnings, ...this.getGovernanceWarningMessages()].map(
+                    (message) => new WarningItem(message),
+                );
             }
 
             const builtInSource = isBuiltInCapabilityActive(this.state.builtInCapability)
@@ -430,6 +458,12 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                     title: repoMetadataById.get(repo.id)?.name,
                                     description: repoMetadataById.get(repo.id)?.description,
                                     localGit: this.state.localGitRepoIds.has(repo.id),
+                                    governance: buildRepoGovernanceProjection(repo.id, {
+                                        governanceContract: this.state.governanceContract,
+                                        governanceContractErrors:
+                                            this.state.governanceContractErrors,
+                                        governanceCompliance: this.state.governanceCompliance,
+                                    }),
                                 },
                             ),
                     ),
@@ -458,6 +492,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                             title: repoMetadataById.get('primary')?.name,
                             description: repoMetadataById.get('primary')?.description,
                             localGit: this.state.localGitRepoIds.has('primary'),
+                            governance: buildRepoGovernanceProjection('primary', {
+                                governanceContract: this.state.governanceContract,
+                                governanceContractErrors: this.state.governanceContractErrors,
+                                governanceCompliance: this.state.governanceCompliance,
+                            }),
                         },
                     ),
                     ...builtInSource,
@@ -474,10 +513,11 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         const rootItems: ConfigTreeItem[] = [
             new SectionItem('Repositories', 'repositories', 'repo'),
         ];
-        if (this.state.capabilityWarnings.length > 0) {
+        const governanceWarnings = this.getGovernanceWarningMessages();
+        if (this.state.capabilityWarnings.length > 0 || governanceWarnings.length > 0) {
             rootItems.push(
                 new SectionItem(
-                    `Warnings (${this.state.capabilityWarnings.length})`,
+                    `Warnings (${this.state.capabilityWarnings.length + governanceWarnings.length})`,
                     'warnings',
                     'warning',
                 ),

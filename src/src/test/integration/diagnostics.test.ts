@@ -410,7 +410,7 @@ suite('Diagnostics Integration', () => {
         );
         const governanceContract = JSON.stringify(
             {
-                severity: 'error',
+                severity: 'warn',
                 requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
                 allowedProfiles: ['default'],
                 lockedProfiles: ['default'],
@@ -487,7 +487,7 @@ suite('Diagnostics Integration', () => {
             );
             assert.strictEqual(snapshot.governance.validationErrors.length, 0);
             assert.strictEqual(snapshot.governance.compliance?.status, 'non-compliant');
-            assert.strictEqual(snapshot.governance.compliance?.severity, 'error');
+            assert.strictEqual(snapshot.governance.compliance?.severity, 'warn');
             assert.strictEqual(snapshot.governance.compliance?.activeProfile, 'review');
             assert.deepStrictEqual(snapshot.governance.compliance?.allowedProfiles, ['default']);
             assert.deepStrictEqual(snapshot.governance.compliance?.lockedProfiles, ['default']);

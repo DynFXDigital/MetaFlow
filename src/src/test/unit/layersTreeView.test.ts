@@ -1558,6 +1558,97 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-GOV-01: governed capabilities surface compliant governance context in flat mode', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [{ repoId: 'repo1', path: 'standards/sdlc' }],
+        };
+        const capabilityByLayer = {
+            'repo1/standards/sdlc': {
+                id: 'sdlc-traceability',
+                name: 'SDLC Traceability',
+            },
+        };
+        const state = makeState(config, [], capabilityByLayer);
+        (state as { governanceContract?: unknown }).governanceContract = {
+            requiredCapabilities: [{ repoId: 'repo1', path: 'standards/sdlc' }],
+            severity: 'warn',
+        };
+        (state as { governanceCompliance?: unknown }).governanceCompliance = {
+            status: 'compliant',
+            severity: 'warn',
+            activeProfile: 'default',
+            activeProfileLocked: false,
+            allowedProfiles: [],
+            lockedProfiles: [],
+            violations: [],
+        };
+
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
+        const [layerItem] = provider.getChildren();
+
+        assert.ok(String(layerItem.description).includes('governed'));
+        assert.ok(
+            extractTooltipText(layerItem.tooltip).includes('Governance: compliant (severity: warn)'),
+        );
+        assert.ok(
+            extractTooltipText(layerItem.tooltip).includes(
+                'Governance Rule: required capability',
+            ),
+        );
+    });
+
+    test('LTV-GOV-02: violating capabilities surface stable governance violation details', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [{ repoId: 'repo1', path: 'standards/sdlc', enabled: false }],
+        };
+        const capabilityByLayer = {
+            'repo1/standards/sdlc': {
+                id: 'sdlc-traceability',
+                name: 'SDLC Traceability',
+            },
+        };
+        const state = makeState(config, [], capabilityByLayer);
+        (state as { governanceContract?: unknown }).governanceContract = {
+            requiredCapabilities: [{ repoId: 'repo1', path: 'standards/sdlc' }],
+            severity: 'error',
+        };
+        (state as { governanceCompliance?: unknown }).governanceCompliance = {
+            status: 'non-compliant',
+            severity: 'error',
+            activeProfile: 'default',
+            activeProfileLocked: false,
+            allowedProfiles: [],
+            lockedProfiles: [],
+            violations: [
+                {
+                    id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::repo1::standards/sdlc',
+                    message: 'Required capability "repo1/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    repoId: 'repo1',
+                    path: 'standards/sdlc',
+                },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
+        const [layerItem] = provider.getChildren();
+
+        assert.ok(String(layerItem.description).includes('governance non-compliant'));
+        assert.ok(
+            extractTooltipText(layerItem.tooltip).includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.ok(
+            extractTooltipText(layerItem.tooltip).includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::repo1::standards/sdlc] Required capability "repo1/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+    });
+
     test('LTV-CAP-06: nested layer tooltip includes repository label and configured path', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {

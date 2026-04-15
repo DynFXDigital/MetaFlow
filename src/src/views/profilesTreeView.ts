@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { ExtensionState } from '../commands/commandHandlers';
 import { DEFAULT_PROFILE_ID, getProfileDisplayName } from '../commands/commandHelpers';
+import { buildProfileGovernanceProjection } from '../governanceSignals';
 import {
     formatSummaryDescription,
     getInstructionScopeTooltipLines,
@@ -25,21 +26,27 @@ class ProfileItem extends vscode.TreeItem {
     constructor(name: string, isActive: boolean, state: ExtensionState) {
         const profile = state.config?.profiles?.[name];
         const displayName = getProfileDisplayName(name, profile);
+        const governance = buildProfileGovernanceProjection(name, isActive, {
+            governanceContract: state.governanceContract,
+            governanceContractErrors: state.governanceContractErrors,
+            governanceCompliance: state.governanceCompliance,
+        });
         super(displayName, vscode.TreeItemCollapsibleState.None);
         this.profileId = name;
         this.contextValue = name === DEFAULT_PROFILE_ID ? 'profileDefault' : 'profile';
-        this.iconPath = isActive
-            ? new vscode.ThemeIcon('check')
-            : new vscode.ThemeIcon('circle-outline');
+        this.iconPath = new vscode.ThemeIcon(
+            governance.iconId ?? (isActive ? 'check' : 'circle-outline'),
+        );
         const summary = summarizeProfile(state.treeSummaryCache, name);
         this.description = formatSummaryDescription(
             displayName === name ? undefined : name,
             summary,
-            isActive ? ['active'] : [],
+            [...(isActive ? ['active'] : []), ...governance.descriptionFlags],
         );
         this.tooltip = buildMarkdownTooltip(`**${displayName}**`, [
             ...(displayName === name ? [] : [`Id: ${name}`]),
             isActive ? 'Status: active profile' : 'Status: inactive profile preview',
+            ...governance.tooltipLines,
             ...getSummaryTooltipLines(summary),
             ...getInstructionScopeTooltipLines(
                 summarizeProfileInstructionScope(state.treeSummaryCache, name),

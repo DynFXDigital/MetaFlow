@@ -10,6 +10,7 @@ import type {
 
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
+    skipBuiltInAutoApply?: boolean;
     skipRepoSync?: boolean;
     forceDiscovery?: boolean;
     forceDiscoveryRepoId?: string;
@@ -485,11 +486,15 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     }
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
+    const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown })
+        .skipBuiltInAutoApply;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
+        skipBuiltInAutoApply:
+            typeof skipBuiltInAutoApply === 'boolean' ? skipBuiltInAutoApply : undefined,
         skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
         forceDiscoveryRepoId:

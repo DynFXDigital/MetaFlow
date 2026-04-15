@@ -223,6 +223,27 @@ function renderWarningList(model: CapabilityDetailModel): string {
                     </ul>`;
 }
 
+function renderGovernanceNotice(model: CapabilityDetailModel): string {
+    if (!model.governance) {
+        return '';
+    }
+
+    const detailList =
+        model.governance.detailLines.length > 0
+            ? `
+                    <ul class="warning-list governance-detail-list">
+                        ${model.governance.detailLines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}
+                    </ul>`
+            : '';
+
+    return `
+        <section class="governance-notice governance-notice-${model.governance.variant}">
+            <h2>Governance</h2>
+            <p class="governance-summary">${escapeHtml(model.governance.summary)}</p>
+            ${detailList}
+        </section>`;
+}
+
 function renderScopeExample(record: InstructionScopeRecord): string {
     const patternLabel =
         record.patterns.length > 0 ? record.patterns.join(', ') : 'no applyTo declared';
@@ -578,6 +599,39 @@ export function renderCapabilityDetailsHtml(
             flex-wrap: wrap;
             gap: 8px;
             margin-top: 0;
+        }
+
+        .governance-notice {
+            margin-top: 16px;
+            padding: 14px 16px;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            background: var(--vscode-editorWidget-background);
+        }
+
+        .governance-notice h2 {
+            margin-bottom: 8px;
+        }
+
+        .governance-summary {
+            color: var(--vscode-foreground);
+            font-weight: 600;
+        }
+
+        .governance-detail-list {
+            margin-top: 10px;
+        }
+
+        .governance-notice-info {
+            border-color: var(--vscode-textLink-foreground);
+        }
+
+        .governance-notice-warning {
+            border-color: var(--vscode-editorWarning-foreground);
+        }
+
+        .governance-notice-error {
+            border-color: var(--vscode-editorError-foreground);
         }
 
         .status-pill {
@@ -1012,6 +1066,8 @@ export function renderCapabilityDetailsHtml(
                 ${renderHeroStats(model)}
             </div>
         </header>
+
+        ${renderGovernanceNotice(model)}
 
         <input class="tab-state" type="radio" name="capability-tab" id="capability-tab-details" checked />
         <input class="tab-state" type="radio" name="capability-tab" id="capability-tab-contents" />

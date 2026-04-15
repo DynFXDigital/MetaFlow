@@ -358,6 +358,7 @@ suite('Command Helpers', () => {
             }),
             {
                 skipAutoApply: true,
+                skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
                 forceDiscovery: false,
                 forceDiscoveryRepoId: 'repo-a',
@@ -371,6 +372,7 @@ suite('Command Helpers', () => {
             }),
             {
                 skipAutoApply: undefined,
+                skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
                 forceDiscovery: undefined,
                 forceDiscoveryRepoId: undefined,
@@ -378,6 +380,7 @@ suite('Command Helpers', () => {
         );
         assert.deepStrictEqual(extractRefreshCommandOptions({ skipRepoSync: true }), {
             skipAutoApply: undefined,
+            skipBuiltInAutoApply: undefined,
             skipRepoSync: true,
             forceDiscovery: undefined,
             forceDiscoveryRepoId: undefined,

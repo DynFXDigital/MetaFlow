@@ -280,7 +280,11 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
-        void loadCapabilityDetailModel(target, state.treeSummaryCache)
+        void loadCapabilityDetailModel(target, state.treeSummaryCache, {
+            governanceContract: state.governanceContract,
+            governanceContractErrors: state.governanceContractErrors,
+            governanceCompliance: state.governanceCompliance,
+        })
             .then((model) => {
                 capabilityDetailsPanel.update(model);
             })

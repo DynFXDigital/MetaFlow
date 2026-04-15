@@ -266,6 +266,57 @@ suite('TreeView Providers', () => {
         );
     });
 
+    test('ConfigTreeView surfaces repo-scoped governance signals in the Extension Host', () => {
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
+        };
+        state.governanceContract = {
+            requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+            severity: 'error',
+        };
+        state.governanceCompliance = {
+            status: 'non-compliant',
+            severity: 'error',
+            activeProfile: 'default',
+            activeProfileLocked: false,
+            allowedProfiles: [],
+            lockedProfiles: [],
+            violations: [
+                {
+                    id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
+                    code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING',
+                    message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    repoId: 'primary',
+                    path: 'standards/sdlc',
+                    severity: 'error',
+                    rule: 'requiredCapabilities',
+                },
+            ],
+        };
+
+        const provider = new ConfigTreeViewProvider(state);
+        const rootItems = provider.getChildren();
+        const repoItems = provider.getChildren(rootItems[0] as never);
+
+        assert.strictEqual(repoItems[0].description, '.ai/ai-metadata (0/0, governance 1 violation)');
+        assert.ok(
+            (repoItems[0].tooltip as vscode.MarkdownString).value.includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.deepStrictEqual(
+            rootItems.map((item) => String(item.label)),
+            ['Repositories'],
+        );
+    });
+
     // ── ProfilesTreeView ───────────────────────────────────────
 
     test('ProfilesTreeView returns empty when no profiles', () => {
@@ -386,6 +437,51 @@ suite('TreeView Providers', () => {
         );
         assert.strictEqual(reviewItem?.command?.command, 'metaflow.switchProfile');
         assert.deepStrictEqual(reviewItem?.command?.arguments, [{ profileId: 'review' }]);
+    });
+
+    test('ProfilesTreeView surfaces governance lock and non-compliance cues in the Extension Host', () => {
+        state.config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: [],
+            profiles: {
+                default: { displayName: 'Default' },
+                review: { displayName: 'Review' },
+            },
+            activeProfile: 'default',
+        };
+        state.governanceCompliance = {
+            status: 'non-compliant',
+            severity: 'error',
+            activeProfile: 'default',
+            activeProfileLocked: true,
+            allowedProfiles: ['default'],
+            lockedProfiles: ['default', 'review'],
+            violations: [
+                {
+                    id: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::default',
+                    code: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED',
+                    message: 'Active profile "default" is not allowed by governance. Allowed profiles: default.',
+                    severity: 'error',
+                    rule: 'allowedProfiles',
+                    profileId: 'default',
+                },
+            ],
+        };
+
+        const provider = new ProfilesTreeViewProvider(state);
+        const items = provider.getChildren();
+        const active = items.find((item) => String(item.label) === 'Default');
+        const inactiveLocked = items.find((item) => String(item.label) === 'Review');
+
+        assert.ok(String(active?.description).includes('governance locked'));
+        assert.ok(String(active?.description).includes('governance non-compliant'));
+        assert.strictEqual((active?.iconPath as vscode.ThemeIcon).id, 'error');
+        assert.ok(
+            (active?.tooltip as vscode.MarkdownString).value.includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.strictEqual((inactiveLocked?.iconPath as vscode.ThemeIcon).id, 'lock-small');
     });
 
     // ── LayersTreeView ─────────────────────────────────────────
@@ -890,6 +986,60 @@ suite('TreeView Providers', () => {
         assert.ok(
             String(items[0].description).includes('CoreMeta'),
             `Description should retain repo label, got: ${items[0].description}`,
+        );
+    });
+
+    test('LayersTreeView surfaces governed and violating capability cues in the Extension Host', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
+            ],
+            layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
+        };
+        state.capabilityByLayer = {
+            'primary/standards/sdlc': {
+                id: 'sdlc-traceability',
+                name: 'SDLC Traceability',
+                description: 'Shared SDLC traceability metadata.',
+            },
+        };
+        state.governanceContract = {
+            requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+            severity: 'error',
+        };
+        state.governanceCompliance = {
+            status: 'non-compliant',
+            severity: 'error',
+            activeProfile: 'default',
+            activeProfileLocked: false,
+            allowedProfiles: [],
+            lockedProfiles: [],
+            violations: [
+                {
+                    id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
+                    code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING',
+                    message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    repoId: 'primary',
+                    path: 'standards/sdlc',
+                    severity: 'error',
+                    rule: 'requiredCapabilities',
+                },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(state, () => 'flat');
+        const [item] = provider.getChildren();
+
+        assert.ok(String(item.description).includes('governance non-compliant'));
+        assert.ok(
+            (item.tooltip as vscode.MarkdownString).value.includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.ok(
+            (item.tooltip as vscode.MarkdownString).value.includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc] Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+            ),
         );
     });
 

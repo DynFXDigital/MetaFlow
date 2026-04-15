@@ -42,6 +42,12 @@ import {
     summarizeRepo,
     TreeSummaryRecord,
 } from '../treeSummary';
+import {
+    buildCapabilityGovernanceProjection,
+    buildRepoGovernanceProjection,
+    type CapabilityGovernanceProjection,
+    type RepoGovernanceProjection,
+} from '../governanceSignals';
 
 const KNOWN_ARTIFACT_TYPES = new Set<ExcludableArtifactType>([
     'instructions',
@@ -390,6 +396,7 @@ class LayerRepoItem extends vscode.TreeItem {
             description?: string;
             localPath?: string;
             builtIn?: boolean;
+            governance?: RepoGovernanceProjection;
         },
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
@@ -402,7 +409,10 @@ class LayerRepoItem extends vscode.TreeItem {
         this.description = formatSummaryDescription(
             undefined,
             summary,
-            repoDisabled ? ['disabled'] : [],
+            [
+                ...(repoDisabled ? ['disabled'] : []),
+                ...(options?.governance?.descriptionQualifiers ?? []),
+            ],
         );
         const detailLines = [`Status: ${repoDisabled ? 'disabled' : 'enabled'}`];
 
@@ -416,6 +426,7 @@ class LayerRepoItem extends vscode.TreeItem {
         }
         detailLines.push(...getSummaryTooltipLines(summary));
         detailLines.push(...getInstructionScopeTooltipLines(scopeSummary));
+        detailLines.push(...(options?.governance?.tooltipLines ?? []));
 
         this.tooltip = buildMarkdownTooltip(
             `**${options?.title?.trim() || label}**`,
@@ -467,6 +478,7 @@ class LayerItem extends vscode.TreeItem {
             summary?: ArtifactSummary;
             scopeSummary?: InstructionScopeSummary;
             branchToggleSummary?: BranchToggleSummary;
+            governance?: CapabilityGovernanceProjection;
         },
     ) {
         const hasChildren = options?.hasChildren === true;
@@ -524,6 +536,9 @@ class LayerItem extends vscode.TreeItem {
                 `${options.branchToggleSummary.enabledCount}/${options.branchToggleSummary.totalCount} enabled`,
             );
         }
+        if (typeof layerIndex === 'number') {
+            qualifiers.push(...(options?.governance?.descriptionFlags ?? []));
+        }
 
         // When label was overridden to capability name, show configured path in description
         const labelOverridden = displayLabel !== label;
@@ -561,6 +576,10 @@ class LayerItem extends vscode.TreeItem {
         if (options?.branchToggleSummary) {
             contextLines.push(`Branch state: ${formatBranchStatus(options.branchToggleSummary)}`);
         }
+        if (options?.governance?.summary) {
+            contextLines.push(options.governance.summary);
+        }
+        contextLines.push(...(options?.governance?.detailLines ?? []));
 
         if (typeof layerIndex === 'number' && typeof enabled === 'boolean') {
             this.accessibilityInformation = {
@@ -1504,6 +1523,19 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             node.path || '.',
                         ),
                         branchToggleSummary,
+                        governance:
+                            typeof matchingEntry?.layerIndex === 'number'
+                                ? buildCapabilityGovernanceProjection(
+                                      itemRepoId,
+                                      matchingEntry?.normalizedPath || node.path || '.',
+                                      {
+                                          governanceContract: this.state.governanceContract,
+                                          governanceContractErrors:
+                                              this.state.governanceContractErrors,
+                                          governanceCompliance: this.state.governanceCompliance,
+                                      },
+                                  )
+                                : undefined,
                     },
                 );
             })
@@ -1551,6 +1583,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         rootRepoId ?? 'primary',
                         '.',
                     ),
+                    governance:
+                        typeof rootEntry.layerIndex === 'number'
+                            ? buildCapabilityGovernanceProjection(rootRepoId, '.', {
+                                  governanceContract: this.state.governanceContract,
+                                  governanceContractErrors: this.state.governanceContractErrors,
+                                  governanceCompliance: this.state.governanceCompliance,
+                              })
+                            : undefined,
                 }),
             );
         }
@@ -1718,6 +1758,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             entry.repoId ?? 'primary',
                             entry.normalizedPath || '.',
                         ),
+                        governance: buildCapabilityGovernanceProjection(
+                            entry.repoId,
+                            entry.normalizedPath || '.',
+                            {
+                                governanceContract: this.state.governanceContract,
+                                governanceContractErrors: this.state.governanceContractErrors,
+                                governanceCompliance: this.state.governanceCompliance,
+                            },
+                        ),
                     }),
             );
         }
@@ -1866,6 +1915,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                                     description: repoMetadataById.get(repoId)?.description,
                                     localPath: repoRoots.get(repoId),
                                     builtIn: repoId === BUILT_IN_CAPABILITY_REPO_ID,
+                                    governance: buildRepoGovernanceProjection(repoId, {
+                                        governanceContract: this.state.governanceContract,
+                                        governanceContractErrors:
+                                            this.state.governanceContractErrors,
+                                        governanceCompliance: this.state.governanceCompliance,
+                                    }),
                                 },
                             ),
                     ),
