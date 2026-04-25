@@ -464,6 +464,32 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(chatmode?.classification, 'synchronized');
     });
 
+    it('resolves Codex repository skills under .agents/skills', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.agents', 'skills', 'codex'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.agents', 'skills', 'codex', 'SKILL.md'),
+            '# Codex Skill',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+
+        assert.ok(files.some((f) => f.relativePath === '.agents/skills/codex/SKILL.md'));
+
+        classifyFiles(files, config.injection);
+        const skill = files.find((f) => f.relativePath === '.agents/skills/codex/SKILL.md');
+        assert.strictEqual(skill?.classification, 'synchronized');
+    });
+
     it('ignores unknown .github directories when resolving layers', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });

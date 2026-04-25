@@ -40,16 +40,17 @@ Codex-native metadata quality, structure, compatibility, and promotion readiness
 
 ## Included Metadata
 
-- `.github/instructions/codex-agents-files.instructions.md`
-- `.github/instructions/codex-agents-md.instructions.md`
-- `.github/instructions/codex-config.instructions.md`
-- `.github/instructions/codex-skills.instructions.md`
-- `.github/instructions/codex-subagents.instructions.md`
-- `.github/instructions/codex-hooks.instructions.md`
-- `.github/instructions/codex-rules.instructions.md`
+- `.agents/skills/codex-metadata/SKILL.md`
+
+## Planned Metadata
+
+- `AGENTS.md` and `AGENTS.override.md` authoring guidance
+- `.codex/config.toml` authoring guidance
+- `.codex/agents/*.toml` authoring guidance
+- `.codex/hooks.json` guidance
+- `.codex/rules/*.rules` guidance
 - `.github/prompts/codex-metadata-authoring-refresh-online-guidance.prompt.md`
 - `.github/agents/codex-metadata-authoring-steward.agent.md`
-- `.github/skills/codex-metadata/**`
 
 ## Reuse and Portability
 

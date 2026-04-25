@@ -39,6 +39,13 @@ suite('classifier', () => {
             );
         });
 
+        test('.agents/skills → synchronized for Codex repository skills', () => {
+            assert.strictEqual(
+                classifySingle('.agents/skills/build/SKILL.md', undefined),
+                'synchronized',
+            );
+        });
+
         test('unknown file type → synchronized', () => {
             assert.strictEqual(classifySingle('random/file.txt', undefined), 'synchronized');
         });

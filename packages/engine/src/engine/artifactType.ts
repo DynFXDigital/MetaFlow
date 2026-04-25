@@ -20,6 +20,9 @@ const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skill
  */
 export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
+    if (posix === '.agents/skills' || posix.startsWith('.agents/skills/')) {
+        return 'skills';
+    }
     const firstSegment = posix.split('/')[0] ?? '';
     return KNOWN_TYPES.has(firstSegment) ? (firstSegment as ArtifactType) : 'other';
 }

@@ -363,6 +363,9 @@ function deriveCapabilityId(layerPath: string, repoRoot: string): string {
 }
 
 function isKnownArtifactPath(relativePath: string): boolean {
+    if (relativePath === '.agents/skills' || relativePath.startsWith('.agents/skills/')) {
+        return true;
+    }
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
 }
@@ -418,8 +421,10 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         );
         const hasGithubArtifacts =
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
+        const hasCodexSkills =
+            childNames.has('.agents') && hasSkillsDirectory(path.join(currentDir, '.agents'));
 
-        if (hasArtifactAtRoot || hasGithubArtifacts) {
+        if (hasArtifactAtRoot || hasGithubArtifacts || hasCodexSkills) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
             const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
             if (!matchesAnyExclude(layerPath, excludePatterns)) {
@@ -441,6 +446,15 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
 
     walk(repoRoot);
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
+}
+
+function hasSkillsDirectory(dirPath: string): boolean {
+    const candidate = path.join(dirPath, 'skills');
+    try {
+        return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory();
+    } catch {
+        return false;
+    }
 }
 
 function hasAnyKnownArtifactDir(dirPath: string): boolean {

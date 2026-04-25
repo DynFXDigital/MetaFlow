@@ -46,6 +46,10 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/skills/s/SKILL.md'), 'skills');
     });
 
+    it('ATF-01e2: .agents/skills path returns skills', () => {
+        assert.strictEqual(getArtifactType('.agents/skills/s/SKILL.md'), 'skills');
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });

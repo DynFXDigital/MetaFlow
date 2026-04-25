@@ -210,6 +210,22 @@ MetaFlow persists local operational state in `.metaflow/state.json`.
 
 `MetaFlow: Clean` removes the above injected keys from workspace settings.
 
+### Codex repository skills
+
+MetaFlow recognizes `.agents/skills/**` inside a capability as Codex-native repository skills. These files are always synchronized relative to the workspace root, not under `.github/`, so a source file such as:
+
+```text
+.agents/skills/codex-metadata/SKILL.md
+```
+
+is written to:
+
+```text
+.agents/skills/codex-metadata/SKILL.md
+```
+
+This support is intentionally conservative. Keep root `AGENTS.md`, `.codex/config.toml`, `.codex/agents`, hooks, and rules hand-authored until explicit root-relative conflict handling is enabled for those surfaces.
+
 ## Architecture
 
 The extension uses a pure TypeScript engine (no VS Code imports) for overlay resolution, enabling fast unit testing. The engine modules live in the workspace package at `packages/engine/src/engine/` and handle:

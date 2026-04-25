@@ -82,6 +82,19 @@ Artifact rows inside a capability stay toggleable at the class level, but they a
 - **Mix delivery models by type**: keep some artifact types settings-backed while materializing others as files.
 - **Choose the right scope for settings injection**: deliver settings-backed metadata at the user, workspace, or workspace-folder level depending on how your team operates.
 
+## Using MetaFlow With Codex
+
+MetaFlow can manage Codex repository skills as root-relative synchronized files under `.agents/skills/**`.
+
+Recommended first-pass Codex workflow:
+
+- Keep root `AGENTS.md` hand-authored until your team is ready to manage root-level instruction files through explicit review.
+- Put reusable Codex workflows in metadata capabilities under `.agents/skills/<skill-name>/SKILL.md`.
+- Configure those capabilities with synchronized delivery so MetaFlow writes them to the consuming repository's `.agents/skills/` folder.
+- Preview before applying, then review normal file diffs and `.metaflow/state.json` provenance state.
+
+The built-in Codex metadata-authoring capability includes a starter `codex-metadata` repository skill. Support for root `AGENTS.md`, `.codex/config.toml`, `.codex/agents`, hooks, and rules should be treated as explicit target-adapter work rather than assumed from Copilot `.github` behavior.
+
 ## Built-in MetaFlow Capability
 
 MetaFlow includes a bundled starter capability so you can try the workflow before setting up a larger shared metadata repository.

@@ -11,6 +11,7 @@
  * - agents/** → settings
  * - hooks/** → settings
  * - chatmodes/** → synchronized (deprecated, no settings injection)
+ * - .agents/skills/** → synchronized (Codex-native repository skills)
  * - unknown → synchronized
  *
  * Pure TypeScript — no VS Code imports.
@@ -112,6 +113,9 @@ export function classifySingle(
     injection: InjectionConfig | undefined,
 ): ArtifactClassification {
     const normalized = relativePath.replace(/\\/g, '/');
+    if (normalized === '.agents/skills' || normalized.startsWith('.agents/skills/')) {
+        return 'synchronized';
+    }
     const effectivePath = normalized.startsWith('.github/')
         ? normalized.slice('.github/'.length)
         : normalized;

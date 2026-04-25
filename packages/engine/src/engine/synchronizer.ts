@@ -142,6 +142,30 @@ function isChatmodesFile(file: EffectiveFile): boolean {
     return normalized === 'chatmodes' || normalized.startsWith('chatmodes/');
 }
 
+function isRootRelativeSynchronizedPath(relativePath: string): boolean {
+    const normalized = normalizeRelativePath(relativePath);
+    return (
+        normalized === 'AGENTS.md' ||
+        normalized.startsWith('.agents/') ||
+        normalized.startsWith('.codex/')
+    );
+}
+
+function resolveEntryOutputDir(defaultOutputDir: string, relativePath: string): string {
+    return isRootRelativeSynchronizedPath(relativePath) ? '' : defaultOutputDir;
+}
+
+function resolveDestinationPath(
+    workspaceRoot: string,
+    defaultOutputDir: string,
+    relativePath: string,
+): string {
+    const outputDir = resolveEntryOutputDir(defaultOutputDir, relativePath);
+    return outputDir === ''
+        ? path.join(workspaceRoot, relativePath)
+        : path.join(workspaceRoot, outputDir, relativePath);
+}
+
 function resolveEffectiveFileNamingStrategy(
     file: EffectiveFile,
     fallbackFileNamingStrategy: SyncFileNamingStrategy,
@@ -307,7 +331,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         for (const entry of [...synchronizedFiles].sort(comparePlannedFiles)) {
             const drift = checkDrift(
                 options.workspaceRoot,
-                outputDir,
+                resolveEntryOutputDir(outputDir, entry.destinationRelativePath),
                 entry.destinationRelativePath,
                 state,
             );
@@ -318,7 +342,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
             ) {
                 unmanagedConflicts.push({
                     destinationRelativePath: entry.destinationRelativePath,
-                    fullPath: path.join(
+                    fullPath: resolveDestinationPath(
                         options.workspaceRoot,
                         outputDir,
                         entry.destinationRelativePath,
@@ -347,6 +371,10 @@ export function toSynchronizedRelativePath(
     fileNamingStrategy?: SyncFileNamingStrategy,
 ): string {
     const normalizedPath = normalizeRelativePath(file.relativePath);
+    if (isRootRelativeSynchronizedPath(normalizedPath)) {
+        return normalizedPath;
+    }
+
     if (resolveFileNamingStrategy(fileNamingStrategy) === 'original-unless-conflict') {
         return normalizedPath;
     }
@@ -407,7 +435,6 @@ export interface ApplyResult {
  */
 export function apply(options: ApplyOptions): ApplyResult {
     const plan = loadSynchronizationPlan(options);
-    const outPath = path.join(options.workspaceRoot, plan.outputDir);
     const state = plan.state;
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
 
@@ -421,7 +448,12 @@ export function apply(options: ApplyOptions): ApplyResult {
         const file = entry.file;
 
         // Check drift
-        const drift = checkDrift(options.workspaceRoot, plan.outputDir, relPath, state);
+        const drift = checkDrift(
+            options.workspaceRoot,
+            resolveEntryOutputDir(plan.outputDir, relPath),
+            relPath,
+            state,
+        );
         if (drift.status === 'drifted' && !options.force) {
             result.skipped.push(relPath);
             result.warnings.push(`Skipped drifted file: ${relPath}`);
@@ -456,7 +488,7 @@ export function apply(options: ApplyOptions): ApplyResult {
         const fullContent = synchronizedBody + '\n' + header;
 
         // Write file
-        const destPath = path.join(outPath, relPath);
+        const destPath = resolveDestinationPath(options.workspaceRoot, plan.outputDir, relPath);
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.writeFileSync(destPath, fullContent, 'utf-8');
         result.written.push(relPath);
@@ -474,9 +506,18 @@ export function apply(options: ApplyOptions): ApplyResult {
     // Remove files no longer in overlay (only if in-sync)
     for (const trackedPath of Object.keys(state.files)) {
         if (!currentFiles.has(trackedPath)) {
-            const drift = checkDrift(options.workspaceRoot, plan.outputDir, trackedPath, state);
+            const drift = checkDrift(
+                options.workspaceRoot,
+                resolveEntryOutputDir(plan.outputDir, trackedPath),
+                trackedPath,
+                state,
+            );
             if (drift.status === 'in-sync' || drift.status === 'missing') {
-                const fullPath = path.join(outPath, trackedPath);
+                const fullPath = resolveDestinationPath(
+                    options.workspaceRoot,
+                    plan.outputDir,
+                    trackedPath,
+                );
                 if (fs.existsSync(fullPath)) {
                     fs.unlinkSync(fullPath);
                 }
@@ -500,14 +541,18 @@ export function apply(options: ApplyOptions): ApplyResult {
  */
 export function clean(workspaceRoot: string, outputDir?: string): ApplyResult {
     const outDir = outputDir ?? DEFAULT_OUTPUT_DIR;
-    const outPath = path.join(workspaceRoot, outDir);
     const state = loadManagedState(workspaceRoot);
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
 
     for (const relPath of Object.keys(state.files)) {
-        const drift = checkDrift(workspaceRoot, outDir, relPath, state);
+        const drift = checkDrift(
+            workspaceRoot,
+            resolveEntryOutputDir(outDir, relPath),
+            relPath,
+            state,
+        );
         if (drift.status === 'in-sync' || drift.status === 'missing') {
-            const fullPath = path.join(outPath, relPath);
+            const fullPath = resolveDestinationPath(workspaceRoot, outDir, relPath);
             if (fs.existsSync(fullPath)) {
                 fs.unlinkSync(fullPath);
             }
@@ -562,7 +607,12 @@ export function preview(
         const synchronizedRelPath = entry.destinationRelativePath;
         const file = entry.file;
 
-        const drift = checkDrift(workspaceRoot, outDir, synchronizedRelPath, state);
+        const drift = checkDrift(
+            workspaceRoot,
+            resolveEntryOutputDir(outDir, synchronizedRelPath),
+            synchronizedRelPath,
+            state,
+        );
         let action: PendingAction;
         let reason: string | undefined;
 
@@ -596,7 +646,12 @@ export function preview(
     // Files to remove
     for (const trackedPath of Object.keys(state.files)) {
         if (!currentFiles.has(trackedPath)) {
-            const drift = checkDrift(workspaceRoot, outDir, trackedPath, state);
+            const drift = checkDrift(
+                workspaceRoot,
+                resolveEntryOutputDir(outDir, trackedPath),
+                trackedPath,
+                state,
+            );
             changes.push({
                 relativePath: trackedPath,
                 action: drift.status === 'drifted' ? 'skip' : 'remove',

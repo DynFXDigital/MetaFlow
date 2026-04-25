@@ -206,6 +206,40 @@ suite('synchronization engine', () => {
         assert.ok(fs.existsSync(path.join(tmpDir, outputDir, 'skills', 'nested', 'guide.md')));
     });
 
+    test('Codex repository skills synchronize relative to workspace root', () => {
+        const files = [
+            makeEffectiveFile('.agents/skills/codex-metadata/SKILL.md', '# Codex metadata'),
+        ];
+
+        const changes = preview(tmpDir, files, outputDir);
+        assert.strictEqual(changes[0].relativePath, '.agents/skills/codex-metadata/SKILL.md');
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+
+        assert.ok(result.written.includes('.agents/skills/codex-metadata/SKILL.md'));
+        assert.ok(
+            fs.existsSync(
+                path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            ),
+        );
+        assert.ok(
+            !fs.existsSync(
+                path.join(
+                    tmpDir,
+                    outputDir,
+                    '.agents',
+                    'skills',
+                    'codex-metadata',
+                    'SKILL.md',
+                ),
+            ),
+        );
+    });
+
     test('preview and apply report the same remap conflict when changing strategies', () => {
         const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });

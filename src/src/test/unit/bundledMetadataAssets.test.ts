@@ -133,4 +133,46 @@ suite('bundled metadata assets', () => {
             'Expected bundled compatibility notes to mention .claude/skills/ path',
         );
     });
+
+    test('bundled Codex metadata capability includes a repository skill payload', () => {
+        const codexSkillPath = path.join(
+            ASSET_ROOT,
+            'capabilities',
+            'metadata-authoring',
+            'codex-metadata-authoring',
+            '.agents',
+            'skills',
+            'codex-metadata',
+            'SKILL.md',
+        );
+
+        assert.ok(fs.existsSync(codexSkillPath), 'Expected bundled Codex metadata skill');
+
+        const relativePath = path
+            .relative(
+                path.join(
+                    ASSET_ROOT,
+                    'capabilities',
+                    'metadata-authoring',
+                    'codex-metadata-authoring',
+                ),
+                codexSkillPath,
+            )
+            .replace(/\\/g, '/');
+        assert.strictEqual(getArtifactType(relativePath), 'skills');
+
+        const content = fs.readFileSync(codexSkillPath, 'utf-8');
+        assert.ok(
+            content.includes('AGENTS.md'),
+            'Expected Codex metadata skill to cover AGENTS.md',
+        );
+        assert.ok(
+            content.includes('.codex/config.toml'),
+            'Expected Codex metadata skill to cover project config',
+        );
+        assert.ok(
+            content.includes('.agents/skills/'),
+            'Expected Codex metadata skill to cover repository skills',
+        );
+    });
 });
