@@ -37,6 +37,10 @@ const EXCLUDED_TYPE_ORDER: readonly ExcludableArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
 ];
 
 const INJECTION_KEY_ORDER: readonly (keyof InjectionConfig)[] = [
