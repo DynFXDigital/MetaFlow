@@ -5,6 +5,11 @@
   "description": "MetaFlow config for AI metadata repository sources, capabilities, profiles, and injection behavior.",
   "additionalProperties": false,
   "properties": {
+    "compatibilityVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Config compatibility version used by MetaFlow for release-aware automatic migration."
+    },
     "metadataRepos": {
       "type": "array",
       "description": "Public authored repository sources with grouped capability entries.",

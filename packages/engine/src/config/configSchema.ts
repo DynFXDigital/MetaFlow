@@ -163,6 +163,9 @@ export interface HooksConfig {
  * (`metadataRepo` + `layers`) and legacy multi-repo (`layerSources`) shapes.
  */
 export interface MetaFlowConfig {
+    /** Authored config compatibility version used for release-aware migration. */
+    compatibilityVersion?: number;
+
     // ── Single-repo mode ───────────────────────────────────────────
     /** Primary metadata repository (single-repo mode). */
     metadataRepo?: MetadataRepo;

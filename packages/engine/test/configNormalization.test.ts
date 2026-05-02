@@ -62,6 +62,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
 
     it('canonicalizes nested property ordering for stable serialization', () => {
         const config: MetaFlowConfig = {
+            compatibilityVersion: 2,
             metadataRepos: [
                 {
                     id: 'r1',
@@ -156,6 +157,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '      ]',
             '    }',
             '  ],',
+            '  "compatibilityVersion": 2,',
             '  "profiles": {',
             '    "alpha": {',
             '      "displayName": "Alpha",',
@@ -617,6 +619,21 @@ describe('configNormalization: normalizeConfigShape — flattenCapabilities with
 });
 
 describe('configNormalization: normalizeConfigShape — migration messages', () => {
+    it('reports migration message for implicit released compatibility version', () => {
+        const result = normalizeConfigShape({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    capabilities: [{ path: 'core' }],
+                },
+            ],
+        });
+        assert.ok(result.migrated);
+        assert.strictEqual(result.authoredConfig.compatibilityVersion, 2);
+        assert.ok(result.migrationMessages.some((m) => m.includes('compatibilityVersion')));
+    });
+
     it('reports migration message for legacy metadataRepo/layers config', () => {
         const result = normalizeConfigShape({
             metadataRepo: { localPath: '.ai' },
@@ -646,6 +663,7 @@ describe('configNormalization: normalizeConfigShape — migration messages', () 
 
     it('does not set migrated flag for modern config', () => {
         const result = normalizeConfigShape({
+            compatibilityVersion: 2,
             metadataRepos: [
                 {
                     id: 'r1',
@@ -655,9 +673,7 @@ describe('configNormalization: normalizeConfigShape — migration messages', () 
             ],
             // No layerSources → not legacy
         });
-        // Might still be migrated for Canonicalized if capabilities exist, depends on shape
-        // Key thing is no crash
-        assert.ok(typeof result.migrated === 'boolean');
+        assert.strictEqual(result.migrated, false);
     });
 });
 

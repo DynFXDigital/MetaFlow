@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import { MetaFlowConfig, ConfigError, ConfigLoadResult } from './configSchema';
 import { discoverConfigPath } from './configPathUtils';
-import { normalizeConfigShape } from './configNormalization';
+import { CURRENT_CONFIG_COMPATIBILITY_VERSION, normalizeConfigShape } from './configNormalization';
 
 /**
  * Load and validate a `.metaflow/config.jsonc` configuration file.
@@ -118,6 +118,23 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
  */
 export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): ConfigError[] {
     const errors: ConfigError[] = [];
+
+    if (config.compatibilityVersion !== undefined) {
+        if (
+            !Number.isInteger(config.compatibilityVersion) ||
+            config.compatibilityVersion < 1
+        ) {
+            errors.push({
+                message:
+                    '"compatibilityVersion" must be an integer greater than or equal to 1.',
+            });
+        } else if (config.compatibilityVersion > CURRENT_CONFIG_COMPATIBILITY_VERSION) {
+            errors.push({
+                message:
+                    `"compatibilityVersion" ${config.compatibilityVersion} is newer than the supported version ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+            });
+        }
+    }
 
     const hasSingleRepo = config.metadataRepo !== undefined;
     const hasMultiRepo = config.metadataRepos !== undefined && config.metadataRepos.length > 0;

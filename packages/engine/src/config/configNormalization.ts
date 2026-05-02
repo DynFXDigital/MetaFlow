@@ -21,6 +21,9 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 2;
+const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
+
 function cloneJson<T>(value: T): T {
     if (value === undefined) {
         return value;
@@ -375,6 +378,31 @@ function canonicalizeLegacyLayers(layers: string[] | undefined): string[] | unde
     return Array.from(unique.values()).sort(compareLayerPaths);
 }
 
+function resolveCompatibilityVersion(config: MetaFlowConfig): {
+    compatibilityVersion: number;
+    migrationMessage?: string;
+} {
+    if (config.compatibilityVersion === undefined) {
+        return {
+            compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
+            migrationMessage:
+                `Migrated released config compatibilityVersion from implicit v${IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+        };
+    }
+
+    if (config.compatibilityVersion < CURRENT_CONFIG_COMPATIBILITY_VERSION) {
+        return {
+            compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
+            migrationMessage:
+                `Migrated config compatibilityVersion from v${config.compatibilityVersion} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+        };
+    }
+
+    return {
+        compatibilityVersion: config.compatibilityVersion,
+    };
+}
+
 export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
     const canonical: MetaFlowConfig = { ...config };
 
@@ -402,8 +430,10 @@ function buildRestOfConfig(
     config: MetaFlowConfig,
 ): Omit<MetaFlowConfig, 'metadataRepo' | 'layers' | 'metadataRepos' | 'layerSources'> {
     const fileNamingStrategy = config.fileNamingStrategy as SyncFileNamingStrategy | undefined;
+    const compatibility = resolveCompatibilityVersion(config);
 
     return {
+        compatibilityVersion: compatibility.compatibilityVersion,
         ...(config.filters !== undefined ? { filters: orderFilterConfig(config.filters) } : {}),
         ...(config.profiles !== undefined ? { profiles: orderProfiles(config.profiles) } : {}),
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
@@ -533,6 +563,10 @@ export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigSh
     };
 
     const migrationMessages: string[] = [];
+    const compatibility = resolveCompatibilityVersion(config);
+    if (compatibility.migrationMessage) {
+        migrationMessages.push(compatibility.migrationMessage);
+    }
     if (config.metadataRepo !== undefined || config.layers !== undefined) {
         migrationMessages.push(
             'Migrated legacy metadataRepo/layers config to metadataRepos[*].capabilities.',

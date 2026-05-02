@@ -70,6 +70,32 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
                 assert.strictEqual(result.config.layerSources?.length, 3);
+                assert.strictEqual(result.config.compatibilityVersion, 2);
+            }
+        });
+
+        test('migrates implicit released compatibility version on modern authored config', () => {
+            const result = parseAndValidate(
+                JSON.stringify({
+                    metadataRepos: [
+                        {
+                            id: 'r1',
+                            localPath: '.ai/metadata',
+                            capabilities: [{ path: 'company/core' }],
+                        },
+                    ],
+                }),
+                'test.json',
+            );
+            assert.strictEqual(result.ok, true);
+            if (result.ok) {
+                assert.strictEqual(result.config.compatibilityVersion, 2);
+                assert.strictEqual(result.migrated, true);
+                assert.ok(
+                    result.migrationMessages?.some((message) =>
+                        message.includes('compatibilityVersion'),
+                    ),
+                );
             }
         });
 
@@ -146,6 +172,7 @@ suite('Config Loader', () => {
 
         test('valid multi-repo config returns no errors', () => {
             const config: MetaFlowConfig = {
+                compatibilityVersion: 2,
                 metadataRepos: [
                     { id: 'primary', localPath: '.ai/metadata' },
                     { id: 'team', localPath: '../team-meta' },
@@ -160,6 +187,7 @@ suite('Config Loader', () => {
 
         test('valid multi-repo config allows disabled repos', () => {
             const config: MetaFlowConfig = {
+                compatibilityVersion: 2,
                 metadataRepos: [
                     { id: 'primary', localPath: '.ai/metadata', enabled: false },
                     { id: 'team', localPath: '../team-meta' },
@@ -176,6 +204,15 @@ suite('Config Loader', () => {
             const config: MetaFlowConfig = {};
             const errors = validateConfig(config);
             assert.ok(errors.some((e) => e.message.includes('metadataRepo')));
+        });
+
+        test('future compatibilityVersion produces error', () => {
+            const config: MetaFlowConfig = {
+                compatibilityVersion: 999,
+                metadataRepos: [{ id: 'primary', localPath: 'a' }],
+            };
+            const errors = validateConfig(config);
+            assert.ok(errors.some((e) => e.message.includes('supported version')));
         });
 
         test('single-repo without layers produces error', () => {

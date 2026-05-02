@@ -1439,6 +1439,35 @@ describe('Engine: config validation', () => {
         }
     });
 
+    it('migrates implicit released compatibility version on otherwise modern config', () => {
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                metadataRepos: [
+                    {
+                        id: 'r1',
+                        localPath: 'a',
+                        capabilities: [{ path: 'core' }],
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const result = loadConfigFromPath(configPath);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.compatibilityVersion, 2);
+            assert.strictEqual(result.migrated, true);
+            assert.ok(
+                result.migrationMessages?.some((message) =>
+                    message.includes('implicit v1 to v2'),
+                ),
+            );
+        }
+    });
+
     it('validates multi-repo repoId references', () => {
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
