@@ -23,6 +23,8 @@ export interface ManagedFileState {
     sourceRepo?: string;
     /** Source commit SHA at time of sync. */
     sourceCommit?: string;
+    /** Output directory used for this file when it differs from the default. */
+    outputDir?: string;
 }
 
 /** Extension-owned UI state persisted alongside managed file state. */
@@ -55,6 +57,7 @@ const MANAGED_FILE_STATE_KEYS: readonly (keyof ManagedFileState)[] = [
     'sourceRelativePath',
     'sourceRepo',
     'sourceCommit',
+    'outputDir',
 ];
 
 function canonicalizeManagedFileState(state: ManagedFileState): ManagedFileState {
@@ -77,9 +80,9 @@ function canonicalizeManagedFileState(state: ManagedFileState): ManagedFileState
     return ordered;
 }
 
-function canonicalizeManagedViewsState(state: ManagedViewsState | undefined):
-    | ManagedViewsState
-    | undefined {
+function canonicalizeManagedViewsState(
+    state: ManagedViewsState | undefined,
+): ManagedViewsState | undefined {
     if (!state) {
         return undefined;
     }

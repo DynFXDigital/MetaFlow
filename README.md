@@ -1,6 +1,6 @@
 # MetaFlow
 
-Solve AI metadata sprawl by composing and applying layered AI metadata for GitHub Copilot and other coding agents from shared repositories into your VS Code workspace, without ad-hoc copy and paste.
+Solve AI metadata sprawl by composing and applying layered AI metadata for GitHub Copilot, Claude Code, Codex, and other coding agents from shared repositories into your VS Code workspace, without ad-hoc copy and paste.
 
 > [!IMPORTANT]
 > MetaFlow is in `v0.x` preview. Expect workflow and command-surface adjustments as feedback is incorporated.
@@ -82,6 +82,74 @@ Artifact rows inside a capability stay toggleable at the class level, but they a
 - **Mix delivery models by type**: keep some artifact types settings-backed while materializing others as files.
 - **Choose the right scope for settings injection**: deliver settings-backed metadata at the user, workspace, or workspace-folder level depending on how your team operates.
 
+## AI Platform Support
+
+MetaFlow delivers metadata to each coding agent through that agent's native file conventions.
+
+| Feature | GitHub Copilot | Claude Code |
+| --- | --- | --- |
+| Instructions / rules | `instructions/**`, `.github/instructions/**` | `.claude/rules/**` |
+| Prompts | `prompts/**`, `.github/prompts/**` | Not managed |
+| Agents | `agents/**`, `.github/agents/**` | `.claude/agents/**` |
+| Skills | `skills/**`, `.github/skills/**` | `.claude/skills/**` |
+| Settings / hooks | `hooks/**` and VS Code settings injection | `.claude/settings/**` recognized; keep `.claude/settings.json` hand-authored |
+| File output | `.github/**` when synchronized | Workspace-root `.claude/**` |
+| Settings injection | Yes | No |
+| Profiles, overlay, drift, clean | Yes | Yes |
+
+See [src/README.md](src/README.md) for the full artifact-type reference and per-platform configuration details.
+
+## Using MetaFlow With Claude Code
+
+MetaFlow can manage Claude Code workspace metadata as root-relative synchronized files under `.claude/**`.
+
+Supported artifact types in a capability:
+
+| Capability subdirectory | Claude Code location | Type |
+| --- | --- | --- |
+| `.claude/rules/` | `.claude/rules/` | `claude-rules` |
+| `.claude/agents/` | `.claude/agents/` | `claude-agents` |
+| `.claude/skills/` | `.claude/skills/` | `claude-skills` |
+| `.claude/settings/` | `.claude/settings/` | `claude-settings` |
+
+Recommended first-pass Claude Code workflow:
+
+- Place reusable rules in metadata capabilities under `.claude/rules/<name>.md`.
+- Place reusable specialist agents under `.claude/agents/<name>.md`.
+- Place reusable skills under `.claude/skills/<skill-name>/SKILL.md`.
+- All claude-* types default to synchronized delivery — MetaFlow writes them directly to the workspace `.claude/` folder.
+- Filenames are preserved exactly (no layer-prefix renaming) because Claude Code requires exact paths.
+- Keep `.claude/settings.json` hand-authored for workspace-specific permissions and MCP configuration. MetaFlow synchronized files include provenance comments, which are not valid JSON.
+- Preview before applying with `MetaFlow: Preview`, then review file diffs and `.metaflow/state.json` provenance state.
+
+## Validating Platform Support
+
+For local verification, create a test capability with one artifact for each target you want to validate:
+
+```text
+test-capability/
+  CAPABILITY.md
+  instructions/test.instructions.md
+  .claude/rules/test-rule.md
+  .claude/agents/test-agent.md
+  .claude/skills/test-skill/SKILL.md
+```
+
+Enable that capability, run `MetaFlow: Preview`, then `MetaFlow: Apply`, and confirm:
+
+- Copilot synchronized files land under `.github/**` when their artifact type is configured as `synchronize`.
+- Claude Code files land under workspace-root `.claude/**`, not under `.github/`.
+- Generated files are tracked in `.metaflow/state.json`; root-relative Claude files have `outputDir: "."`.
+- Editing a generated file causes drift to appear in `MetaFlow: Status` or `MetaFlow: Preview`.
+- `MetaFlow: Clean` removes managed in-sync files without deleting unmanaged hand-authored files.
+
+Developer verification commands:
+
+```powershell
+npm -w @metaflow/engine test
+npm -C src run test:unit
+npm run gate:quick
+```
 ## Built-in MetaFlow Capability
 
 MetaFlow includes a bundled starter capability so you can try the workflow before setting up a larger shared metadata repository.

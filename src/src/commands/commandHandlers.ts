@@ -135,8 +135,6 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize'> =
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
-const ENABLE_METAFLOW_AI_METADATA_ACTION = 'Enable Now';
-const NOT_NOW_ACTION = 'Not Now';
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',

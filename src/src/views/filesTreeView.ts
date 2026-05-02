@@ -63,8 +63,23 @@ type FilesViewMode = 'unified' | 'repoTree';
 // ArtifactType and getArtifactType are imported from @metaflow/engine.
 export type { ArtifactType } from '@metaflow/engine';
 
-const KNOWN_TYPES: ReadonlySet<string> = new Set(['instructions', 'prompts', 'agents', 'skills']);
-const TYPE_ORDER: ArtifactType[] = ['instructions', 'prompts', 'agents', 'skills', 'other'];
+const KNOWN_TYPES: ReadonlySet<SummaryArtifactType> = new Set([
+    'instructions',
+    'prompts',
+    'agents',
+    'skills',
+]);
+const TYPE_ORDER: ArtifactType[] = [
+    'instructions',
+    'prompts',
+    'agents',
+    'skills',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
+    'other',
+];
 
 const toPosixPath = (value: string): string => value.replace(/\\/g, '/');
 const isPathWithin = (targetPath: string, parentPath: string): boolean => {
@@ -80,6 +95,10 @@ const sortByLabel = <T extends vscode.TreeItem>(items: T[]): T[] =>
         String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }),
     );
 const normalizeIdentity = (value: string): string => value.trim().toLowerCase();
+
+function isSummaryArtifactType(type: ArtifactType | undefined): type is SummaryArtifactType {
+    return type !== undefined && KNOWN_TYPES.has(type as SummaryArtifactType);
+}
 
 function toDisplayRelativePath(relativePath: string): string {
     const parts = toPosixPath(relativePath).split('/').filter(Boolean);
@@ -109,13 +128,30 @@ function getDisplayPathForRepoTree(file: EffectiveFile): string {
  * hierarchy paths (capabilities/devtools/instructions/foo.md → foo.md).
  */
 function getPathAfterArtifactType(file: EffectiveFile): string {
+    const artifactType = getArtifactType(file.relativePath);
+    const normalizedPath = toPosixPath(file.relativePath);
+    const parts = normalizedPath.split('/').filter(Boolean);
+
+    if (artifactType === 'claude-settings' && parts[0] === '.claude') {
+        if (parts[1] === 'settings.json' || parts[1] === 'settings.local.json') {
+            return parts.slice(1).join('/');
+        }
+        if (parts[1] === 'settings') {
+            return parts.slice(2).join('/');
+        }
+    }
+
+    if (artifactType.startsWith('claude-') && parts[0] === '.claude') {
+        return parts.slice(2).join('/');
+    }
+
     const displayPath = toDisplayRelativePath(file.relativePath);
-    const parts = displayPath.split('/').filter(Boolean);
-    const typeIndex = parts.findIndex((p) => KNOWN_TYPES.has(p));
+    const displayParts = displayPath.split('/').filter(Boolean);
+    const typeIndex = displayParts.findIndex((p) => KNOWN_TYPES.has(p as SummaryArtifactType));
     if (typeIndex === -1) {
         return displayPath;
     }
-    return parts.slice(typeIndex + 1).join('/');
+    return displayParts.slice(typeIndex + 1).join('/');
 }
 
 function getLayerDisplayPath(file: EffectiveFile): string {
@@ -363,8 +399,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     constructor(
         private state: ExtensionState,
         private readonly modeResolver: () => FilesViewMode = () =>
-            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
-                .filesViewMode,
+            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath).filesViewMode,
     ) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
     }
@@ -785,7 +820,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                       element.prefix,
                   ),
               )
-            : element.artifactType && element.artifactType !== 'other'
+            : isSummaryArtifactType(element.artifactType)
               ? getSummaryTooltipLines(
                     summarizeArtifactPrefix(
                         this.state.treeSummaryCache,
@@ -927,14 +962,9 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     skillMetadata?.slug,
                     segmentLabel,
                 ]);
-                const summary =
-                    artifactType !== 'other'
-                        ? summarizeArtifactPrefix(
-                              this.state.treeSummaryCache,
-                              artifactType,
-                              nextPrefix,
-                          )
-                        : undefined;
+                const summary = isSummaryArtifactType(artifactType)
+                    ? summarizeArtifactPrefix(this.state.treeSummaryCache, artifactType, nextPrefix)
+                    : undefined;
 
                 return new FolderItem(
                     displayLabel,
@@ -1046,8 +1076,8 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 new ArtifactTypeItem(type, typeMap.get(type)!, {
                     showSourceLabelInFileDescription: true,
                     counts:
-                        repoSummary && type !== 'other'
-                            ? repoSummary.byType[type as SummaryArtifactType]
+                        repoSummary && isSummaryArtifactType(type)
+                            ? repoSummary.byType[type]
                             : undefined,
                 }),
         );
@@ -1097,8 +1127,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
 
             const [firstSegment, ...rest] = remainder.split('/');
 
-            if (KNOWN_TYPES.has(firstSegment)) {
-                const type = firstSegment as ArtifactType;
+            const claudeType =
+                firstSegment === '.claude' ? getArtifactType(file.relativePath) : 'other';
+            if (KNOWN_TYPES.has(firstSegment as SummaryArtifactType)) {
+                const type = firstSegment as SummaryArtifactType;
+                const existing = typeMap.get(type) ?? [];
+                existing.push(file);
+                typeMap.set(type, existing);
+            } else if (claudeType !== 'other') {
+                const type = claudeType;
                 const existing = typeMap.get(type) ?? [];
                 existing.push(file);
                 typeMap.set(type, existing);
@@ -1161,8 +1198,8 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 new ArtifactTypeItem(type, typeMap.get(type)!, {
                     showSourceLabelInFileDescription: false,
                     counts:
-                        displayPrefixSummary && type !== 'other'
-                            ? displayPrefixSummary.byType[type as SummaryArtifactType]
+                        displayPrefixSummary && isSummaryArtifactType(type)
+                            ? displayPrefixSummary.byType[type]
                             : undefined,
                 }),
         );

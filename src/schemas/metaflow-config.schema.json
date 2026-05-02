@@ -125,7 +125,7 @@
           "description": "Artifact-type directories to exclude for this capability.",
           "items": {
             "type": "string",
-            "enum": ["instructions", "prompts", "agents", "skills"]
+            "enum": ["instructions", "prompts", "agents", "skills", "claude-rules", "claude-agents", "claude-skills", "claude-settings"]
           }
         },
         "injection": {
@@ -195,7 +195,7 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["instructions", "prompts", "agents", "skills"]
+            "enum": ["instructions", "prompts", "agents", "skills", "claude-rules", "claude-agents", "claude-skills", "claude-settings"]
           }
         }
       }
@@ -259,6 +259,18 @@
           "$ref": "#/definitions/injectionMode"
         },
         "chatmodes": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "claude-rules": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "claude-agents": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "claude-skills": {
+          "$ref": "#/definitions/injectionMode"
+        },
+        "claude-settings": {
           "$ref": "#/definitions/injectionMode"
         }
       }

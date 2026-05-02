@@ -298,6 +298,10 @@ suite('treeSummary', () => {
                 prompts: { active: 0, available: 1 },
                 agents: { active: 0, available: 1 },
                 skills: { active: 1, available: 1 },
+                'claude-rules': { active: 0, available: 0 },
+                'claude-agents': { active: 0, available: 0 },
+                'claude-skills': { active: 0, available: 0 },
+                'claude-settings': { active: 0, available: 0 },
             },
         };
 

@@ -44,7 +44,9 @@ describe('governanceContract', () => {
     });
 
     it('returns ok with no contract when governance.jsonc is absent', () => {
-        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-governance-missing-'));
+        const workspaceRoot = fs.mkdtempSync(
+            path.join(os.tmpdir(), 'metaflow-governance-missing-'),
+        );
         try {
             const result = loadGovernanceContract(workspaceRoot);
             assert.strictEqual(result.ok, true);
@@ -94,6 +96,38 @@ describe('governanceContract', () => {
             ['GOVERNANCE_LOCKED_PROFILE_NOT_ALLOWED'],
         );
         assert.ok(result.errors[0].message.includes('default'));
+    });
+
+    it('reports duplicate capability refs after path normalization', () => {
+        const result = parseAndValidateGovernanceContract(
+            JSON.stringify({
+                requiredCapabilities: [
+                    { repoId: 'primary', path: 'standards/sdlc' },
+                    { repoId: 'primary', path: 'standards/sdlc/.github' },
+                ],
+                defaultOnCapabilities: [
+                    { repoId: 'primary', path: 'team/default' },
+                    { repoId: 'primary', path: 'team/default/.github' },
+                ],
+            }),
+            '/workspace/.metaflow/governance.jsonc',
+        );
+
+        assert.strictEqual(result.ok, false);
+        if (result.ok) {
+            return;
+        }
+
+        assert.deepStrictEqual(
+            result.errors.map((error) => error.code),
+            [
+                'GOVERNANCE_DUPLICATE_REQUIRED_CAPABILITY',
+                'GOVERNANCE_DUPLICATE_DEFAULT_ON_CAPABILITY',
+            ],
+        );
+        assert.ok(
+            result.errors.every((error) => error.message.includes('after path normalization')),
+        );
     });
 
     it('reports JSONC parse failures with positions', () => {

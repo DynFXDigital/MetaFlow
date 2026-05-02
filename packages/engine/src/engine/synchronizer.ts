@@ -20,12 +20,15 @@ import {
     createEmptyState,
 } from './managedState';
 import { checkDrift } from './driftDetector';
+import { isClaudeArtifactPath } from './artifactType';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
 const DEFAULT_FILE_NAMING_STRATEGY: SyncFileNamingStrategy = 'prefixed';
 
 export interface PlannedSynchronizedFile {
+    /** Output directory relative to the workspace root. */
+    outputDir: string;
     /** Destination relative path under the synchronization output directory. */
     destinationRelativePath: string;
     /** Original relative path within the source layer. */
@@ -110,6 +113,14 @@ function normalizeRelativePath(relativePath: string): string {
     return relativePath.replace(/\\/g, '/');
 }
 
+function destinationIdentity(outputDir: string, destinationRelativePath: string): string {
+    return `${outputDir}\u0000${destinationRelativePath}`;
+}
+
+function resolveSynchronizedOutputDir(file: EffectiveFile, fallbackOutputDir: string): string {
+    return isClaudeArtifactPath(file.relativePath) ? '.' : fallbackOutputDir;
+}
+
 function resolveFileNamingStrategy(
     fileNamingStrategy?: SyncFileNamingStrategy,
 ): SyncFileNamingStrategy {
@@ -161,12 +172,31 @@ function resolveEffectiveFileNamingStrategy(
     return fallbackFileNamingStrategy;
 }
 
+function requiresUnmanagedConflictProtection(
+    entry: PlannedSynchronizedFile,
+    fallbackFileNamingStrategy: SyncFileNamingStrategy,
+    strategyByLayer: Map<string, SyncFileNamingStrategy> | undefined,
+): boolean {
+    return (
+        isClaudeArtifactPath(entry.destinationRelativePath) ||
+        resolveEffectiveFileNamingStrategy(
+            entry.file,
+            fallbackFileNamingStrategy,
+            strategyByLayer,
+        ) === 'original-unless-conflict'
+    );
+}
+
 function buildSourceIdentity(
     sourceRelativePath: string,
     sourceLayer: string,
     sourceRepo?: string,
 ): string {
     return [sourceRepo ?? 'default', sourceLayer, sourceRelativePath].join('\u0000');
+}
+
+function getTrackedOutputDir(state: ManagedFileState, fallbackOutputDir: string): string {
+    return state.outputDir ?? fallbackOutputDir;
 }
 
 function formatSourceLabel(
@@ -199,11 +229,11 @@ function formatSynchronizationPlanningError(
 
     for (const collision of collisions) {
         const sources = collision.contenders
-            .map((entry) => formatSourceLabel(entry.sourceRelativePath, entry.sourceLayer, entry.sourceRepo))
+            .map((entry) =>
+                formatSourceLabel(entry.sourceRelativePath, entry.sourceLayer, entry.sourceRepo),
+            )
             .join(' ; ');
-        lines.push(
-            `- Output path collision at ${collision.destinationRelativePath}: ${sources}`,
-        );
+        lines.push(`- Output path collision at ${collision.destinationRelativePath}: ${sources}`);
     }
 
     for (const conflict of unmanagedConflicts) {
@@ -234,7 +264,9 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
             continue;
         }
 
+        const entryOutputDir = resolveSynchronizedOutputDir(file, outputDir);
         const entry: PlannedSynchronizedFile = {
+            outputDir: entryOutputDir,
             destinationRelativePath: toSynchronizedRelativePath(
                 file,
                 resolveEffectiveFileNamingStrategy(file, fileNamingStrategy, strategyByLayer),
@@ -247,15 +279,16 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         };
         synchronizedFiles.push(entry);
 
-        const contenders = contendersByDestination.get(entry.destinationRelativePath) ?? [];
+        const destinationKey = destinationIdentity(entry.outputDir, entry.destinationRelativePath);
+        const contenders = contendersByDestination.get(destinationKey) ?? [];
         contenders.push(entry);
-        contendersByDestination.set(entry.destinationRelativePath, contenders);
+        contendersByDestination.set(destinationKey, contenders);
     }
 
     const collisions = Array.from(contendersByDestination.entries())
         .filter(([, contenders]) => contenders.length > 1)
-        .map(([destinationRelativePath, contenders]) => ({
-            destinationRelativePath,
+        .map(([, contenders]) => ({
+            destinationRelativePath: contenders[0]?.destinationRelativePath ?? '',
             contenders: [...contenders].sort(comparePlannedFiles),
         }))
         .sort((left, right) =>
@@ -297,30 +330,40 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
 
     remapConflicts.sort(
         (left, right) =>
-            formatSourceLabel(left.sourceRelativePath, left.sourceLayer, left.sourceRepo).localeCompare(
+            formatSourceLabel(
+                left.sourceRelativePath,
+                left.sourceLayer,
+                left.sourceRepo,
+            ).localeCompare(
                 formatSourceLabel(right.sourceRelativePath, right.sourceLayer, right.sourceRepo),
             ) || left.trackedRelativePath.localeCompare(right.trackedRelativePath),
     );
 
     const unmanagedConflicts: UnmanagedDestinationConflict[] = [];
-    if (fileNamingStrategy === 'original-unless-conflict' || strategyByLayer !== undefined) {
+    const hasProtectedOriginalPaths = synchronizedFiles.some((entry) =>
+        isClaudeArtifactPath(entry.destinationRelativePath),
+    );
+    if (
+        fileNamingStrategy === 'original-unless-conflict' ||
+        strategyByLayer !== undefined ||
+        hasProtectedOriginalPaths
+    ) {
         for (const entry of [...synchronizedFiles].sort(comparePlannedFiles)) {
             const drift = checkDrift(
                 options.workspaceRoot,
-                outputDir,
+                entry.outputDir,
                 entry.destinationRelativePath,
                 state,
             );
             if (
                 drift.status === 'untracked' &&
-                resolveEffectiveFileNamingStrategy(entry.file, fileNamingStrategy, strategyByLayer) ===
-                    'original-unless-conflict'
+                requiresUnmanagedConflictProtection(entry, fileNamingStrategy, strategyByLayer)
             ) {
                 unmanagedConflicts.push({
                     destinationRelativePath: entry.destinationRelativePath,
                     fullPath: path.join(
                         options.workspaceRoot,
-                        outputDir,
+                        entry.outputDir,
                         entry.destinationRelativePath,
                     ),
                     entry,
@@ -347,6 +390,10 @@ export function toSynchronizedRelativePath(
     fileNamingStrategy?: SyncFileNamingStrategy,
 ): string {
     const normalizedPath = normalizeRelativePath(file.relativePath);
+    if (isClaudeArtifactPath(normalizedPath)) {
+        return normalizedPath;
+    }
+
     if (resolveFileNamingStrategy(fileNamingStrategy) === 'original-unless-conflict') {
         return normalizedPath;
     }
@@ -413,7 +460,9 @@ export function apply(options: ApplyOptions): ApplyResult {
 
     // Track which files are in the current overlay
     const currentFiles = new Set(
-        plan.synchronizedFiles.map((entry) => entry.destinationRelativePath),
+        plan.synchronizedFiles.map((entry) =>
+            destinationIdentity(entry.outputDir, entry.destinationRelativePath),
+        ),
     );
 
     for (const entry of plan.synchronizedFiles) {
@@ -421,7 +470,7 @@ export function apply(options: ApplyOptions): ApplyResult {
         const file = entry.file;
 
         // Check drift
-        const drift = checkDrift(options.workspaceRoot, plan.outputDir, relPath, state);
+        const drift = checkDrift(options.workspaceRoot, entry.outputDir, relPath, state);
         if (drift.status === 'drifted' && !options.force) {
             result.skipped.push(relPath);
             result.warnings.push(`Skipped drifted file: ${relPath}`);
@@ -456,7 +505,7 @@ export function apply(options: ApplyOptions): ApplyResult {
         const fullContent = synchronizedBody + '\n' + header;
 
         // Write file
-        const destPath = path.join(outPath, relPath);
+        const destPath = path.join(options.workspaceRoot, entry.outputDir, relPath);
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.writeFileSync(destPath, fullContent, 'utf-8');
         result.written.push(relPath);
@@ -467,16 +516,19 @@ export function apply(options: ApplyOptions): ApplyResult {
             sourceLayer: file.sourceLayer,
             sourceRelativePath: file.relativePath.replace(/\\/g, '/'),
             sourceRepo: file.sourceRepo,
+            ...(entry.outputDir !== DEFAULT_OUTPUT_DIR ? { outputDir: entry.outputDir } : {}),
         };
         state.files[relPath] = fileState;
     }
 
     // Remove files no longer in overlay (only if in-sync)
     for (const trackedPath of Object.keys(state.files)) {
-        if (!currentFiles.has(trackedPath)) {
-            const drift = checkDrift(options.workspaceRoot, plan.outputDir, trackedPath, state);
+        const tracked = state.files[trackedPath];
+        const trackedOutputDir = getTrackedOutputDir(tracked, plan.outputDir);
+        if (!currentFiles.has(destinationIdentity(trackedOutputDir, trackedPath))) {
+            const drift = checkDrift(options.workspaceRoot, trackedOutputDir, trackedPath, state);
             if (drift.status === 'in-sync' || drift.status === 'missing') {
-                const fullPath = path.join(outPath, trackedPath);
+                const fullPath = path.join(options.workspaceRoot, trackedOutputDir, trackedPath);
                 if (fs.existsSync(fullPath)) {
                     fs.unlinkSync(fullPath);
                 }
@@ -505,9 +557,10 @@ export function clean(workspaceRoot: string, outputDir?: string): ApplyResult {
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
 
     for (const relPath of Object.keys(state.files)) {
-        const drift = checkDrift(workspaceRoot, outDir, relPath, state);
+        const entryOutputDir = getTrackedOutputDir(state.files[relPath], outDir);
+        const drift = checkDrift(workspaceRoot, entryOutputDir, relPath, state);
         if (drift.status === 'in-sync' || drift.status === 'missing') {
-            const fullPath = path.join(outPath, relPath);
+            const fullPath = path.join(workspaceRoot, entryOutputDir, relPath);
             if (fs.existsSync(fullPath)) {
                 fs.unlinkSync(fullPath);
             }
@@ -555,14 +608,16 @@ export function preview(
     const state = plan.state;
     const changes: PendingChange[] = [];
     const currentFiles = new Set(
-        plan.synchronizedFiles.map((entry) => entry.destinationRelativePath),
+        plan.synchronizedFiles.map((entry) =>
+            destinationIdentity(entry.outputDir, entry.destinationRelativePath),
+        ),
     );
 
     for (const entry of plan.synchronizedFiles) {
         const synchronizedRelPath = entry.destinationRelativePath;
         const file = entry.file;
 
-        const drift = checkDrift(workspaceRoot, outDir, synchronizedRelPath, state);
+        const drift = checkDrift(workspaceRoot, entry.outputDir, synchronizedRelPath, state);
         let action: PendingAction;
         let reason: string | undefined;
 
@@ -595,14 +650,16 @@ export function preview(
 
     // Files to remove
     for (const trackedPath of Object.keys(state.files)) {
-        if (!currentFiles.has(trackedPath)) {
-            const drift = checkDrift(workspaceRoot, outDir, trackedPath, state);
+        const tracked = state.files[trackedPath];
+        const trackedOutputDir = getTrackedOutputDir(tracked, outDir);
+        if (!currentFiles.has(destinationIdentity(trackedOutputDir, trackedPath))) {
+            const drift = checkDrift(workspaceRoot, trackedOutputDir, trackedPath, state);
             changes.push({
                 relativePath: trackedPath,
                 action: drift.status === 'drifted' ? 'skip' : 'remove',
                 reason: drift.status === 'drifted' ? 'drifted' : undefined,
                 classification: 'synchronized',
-                sourceLayer: state.files[trackedPath].sourceLayer,
+                sourceLayer: tracked.sourceLayer,
             });
         }
     }

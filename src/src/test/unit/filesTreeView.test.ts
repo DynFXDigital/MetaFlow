@@ -218,6 +218,29 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(String(instrItem.description), '2 files');
     });
 
+    test('FTV-AT-02C: Claude artifacts appear in unified artifact buckets', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [
+            makeFile('.claude/settings.json'),
+            makeFile('.claude/skills/review/SKILL.md'),
+            makeFile('.claude/rules/team.md'),
+            makeFile('.claude/agents/reviewer.md'),
+        ];
+        const provider = new FilesTreeViewProvider(makeState(files), () => 'unified');
+        const children = provider.getChildren();
+
+        assert.deepStrictEqual(
+            children.map((c) => String(c.label)),
+            ['claude-rules', 'claude-agents', 'claude-skills', 'claude-settings'],
+        );
+
+        const rulesItem = children.find((c) => String(c.label) === 'claude-rules');
+        assert.ok(rulesItem, 'expected Claude rules bucket');
+        const [ruleFile] = provider.getChildren(rulesItem);
+        assert.strictEqual(ruleFile.contextValue, 'effectiveFile');
+        assert.strictEqual(String(ruleFile.label), 'team.md');
+    });
+
     // FTV-AT-03: files with unknown prefix land in 'other', omitted when empty
     test('FTV-AT-03: unknown-prefix file lands in other bucket', () => {
         const { FilesTreeViewProvider } = loadFilesTreeView();
@@ -270,6 +293,21 @@ suite('FilesTreeView – artifact-type grouping', () => {
             typeItems.every((c) => c.contextValue === 'artifactTypeFolder'),
             'root-layer: direct children of RepoItem should be ArtifactTypeItems',
         );
+    });
+
+    test('FTV-AT-04C: repoTree root-layer promotes Claude metadata to artifact buckets', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [makeFile('.claude/rules/team.md', '/repoA/.claude/rules/team.md', '.')];
+        const provider = new FilesTreeViewProvider(makeState(files), () => 'repoTree');
+
+        const [repoItem] = provider.getChildren();
+        const [claudeRulesItem] = provider.getChildren(repoItem);
+        assert.strictEqual(String(claudeRulesItem.label), 'claude-rules');
+        assert.strictEqual(claudeRulesItem.contextValue, 'artifactTypeFolder');
+
+        const [ruleFile] = provider.getChildren(claudeRulesItem);
+        assert.strictEqual(ruleFile.contextValue, 'effectiveFile');
+        assert.strictEqual(String(ruleFile.label), 'team.md');
     });
 
     // FTV-AT-08: repoTree with intermediate directories shows full hierarchy
@@ -798,6 +836,8 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(getArtifactType('.github/prompts/p.prompt.md'), 'prompts');
         assert.strictEqual(getArtifactType('.github/agents/a.agent.md'), 'agents');
         assert.strictEqual(getArtifactType('.github/skills/s/SKILL.md'), 'skills');
+        assert.strictEqual(getArtifactType('.claude/rules/team.md'), 'claude-rules');
+        assert.strictEqual(getArtifactType('.claude/settings.json'), 'claude-settings');
         assert.strictEqual(getArtifactType('unknown/something.json'), 'other');
         assert.strictEqual(getArtifactType('settings.json'), 'other');
     });

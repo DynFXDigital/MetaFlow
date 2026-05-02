@@ -143,6 +143,10 @@ export interface InjectionConfig {
     agents?: InjectionMode;
     hooks?: InjectionMode;
     chatmodes?: InjectionMode;
+    'claude-rules'?: InjectionMode;
+    'claude-agents'?: InjectionMode;
+    'claude-skills'?: InjectionMode;
+    'claude-settings'?: InjectionMode;
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────

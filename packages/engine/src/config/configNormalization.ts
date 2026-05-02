@@ -46,6 +46,10 @@ const INJECTION_KEY_ORDER: readonly (keyof InjectionConfig)[] = [
     'agents',
     'hooks',
     'chatmodes',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
 ];
 
 function normalizeLayerPath(pathValue: string): string {
@@ -497,8 +501,7 @@ function flattenCapabilities(repos: NamedMetadataRepo[] | undefined): LayerSourc
                 capability.fileNamingStrategy !== undefined ||
                 repo.fileNamingStrategy !== undefined
             ) {
-                layer.fileNamingStrategy =
-                    capability.fileNamingStrategy ?? repo.fileNamingStrategy;
+                layer.fileNamingStrategy = capability.fileNamingStrategy ?? repo.fileNamingStrategy;
             }
             sources.push(layer);
         }

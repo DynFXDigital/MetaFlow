@@ -92,7 +92,8 @@ export function checkAllDrift(
 ): DriftResult[] {
     const results: DriftResult[] = [];
     for (const relativePath of Object.keys(state.files)) {
-        results.push(checkDrift(workspaceRoot, outputDir, relativePath, state));
+        const fileOutputDir = state.files[relativePath].outputDir ?? outputDir;
+        results.push(checkDrift(workspaceRoot, fileOutputDir, relativePath, state));
     }
     return results;
 }
