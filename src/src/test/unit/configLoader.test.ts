@@ -215,12 +215,11 @@ suite('Config Loader', () => {
             assert.ok(errors.some((e) => e.message.includes('supported version')));
         });
 
-        test('single-repo without layers produces error', () => {
+        test('single-repo without layers is valid as a zero-layer bootstrap config', () => {
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: '.ai/metadata' },
             };
-            const errors = validateConfig(config);
-            assert.ok(errors.some((e) => e.message.includes('layers')));
+            assert.deepStrictEqual(validateConfig(config), []);
         });
 
         test('single-repo without localPath produces error', () => {

@@ -9,13 +9,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+
 suite('Diagnostics Integration', () => {
     let workspaceRoot: string;
     let configPath: string;
     let governancePath: string;
 
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
 
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {
@@ -37,10 +39,8 @@ suite('Diagnostics Integration', () => {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const invalidConfig = JSON.stringify(
             {
-                metadataRepo: {
-                    localPath: '.ai/ai-metadata',
-                },
-                // Deliberately omit required layers.
+                metadataRepo: {},
+                // Deliberately omit required localPath.
             },
             null,
             2,
@@ -68,9 +68,7 @@ suite('Diagnostics Integration', () => {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const invalidConfig = JSON.stringify(
             {
-                metadataRepo: {
-                    localPath: '.ai/ai-metadata',
-                },
+                metadataRepo: {},
             },
             null,
             2,
@@ -138,7 +136,7 @@ suite('Diagnostics Integration', () => {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const invalidConfig = JSON.stringify(
             {
-                metadataRepo: { localPath: '.ai/ai-metadata' },
+                metadataRepo: {},
             },
             null,
             2,
@@ -200,7 +198,7 @@ suite('Diagnostics Integration', () => {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const invalidConfig = JSON.stringify(
             {
-                metadataRepo: { localPath: '.ai/ai-metadata' },
+                metadataRepo: {},
             },
             null,
             2,

@@ -397,13 +397,6 @@ export async function resolveSourceSelection(
         }
 
         const layers = await discoverLayersFromGithubDirs(existingDir);
-        if (layers.length === 0) {
-            vscode.window.showErrorMessage(
-                'MetaFlow: No .github directories found in selected directory tree.',
-            );
-            return undefined;
-        }
-
         return { metadataRoot: existingDir, layers };
     }
 

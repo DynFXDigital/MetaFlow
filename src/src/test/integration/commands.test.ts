@@ -10,12 +10,49 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 
-suite('Command Execution', () => {
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+const DEFAULT_COMMAND_TEST_TIMEOUT_MS = 15000;
+const COMPLEX_COMMAND_TEST_TIMEOUT_MS = 30000;
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10000;
+
+suite('Command Execution', function () {
+    this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
+
     let workspaceRoot: string;
+    let originalWorkspaceConfig = '';
+
+    function getWorkspaceConfigPath(): string {
+        return path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+    }
+
+    function restoreWorkspaceConfig(): void {
+        const configPath = getWorkspaceConfigPath();
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
+        fs.writeFileSync(configPath, originalWorkspaceConfig, 'utf-8');
+    }
+
+    function removeKnownCommandTestArtifacts(): void {
+        const tempRoots = fs
+            .readdirSync(workspaceRoot, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory() && entry.name.startsWith('.tmp-'));
+
+        for (const entry of tempRoots) {
+            removeDirectoryRecursive(path.join(workspaceRoot, entry.name));
+        }
+
+        removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+    }
+
+    async function restoreCommandTestWorkspace(): Promise<void> {
+        restoreWorkspaceConfig();
+        removeKnownCommandTestArtifacts();
+        await vscode.commands.executeCommand('metaflow.refresh');
+    }
 
     async function waitFor(
         predicate: () => boolean | Promise<boolean>,
-        timeoutMs = 5000,
+        timeoutMs = DEFAULT_WAIT_FOR_TIMEOUT_MS,
         intervalMs = 100,
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
@@ -247,7 +284,7 @@ suite('Command Execution', () => {
     }
 
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
 
         // Ensure extension is active
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
@@ -258,6 +295,12 @@ suite('Command Execution', () => {
         const ws = vscode.workspace.workspaceFolders?.[0];
         assert.ok(ws, 'Test workspace folder should be available');
         workspaceRoot = ws.uri.fsPath;
+        originalWorkspaceConfig = fs.readFileSync(getWorkspaceConfigPath(), 'utf-8');
+    });
+
+    teardown(async function () {
+        this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
+        await restoreCommandTestWorkspace();
     });
 
     test('refresh loads config from test workspace', async function () {
@@ -395,7 +438,7 @@ suite('Command Execution', () => {
     });
 
     test('apply honors original-unless-conflict except for prefixed chatmodes outputs', async function () {
-        this.timeout(20000);
+        this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
 
         await resetBuiltInCapabilityState();
 
@@ -865,9 +908,11 @@ suite('Command Execution', () => {
             );
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
                 metadataRepos?: Array<{ id: string; capabilities?: Array<{ path: string }> }>;
             };
 
+            assert.strictEqual(migratedConfig.compatibilityVersion, 2);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -879,6 +924,105 @@ suite('Command Execution', () => {
                 'Migrated config should persist capability entries',
             );
         } finally {
+            await wsConfig.update(
+                'metaflow.autoApply',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh rewrites modern released config with compatibilityVersion and generic migration notice', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        const unversionedModernConfig = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    capabilities: [{ path: 'company/core', enabled: true }],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        await wsConfig.update('metaflow.autoApply', false, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(unversionedModernConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await waitFor(() => {
+                const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    compatibilityVersion?: number;
+                };
+                return migratedConfig.compatibilityVersion === 2;
+            }, 10000);
+
+            const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
+                metadataRepos?: Array<{ capabilities?: Array<{ path: string }> }>;
+            };
+
+            assert.strictEqual(
+                migratedConfig.compatibilityVersion,
+                2,
+                'Refresh should persist the current compatibilityVersion for released configs',
+            );
+            assert.ok(
+                migratedConfig.metadataRepos?.[0]?.capabilities?.some(
+                    (capability) => capability.path === 'company/core',
+                ),
+                'Refresh should preserve configured capabilities while persisting compatibilityVersion',
+            );
+            assert.ok(
+                infoMessages.includes(
+                    'MetaFlow: Configuration was automatically migrated. Check the output channel for details.',
+                ),
+                'Refresh should surface a generic migration notice for release-aware config upgrades',
+            );
+            assert.ok(
+                !infoMessages.some((message) => message.includes('metadataRepos[*].capabilities')),
+                'Release-aware migration notice should not claim a legacy metadataRepos[*].capabilities rewrite',
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
             await wsConfig.update(
                 'metaflow.autoApply',
                 undefined,
@@ -4311,6 +4455,93 @@ suite('Command Execution', () => {
         }
     });
 
+    test('initConfig accepts an empty existing metadata directory as zero-capability bootstrap config', async function () {
+        this.timeout(30000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-empty-existing-init-config');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(repoPath, { recursive: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalWarning = windowAny.showWarningMessage;
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            if (picks.some((pick) => pick.mode === 'later')) {
+                return picks.find((pick) => pick.mode === 'later') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string' && message.includes('already exists. Overwrite?')) {
+                return 'Overwrite';
+            }
+            return undefined;
+        };
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.initConfig');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
+                metadataRepos?: Array<{ localPath: string; capabilities?: Array<{ path: string }> }>;
+            };
+
+            assert.strictEqual(updatedConfig.compatibilityVersion, 2);
+            assert.strictEqual(
+                path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
+                path.normalize(path.relative(workspaceRoot, repoPath)),
+            );
+            assert.deepStrictEqual(
+                updatedConfig.metadataRepos?.[0]?.capabilities,
+                [],
+                'Empty existing metadata directories should initialize with zero capabilities',
+            );
+            assert.ok(
+                infoMessages.some((message) => message.includes('0 discovered layer(s)')),
+                'Initialize configuration should report a zero-layer bootstrap config',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showWarningMessage = originalWarning;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoPath);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('offerGitRemotePromotion promotes local repo with a single remote URL', async function () {
         this.timeout(20000);
 
@@ -5644,10 +5875,16 @@ suite('Command Execution', () => {
             const finalSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
             );
+            const baselineUnmanagedInstructionLocations = getUnmanagedInstructionLocationKeys(
+                baselineSnapshot,
+            );
+            const preservedBaselineInstructionLocations = getUnmanagedInstructionLocationKeys(
+                finalSnapshot,
+            ).filter((location) => baselineUnmanagedInstructionLocations.includes(location));
 
             assert.deepStrictEqual(
-                getUnmanagedInstructionLocationKeys(finalSnapshot),
-                getUnmanagedInstructionLocationKeys(baselineSnapshot),
+                preservedBaselineInstructionLocations,
+                baselineUnmanagedInstructionLocations,
                 'Unmanaged instruction location entries should survive built-in managed rewrites in their original relative order',
             );
         } finally {

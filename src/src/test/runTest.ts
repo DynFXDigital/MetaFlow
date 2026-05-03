@@ -23,6 +23,8 @@ const UNEXPECTED_INTEGRATION_LOG_PATTERNS = Object.freeze([
     /spawn .*git(?:\.exe)? ENOENT/i,
 ]);
 
+const INTEGRATION_RUN_TIMEOUT_MS = 3 * 60 * 1000;
+
 export interface RunTestDeps {
     runUnit: () => Promise<void>;
     runIntegration: () => Promise<void>;
@@ -38,6 +40,35 @@ const BENIGN_INTEGRATION_OUTPUT_PATTERNS = Object.freeze({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+async function runWithTimeout<T>(
+    label: string,
+    timeoutMs: number,
+    run: () => Promise<T>,
+): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    try {
+        return await Promise.race([
+            run(),
+            new Promise<T>((_, reject) => {
+                timeoutHandle = setTimeout(() => {
+                    reject(
+                        new Error(
+                            `${label} timed out after ${Math.round(timeoutMs / 1000)} seconds. ` +
+                                'The integration sandbox will be cleaned up automatically.',
+                        ),
+                    );
+                }, timeoutMs);
+                timeoutHandle.unref?.();
+            }),
+        ]);
+    } finally {
+        if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+        }
+    }
 }
 
 export async function ensureIntegrationUserSettings(userDataDir: string): Promise<void> {

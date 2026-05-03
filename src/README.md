@@ -60,6 +60,7 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
 
 ```jsonc
 {
+    "compatibilityVersion": 2,
     "metadataRepos": [
         {
             "id": "primary",
@@ -90,7 +91,7 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
 }
 ```
 
-`MetaFlow: Initialize Configuration` seeds `primary` as enabled and discovered capabilities as disabled so capability activation is opt-in.
+`MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
 After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability in settings-only mode and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.
 
@@ -102,7 +103,7 @@ After initialization succeeds, MetaFlow now automatically enables the built-in M
 
 For new capability authoring, `MetaFlow: Create CAPABILITY.md` opens the bundled contract guidance, a real example capability contract, and a seeded untitled `CAPABILITY.md` draft so authors can start from the shipped conventions instead of hunting for files manually.
 
-Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSources` are accepted during the pre-release window. On load/open, MetaFlow rewrites them to the canonical repo-grouped `metadataRepos[*].capabilities` shape and shows a migration notice.
+Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSources` are accepted during the pre-release window. Released configs authored against an older compatibility version are also upgraded automatically. On load/open, MetaFlow rewrites stale configs to the current contract, persists the current `compatibilityVersion`, and shows a migration notice.
 
 If enabled capabilities surface the same effective relative path, MetaFlow reports a warning in the Capabilities view, `Preview`, `Status`, and the apply summary. Apply remains non-blocking and uses the later-wins result selected by the engine.
 
@@ -158,27 +159,27 @@ description: Shared repository-level metadata for this workspace.
 
 ## Commands
 
-| Command                                    | Description                                                                                                       | Keybinding     |
-| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------- |
-| `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                              | `Ctrl+Shift+R` |
-| `MetaFlow: Preview`                        | Show pending changes in output channel                                                                            |                |
-| `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                   |                |
-| `MetaFlow: Clean`                          | Remove synchronized files                                                                                         |                |
-| `MetaFlow: Status`                         | Show current status in output channel                                                                             |                |
-| `MetaFlow: Switch Profile`                 | Select active profile                                                                                             |                |
-| `MetaFlow: Toggle Capability`              | Enable/disable a capability                                                                                       |                |
-| `Select All`                               | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu         |                |
-| `Deselect All`                             | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu        |                |
-| `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                 |                |
-| `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                      |                |
-| `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                  |                |
-| `MetaFlow: Initialize MetaFlow Capability` | Choose synchronization mode (`synchronize` in config) or built-in settings-only mode persisted in workspace state |                |
-| `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                        |                |
-| `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                           |                |
-| `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                    |                |
-| `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                           |                |
+| Command                                    | Description                                                                                                           | Keybinding     |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                  | `Ctrl+Shift+R` |
+| `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                |                |
+| `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                       |                |
+| `MetaFlow: Clean`                          | Remove synchronized files                                                                                             |                |
+| `MetaFlow: Status`                         | Show current status in output channel                                                                                 |                |
+| `MetaFlow: Switch Profile`                 | Select active profile                                                                                                 |                |
+| `MetaFlow: Toggle Capability`              | Enable/disable a capability                                                                                           |                |
+| `Select All`                               | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu             |                |
+| `Deselect All`                             | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu            |                |
+| `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                     |                |
+| `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                          |                |
+| `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                      |                |
+| `MetaFlow: Initialize MetaFlow Capability` | Choose synchronization mode (`synchronize` in config) or built-in settings-only mode persisted in workspace state     |                |
+| `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                            |                |
+| `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                               |                |
+| `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                        |                |
+| `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                               |                |
 | `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability in settings-only mode |                |
-| `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                       |                |
+| `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                           |                |
 
 ## Settings
 

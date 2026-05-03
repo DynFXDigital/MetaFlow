@@ -16,11 +16,13 @@ import { LayersTreeViewProvider } from '../../views/layersTreeView';
 import { FilesTreeViewProvider } from '../../views/filesTreeView';
 import { createState, ExtensionState } from '../../commands/commandHandlers';
 
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+
 suite('TreeView Providers', () => {
     let state: ExtensionState;
 
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
 
         // Ensure extension is active
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');

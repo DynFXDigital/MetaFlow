@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { CURRENT_CONFIG_COMPATIBILITY_VERSION } from '@metaflow/engine';
 
 export function toPosixPath(value: string): string {
     return value.replace(/\\/g, '/');
@@ -39,6 +40,7 @@ export function buildConfig(
     metadataUrl?: string,
 ): Record<string, unknown> {
     return {
+        compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
         metadataRepos: [
             {
                 id: 'primary',

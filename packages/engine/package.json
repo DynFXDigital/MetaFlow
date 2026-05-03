@@ -10,7 +10,7 @@
     "build": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "clean": "rimraf out",
-    "pretest": "npm run build",
+    "pretest": "npm run clean && npm run build",
     "test": "mocha \"out/test/**/*.test.js\" --timeout 10000",
     "test:coverage": "c8 --reporter=text --reporter=lcov --include=out/src/** mocha \"out/test/**/*.test.js\" --timeout 10000"
   },

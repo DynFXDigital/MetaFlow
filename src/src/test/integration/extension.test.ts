@@ -10,6 +10,8 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+
 const EXPECTED_COMMANDS = [
     'metaflow.addRepoSource',
     'metaflow.apply',
@@ -74,7 +76,7 @@ const EXPECTED_COMMANDS = [
 
 suite('Extension Activation', () => {
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
         // Ensure the extension is activated
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {

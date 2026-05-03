@@ -49,6 +49,7 @@ suite('Init Config Helpers', () => {
             ['company'],
             'https://github.com/org/meta.git',
         ) as {
+            compatibilityVersion: number;
             metadataRepos: Array<{
                 id: string;
                 name: string;
@@ -62,6 +63,7 @@ suite('Init Config Helpers', () => {
             injection: Record<string, string>;
         };
 
+        assert.strictEqual(withUrl.compatibilityVersion, 2);
         assert.strictEqual(withUrl.metadataRepos.length, 1);
         assert.strictEqual(withUrl.metadataRepos[0].id, 'primary');
         assert.strictEqual(withUrl.metadataRepos[0].localPath, '.ai/metadata');
@@ -80,10 +82,21 @@ suite('Init Config Helpers', () => {
         assert.strictEqual(withUrl.injection.instructions, 'settings');
 
         const withoutUrl = buildConfig('.ai/metadata', ['company']) as {
+            compatibilityVersion: number;
             metadataRepos: Array<{ url?: string; capabilities?: Array<{ enabled?: boolean }> }>;
         };
+        assert.strictEqual(withoutUrl.compatibilityVersion, 2);
         assert.strictEqual(withoutUrl.metadataRepos[0].url, undefined);
         assert.strictEqual(withoutUrl.metadataRepos[0].capabilities?.[0].enabled, false);
+
+        const withoutLayers = buildConfig('.ai/empty-metadata', []) as {
+            metadataRepos: Array<{ capabilities?: Array<{ path: string }> }>;
+        };
+        assert.deepStrictEqual(
+            withoutLayers.metadataRepos[0].capabilities,
+            [],
+            'empty metadata directories should produce a valid zero-capability bootstrap config',
+        );
     });
 
     test('detectMetaflowGitIgnoreMode identifies supported ignore flavors', () => {

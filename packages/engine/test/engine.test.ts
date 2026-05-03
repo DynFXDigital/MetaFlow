@@ -1386,7 +1386,7 @@ describe('Engine: config validation', () => {
         assert.ok(result.errors.some((e) => e.message.includes('localPath')));
     });
 
-    it('validates single-repo mode requires layers', () => {
+    it('accepts single-repo mode without layers as a zero-layer bootstrap config', () => {
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
             configPath,
@@ -1397,8 +1397,11 @@ describe('Engine: config validation', () => {
         );
 
         const result = loadConfigFromPath(configPath);
-        assert.strictEqual(result.ok, false);
-        assert.ok(result.errors.some((e) => e.message.includes('layers')));
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.deepStrictEqual(result.config.metadataRepos?.[0]?.capabilities, []);
+            assert.deepStrictEqual(result.config.layerSources, []);
+        }
     });
 
     it('validates multi-repo unique IDs', () => {

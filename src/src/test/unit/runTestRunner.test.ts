@@ -17,6 +17,7 @@ type RunTestInternals = {
     withIntegrationTestSandbox: (
         run: (dirs: { userDataDir: string; extensionsDir: string }) => Promise<void>,
     ) => Promise<void>;
+    runWithTimeout: <T>(label: string, timeoutMs: number, run: () => Promise<T>) => Promise<T>;
 };
 
 function createDeps(overrides?: Partial<RunTestDeps>): {
@@ -69,7 +70,7 @@ function loadRunTestInternals(): RunTestInternals {
         if (path.resolve(filename) === path.resolve(modulePath)) {
             const source = fs.readFileSync(filename, 'utf8');
             module._compile(
-                `${source}\nmodule.exports.__test__ = { withFilteredIntegrationOutput, withIntegrationTestSandbox };\n`,
+                `${source}\nmodule.exports.__test__ = { withFilteredIntegrationOutput, withIntegrationTestSandbox, runWithTimeout };\n`,
                 filename,
             );
             return;
@@ -412,6 +413,15 @@ suite('Test Runner Entry', () => {
 
         assert.notStrictEqual(sandboxRoot, '');
         assert.strictEqual(fs.existsSync(sandboxRoot), false);
+    });
+
+    test('runWithTimeout rejects stalled runs with a cleanup-oriented timeout error', async () => {
+        const { runWithTimeout } = loadRunTestInternals();
+
+        await assert.rejects(
+            () => runWithTimeout('Integration test run', 20, async () => new Promise<void>(() => {})),
+            /Integration test run timed out after 0 seconds\. The integration sandbox will be cleaned up automatically\./,
+        );
     });
 
     test('runWithArgs selects unit runner for --unit', async () => {

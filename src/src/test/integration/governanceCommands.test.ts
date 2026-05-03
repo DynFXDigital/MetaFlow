@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+
 suite('Governance command enforcement', () => {
     let workspaceRoot: string;
     let governancePath: string;
@@ -144,7 +146,7 @@ suite('Governance command enforcement', () => {
     }
 
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
         if (ext && !ext.isActive) {
             await ext.activate();

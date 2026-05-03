@@ -144,15 +144,9 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
         errors.push({ message: 'Config must define "metadataRepo" or "metadataRepos".' });
     }
 
-    // Single-repo mode requires layers
     if (hasSingleRepo && !hasMultiRepo) {
         if (!config.metadataRepo!.localPath) {
             errors.push({ message: '"metadataRepo.localPath" is required.' });
-        }
-        if (!config.layers || config.layers.length === 0) {
-            errors.push({
-                message: '"layers" is required when using single-repo mode (metadataRepo).',
-            });
         }
     }
 

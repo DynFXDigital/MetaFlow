@@ -13,7 +13,11 @@ export {
     resolvePathFromWorkspace,
     isWithinBoundary,
 } from './configPathUtils';
-export { normalizeConfigShape, toAuthoredConfig } from './configNormalization';
+export {
+    CURRENT_CONFIG_COMPATIBILITY_VERSION,
+    normalizeConfigShape,
+    toAuthoredConfig,
+} from './configNormalization';
 export type {
     MetaFlowConfig,
     MetadataRepo,
