@@ -65,6 +65,16 @@ suite('Command Execution', function () {
         assert.fail(`Condition not met within ${timeoutMs}ms`);
     }
 
+    function summarizeCapabilityDetailsHtml(html: string | undefined): string {
+        if (!html) {
+            return 'no html';
+        }
+
+        const status = html.match(/<span class="status-pill[^"]*">[^<]+/)?.[0] ?? 'no status pill';
+        const action = html.match(/>Enable<\/a>|>Disable<\/a>/)?.[0] ?? 'no toggle action';
+        return `${status}; ${action}`;
+    }
+
     async function updateConfigAndWait(
         section: string,
         value: unknown,
@@ -1682,6 +1692,102 @@ suite('Command Execution', function () {
                 vscode.window.tabGroups.all.length,
                 initialGroupCount,
                 'Reused panel should not create a split editor group',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openCapabilityDetails refreshes enable state after details toggle', async function () {
+        this.timeout(20000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const config = {
+            metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata', enabled: true }],
+            layerSources: [{ repoId: 'details-toggle', path: 'standards/sdlc', enabled: false }],
+            filters: { include: ['**'], exclude: [] },
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const initialSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                initialSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-disabled">Disabled',
+                ),
+            );
+            assert.ok(initialSnapshot?.html?.includes('>Enable</a>'));
+            assert.ok(
+                initialSnapshot?.html?.includes(
+                    'Excluded from the active MetaFlow capability set.',
+                ),
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                repoId: 'details-toggle',
+                layerPath: 'standards/sdlc',
+                checked: true,
+            });
+
+            const enabledSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                enabledSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-enabled">Enabled',
+                ),
+                `Expected enabled status pill, got: ${summarizeCapabilityDetailsHtml(enabledSnapshot?.html)}`,
+            );
+            assert.ok(
+                enabledSnapshot?.html?.includes('>Disable</a>'),
+                `Expected Disable action, got: ${summarizeCapabilityDetailsHtml(enabledSnapshot?.html)}`,
+            );
+            assert.ok(
+                enabledSnapshot?.html?.includes('Included in the active MetaFlow capability set.'),
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                repoId: 'details-toggle',
+                layerPath: 'standards/sdlc',
+                checked: false,
+            });
+
+            const disabledSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                disabledSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-disabled">Disabled',
+                ),
+            );
+            assert.ok(disabledSnapshot?.html?.includes('>Enable</a>'));
+            assert.ok(
+                disabledSnapshot?.html?.includes(
+                    'Excluded from the active MetaFlow capability set.',
+                ),
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');

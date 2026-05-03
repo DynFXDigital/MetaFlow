@@ -21,6 +21,7 @@ import {
     resolveBuiltInCapabilityDisplayName,
     resolveBuiltInLayerEnabled,
 } from '../builtInCapability';
+import { projectConfigForProfile } from './commandHelpers';
 import {
     buildCapabilityGovernanceProjection,
     type GovernanceUiState,
@@ -202,9 +203,12 @@ export function resolveCapabilityDetailTarget(
         };
     }
 
-    if (config.metadataRepos && config.layerSources) {
+    const effectiveConfig = projectConfigForProfile(config);
+
+    if (effectiveConfig.metadataRepos && effectiveConfig.layerSources) {
         let layerIndex = requestedLayerIndex;
-        let source = typeof layerIndex === 'number' ? config.layerSources[layerIndex] : undefined;
+        let source =
+            typeof layerIndex === 'number' ? effectiveConfig.layerSources[layerIndex] : undefined;
 
         if (
             requestedLayerPath &&
@@ -212,19 +216,19 @@ export function resolveCapabilityDetailTarget(
                 (typeof arg.repoId === 'string' && source.repoId !== arg.repoId) ||
                 toPosixPath(source.path) !== requestedLayerPath)
         ) {
-            layerIndex = config.layerSources.findIndex(
+            layerIndex = effectiveConfig.layerSources.findIndex(
                 (candidate) =>
                     (typeof arg.repoId !== 'string' || candidate.repoId === arg.repoId) &&
                     toPosixPath(candidate.path) === requestedLayerPath,
             );
-            source = layerIndex >= 0 ? config.layerSources[layerIndex] : undefined;
+            source = layerIndex >= 0 ? effectiveConfig.layerSources[layerIndex] : undefined;
         }
 
         if (!source) {
             return undefined;
         }
 
-        const repo = config.metadataRepos.find((candidate) => candidate.id === source.repoId);
+        const repo = effectiveConfig.metadataRepos.find((candidate) => candidate.id === source.repoId);
         if (!repo) {
             return undefined;
         }
@@ -251,6 +255,44 @@ export function resolveCapabilityDetailTarget(
             repoId: source.repoId,
             repoLabel,
             enabled: repo.enabled !== false && source.enabled !== false,
+            builtIn: false,
+            fallbackTitle: manifest?.name?.trim() || titleCaseFromId(derivedCapabilityId),
+        };
+    }
+
+    if (effectiveConfig.metadataRepos && requestedLayerPath) {
+        const repo = effectiveConfig.metadataRepos.find(
+            (candidate) => typeof arg.repoId !== 'string' || candidate.id === arg.repoId,
+        );
+        const capability = repo?.capabilities?.find(
+            (candidate) => toPosixPath(candidate.path) === requestedLayerPath,
+        );
+
+        if (!repo || !capability) {
+            return undefined;
+        }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        const repoLabel = resolveRepoDisplayLabel(
+            repo.id,
+            repo.name,
+            repo.localPath,
+            loadRepoManifestForRoot(repoRoot)?.name,
+        );
+        const derivedCapabilityId = deriveCapabilityIdFromLayerPath(capability.path, repoRoot);
+        const manifest = loadCapabilityManifestForLayer(
+            path.join(repoRoot, capability.path),
+            derivedCapabilityId,
+        );
+
+        return {
+            capabilityId: manifest?.id ?? derivedCapabilityId,
+            layerId: `${repo.id}/${capability.path}`,
+            layerPath: capability.path,
+            layerRoot: path.join(repoRoot, capability.path),
+            repoId: repo.id,
+            repoLabel,
+            enabled: repo.enabled !== false && capability.enabled !== false,
             builtIn: false,
             fallbackTitle: manifest?.name?.trim() || titleCaseFromId(derivedCapabilityId),
         };

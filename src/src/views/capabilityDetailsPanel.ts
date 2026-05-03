@@ -17,6 +17,7 @@ export class CapabilityDetailsPanelManager implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private panelId: string | undefined;
     private currentRequest: CapabilityDetailCommandArg | undefined;
+    private currentModel: CapabilityDetailModel | undefined;
     private readonly disposables: vscode.Disposable[] = [];
 
     show(
@@ -45,6 +46,7 @@ export class CapabilityDetailsPanelManager implements vscode.Disposable {
                     this.panel = undefined;
                     this.panelId = undefined;
                     this.currentRequest = undefined;
+                    this.currentModel = undefined;
                 }),
             );
         } else {
@@ -60,11 +62,21 @@ export class CapabilityDetailsPanelManager implements vscode.Disposable {
             return;
         }
 
+        this.currentModel = model;
         this.panel.title = buildPanelTitle(model);
         this.panel.webview.html = renderCapabilityDetailsHtml(model, {
             cspSource: this.panel.webview.cspSource,
             nonce: createNonce(),
         });
+    }
+
+    updateEnabledState(enabled: boolean): CapabilityDetailsPanelSnapshot | undefined {
+        if (!this.currentModel) {
+            return this.getSnapshot();
+        }
+
+        this.update({ ...this.currentModel, enabled });
+        return this.getSnapshot();
     }
 
     getCurrentRequest(): CapabilityDetailCommandArg | undefined {
@@ -90,6 +102,7 @@ export class CapabilityDetailsPanelManager implements vscode.Disposable {
         this.panel = undefined;
         this.panelId = undefined;
         this.currentRequest = undefined;
+        this.currentModel = undefined;
 
         while (this.disposables.length > 0) {
             this.disposables.pop()?.dispose();

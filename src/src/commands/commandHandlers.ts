@@ -3241,6 +3241,37 @@ export function registerCommands(
         await vscode.commands.executeCommand('metaflow.refresh');
     };
 
+    const refreshOpenCapabilityDetailsPanel = async (options?: { enabled?: boolean }) => {
+        const request = capabilityDetailsPanel.getCurrentRequest();
+        const ws = getWorkspace();
+        if (!request || !ws || !state.config) {
+            return capabilityDetailsPanel.getSnapshot();
+        }
+
+        const target = resolveCapabilityDetailTarget(
+            state.config,
+            ws.uri.fsPath,
+            state.builtInCapability,
+            request,
+        );
+        if (!target) {
+            if (options?.enabled !== undefined) {
+                return capabilityDetailsPanel.updateEnabledState(options.enabled);
+            }
+            return capabilityDetailsPanel.getSnapshot();
+        }
+
+        const model = await loadCapabilityDetailModel(target, state.treeSummaryCache, {
+            governanceContract: state.governanceContract,
+            governanceContractErrors: state.governanceContractErrors,
+            governanceCompliance: state.governanceCompliance,
+        });
+        capabilityDetailsPanel.update(
+            options?.enabled === undefined ? model : { ...model, enabled: options.enabled },
+        );
+        return capabilityDetailsPanel.getSnapshot();
+    };
+
     // ── metaflow.refresh ───────────────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
@@ -4026,7 +4057,7 @@ export function registerCommands(
                     `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
-                return;
+                return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             }
 
             if (!state.config) {
@@ -4151,6 +4182,7 @@ export function registerCommands(
                     logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
                 }
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
                 logWarn(`Toggle layer failed: ${message}`);
