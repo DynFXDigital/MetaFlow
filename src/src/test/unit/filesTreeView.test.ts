@@ -840,6 +840,77 @@ suite('FilesTreeView – artifact-type grouping', () => {
         }
     });
 
+    test('FTV-AT-08E1: repoTree refresh invalidates cached missing directory METAFLOW metadata', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
+        mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: tmpDir } }];
+
+        try {
+            const repoRoot = path.join(tmpDir, 'rt08e1-directory-meta-refresh');
+            const folderRoot = path.join(repoRoot, 'domains', 'ui');
+            const instructionPath = path.join(
+                folderRoot,
+                '.github',
+                'instructions',
+                'guide.instructions.md',
+            );
+
+            fs.mkdirSync(path.dirname(instructionPath), { recursive: true });
+            fs.writeFileSync(instructionPath, '# Guide\n');
+
+            const files = [
+                {
+                    relativePath: '.github/instructions/guide.instructions.md',
+                    sourcePath: instructionPath,
+                    sourceLayer: 'primary/domains/ui',
+                    sourceRepo: 'primary',
+                    classification: 'settings',
+                } as EffectiveFile,
+            ];
+            const provider = new FilesTreeViewProvider(
+                makeState(files, {
+                    metadataRepos: [{ id: 'primary', localPath: 'rt08e1-directory-meta-refresh' }],
+                }),
+                () => 'repoTree',
+            ) as MockProvider & { refresh(): void };
+
+            const [repoItem] = provider.getChildren();
+            const domainsFolder = provider
+                .getChildren(repoItem)
+                .find((item) => String(item.label) === 'domains');
+            assert.ok(domainsFolder, 'expected domains folder');
+
+            const initialUiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'ui');
+            assert.ok(initialUiFolder, 'expected raw folder label before METAFLOW.md exists');
+
+            fs.writeFileSync(
+                path.join(folderRoot, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: User Interface',
+                    'description: Refreshed folder metadata.',
+                    '---',
+                    '',
+                    '# User Interface',
+                ].join('\n'),
+            );
+
+            provider.refresh();
+
+            const refreshedUiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'User Interface');
+            assert.ok(
+                refreshedUiFolder,
+                'expected refresh to invalidate cached missing directory metadata',
+            );
+        } finally {
+            mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
+        }
+    });
+
     test('FTV-AT-08F: repoTree capability folder keeps capability metadata over colocated METAFLOW', async () => {
         const { FilesTreeViewProvider } = loadFilesTreeView();
         const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;

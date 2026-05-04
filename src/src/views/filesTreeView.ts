@@ -378,10 +378,14 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
                 .filesViewMode,
     ) {
-        state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
+        state.onDidChange.event(() => {
+            this.directoryManifestByPath.clear();
+            this._onDidChangeTreeData.fire(undefined);
+        });
     }
 
     refresh(): void {
+        this.directoryManifestByPath.clear();
         this._onDidChangeTreeData.fire(undefined);
     }
 
