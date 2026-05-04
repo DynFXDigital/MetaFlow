@@ -1274,4 +1274,81 @@ suite('TreeView Providers', () => {
         const instructionsFolder = devtoolsChildren.find((i) => String(i.label) === 'instructions');
         assert.ok(instructionsFolder, 'Should show metadata category after layer path');
     });
+
+    test('FilesTreeView repoTree mode uses directory METAFLOW metadata for non-capability folders', async () => {
+        const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'metaflow-tree-dir-meta-'));
+        const folderRoot = path.join(repoRoot, 'areas', 'browsing');
+        const instructionPath = path.join(
+            folderRoot,
+            '.github',
+            'instructions',
+            'guide.instructions.md',
+        );
+
+        await fs.mkdir(path.dirname(instructionPath), { recursive: true });
+        await fs.writeFile(
+            path.join(folderRoot, 'METAFLOW.md'),
+            [
+                '---',
+                'name: Browsing Metadata',
+                'description: Human-friendly grouping metadata for repoTree browsing.',
+                '---',
+                '',
+                '# Browsing Metadata',
+            ].join('\n'),
+            'utf-8',
+        );
+        await fs.writeFile(instructionPath, '# Guide\n', 'utf-8');
+
+        state.config = {
+            metadataRepos: [
+                {
+                    id: 'ai-metadata',
+                    localPath: repoRoot,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'ai-metadata',
+                    path: 'areas/browsing',
+                },
+            ],
+        };
+
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/guide.instructions.md',
+                sourcePath: instructionPath,
+                sourceLayer: 'ai-metadata/areas/browsing',
+                sourceRepo: 'ai-metadata',
+                classification: 'settings',
+            },
+        ];
+
+        const provider = new FilesTreeViewProvider(state, () => 'repoTree');
+        const [repoFolder] = provider.getChildren();
+        const repoChildren = provider.getChildren(repoFolder as never);
+        const areasFolder = repoChildren.find((item) => String(item.label) === 'areas');
+        assert.ok(areasFolder, 'Repository should preserve the path parent for grouping folders');
+
+        const areaChildren = provider.getChildren(areasFolder as never);
+        const browsingFolder = areaChildren.find(
+            (item) => String(item.label) === 'Browsing Metadata',
+        );
+        assert.ok(
+            browsingFolder,
+            'Non-capability folder should use directory METAFLOW display metadata',
+        );
+
+        const resolvedFolder = await provider.resolveTreeItem(
+            browsingFolder!,
+            browsingFolder! as never,
+            { isCancellationRequested: false } as vscode.CancellationToken,
+        );
+        const tooltip = resolvedFolder.tooltip as vscode.MarkdownString;
+        assert.ok(
+            tooltip.value.includes('Human-friendly grouping metadata for repoTree browsing.'),
+            'Tooltip should include directory METAFLOW description',
+        );
+    });
 });

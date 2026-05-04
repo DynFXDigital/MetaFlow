@@ -7,7 +7,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { EffectiveFile, getArtifactType, ArtifactType, parseFrontmatter } from '@metaflow/engine';
+import {
+    EffectiveFile,
+    getArtifactType,
+    ArtifactType,
+    loadRepoManifestForRoot,
+    parseFrontmatter,
+} from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
 import { readManagedViewsState } from '../commands/commandHelpers';
 import {
@@ -56,6 +62,11 @@ interface FolderTooltipMetadata {
 interface SkillFolderMetadata {
     slug: string;
     displayLabel: string;
+}
+
+interface DirectoryManifestMetadata {
+    name?: string;
+    description?: string;
 }
 
 type FilesViewMode = 'unified' | 'repoTree';
@@ -359,6 +370,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     private _onDidChangeTreeData = new vscode.EventEmitter<FileTreeNode | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private readonly _parentMap = new WeakMap<FileTreeNode, FileTreeNode | undefined>();
+    private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
 
     constructor(
         private state: ExtensionState,
@@ -443,11 +455,20 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     capabilityTooltip.description,
                 );
             } else {
-                item.tooltip = buildMarkdownTooltip(`**${String(element.label)}**`, [
-                    `Folder: \`${element.folderSourcePath}\``,
-                    ...summaryLines,
-                    ...scopeLines,
-                ]);
+                const directoryTooltip = this.getDirectoryFolderTooltipMetadata(element);
+                if (directoryTooltip) {
+                    item.tooltip = buildMarkdownTooltip(
+                        directoryTooltip.title,
+                        [...directoryTooltip.details, ...summaryLines, ...scopeLines],
+                        directoryTooltip.description,
+                    );
+                } else {
+                    item.tooltip = buildMarkdownTooltip(`**${String(element.label)}**`, [
+                        `Folder: \`${element.folderSourcePath}\``,
+                        ...summaryLines,
+                        ...scopeLines,
+                    ]);
+                }
             }
         }
         return item;
@@ -718,6 +739,32 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
     }
 
+    private getDirectoryManifestMetadata(
+        folderSourcePath: string | undefined,
+    ): DirectoryManifestMetadata | undefined {
+        if (!folderSourcePath) {
+            return undefined;
+        }
+
+        const normalizedPath = path.normalize(folderSourcePath);
+        const cached = this.directoryManifestByPath.get(normalizedPath);
+        if (cached !== undefined) {
+            return cached ?? undefined;
+        }
+
+        const manifest = loadRepoManifestForRoot(normalizedPath);
+        const metadata =
+            manifest?.name?.trim() || manifest?.description?.trim()
+                ? {
+                      name: manifest.name?.trim() || undefined,
+                      description: manifest.description?.trim() || undefined,
+                  }
+                : undefined;
+
+        this.directoryManifestByPath.set(normalizedPath, metadata ?? null);
+        return metadata;
+    }
+
     private getCapabilityMetadataForPrefix(
         repoId: string | undefined,
         prefix: string,
@@ -857,6 +904,21 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         };
     }
 
+    private getDirectoryFolderTooltipMetadata(
+        element: FolderItem,
+    ): FolderTooltipMetadata | undefined {
+        const metadata = this.getDirectoryManifestMetadata(element.folderSourcePath);
+        if (!metadata) {
+            return undefined;
+        }
+
+        return {
+            title: `**${String(element.label)}**`,
+            description: metadata.description ? `*${metadata.description}*` : undefined,
+            details: element.folderSourcePath ? [`Folder: \`${element.folderSourcePath}\``] : [],
+        };
+    }
+
     private getRepoIdForFiles(files: EffectiveFile[], roots: SourceRoot[]): string | undefined {
         const representative = files[0];
         if (!representative) {
@@ -987,6 +1049,35 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
 
         return sourceFolder;
+    }
+
+    private getRepoTreeFolderSourcePath(
+        files: EffectiveFile[],
+        prefix: string,
+        roots: SourceRoot[],
+    ): string | undefined {
+        if (files.length === 0 || !prefix) {
+            return undefined;
+        }
+
+        const representative = files[0];
+        const sourceRoot = this.getSourceRoot(representative, roots)?.rootPath;
+        const absoluteSourceRepo =
+            typeof representative.sourceRepo === 'string' && path.isAbsolute(representative.sourceRepo)
+                ? path.normalize(representative.sourceRepo)
+                : undefined;
+        const repoRootPath = sourceRoot || absoluteSourceRepo;
+
+        if (!repoRootPath) {
+            return this.getFolderSourcePath(
+                files,
+                prefix,
+                roots,
+                (file: EffectiveFile) => getDisplayPathForRepoTree(file),
+            );
+        }
+
+        return path.join(repoRootPath, ...prefix.split('/').filter(Boolean));
     }
 
     private getChildrenRepoTree(roots: SourceRoot[]): FileTreeNode[] {
@@ -1122,17 +1213,23 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 const repoId = this.getRepoIdForFiles(subset, roots);
                 const capability = this.getCapabilityMetadataForPrefix(repoId, nextPrefix, subset);
                 const segmentLabel = path.posix.basename(nextPrefix);
-                const folderSourcePath = this.getFolderSourcePath(
+                const folderSourcePath = this.getRepoTreeFolderSourcePath(
                     subset,
                     nextPrefix,
                     roots,
-                    (file: EffectiveFile) => getDisplayPathForRepoTree(file),
                 );
                 const skillMetadata = nextPrefix.includes('/skills/')
                     ? this.getSkillFolderMetadata(folderSourcePath, segmentLabel)
                     : undefined;
+                const directoryMetadata =
+                    capability || skillMetadata
+                        ? undefined
+                        : this.getDirectoryManifestMetadata(folderSourcePath);
                 const displayLabel =
-                    capability?.name?.trim() || skillMetadata?.displayLabel || segmentLabel;
+                    capability?.name?.trim() ||
+                    skillMetadata?.displayLabel ||
+                    directoryMetadata?.name?.trim() ||
+                    segmentLabel;
                 const descriptionBase = this.buildDescriptionBase(displayLabel, [
                     capability?.id,
                     skillMetadata?.slug,
