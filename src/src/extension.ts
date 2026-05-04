@@ -25,6 +25,7 @@ import { ConfigTreeViewProvider } from './views/configTreeView';
 import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
+import { StagedTreeExpandController } from './views/stagedTreeExpand';
 import {
     loadCapabilityDetailModel,
     resolveCapabilityDetailTarget,
@@ -198,26 +199,49 @@ export function activate(context: vscode.ExtensionContext): void {
         treeDataProvider: filesTreeViewProvider,
     });
 
+    const layersExpandController = new StagedTreeExpandController(
+        layersTreeView,
+        layersTreeViewProvider,
+    );
+    const filesExpandController = new StagedTreeExpandController(
+        filesTreeView,
+        filesTreeViewProvider,
+    );
+
     context.subscriptions.push(
         configTreeView,
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
         filesTreeView,
+        layersExpandController,
+        filesExpandController,
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.collapseAllLayers', () => {
-            vscode.commands.executeCommand(
+        vscode.commands.registerCommand('metaflow.collapseAllLayers', async () => {
+            layersExpandController.reset();
+            await vscode.commands.executeCommand(
                 'workbench.actions.treeView.metaflow-layers.collapseAll',
             );
         }),
         vscode.commands.registerCommand('metaflow.expandAllLayers', async () => {
+            if (layersTreeViewProvider.getExpandAllStrategy() === 'staged') {
+                await layersExpandController.expandAll();
+                return;
+            }
             await revealAll(layersTreeView, layersTreeViewProvider);
         }),
-        vscode.commands.registerCommand('metaflow.collapseAllFiles', () => {
-            vscode.commands.executeCommand('workbench.actions.treeView.metaflow-files.collapseAll');
+        vscode.commands.registerCommand('metaflow.collapseAllFiles', async () => {
+            filesExpandController.reset();
+            await vscode.commands.executeCommand(
+                'workbench.actions.treeView.metaflow-files.collapseAll',
+            );
         }),
         vscode.commands.registerCommand('metaflow.expandAllFiles', async () => {
+            if (filesTreeViewProvider.getExpandAllStrategy() === 'staged') {
+                await filesExpandController.expandAll();
+                return;
+            }
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand(

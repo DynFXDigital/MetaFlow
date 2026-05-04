@@ -38,6 +38,7 @@ import {
     summarizeRepo,
     SummaryArtifactType,
 } from '../treeSummary';
+import type { ExpandAllStrategy, StagedExpandPlan } from './stagedTreeExpand';
 
 interface SourceRoot {
     rootPath: string;
@@ -1335,7 +1336,72 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return this.trackChildren(this.groupByArtifactType(files, rootRepoId), undefined);
     }
 
+    getExpandAllStrategy(): ExpandAllStrategy {
+        return this.modeResolver() === 'repoTree' ? 'staged' : 'recursive';
+    }
+
+    getStagedExpandPlan(): StagedExpandPlan<FileTreeNode> {
+        if (this.getExpandAllStrategy() !== 'staged') {
+            return { stageOne: [], stageTwo: [] };
+        }
+
+        const stageOne: FileTreeNode[] = [];
+        const stageTwo: FileTreeNode[] = [];
+        const stageOneSeen = new Set<string>();
+        const stageTwoSeen = new Set<string>();
+
+        const visit = (node: FileTreeNode, ancestors: FileTreeNode[]): void => {
+            const children = this.getChildren(node);
+            const isBoundary =
+                (node instanceof RepoItem || node instanceof FolderItem) &&
+                children.some((child) => child instanceof ArtifactTypeItem);
+
+            if (isBoundary) {
+                for (const ancestor of ancestors) {
+                    this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
+                }
+                this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
+                return;
+            }
+
+            const nextAncestors =
+                node.collapsibleState === vscode.TreeItemCollapsibleState.None
+                    ? ancestors
+                    : [...ancestors, node];
+
+            for (const child of children) {
+                visit(child, nextAncestors);
+            }
+        };
+
+        for (const root of this.getChildren()) {
+            visit(root, []);
+        }
+
+        return { stageOne, stageTwo };
+    }
+
     getParent(element: FileTreeNode): FileTreeNode | undefined {
         return this._parentMap.get(element);
+    }
+
+    private appendExpandPlanNode(
+        target: FileTreeNode[],
+        seen: Set<string>,
+        node: FileTreeNode,
+    ): void {
+        if (node.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            return;
+        }
+
+        const key = typeof node.id === 'string' ? node.id : undefined;
+        if (key && seen.has(key)) {
+            return;
+        }
+
+        if (key) {
+            seen.add(key);
+        }
+        target.push(node);
     }
 }

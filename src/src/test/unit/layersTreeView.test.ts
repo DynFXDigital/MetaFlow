@@ -94,6 +94,11 @@ type LayersTreeViewModule = {
         modeResolver?: () => string,
     ) => {
         getChildren(element?: MockLayerTreeItem): MockLayerTreeItem[];
+        getExpandAllStrategy(): string;
+        getStagedExpandPlan(): {
+            stageOne: MockLayerTreeItem[];
+            stageTwo: MockLayerTreeItem[];
+        };
         getParent(element: MockLayerTreeItem): MockLayerTreeItem | undefined;
     };
 };
@@ -1991,5 +1996,49 @@ suite('LayersTreeView – artifact-type children', () => {
             '(0/0, repo disabled)',
             `tree-mode description should keep status but omit path and repo label, got: ${leafNode.description}`,
         );
+    });
+
+    test('LTV-SEA-01: tree mode stops stage one at capability depth and stage two at artifact toggles', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [{ repoId: 'repo1', path: 'capabilities/devtools' }],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools': { name: 'Developer Tools' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES, capabilityByLayer),
+            () => 'tree',
+        );
+
+        assert.strictEqual(provider.getExpandAllStrategy(), 'staged');
+
+        const plan = provider.getStagedExpandPlan();
+
+        assert.deepStrictEqual(
+            plan.stageOne.map((item) => String(item.label)),
+            ['CoreMeta', 'capabilities'],
+        );
+        assert.deepStrictEqual(
+            plan.stageTwo.map((item) => String(item.label)),
+            ['Developer Tools'],
+        );
+        assert.ok(
+            plan.stageTwo.every((item) => item.contextValue === 'layer'),
+            'stage two should stop at capability nodes instead of expanding artifact contents',
+        );
+        assert.ok(
+            !plan.stageOne.concat(plan.stageTwo).some((item) => String(item.label) === 'skills'),
+            'skill folders should never be auto-expanded by the staged plan',
+        );
+    });
+
+    test('LTV-SEA-02: flat mode keeps recursive expand behavior', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const provider = new LayersTreeViewProvider(makeState(makeMultiRepoConfig(), []), () => 'flat');
+
+        assert.strictEqual(provider.getExpandAllStrategy(), 'recursive');
+        assert.deepStrictEqual(provider.getStagedExpandPlan(), { stageOne: [], stageTwo: [] });
     });
 });

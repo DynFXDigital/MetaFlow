@@ -75,6 +75,11 @@ type MockItem = {
 
 type MockProvider = {
     getChildren(element?: MockItem): MockItem[];
+    getExpandAllStrategy?(): string;
+    getStagedExpandPlan?(): {
+        stageOne: MockItem[];
+        stageTwo: MockItem[];
+    };
     getParent?(element: MockItem): MockItem | undefined;
     resolveTreeItem?(item: MockItem, element: MockItem, token: unknown): Promise<MockItem>;
 };
@@ -1764,5 +1769,63 @@ suite('FilesTreeView – artifact-type grouping', () => {
             tooltipText.includes('Sync the shared Copilot Pack.'),
             `expected description, got: ${tooltipText}`,
         );
+    });
+
+    test('FTV-SEA-01: repoTree staged expand stops at capability folders, then artifact types', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [
+            {
+                ...makeFile(
+                    '.github/instructions/a.md',
+                    '/repo/capabilities/agent-commit-coordination/.github/instructions/a.md',
+                    'primary/capabilities/agent-commit-coordination',
+                ),
+                sourceRepo: 'primary',
+                sourceCapabilityId: 'agent-commit-coordination',
+                sourceCapabilityName: 'Agent Commit Coordination',
+            } as EffectiveFile,
+            {
+                relativePath: '.github/skills/agent-commit-coordination/SKILL.md',
+                sourcePath:
+                    '/repo/capabilities/agent-commit-coordination/.github/skills/agent-commit-coordination/SKILL.md',
+                sourceLayer: 'primary/capabilities/agent-commit-coordination',
+                sourceRepo: 'primary',
+                classification: 'settings',
+            } as EffectiveFile,
+        ];
+        const provider = new FilesTreeViewProvider(
+            makeState(files, {
+                metadataRepos: [{ id: 'primary', name: 'Team Metadata', localPath: '/repo' }],
+            }),
+            () => 'repoTree',
+        );
+
+        assert.strictEqual(provider.getExpandAllStrategy?.(), 'staged');
+
+        const plan = provider.getStagedExpandPlan?.();
+        assert.ok(plan, 'expected staged expand plan');
+        assert.deepStrictEqual(
+            plan!.stageOne.map((item) => String(item.label)),
+            ['Team Metadata', 'capabilities'],
+        );
+        assert.deepStrictEqual(
+            plan!.stageTwo.map((item) => String(item.label)),
+            ['Agent Commit Coordination'],
+        );
+        assert.ok(
+            !plan!.stageOne.concat(plan!.stageTwo).some((item) => String(item.label) === 'skills'),
+            'stage plan must stop before skill folder internals',
+        );
+    });
+
+    test('FTV-SEA-02: unified mode keeps recursive expand behavior', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const provider = new FilesTreeViewProvider(
+            makeState([makeFile('.github/instructions/a.md')]),
+            () => 'unified',
+        );
+
+        assert.strictEqual(provider.getExpandAllStrategy?.(), 'recursive');
+        assert.deepStrictEqual(provider.getStagedExpandPlan?.(), { stageOne: [], stageTwo: [] });
     });
 });

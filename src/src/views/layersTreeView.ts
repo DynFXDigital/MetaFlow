@@ -48,6 +48,7 @@ import {
     type CapabilityGovernanceProjection,
     type RepoGovernanceProjection,
 } from '../governanceSignals';
+import type { ExpandAllStrategy, StagedExpandPlan } from './stagedTreeExpand';
 
 const KNOWN_ARTIFACT_TYPES = new Set<ExcludableArtifactType>([
     'instructions',
@@ -1931,7 +1932,71 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return this.trackChildren(this.getTreeChildrenForPrefix(entries, ''), undefined);
     }
 
+    getExpandAllStrategy(): ExpandAllStrategy {
+        return this.modeResolver() === 'tree' ? 'staged' : 'recursive';
+    }
+
+    getStagedExpandPlan(): StagedExpandPlan<LayerTreeItem> {
+        if (this.getExpandAllStrategy() !== 'staged') {
+            return { stageOne: [], stageTwo: [] };
+        }
+
+        const stageOne: LayerTreeItem[] = [];
+        const stageTwo: LayerTreeItem[] = [];
+        const stageOneSeen = new Set<string>();
+        const stageTwoSeen = new Set<string>();
+
+        const visit = (node: LayerTreeItem, ancestors: LayerTreeItem[]): void => {
+            if (
+                node instanceof LayerItem &&
+                typeof node.layerIndex === 'number' &&
+                node.collapsibleState !== vscode.TreeItemCollapsibleState.None
+            ) {
+                for (const ancestor of ancestors) {
+                    this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
+                }
+                this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
+                return;
+            }
+
+            const nextAncestors =
+                node.collapsibleState === vscode.TreeItemCollapsibleState.None
+                    ? ancestors
+                    : [...ancestors, node];
+
+            for (const child of this.getChildren(node)) {
+                visit(child, nextAncestors);
+            }
+        };
+
+        for (const root of this.getChildren()) {
+            visit(root, []);
+        }
+
+        return { stageOne, stageTwo };
+    }
+
     getParent(element: LayerTreeItem): LayerTreeItem | undefined {
         return this._parentMap.get(element);
+    }
+
+    private appendExpandPlanNode(
+        target: LayerTreeItem[],
+        seen: Set<string>,
+        node: LayerTreeItem,
+    ): void {
+        if (node.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            return;
+        }
+
+        const key = typeof node.id === 'string' ? node.id : undefined;
+        if (key && seen.has(key)) {
+            return;
+        }
+
+        if (key) {
+            seen.add(key);
+        }
+        target.push(node);
     }
 }
