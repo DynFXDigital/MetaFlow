@@ -1813,6 +1813,12 @@ suite('FilesTreeView – artifact-type grouping', () => {
             ['Agent Commit Coordination'],
         );
         assert.ok(
+            plan!.stageOne.concat(plan!.stageTwo).every(
+                (item) => typeof (item as { id?: unknown }).id === 'string',
+            ),
+            'staged files-tree targets should have stable ids for expansion tracking',
+        );
+        assert.ok(
             !plan!.stageOne.concat(plan!.stageTwo).some((item) => String(item.label) === 'skills'),
             'stage plan must stop before skill folder internals',
         );

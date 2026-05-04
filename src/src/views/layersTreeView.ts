@@ -1952,7 +1952,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 typeof node.layerIndex === 'number' &&
                 node.collapsibleState !== vscode.TreeItemCollapsibleState.None
             ) {
-                for (const ancestor of ancestors) {
+                for (const ancestor of this.getExpandPlanAncestors(node, ancestors)) {
                     this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
                 }
                 this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
@@ -1974,6 +1974,23 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         return { stageOne, stageTwo };
+    }
+
+    private getExpandPlanAncestors(
+        node: LayerTreeItem,
+        ancestors: LayerTreeItem[],
+    ): LayerTreeItem[] {
+        if (ancestors.length > 0) {
+            return ancestors;
+        }
+
+        const resolved: LayerTreeItem[] = [];
+        let current = this.getParent(node);
+        while (current) {
+            resolved.unshift(current);
+            current = this.getParent(current);
+        }
+        return resolved;
     }
 
     getParent(element: LayerTreeItem): LayerTreeItem | undefined {

@@ -247,6 +247,7 @@ class RepoItem extends vscode.TreeItem {
         repoPath?: string,
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.id = `effectiveRepo:${repoId}`;
         this.contextValue = 'effectiveRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
         this.description = formatSummaryDescription(descriptionBase, summary);
@@ -303,6 +304,7 @@ class FolderItem extends vscode.TreeItem {
         descriptionBase?: string,
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.id = `effectiveFolder:${repoId ?? 'no-repo'}:${artifactType ?? 'folder'}:${prefix || '.'}`;
         this.contextValue = 'effectiveFolder';
         this.iconPath = new vscode.ThemeIcon('folder');
         if (summary) {
@@ -1357,7 +1359,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 children.some((child) => child instanceof ArtifactTypeItem);
 
             if (isBoundary) {
-                for (const ancestor of ancestors) {
+                for (const ancestor of this.getExpandPlanAncestors(node, ancestors)) {
                     this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
                 }
                 this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
@@ -1379,6 +1381,20 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
 
         return { stageOne, stageTwo };
+    }
+
+    private getExpandPlanAncestors(node: FileTreeNode, ancestors: FileTreeNode[]): FileTreeNode[] {
+        if (ancestors.length > 0) {
+            return ancestors;
+        }
+
+        const resolved: FileTreeNode[] = [];
+        let current = this.getParent(node);
+        while (current) {
+            resolved.unshift(current);
+            current = this.getParent(current);
+        }
+        return resolved;
     }
 
     getParent(element: FileTreeNode): FileTreeNode | undefined {

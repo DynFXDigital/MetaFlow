@@ -2008,7 +2008,16 @@ suite('LayersTreeView – artifact-type children', () => {
             'repo1/capabilities/devtools': { name: 'Developer Tools' },
         };
         const provider = new LayersTreeViewProvider(
-            makeState(config, ALL_TYPES_FILES, capabilityByLayer),
+            makeState(
+                config,
+                [
+                    makeEffectiveFile('instructions/a.md', 'repo1', 'capabilities/devtools'),
+                    makeEffectiveFile('prompts/b.md', 'repo1', 'capabilities/devtools'),
+                    makeEffectiveFile('agents/c.md', 'repo1', 'capabilities/devtools'),
+                    makeEffectiveFile('skills/d.md', 'repo1', 'capabilities/devtools'),
+                ],
+                capabilityByLayer,
+            ),
             () => 'tree',
         );
 
