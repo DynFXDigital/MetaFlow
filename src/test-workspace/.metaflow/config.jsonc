@@ -1,10 +1,8 @@
 {
-  "compatibilityVersion": 2,
   "metadataRepos": [
     {
       "id": "primary",
       "localPath": ".ai/ai-metadata",
-      "enabled": true,
       "capabilities": [
         {
           "path": "company/core",
@@ -12,17 +10,11 @@
         },
         {
           "path": "standards/sdlc",
-          "enabled": false
+          "enabled": true
         }
       ]
     }
   ],
-  "filters": {
-    "include": [
-      "**/*"
-    ],
-    "exclude": []
-  },
   "profiles": {
     "default": {
       "displayName": "Default",
@@ -37,5 +29,6 @@
       ]
     }
   },
-  "activeProfile": "default"
+  "activeProfile": "default",
+  "compatibilityVersion": 2
 }
