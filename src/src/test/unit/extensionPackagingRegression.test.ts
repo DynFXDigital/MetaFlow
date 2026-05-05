@@ -192,7 +192,7 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(pullCommand, 'Expected metaflow.pullRepository command contribution');
     });
 
-    test('Create CAPABILITY.md is contributed for the command palette and config view title', () => {
+    test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -211,8 +211,23 @@ suite('Extension Packaging Regression Guards', () => {
         const titleEntry = titleMenuEntries.find(
             (entry) => entry.command === 'metaflow.createCapabilityManifest',
         );
-        assert.ok(titleEntry, 'Expected Create CAPABILITY.md in the config view title menu');
-        assert.strictEqual(titleEntry?.when, 'view == metaflow-config');
+        assert.ok(titleEntry, 'Expected Create CAPABILITY.md in the Capabilities view title menu');
+        assert.strictEqual(
+            titleEntry?.when,
+            'view == metaflow-layers && metaflow.layersViewMode == flat',
+        );
+
+        const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
+        const contextEntry = contextMenuEntries.find(
+            (entry) =>
+                entry.command === 'metaflow.createCapabilityManifest' &&
+                entry.when ===
+                    'view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)',
+        );
+        assert.ok(
+            contextEntry,
+            'Expected Create CAPABILITY.md in the Capabilities item context menu',
+        );
     });
 
     test('built-in capability removal uses trash icon and row-level context action', () => {

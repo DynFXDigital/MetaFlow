@@ -1852,56 +1852,135 @@ suite('Command Execution', function () {
         }
     });
 
-    test('createCapabilityManifest opens bundled guidance and seeds a CAPABILITY.md draft', async function () {
+    test('createCapabilityManifest opens guidance and writes CAPABILITY.md to a prompted contextual directory', async function () {
         this.timeout(15000);
 
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 
-        const result = (await vscode.commands.executeCommand(
-            'metaflow.createCapabilityManifest',
-        )) as
-            | {
-                  guidancePath?: string;
-                  examplePath?: string;
-                  draftUri?: string;
-              }
-            | undefined;
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-capability-create-context');
+        const layerPath = 'capabilities/context-target';
+        const layerRoot = path.join(repoRoot, 'capabilities', 'context-target');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(layerRoot, { recursive: true });
 
-        assert.ok(result?.guidancePath, 'guided create should return the bundled guidance path');
-        assert.ok(result?.examplePath, 'guided create should return the bundled example path');
-        assert.strictEqual(result?.draftUri, 'untitled:CAPABILITY.md');
+        const config = {
+            metadataRepos: [
+                {
+                    id: 'context-repo',
+                    localPath: '.tmp-capability-create-context',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'context-repo',
+                    path: layerPath,
+                    enabled: true,
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
 
-        assert.ok(
-            vscode.workspace.textDocuments.some(
-                (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
-            ),
-            'guided create should open the bundled capability-contract guidance',
-        );
-        assert.ok(
-            vscode.workspace.textDocuments.some(
-                (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
-            ),
-            'guided create should open the bundled example CAPABILITY.md',
-        );
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
 
-        assert.ok(vscode.window.activeTextEditor, 'guided create should leave the draft editor active');
-        assert.strictEqual(
-            vscode.window.activeTextEditor!.document.uri.toString(),
-            'untitled:CAPABILITY.md',
-            'guided create should open a CAPABILITY.md draft editor',
-        );
-        assert.ok(
-            vscode.window.activeTextEditor!.document.getText().includes('name: Capability Name'),
-            'guided create should seed the draft with frontmatter guidance',
-        );
-        assert.ok(
-            vscode.window.activeTextEditor!.document
-                .getText()
-                .includes('# Capability: Capability Name'),
-            'guided create should seed the draft with the recommended heading structure',
-        );
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
 
-        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'suggested')) {
+                return picks.find((pick) => pick.mode === 'suggested') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => undefined;
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const result = (await vscode.commands.executeCommand('metaflow.createCapabilityManifest', {
+                repoId: 'context-repo',
+                layerPath,
+            })) as
+                | {
+                      guidancePath?: string;
+                      examplePath?: string;
+                      draftUri?: string;
+                      manifestPath?: string;
+                      targetDirectory?: string;
+                  }
+                | undefined;
+
+            assert.ok(
+                result?.guidancePath,
+                'guided create should return the bundled guidance path',
+            );
+            assert.ok(
+                result?.examplePath,
+                'guided create should return the bundled example path',
+            );
+
+            const expectedManifestPath = path.join(layerRoot, 'CAPABILITY.md');
+            assert.strictEqual(
+                path.normalize(result?.manifestPath ?? ''),
+                path.normalize(expectedManifestPath),
+                'guided create should target the contextual capability directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.targetDirectory ?? ''),
+                path.normalize(layerRoot),
+                'guided create should return the selected destination directory',
+            );
+            assert.strictEqual(
+                result?.draftUri,
+                vscode.Uri.file(expectedManifestPath).toString(),
+                'guided create should return the created CAPABILITY.md uri',
+            );
+
+            assert.ok(
+                vscode.workspace.textDocuments.some(
+                    (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
+                ),
+                'guided create should open the bundled capability-contract guidance',
+            );
+            assert.ok(
+                vscode.workspace.textDocuments.some(
+                    (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
+                ),
+                'guided create should open the bundled example CAPABILITY.md',
+            );
+
+            assert.ok(vscode.window.activeTextEditor, 'guided create should leave CAPABILITY.md active');
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(expectedManifestPath),
+                'guided create should open the created CAPABILITY.md file',
+            );
+            assert.ok(
+                vscode.window.activeTextEditor!.document.getText().includes('name: Capability Name'),
+                'guided create should seed CAPABILITY.md with frontmatter guidance',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
     });
 
     test('checking a layer enables its disabled repo source', async function () {

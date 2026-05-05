@@ -373,14 +373,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "metaflow.createCapabilityManifest",
-          "when": "view == metaflow-config",
-          "group": "navigation@4"
-        },
-        {
           "command": "metaflow.toggleFilesViewMode",
           "when": "view == metaflow-files",
           "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.createCapabilityManifest",
+          "when": "view == metaflow-layers && metaflow.layersViewMode == flat",
+          "group": "navigation@1"
         },
         {
           "command": "metaflow.toggleLayersViewMode",
@@ -483,6 +483,11 @@
           "command": "metaflow.openCapabilityDetails",
           "when": "view == metaflow-layers && viewItem == layer",
           "group": "inline@1"
+        },
+        {
+          "command": "metaflow.createCapabilityManifest",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "inline@2"
         },
         {
           "command": "metaflow.expandFilesBranch",

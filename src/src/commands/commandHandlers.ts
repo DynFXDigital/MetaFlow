@@ -2850,6 +2850,217 @@ const BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
     'CAPABILITY.md',
 );
 
+interface CapabilityManifestDestinationPick extends vscode.QuickPickItem {
+    mode: 'suggested' | 'existing' | 'create';
+    targetDirectory?: string;
+}
+
+interface FlatCapabilityDirectoryPick extends vscode.QuickPickItem {
+    targetDirectory: string;
+}
+
+function normalizeCapabilityDirectorySegment(value: string | undefined): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim().replace(/\\/g, '/');
+    if (normalized.length === 0 || normalized === '.' || normalized === '(root)') {
+        return undefined;
+    }
+
+    return normalized;
+}
+
+function resolveCapabilityManifestSuggestedDirectory(
+    state: ExtensionState,
+    workspaceRoot: string,
+    arg: unknown,
+): string | undefined {
+    if (!state.config) {
+        return undefined;
+    }
+
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const { metadataRepos, layerSources } = ensureMultiRepoConfig(projectedConfig);
+    const requestedRepoId = extractRepoId(arg);
+    const requestedLayerPath = normalizeCapabilityDirectorySegment(extractLayerPath(arg));
+    const requestedLayerIndex = extractLayerIndex(arg);
+
+    if (requestedRepoId === BUILT_IN_CAPABILITY_REPO_ID) {
+        return undefined;
+    }
+
+    if (typeof requestedRepoId === 'string') {
+        const repo = metadataRepos.find((candidate) => candidate.id === requestedRepoId);
+        if (!repo) {
+            return undefined;
+        }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        let targetPath = requestedLayerPath;
+
+        if (!targetPath && typeof requestedLayerIndex === 'number') {
+            const layerSource = layerSources[requestedLayerIndex];
+            if (layerSource?.repoId === requestedRepoId) {
+                targetPath = normalizeCapabilityDirectorySegment(layerSource.path);
+            }
+        }
+
+        return targetPath ? path.join(repoRoot, targetPath) : repoRoot;
+    }
+
+    if (requestedLayerPath && typeof requestedLayerIndex === 'number') {
+        const source = layerSources[requestedLayerIndex];
+        if (!source || source.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+            return undefined;
+        }
+
+        const repo = metadataRepos.find((candidate) => candidate.id === source.repoId);
+        if (!repo) {
+            return undefined;
+        }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        return path.join(repoRoot, requestedLayerPath);
+    }
+
+    return undefined;
+}
+
+async function promptForFlatCapabilityDirectory(
+    state: ExtensionState,
+    workspaceRoot: string,
+): Promise<string | undefined> {
+    if (!state.config) {
+        return undefined;
+    }
+
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const { metadataRepos, layerSources } = ensureMultiRepoConfig(projectedConfig);
+
+    const picks: FlatCapabilityDirectoryPick[] = [];
+    for (const layerSource of layerSources) {
+        if (layerSource.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+            continue;
+        }
+
+        const repo = metadataRepos.find((candidate) => candidate.id === layerSource.repoId);
+        if (!repo) {
+            continue;
+        }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        const normalizedLayerPath = normalizeCapabilityDirectorySegment(layerSource.path);
+        const targetDirectory = normalizedLayerPath
+            ? path.join(repoRoot, normalizedLayerPath)
+            : repoRoot;
+        const repoLabel = resolveRepoDisplayLabel(
+            repo.id,
+            repo.name,
+            repo.localPath,
+            state.repoMetadataById[repo.id]?.name,
+        );
+        const layerLabel = normalizedLayerPath ?? '(root)';
+
+        picks.push({
+            label: `${repoLabel} / ${layerLabel}`,
+            description: repo.id,
+            detail: targetDirectory,
+            targetDirectory,
+        });
+    }
+
+    if (picks.length === 0) {
+        return undefined;
+    }
+
+    const selected = await vscode.window.showQuickPick(picks, {
+        title: 'MetaFlow: Select Capability Destination',
+        placeHolder: 'Select the capability directory to start from',
+        ignoreFocusOut: true,
+    });
+
+    return selected?.targetDirectory;
+}
+
+async function promptForCapabilityManifestDirectory(options: {
+    workspaceRoot: string;
+    suggestedDirectory?: string;
+}): Promise<string | undefined> {
+    const picks: CapabilityManifestDestinationPick[] = [];
+    if (options.suggestedDirectory) {
+        picks.push({
+            label: 'Use suggested directory',
+            description: options.suggestedDirectory,
+            detail: 'Create or open CAPABILITY.md in the contextual destination',
+            mode: 'suggested',
+            targetDirectory: options.suggestedDirectory,
+        });
+    }
+
+    picks.push(
+        {
+            label: 'Choose existing directory',
+            detail: 'Pick an existing folder for CAPABILITY.md',
+            mode: 'existing',
+        },
+        {
+            label: 'Create new directory',
+            detail: 'Enter a directory path and create it if needed',
+            mode: 'create',
+        },
+    );
+
+    const selected = await vscode.window.showQuickPick(picks, {
+        title: 'MetaFlow: Choose CAPABILITY.md Destination',
+        placeHolder: 'Select how to choose the destination directory',
+        ignoreFocusOut: true,
+    });
+
+    if (!selected) {
+        return undefined;
+    }
+
+    if (selected.mode === 'suggested') {
+        return selected.targetDirectory;
+    }
+
+    if (selected.mode === 'existing') {
+        const picked = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Use Directory',
+            defaultUri: vscode.Uri.file(options.suggestedDirectory ?? options.workspaceRoot),
+        });
+        return picked?.[0]?.fsPath;
+    }
+
+    const input = await vscode.window.showInputBox({
+        title: 'MetaFlow: Create Capability Directory',
+        prompt: 'Enter a directory path (absolute or relative to workspace root)',
+        placeHolder: 'capabilities/new-capability',
+        ignoreFocusOut: true,
+        validateInput: (value) => {
+            if (!value.trim()) {
+                return 'Directory path is required.';
+            }
+            return undefined;
+        },
+    });
+
+    if (!input) {
+        return undefined;
+    }
+
+    const targetPath = path.isAbsolute(input.trim())
+        ? input.trim()
+        : path.join(options.workspaceRoot, input.trim());
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(targetPath));
+    return targetPath;
+}
+
 function buildCapabilityManifestStarterTemplate(): string {
     return [
         '---',
@@ -5746,7 +5957,30 @@ export function registerCommands(
 
     // ── metaflow.createCapabilityManifest ─────────────────────────
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.createCapabilityManifest', async () => {
+        vscode.commands.registerCommand('metaflow.createCapabilityManifest', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            let suggestedDirectory = resolveCapabilityManifestSuggestedDirectory(
+                state,
+                ws.uri.fsPath,
+                arg,
+            );
+
+            if (!suggestedDirectory && !extractRepoId(arg) && !extractLayerPath(arg)) {
+                suggestedDirectory = await promptForFlatCapabilityDirectory(state, ws.uri.fsPath);
+            }
+
+            const targetDirectory = await promptForCapabilityManifestDirectory({
+                workspaceRoot: ws.uri.fsPath,
+                suggestedDirectory,
+            });
+            if (!targetDirectory) {
+                return;
+            }
+
             const guidancePath = path.join(
                 context.extensionPath,
                 BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
@@ -5777,27 +6011,29 @@ export function registerCommands(
                 preserveFocus: true,
             });
 
-            const untitledUri = vscode.Uri.parse('untitled:CAPABILITY.md');
-            const draftDoc = await vscode.workspace.openTextDocument(untitledUri);
-            const editor = await vscode.window.showTextDocument(draftDoc, {
+            await fsp.mkdir(targetDirectory, { recursive: true });
+            const manifestPath = path.join(targetDirectory, 'CAPABILITY.md');
+            const manifestExists = fs.existsSync(manifestPath);
+            if (!manifestExists) {
+                await fsp.writeFile(manifestPath, buildCapabilityManifestStarterTemplate(), 'utf-8');
+            }
+
+            const draftDoc = await vscode.workspace.openTextDocument(manifestPath);
+            await vscode.window.showTextDocument(draftDoc, {
                 preview: false,
                 viewColumn: vscode.ViewColumn.Active,
             });
 
-            if (draftDoc.getText().length === 0) {
-                await editor.edit((editBuilder) => {
-                    editBuilder.insert(new vscode.Position(0, 0), buildCapabilityManifestStarterTemplate());
-                });
-            }
-
             vscode.window.showInformationMessage(
-                'MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and a new CAPABILITY.md draft.',
+                `MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and ${manifestExists ? 'opened' : 'created'} ${manifestPath}.`,
             );
 
             return {
                 guidancePath,
                 examplePath,
-                draftUri: untitledUri.toString(),
+                draftUri: draftDoc.uri.toString(),
+                manifestPath,
+                targetDirectory,
             };
         }),
     );
