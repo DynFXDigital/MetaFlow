@@ -17,15 +17,20 @@
   ],
   "profiles": {
     "default": {
-      "displayName": "Default",
       "enable": [
         "**/*"
-      ]
-    },
-    "review": {
-      "displayName": "Review",
-      "enable": [
-        "**/*"
+      ],
+      "layerOverrides": [
+        {
+          "repoId": "primary",
+          "path": "company/core",
+          "enabled": false
+        },
+        {
+          "repoId": "primary",
+          "path": "standards/sdlc",
+          "enabled": false
+        }
       ]
     }
   },
