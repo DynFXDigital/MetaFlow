@@ -1884,6 +1884,63 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-NF-04b: tree mode – folder-only node prefers directory METAFLOW metadata', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ltv-directory-metadata-'));
+
+        try {
+            const capabilitiesFolder = path.join(repoRoot, 'capabilities');
+            fs.mkdirSync(capabilitiesFolder, { recursive: true });
+            fs.writeFileSync(
+                path.join(capabilitiesFolder, 'METAFLOW.md'),
+                '---\nname: Capability Catalog\ndescription: Shared grouping metadata for capability folders.\n---\n',
+                'utf-8',
+            );
+
+            const config = {
+                metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: repoRoot }],
+                layerSources: [
+                    { repoId: 'repo1', path: 'capabilities/devtools' },
+                    { repoId: 'repo1', path: 'capabilities/comms' },
+                ],
+            };
+            const capabilityByLayer = {
+                'repo1/capabilities/devtools': { name: 'Developer Tools' },
+                'repo1/capabilities/comms': { name: 'Communications' },
+            };
+            const provider = new LayersTreeViewProvider(
+                makeState(config, [], capabilityByLayer),
+                () => 'tree',
+            );
+
+            const repoItem = provider.getChildren()[0];
+            const capabilitiesFolderItem = provider
+                .getChildren(repoItem)
+                .find((c) => c.contextValue === 'layerFolder');
+
+            assert.ok(capabilitiesFolderItem, 'expected a folder-only node');
+            assert.strictEqual(String(capabilitiesFolderItem.label), 'Capability Catalog');
+            assert.strictEqual(
+                extractTooltipText(capabilitiesFolderItem.tooltip),
+                joinTooltip(
+                    '**Capability Catalog**',
+                    [
+                        'Repository: `CoreMeta`',
+                        'Layer: `capabilities`',
+                        'Branch state: all descendant capabilities enabled',
+                        'Instructions: 0/0 active',
+                        'Prompts: 0/0 active',
+                        'Agents: 0/0 active',
+                        'Skills: 0/0 active',
+                    ],
+                    '*Shared grouping metadata for capability folders.*',
+                ),
+            );
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
     test('LTV-NF-05: built-in capability uses capability name when metadata available', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = makeMultiRepoConfig();

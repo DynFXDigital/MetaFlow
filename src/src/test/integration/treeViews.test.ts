@@ -688,6 +688,73 @@ suite('TreeView Providers', () => {
         );
     });
 
+    test('LayersTreeView tree mode uses directory METAFLOW metadata for non-capability folders', async () => {
+        const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'metaflow-layers-dir-meta-'));
+
+        try {
+            const capabilitiesFolder = path.join(repoRoot, 'capabilities');
+            await fs.mkdir(capabilitiesFolder, { recursive: true });
+            await fs.writeFile(
+                path.join(capabilitiesFolder, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: Capability Catalog',
+                    'description: Human-friendly grouping metadata for Capabilities browsing.',
+                    '---',
+                    '',
+                    '# Capability Catalog',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            state.config = {
+                metadataRepos: [
+                    {
+                        id: 'ai-metadata',
+                        localPath: repoRoot,
+                        name: 'CoreMeta',
+                    },
+                ],
+                layerSources: [
+                    {
+                        repoId: 'ai-metadata',
+                        path: 'capabilities/devtools',
+                    },
+                    {
+                        repoId: 'ai-metadata',
+                        path: 'capabilities/comms',
+                    },
+                ],
+            };
+
+            state.capabilityByLayer = {
+                'ai-metadata/capabilities/devtools': { name: 'Developer Tools' },
+                'ai-metadata/capabilities/comms': { name: 'Communications' },
+            };
+            state.effectiveFiles = [];
+
+            const provider = new LayersTreeViewProvider(state, () => 'tree');
+            const [repoFolder] = provider.getChildren();
+            const repoChildren = provider.getChildren(repoFolder as never);
+            const capabilitiesFolderItem = repoChildren.find(
+                (item) => String(item.label) === 'Capability Catalog',
+            );
+
+            assert.ok(
+                capabilitiesFolderItem,
+                'Non-capability Capabilities-tree folder should use directory METAFLOW display metadata',
+            );
+
+            const tooltip = capabilitiesFolderItem?.tooltip as vscode.MarkdownString;
+            assert.ok(
+                tooltip.value.includes('Human-friendly grouping metadata for Capabilities browsing.'),
+                'Tooltip should include directory METAFLOW description',
+            );
+        } finally {
+            await fs.rm(repoRoot, { recursive: true, force: true });
+        }
+    });
+
     test('LayersTreeView tree mode shows artifact-type checkbox children for single-repo layers', () => {
         state.config = {
             metadataRepo: { localPath: '.ai/ai-metadata', name: 'PrimaryRepo' },

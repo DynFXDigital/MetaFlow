@@ -12,6 +12,7 @@ import {
     ExcludableArtifactType,
     EffectiveFile,
     getArtifactType,
+    loadRepoManifestForRoot,
     parseFrontmatter,
 } from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
@@ -71,6 +72,11 @@ interface BrowseFolderMetadata {
     displayLabel: string;
     description?: string;
     internalId?: string;
+}
+
+interface DirectoryManifestMetadata {
+    name?: string;
+    description?: string;
 }
 
 function toPosixPath(value: string): string {
@@ -476,6 +482,7 @@ class LayerItem extends vscode.TreeItem {
             capabilityId?: string;
             capabilityDescription?: string;
             capabilityLicense?: string;
+            folderDescription?: string;
             summary?: ArtifactSummary;
             scopeSummary?: InstructionScopeSummary;
             branchToggleSummary?: BranchToggleSummary;
@@ -640,7 +647,11 @@ class LayerItem extends vscode.TreeItem {
                 folderLines.push(...getInstructionScopeTooltipLines(options.scopeSummary));
             }
             if (folderLines.length > 0) {
-                this.tooltip = buildMarkdownTooltip(`**${displayLabel}**`, folderLines);
+                this.tooltip = buildMarkdownTooltip(
+                    `**${displayLabel}**`,
+                    folderLines,
+                    options?.folderDescription ? `*${options.folderDescription}*` : undefined,
+                );
             }
         }
     }
@@ -799,6 +810,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private readonly _parentMap = new WeakMap<LayerTreeItem, LayerTreeItem | undefined>();
     private readonly parsedMetadataByPath = new Map<string, ParsedMetadata | null>();
+    private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
 
     constructor(
         private state: ExtensionState,
@@ -806,10 +818,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
                 .layersViewMode,
     ) {
-        state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
+        state.onDidChange.event(() => {
+            this.directoryManifestByPath.clear();
+            this._onDidChangeTreeData.fire(undefined);
+        });
     }
 
     refresh(): void {
+        this.directoryManifestByPath.clear();
         this._onDidChangeTreeData.fire(undefined);
     }
 
@@ -1397,6 +1413,64 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return new Map(Object.entries(this.state.repoMetadataById ?? {}));
     }
 
+    private resolveRepoRootPath(repoId: string | undefined): string | undefined {
+        if (!repoId) {
+            return undefined;
+        }
+
+        if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+            return this.state.builtInCapability.sourceRoot
+                ? path.normalize(this.state.builtInCapability.sourceRoot)
+                : undefined;
+        }
+
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const configuredPath =
+            repoId === 'primary'
+                ? this.state.config?.metadataRepo?.localPath
+                : this.state.config?.metadataRepos?.find((repo) => repo.id === repoId)?.localPath;
+
+        if (!configuredPath) {
+            return undefined;
+        }
+
+        if (path.isAbsolute(configuredPath)) {
+            return path.normalize(configuredPath);
+        }
+
+        if (!workspaceRoot) {
+            return undefined;
+        }
+
+        return path.normalize(path.join(workspaceRoot, configuredPath));
+    }
+
+    private getDirectoryManifestMetadata(
+        folderPath: string | undefined,
+    ): DirectoryManifestMetadata | undefined {
+        if (!folderPath) {
+            return undefined;
+        }
+
+        const normalizedPath = path.normalize(folderPath);
+        const cached = this.directoryManifestByPath.get(normalizedPath);
+        if (cached !== undefined) {
+            return cached ?? undefined;
+        }
+
+        const manifest = loadRepoManifestForRoot(normalizedPath);
+        const metadata =
+            manifest?.name?.trim() || manifest?.description?.trim()
+                ? {
+                      name: manifest.name?.trim() || undefined,
+                      description: manifest.description?.trim() || undefined,
+                  }
+                : undefined;
+
+        this.directoryManifestByPath.set(normalizedPath, metadata ?? null);
+        return metadata;
+    }
+
     /**
      * Resolve a human-readable display label for a metadata repository.
      * Priority: explicit config name → METAFLOW.md name → folder basename → repo id.
@@ -1483,6 +1557,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     typeof matchingEntry?.layerIndex === 'number' &&
                     this.getActiveTypesForLayer(matchingEntry.layerIndex).size > 0;
                 const itemRepoId = matchingEntry?.repoId ?? repoId;
+                const itemRepoLabel =
+                    matchingEntry?.repoLabel ??
+                    entries.find(
+                        (entry) =>
+                            entry.repoId === itemRepoId &&
+                            (entry.normalizedPath === node.path ||
+                                entry.normalizedPath.startsWith(`${node.path}/`)),
+                    )?.repoLabel;
                 const itemPath = node.path || '.';
                 const branchToggleSummary =
                     typeof matchingEntry?.layerIndex === 'number'
@@ -1494,14 +1576,31 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     itemRepoId,
                     itemPath,
                 );
+                const folderSourcePath =
+                    typeof matchingEntry?.layerIndex === 'number' || !itemRepoId
+                        ? undefined
+                        : (() => {
+                              const repoRootPath = this.resolveRepoRootPath(itemRepoId);
+                              return repoRootPath
+                                  ? path.join(repoRootPath, ...node.path.split('/').filter(Boolean))
+                                  : undefined;
+                          })();
+                const directoryMetadata =
+                    typeof matchingEntry?.layerIndex === 'number'
+                        ? undefined
+                        : this.getDirectoryManifestMetadata(folderSourcePath);
+                const displayLabel =
+                    typeof matchingEntry?.layerIndex === 'number'
+                        ? node.label
+                        : directoryMetadata?.name?.trim() || node.label;
                 return new LayerItem(
-                    node.label,
+                    displayLabel,
                     matchingEntry?.enabled,
                     matchingEntry?.layerIndex,
                     {
                         itemId,
                         repoId: itemRepoId,
-                        repoLabel: matchingEntry?.repoLabel,
+                        repoLabel: itemRepoLabel,
                         showRepoLabelInDescription: false,
                         repoDisabled: matchingEntry?.repoDisabled,
                         toggleable: matchingEntry?.toggleable,
@@ -1517,6 +1616,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityId: matchingEntry?.capability?.id,
                         capabilityDescription: matchingEntry?.capability?.description,
                         capabilityLicense: matchingEntry?.capability?.license,
+                        folderDescription: directoryMetadata?.description,
                         summary: this.summarizePath(itemRepoId ?? 'primary', node.path || '.'),
                         scopeSummary: summarizeLayerInstructionScope(
                             this.state.treeSummaryCache,
