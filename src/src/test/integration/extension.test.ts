@@ -39,8 +39,10 @@ const EXPECTED_COMMANDS = [
     'metaflow.injectionPolicy.global.settings',
     'metaflow.offerGitIgnoreStateConfiguration',
     'metaflow.offerGitRemotePromotion',
+    'metaflow.openFilesFilter',
     'metaflow.openCapabilityDetails',
     'metaflow.openConfig',
+    'metaflow.openLayersFilter',
     'metaflow.preview',
     'metaflow.promote',
     'metaflow.pullRepository',
@@ -117,5 +119,10 @@ suite('Extension Activation', () => {
     test('preview command executes without error', async () => {
         // May show a warning if no config is loaded, but shouldn't throw
         await vscode.commands.executeCommand('metaflow.preview');
+    });
+
+    test('filter commands execute without error', async () => {
+        await vscode.commands.executeCommand('metaflow.openLayersFilter');
+        await vscode.commands.executeCommand('metaflow.openFilesFilter');
     });
 });

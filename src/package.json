@@ -253,6 +253,11 @@
         "icon": "$(expand-all)"
       },
       {
+        "command": "metaflow.openLayersFilter",
+        "title": "MetaFlow: Filter Capabilities",
+        "icon": "$(search)"
+      },
+      {
         "command": "metaflow.collapseAllFiles",
         "title": "Collapse",
         "icon": "$(collapse-all)"
@@ -261,6 +266,11 @@
         "command": "metaflow.expandAllFiles",
         "title": "Expand",
         "icon": "$(expand-all)"
+      },
+      {
+        "command": "metaflow.openFilesFilter",
+        "title": "MetaFlow: Filter Effective Files",
+        "icon": "$(search)"
       },
       {
         "command": "metaflow.expandLayersBranch",
@@ -378,9 +388,19 @@
           "group": "navigation@5"
         },
         {
+          "command": "metaflow.openFilesFilter",
+          "when": "view == metaflow-files",
+          "group": "navigation@3"
+        },
+        {
           "command": "metaflow.createCapabilityManifest",
           "when": "view == metaflow-layers && metaflow.layersViewMode == flat",
           "group": "navigation@1"
+        },
+        {
+          "command": "metaflow.openLayersFilter",
+          "when": "view == metaflow-layers",
+          "group": "navigation@3"
         },
         {
           "command": "metaflow.toggleLayersViewMode",
@@ -716,6 +736,18 @@
         "key": "ctrl+shift+r",
         "mac": "cmd+shift+r",
         "when": "metaflow.active"
+      },
+      {
+        "command": "metaflow.openLayersFilter",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "sideBarFocus && focusedView == 'metaflow-layers'"
+      },
+      {
+        "command": "metaflow.openFilesFilter",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "sideBarFocus && focusedView == 'metaflow-files'"
       }
     ]
   },

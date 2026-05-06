@@ -23,6 +23,12 @@ type ExtensionPackageJson = {
                 group?: string;
             }>;
         };
+        keybindings?: Array<{
+            command: string;
+            key?: string;
+            mac?: string;
+            when?: string;
+        }>;
         configuration?: {
             properties?: Record<
                 string,
@@ -227,6 +233,66 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(
             contextEntry,
             'Expected Create CAPABILITY.md in the Capabilities item context menu',
+        );
+    });
+
+    test('Capabilities and Effective Files contribute native filter commands and focused keybindings', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const commands = packageJson.contributes?.commands ?? [];
+        const layersFilterCommand = commands.find(
+            (entry) => entry.command === 'metaflow.openLayersFilter',
+        );
+        const filesFilterCommand = commands.find(
+            (entry) => entry.command === 'metaflow.openFilesFilter',
+        );
+
+        assert.ok(layersFilterCommand, 'Expected metaflow.openLayersFilter command contribution');
+        assert.strictEqual(layersFilterCommand?.icon, '$(search)');
+        assert.ok(filesFilterCommand, 'Expected metaflow.openFilesFilter command contribution');
+        assert.strictEqual(filesFilterCommand?.icon, '$(search)');
+
+        const titleMenuEntries = packageJson.contributes?.menus?.['view/title'] ?? [];
+        assert.ok(
+            titleMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.openLayersFilter' &&
+                    entry.when === 'view == metaflow-layers',
+            ),
+            'Expected filter action in the Capabilities view title menu',
+        );
+        assert.ok(
+            titleMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.openFilesFilter' &&
+                    entry.when === 'view == metaflow-files',
+            ),
+            'Expected filter action in the Effective Files view title menu',
+        );
+
+        const keybindings = packageJson.contributes?.keybindings ?? [];
+        assert.ok(
+            keybindings.some(
+                (entry) =>
+                    entry.command === 'metaflow.openLayersFilter' &&
+                    entry.key === 'ctrl+f' &&
+                    entry.mac === 'cmd+f' &&
+                    entry.when === "sideBarFocus && focusedView == 'metaflow-layers'",
+            ),
+            'Expected focused Ctrl+F binding for the Capabilities filter',
+        );
+        assert.ok(
+            keybindings.some(
+                (entry) =>
+                    entry.command === 'metaflow.openFilesFilter' &&
+                    entry.key === 'ctrl+f' &&
+                    entry.mac === 'cmd+f' &&
+                    entry.when === "sideBarFocus && focusedView == 'metaflow-files'",
+            ),
+            'Expected focused Ctrl+F binding for the Effective Files filter',
         );
     });
 

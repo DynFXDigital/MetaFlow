@@ -131,6 +131,18 @@ async function collapseBranch<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.collapse');
 }
 
+async function openTreeViewFilter(viewId: string): Promise<void> {
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    await vscode.commands.executeCommand('list.find');
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -243,6 +255,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
             }
             await revealAll(filesTreeView, filesTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
+            await openTreeViewFilter('metaflow-layers');
+        }),
+        vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
+            await openTreeViewFilter('metaflow-files');
         }),
         vscode.commands.registerCommand(
             'metaflow.expandLayersBranch',
