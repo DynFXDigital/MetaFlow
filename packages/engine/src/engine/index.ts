@@ -1,5 +1,6 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
 export type { ResolveLayersOptions } from './overlayEngine';
+export { buildAgentPluginCatalog } from './pluginCatalog';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyFilters, applyExcludedTypeFilters } from './filterEngine';
@@ -41,6 +42,7 @@ export type {
     EffectiveFile,
     CapabilityMetadata,
     CapabilityAgentPluginPackage,
+    CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
     RepoMetadata,

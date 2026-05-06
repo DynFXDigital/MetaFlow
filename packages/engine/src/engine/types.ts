@@ -59,6 +59,36 @@ export interface CapabilityAgentPluginPackage {
     minimumMetaflowVersion?: string;
 }
 
+/** A normalized agent-plugin catalog entry derived from a capability layer. */
+export interface CapabilityPluginCatalogEntry {
+    /** Stable package identity used by agent-plugin consumers. */
+    packageName: string;
+    /** Published plugin package version. */
+    version: string;
+    /** User-facing title for marketplace and catalog displays. */
+    displayName: string;
+    /** Optional user-facing description. */
+    description?: string;
+    /** Capability identifier backing this plugin package. */
+    capabilityId: string;
+    /** Layer identifier backing this plugin package. */
+    layerId: string;
+    /** Repo identifier backing this plugin package. */
+    repoId?: string;
+    /** Capability manifest path. */
+    manifestPath: string;
+    /** package.json path. */
+    packageJsonPath: string;
+    /** Declared plugin hosts. */
+    pluginHosts: string[];
+    /** Optional minimum MetaFlow version range. */
+    minimumMetaflowVersion?: string;
+    /** Optional SPDX identifier/expression or fallback token. */
+    license?: string;
+    /** Whether the capability is marked experimental. */
+    experimental?: boolean;
+}
+
 /** Parsed CAPABILITY.md metadata associated with a layer. */
 export interface CapabilityMetadata {
     /** Internal capability identifier (derived from folder name). */

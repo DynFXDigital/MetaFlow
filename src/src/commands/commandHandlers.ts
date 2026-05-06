@@ -12,6 +12,7 @@ import * as jsonc from 'jsonc-parser';
 import { createHash } from 'crypto';
 import type {
     ApplyResult,
+    CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
     GovernanceComplianceResult,
@@ -32,6 +33,7 @@ import {
     loadRepoManifestForRoot,
     discoverLayersInRepo,
     buildEffectiveFileMap,
+    buildAgentPluginCatalog,
     resolvePathFromWorkspace,
     applyFilters,
     applyExcludedTypeFilters,
@@ -299,6 +301,7 @@ export interface ExtensionState {
     governanceCompliance?: GovernanceComplianceResult;
     capabilityWarnings: string[];
     capabilityDiagnosticFilePaths: string[];
+    agentPluginCatalog: CapabilityPluginCatalogEntry[];
     localGitRepoIds: Set<string>;
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
     builtInCapability: BuiltInCapabilityRuntimeState;
@@ -326,6 +329,7 @@ export function createState(): ExtensionState {
         governanceCompliance: undefined,
         capabilityWarnings: [],
         capabilityDiagnosticFilePaths: [],
+        agentPluginCatalog: [],
         localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         builtInCapability: {
@@ -2273,6 +2277,7 @@ function resolveOverlay(
     >;
     capabilityWarnings: string[];
     capabilityDiagnostics: CapabilityWarning[];
+    agentPluginCatalog: CapabilityPluginCatalogEntry[];
 } {
     const layers = resolveLayers(config, workspaceRoot, {
         enableDiscovery: options?.enableDiscovery,
@@ -2359,6 +2364,11 @@ function resolveOverlay(
         }
     }
 
+    const agentPluginCatalog = buildAgentPluginCatalog(layers);
+    for (const warning of agentPluginCatalog.warnings) {
+        appendCapabilityWarning(warning);
+    }
+
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
@@ -2374,6 +2384,7 @@ function resolveOverlay(
         capabilityByLayer,
         capabilityWarnings,
         capabilityDiagnostics,
+        agentPluginCatalog: agentPluginCatalog.entries,
     };
 }
 
@@ -3647,6 +3658,7 @@ export function registerCommands(
                     state.governanceCompliance = undefined;
                     state.capabilityWarnings = [];
                     state.capabilityDiagnosticFilePaths = [];
+                    state.agentPluginCatalog = [];
                     state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     invalidateRepoSyncStatus(state);
@@ -3788,6 +3800,7 @@ export function registerCommands(
                     state.effectiveFiles = overlay.effectiveFiles;
                     state.capabilityByLayer = overlay.capabilityByLayer;
                     state.capabilityWarnings = overlay.capabilityWarnings;
+                    state.agentPluginCatalog = overlay.agentPluginCatalog;
                     const configuredSourceDiagnosticWarnings =
                         collectEnabledConfiguredSourceDiagnosticWarnings(
                             activeProfileConfig,
@@ -5968,6 +5981,7 @@ export function registerCommands(
                 state.repoMetadataById = {};
                 state.capabilityWarnings = [];
                 state.capabilityDiagnosticFilePaths = [];
+                state.agentPluginCatalog = [];
                 state.treeSummaryCache = undefined;
                 invalidateRepoSyncStatus(state);
                 updateStatusBar('idle');
@@ -6535,6 +6549,17 @@ export function registerCommands(
                     validationErrors: state.governanceContractErrors.map(cloneConfigError),
                     compliance: cloneGovernanceComplianceResult(state.governanceCompliance),
                 },
+            };
+        }),
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.getAgentPluginCatalog', () => {
+            return {
+                entries: state.agentPluginCatalog.map((entry) => ({
+                    ...entry,
+                    pluginHosts: [...entry.pluginHosts],
+                })),
             };
         }),
     );
