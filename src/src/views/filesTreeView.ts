@@ -353,8 +353,8 @@ class FileItem extends vscode.TreeItem {
         const experimentalMarker = getExperimentalMarker(file.sourceCapabilityExperimental);
         this.description =
             options?.showSourceLabelInDescription === false
-            ? `${experimentalMarker}(${classificationLabel})`
-            : `${experimentalMarker}${sourceLabel} (${classificationLabel})`;
+                ? `${experimentalMarker}(${classificationLabel})`
+                : `${experimentalMarker}${sourceLabel} (${classificationLabel})`;
         this.contextValue = 'effectiveFile';
         this.iconPath =
             file.classification === 'settings'
@@ -387,8 +387,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     constructor(
         private state: ExtensionState,
         private readonly modeResolver: () => FilesViewMode = () =>
-            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath)
-                .filesViewMode,
+            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath).filesViewMode,
     ) {
         state.onDidChange.event(() => {
             this.directoryManifestByPath.clear();
@@ -1085,17 +1084,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         const representative = files[0];
         const sourceRoot = this.getSourceRoot(representative, roots)?.rootPath;
         const absoluteSourceRepo =
-            typeof representative.sourceRepo === 'string' && path.isAbsolute(representative.sourceRepo)
+            typeof representative.sourceRepo === 'string' &&
+            path.isAbsolute(representative.sourceRepo)
                 ? path.normalize(representative.sourceRepo)
                 : undefined;
         const repoRootPath = sourceRoot || absoluteSourceRepo;
 
         if (!repoRootPath) {
-            return this.getFolderSourcePath(
-                files,
-                prefix,
-                roots,
-                (file: EffectiveFile) => getDisplayPathForRepoTree(file),
+            return this.getFolderSourcePath(files, prefix, roots, (file: EffectiveFile) =>
+                getDisplayPathForRepoTree(file),
             );
         }
 

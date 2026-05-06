@@ -1002,7 +1002,14 @@ suite('FilesTreeView – artifact-type grouping', () => {
 
         try {
             const repoRoot = path.join(tmpDir, 'rt08g-skill-precedence');
-            const skillRoot = path.join(repoRoot, 'domains', 'ui', '.github', 'skills', 'navigator');
+            const skillRoot = path.join(
+                repoRoot,
+                'domains',
+                'ui',
+                '.github',
+                'skills',
+                'navigator',
+            );
             const skillFile = path.join(skillRoot, 'SKILL.md');
 
             fs.mkdirSync(skillRoot, { recursive: true });
@@ -1828,9 +1835,9 @@ suite('FilesTreeView – artifact-type grouping', () => {
             ['Agent Commit Coordination'],
         );
         assert.ok(
-            plan!.stageOne.concat(plan!.stageTwo).every(
-                (item) => typeof (item as { id?: unknown }).id === 'string',
-            ),
+            plan!.stageOne
+                .concat(plan!.stageTwo)
+                .every((item) => typeof (item as { id?: unknown }).id === 'string'),
             'staged files-tree targets should have stable ids for expansion tracking',
         );
         assert.ok(

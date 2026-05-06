@@ -1084,7 +1084,11 @@ suite('TreeView Providers', () => {
         state.effectiveFiles = [
             {
                 relativePath: 'instructions/trace.instructions.md',
-                sourcePath: path.join(os.tmpdir(), 'metaflow-experimental', 'trace.instructions.md'),
+                sourcePath: path.join(
+                    os.tmpdir(),
+                    'metaflow-experimental',
+                    'trace.instructions.md',
+                ),
                 sourceLayer: 'primary/standards/sdlc',
                 sourceRepo: 'primary',
                 sourceCapabilityId: 'sdlc-traceability',

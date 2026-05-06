@@ -268,10 +268,7 @@ function validateManifestFields(fields: ManifestFields, filePath?: string): Capa
         }
     }
 
-    if (
-        fields.experimental !== undefined &&
-        parseBooleanField(fields.experimental) === undefined
-    ) {
+    if (fields.experimental !== undefined && parseBooleanField(fields.experimental) === undefined) {
         warnings.push(
             toWarning(
                 'CAPABILITY_EXPERIMENTAL_INVALID',

@@ -207,10 +207,7 @@ suite('Extension Packaging Regression Guards', () => {
         const createCommand = packageJson.contributes?.commands?.find(
             (entry) => entry.command === 'metaflow.createCapabilityManifest',
         );
-        assert.ok(
-            createCommand,
-            'Expected metaflow.createCapabilityManifest command contribution',
-        );
+        assert.ok(createCommand, 'Expected metaflow.createCapabilityManifest command contribution');
         assert.strictEqual(createCommand?.icon, '$(new-file)');
 
         const titleMenuEntries = packageJson.contributes?.menus?.['view/title'] ?? [];

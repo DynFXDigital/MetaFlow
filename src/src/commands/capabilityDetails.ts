@@ -22,10 +22,7 @@ import {
     resolveBuiltInLayerEnabled,
 } from '../builtInCapability';
 import { projectConfigForProfile } from './commandHelpers';
-import {
-    buildCapabilityGovernanceProjection,
-    type GovernanceUiState,
-} from '../governanceSignals';
+import { buildCapabilityGovernanceProjection, type GovernanceUiState } from '../governanceSignals';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 
 type DetailArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
@@ -178,7 +175,9 @@ export function resolveCapabilityDetailTarget(
             return undefined;
         }
 
-        const layerPath = normalizeBuiltInLayerPath(arg.layerPath ?? BUILT_IN_CAPABILITY_LAYER_PATH);
+        const layerPath = normalizeBuiltInLayerPath(
+            arg.layerPath ?? BUILT_IN_CAPABILITY_LAYER_PATH,
+        );
         const derivedCapabilityId = deriveCapabilityIdFromLayerPath(
             layerPath,
             builtInCapability.sourceRoot,
@@ -229,7 +228,9 @@ export function resolveCapabilityDetailTarget(
             return undefined;
         }
 
-        const repo = effectiveConfig.metadataRepos.find((candidate) => candidate.id === source.repoId);
+        const repo = effectiveConfig.metadataRepos.find(
+            (candidate) => candidate.id === source.repoId,
+        );
         if (!repo) {
             return undefined;
         }

@@ -31,11 +31,7 @@ import {
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
 import { isBuiltInCapabilityActive } from './builtInCapability';
-import {
-    extractLayerPath,
-    extractRepoId,
-    readManagedViewsState,
-} from './commands/commandHelpers';
+import { extractLayerPath, extractRepoId, readManagedViewsState } from './commands/commandHelpers';
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
@@ -523,15 +519,21 @@ export function activate(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
             stateWatcher,
             stateWatcher.onDidCreate(() => {
-                logInfo('Managed state created (.metaflow/state.json); refreshing view mode contexts.');
+                logInfo(
+                    'Managed state created (.metaflow/state.json); refreshing view mode contexts.',
+                );
                 syncManagedViewModeContext();
             }),
             stateWatcher.onDidChange(() => {
-                logInfo('Managed state changed (.metaflow/state.json); refreshing view mode contexts.');
+                logInfo(
+                    'Managed state changed (.metaflow/state.json); refreshing view mode contexts.',
+                );
                 syncManagedViewModeContext();
             }),
             stateWatcher.onDidDelete(() => {
-                logInfo('Managed state deleted (.metaflow/state.json); restoring default view modes.');
+                logInfo(
+                    'Managed state deleted (.metaflow/state.json); restoring default view modes.',
+                );
                 syncManagedViewModeContext();
             }),
         );

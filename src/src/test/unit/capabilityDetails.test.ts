@@ -559,10 +559,7 @@ suite('CapabilityDetails helpers', () => {
     });
 
     test('TC-0252: renders built-in capability details from actual bundled source root (Verifies: REQ-0311)', async () => {
-        const bundledSourceRoot = path.resolve(
-            __dirname,
-            '../../../assets/metaflow-ai-metadata',
-        );
+        const bundledSourceRoot = path.resolve(__dirname, '../../../assets/metaflow-ai-metadata');
 
         const target = resolveCapabilityDetailTarget(
             { metadataRepos: [], layerSources: [] },
@@ -590,27 +587,59 @@ suite('CapabilityDetails helpers', () => {
         assert.strictEqual(model.builtIn, true);
         assert.strictEqual(model.warnings.length, 0);
 
-        const instructionsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'instructions');
+        const instructionsBucket = model.artifactBuckets.find(
+            (bucket) => bucket.type === 'instructions',
+        );
         const promptsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'prompts');
         const agentsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'agents');
         const skillsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'skills');
 
-        assert.ok(instructionsBucket && instructionsBucket.files.length > 0, 'instructions bucket should be populated');
-        assert.ok(promptsBucket && promptsBucket.files.length > 0, 'prompts bucket should be populated');
-        assert.ok(agentsBucket && agentsBucket.files.length > 0, 'agents bucket should be populated');
-        assert.ok(skillsBucket && skillsBucket.files.length > 0, 'skills bucket should be populated');
+        assert.ok(
+            instructionsBucket && instructionsBucket.files.length > 0,
+            'instructions bucket should be populated',
+        );
+        assert.ok(
+            promptsBucket && promptsBucket.files.length > 0,
+            'prompts bucket should be populated',
+        );
+        assert.ok(
+            agentsBucket && agentsBucket.files.length > 0,
+            'agents bucket should be populated',
+        );
+        assert.ok(
+            skillsBucket && skillsBucket.files.length > 0,
+            'skills bucket should be populated',
+        );
 
-        assert.ok(html.includes('class="artifact-bucket"'), 'HTML should render artifact bucket sections');
+        assert.ok(
+            html.includes('class="artifact-bucket"'),
+            'HTML should render artifact bucket sections',
+        );
         assert.ok(html.includes('Instructions'), 'HTML should show Instructions section');
         assert.ok(html.includes('Prompts'), 'HTML should show Prompts section');
         assert.ok(html.includes('Agents'), 'HTML should show Agents section');
         assert.ok(html.includes('Skills'), 'HTML should show Skills section');
         assert.ok(html.includes('Built-in capability'), 'HTML should show built-in source kind');
-        assert.ok(html.includes('metaflow-constructs.instructions.md'), 'HTML should include MetaFlow constructs instruction');
-        assert.ok(html.includes('ai-metadata-agent.instructions.md'), 'HTML should include AI metadata agent instruction');
-        assert.ok(html.includes('github-copilot-metadata-authoring-steward.agent.md'), 'HTML should include Copilot authoring steward agent');
-        assert.ok(html.includes('create-agents-md.prompt.md'), 'HTML should include create-agents-md prompt');
-        assert.ok(html.includes('grouped by artifact type'), 'HTML should describe artifact grouping in caption');
+        assert.ok(
+            html.includes('metaflow-constructs.instructions.md'),
+            'HTML should include MetaFlow constructs instruction',
+        );
+        assert.ok(
+            html.includes('ai-metadata-agent.instructions.md'),
+            'HTML should include AI metadata agent instruction',
+        );
+        assert.ok(
+            html.includes('github-copilot-metadata-authoring-steward.agent.md'),
+            'HTML should include Copilot authoring steward agent',
+        );
+        assert.ok(
+            html.includes('create-agents-md.prompt.md'),
+            'HTML should include create-agents-md prompt',
+        );
+        assert.ok(
+            html.includes('grouped by artifact type'),
+            'HTML should describe artifact grouping in caption',
+        );
     });
 
     test('TC-0252: renders static built-in state and empty content fallbacks without toggle actions', () => {
