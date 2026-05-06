@@ -92,6 +92,27 @@ MetaFlow includes a bundled starter capability so you can try the workflow befor
 - Bundled authoring instructions stay narrowly scoped; the built-in set does not rely on exact `applyTo: "**"` injections.
 - Externalize the patterns that work into a shared team or organization metadata repository.
 
+## Capability Plugin Metadata
+
+MetaFlow can also treat a capability as an agent-plugin-compatible package when the capability opts in explicitly.
+
+- Set `agentPlugin: true` in the capability frontmatter inside `CAPABILITY.md`.
+- Place a `package.json` file beside `CAPABILITY.md` at the capability root.
+- MetaFlow validates the embedded package metadata and surfaces errors or warnings in the normal Problems and diagnostics flows.
+- Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.
+- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin fields for an existing capability without replacing unrelated `package.json` content.
+
+The maintained package contract currently expects:
+
+- `name`: a stable package identity such as `@metaflow-capability/my-capability`
+- `version`: a SemVer package version such as `1.0.0`
+- `description`: a concise user-facing summary
+- `keywords`: package discovery tags; MetaFlow ensures `metaflow`, `agent-plugin`, and `capability` are present
+- `metaflow.pluginHosts`: an array of supported consumers such as `github-copilot`
+- `metaflow.minimumMetaflowVersion`: the minimum MetaFlow version range expected by the package
+
+MetaFlow also builds a normalized internal plugin catalog from valid capability package metadata so future marketplace or discovery surfaces can consume one stable model.
+
 ## Where to go next
 
 | Topic                                                                         | Document                                         |

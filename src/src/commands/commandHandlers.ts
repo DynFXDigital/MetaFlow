@@ -2951,6 +2951,11 @@ interface CapabilityManifestDestinationPick extends vscode.QuickPickItem {
     targetDirectory?: string;
 }
 
+interface ExistingCapabilityDirectoryPick extends vscode.QuickPickItem {
+    mode: 'suggested' | 'existing';
+    targetDirectory?: string;
+}
+
 interface FlatCapabilityDirectoryPick extends vscode.QuickPickItem {
     targetDirectory: string;
 }
@@ -3157,6 +3162,51 @@ async function promptForCapabilityManifestDirectory(options: {
     return targetPath;
 }
 
+async function promptForExistingCapabilityDirectory(options: {
+    workspaceRoot: string;
+    suggestedDirectory?: string;
+}): Promise<string | undefined> {
+    const picks: ExistingCapabilityDirectoryPick[] = [];
+    if (options.suggestedDirectory) {
+        picks.push({
+            label: 'Use suggested capability directory',
+            description: options.suggestedDirectory,
+            detail: 'Maintain package metadata for the selected capability directory',
+            mode: 'suggested',
+            targetDirectory: options.suggestedDirectory,
+        });
+    }
+
+    picks.push({
+        label: 'Choose existing capability directory',
+        detail: 'Pick an existing folder that already contains CAPABILITY.md',
+        mode: 'existing',
+    });
+
+    const selected = await vscode.window.showQuickPick(picks, {
+        title: 'MetaFlow: Choose Capability Directory',
+        placeHolder: 'Select the capability directory to maintain',
+        ignoreFocusOut: true,
+    });
+
+    if (!selected) {
+        return undefined;
+    }
+
+    if (selected.mode === 'suggested') {
+        return selected.targetDirectory;
+    }
+
+    const picked = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Use Capability Directory',
+        defaultUri: vscode.Uri.file(options.suggestedDirectory ?? options.workspaceRoot),
+    });
+    return picked?.[0]?.fsPath;
+}
+
 function sanitizeCapabilityDirectoryName(value: string): string {
     return value
         .trim()
@@ -3215,6 +3265,145 @@ function buildCapabilityPackageJsonStarterTemplate(
         null,
         2,
     )}\n`;
+}
+
+function isLikelySemverVersion(value: string): boolean {
+    return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value.trim());
+}
+
+function normalizeStringArrayForPackage(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    return value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+}
+
+export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
+    content: string;
+    changed: boolean;
+} {
+    const normalized = rawText.replace(/^\uFEFF/, '');
+    const frontmatterMatch = normalized.match(/^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n?[\s\S]*)$/);
+    if (!frontmatterMatch) {
+        throw new Error(
+            'CAPABILITY.md must contain valid frontmatter delimited by opening and closing --- markers.',
+        );
+    }
+
+    const [, opening, frontmatterBody, suffix] = frontmatterMatch;
+    const lines = frontmatterBody.split(/\r?\n/);
+    let changed = false;
+    let found = false;
+    const updatedLines = lines.map((line) => {
+        const match = line.match(/^\s*agentPlugin\s*:\s*(.*)$/);
+        if (!match) {
+            return line;
+        }
+
+        found = true;
+        if (match[1].trim() === 'true') {
+            return 'agentPlugin: true';
+        }
+
+        changed = true;
+        return 'agentPlugin: true';
+    });
+
+    if (!found) {
+        updatedLines.push('agentPlugin: true');
+        changed = true;
+    }
+
+    return {
+        content: `${opening}${updatedLines.join('\n')}${suffix}`,
+        changed,
+    };
+}
+
+export function buildMaintainedCapabilityPluginPackageJson(options: {
+    capabilityName: string;
+    capabilityDescription?: string;
+    capabilityDirectoryName: string;
+    existingRawText?: string;
+}): { content: string; changed: boolean } {
+    let packageObject: Record<string, unknown> = {};
+    const existingRawText = options.existingRawText;
+    if (typeof existingRawText === 'string') {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(existingRawText) as unknown;
+        } catch (error) {
+            throw new Error(`package.json could not be parsed: ${(error as Error).message}`);
+        }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('package.json must contain a top-level JSON object.');
+        }
+
+        packageObject = { ...(parsed as Record<string, unknown>) };
+    }
+
+    const defaultPackageName =
+        `@metaflow-capability/${sanitizeCapabilityDirectoryName(options.capabilityDirectoryName) || 'capability'}`;
+    const currentName =
+        typeof packageObject.name === 'string' && packageObject.name.trim().length > 0
+            ? packageObject.name.trim()
+            : undefined;
+    packageObject.name = currentName ?? defaultPackageName;
+
+    const currentVersion =
+        typeof packageObject.version === 'string' && isLikelySemverVersion(packageObject.version)
+            ? packageObject.version.trim()
+            : undefined;
+    packageObject.version = currentVersion ?? '0.1.0';
+
+    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
+    const currentDescription =
+        typeof packageObject.description === 'string' && packageObject.description.trim().length > 0
+            ? packageObject.description.trim()
+            : undefined;
+    packageObject.description =
+        currentDescription ??
+        options.capabilityDescription?.trim() ??
+        `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`;
+
+    const existingKeywords = normalizeStringArrayForPackage(packageObject.keywords) ?? [];
+    const nextKeywords = [...existingKeywords];
+    for (const keyword of ['metaflow', 'agent-plugin', 'capability']) {
+        if (!nextKeywords.includes(keyword)) {
+            nextKeywords.push(keyword);
+        }
+    }
+    packageObject.keywords = nextKeywords;
+
+    const existingMetaflow =
+        packageObject.metaflow &&
+        typeof packageObject.metaflow === 'object' &&
+        !Array.isArray(packageObject.metaflow)
+            ? { ...(packageObject.metaflow as Record<string, unknown>) }
+            : {};
+    const existingPluginHosts = normalizeStringArrayForPackage(existingMetaflow.pluginHosts);
+    existingMetaflow.pluginHosts =
+        existingPluginHosts && existingPluginHosts.length > 0
+            ? existingPluginHosts
+            : ['github-copilot'];
+    const minimumMetaflowVersion =
+        typeof existingMetaflow.minimumMetaflowVersion === 'string' &&
+        existingMetaflow.minimumMetaflowVersion.trim().length > 0
+            ? existingMetaflow.minimumMetaflowVersion.trim()
+            : '^0.1.0-preview.0';
+    existingMetaflow.minimumMetaflowVersion = minimumMetaflowVersion;
+    packageObject.metaflow = existingMetaflow;
+
+    const nextContent = `${JSON.stringify(packageObject, null, 2)}\n`;
+    return {
+        content: nextContent,
+        changed: existingRawText !== nextContent,
+    };
 }
 
 async function refreshRepoSyncStatusCache(
@@ -6253,6 +6442,130 @@ export function registerCommands(
                 capabilityDirectoryName,
             };
         }),
+    );
+
+    // ── metaflow.maintainCapabilityPluginMetadata ────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.maintainCapabilityPluginMetadata',
+            async (arg?: unknown) => {
+                const ws = getWorkspace();
+                if (!ws) {
+                    return;
+                }
+
+                let suggestedDirectory = resolveCapabilityManifestSuggestedDirectory(
+                    state,
+                    ws.uri.fsPath,
+                    arg,
+                );
+
+                if (!suggestedDirectory && !extractRepoId(arg) && !extractLayerPath(arg)) {
+                    suggestedDirectory = await promptForFlatCapabilityDirectory(state, ws.uri.fsPath);
+                }
+
+                const capabilityDirectoryPath = await promptForExistingCapabilityDirectory({
+                    workspaceRoot: ws.uri.fsPath,
+                    suggestedDirectory,
+                });
+                if (!capabilityDirectoryPath) {
+                    return;
+                }
+
+                const guidancePath = path.join(
+                    context.extensionPath,
+                    BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+                );
+                if (fs.existsSync(guidancePath)) {
+                    const guidanceDoc = await vscode.workspace.openTextDocument(guidancePath);
+                    await vscode.window.showTextDocument(guidanceDoc, {
+                        viewColumn: vscode.ViewColumn.Beside,
+                        preview: true,
+                        preserveFocus: true,
+                    });
+                }
+
+                const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
+                if (!fs.existsSync(manifestPath)) {
+                    vscode.window.showWarningMessage(
+                        `MetaFlow: ${manifestPath} was not found. Choose a capability directory that already contains CAPABILITY.md.`,
+                    );
+                    return;
+                }
+
+                const manifestRawText = await fsp.readFile(manifestPath, 'utf-8');
+                let manifestUpdate: { content: string; changed: boolean };
+                try {
+                    manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    vscode.window.showWarningMessage(
+                        `MetaFlow: Could not maintain CAPABILITY.md plugin metadata. ${message}`,
+                    );
+                    return;
+                }
+
+                const capabilityId = path.basename(capabilityDirectoryPath);
+                const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
+                const capabilityName = manifest?.name?.trim() || capabilityId;
+                const capabilityDescription = manifest?.description?.trim();
+
+                const packageJsonPath = path.join(capabilityDirectoryPath, 'package.json');
+                const existingPackageJsonRawText = fs.existsSync(packageJsonPath)
+                    ? await fsp.readFile(packageJsonPath, 'utf-8')
+                    : undefined;
+
+                let packageUpdate: { content: string; changed: boolean };
+                try {
+                    packageUpdate = buildMaintainedCapabilityPluginPackageJson({
+                        capabilityName,
+                        capabilityDescription,
+                        capabilityDirectoryName: path.basename(capabilityDirectoryPath),
+                        existingRawText: existingPackageJsonRawText,
+                    });
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    vscode.window.showWarningMessage(
+                        `MetaFlow: Could not maintain capability package metadata. ${message}`,
+                    );
+                    return;
+                }
+
+                if (manifestUpdate.changed) {
+                    await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
+                }
+                if (packageUpdate.changed) {
+                    await fsp.writeFile(packageJsonPath, packageUpdate.content, 'utf-8');
+                }
+
+                const packageJsonDoc = await vscode.workspace.openTextDocument(packageJsonPath);
+                await vscode.window.showTextDocument(packageJsonDoc, {
+                    viewColumn: vscode.ViewColumn.Beside,
+                    preview: true,
+                    preserveFocus: true,
+                });
+
+                const manifestDoc = await vscode.workspace.openTextDocument(manifestPath);
+                await vscode.window.showTextDocument(manifestDoc, {
+                    preview: false,
+                    viewColumn: vscode.ViewColumn.Active,
+                });
+
+                vscode.window.showInformationMessage(
+                    `MetaFlow: ${manifestUpdate.changed ? 'Updated' : 'Checked'} ${manifestPath} and ${packageUpdate.changed ? 'updated' : 'checked'} ${packageJsonPath} for capability plugin compatibility.`,
+                );
+
+                return {
+                    manifestPath,
+                    packageJsonPath,
+                    capabilityDirectoryPath,
+                    capabilityName,
+                    guidancePath: fs.existsSync(guidancePath) ? guidancePath : undefined,
+                    manifestChanged: manifestUpdate.changed,
+                    packageJsonChanged: packageUpdate.changed,
+                };
+            },
+        ),
     );
 
     // ── metaflow.toggleFilesViewMode ───────────────────────────────

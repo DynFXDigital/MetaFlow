@@ -233,6 +233,34 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('Maintain Capability Plugin Metadata is contributed for the command palette and Capabilities item menu', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const maintainCommand = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.maintainCapabilityPluginMetadata',
+        );
+        assert.ok(
+            maintainCommand,
+            'Expected metaflow.maintainCapabilityPluginMetadata command contribution',
+        );
+        assert.strictEqual(maintainCommand?.icon, '$(package)');
+
+        const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
+        const contextEntry = contextMenuEntries.find(
+            (entry) =>
+                entry.command === 'metaflow.maintainCapabilityPluginMetadata' &&
+                entry.when ===
+                    'view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)',
+        );
+        assert.ok(
+            contextEntry,
+            'Expected Maintain Capability Plugin Metadata in the Capabilities item context menu',
+        );
+    });
+
     test('Capabilities and Effective Files contribute native filter commands and focused keybindings', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

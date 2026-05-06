@@ -139,6 +139,11 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "metaflow.maintainCapabilityPluginMetadata",
+        "title": "MetaFlow: Maintain Capability Plugin Metadata",
+        "icon": "$(package)"
+      },
+      {
         "command": "metaflow.configureCapabilityInjection",
         "title": "MetaFlow: Configure Capability Injection"
       },
@@ -508,6 +513,11 @@
           "command": "metaflow.createCapabilityManifest",
           "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
           "group": "inline@2"
+        },
+        {
+          "command": "metaflow.maintainCapabilityPluginMetadata",
+          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
+          "group": "inline@3"
         },
         {
           "command": "metaflow.expandFilesBranch",

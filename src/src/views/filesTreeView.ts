@@ -606,13 +606,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 file.sourceCapabilityId ||
                 file.sourceCapabilityName ||
                 file.sourceCapabilityDescription ||
-                file.sourceCapabilityLicense
+                file.sourceCapabilityLicense ||
+                file.sourceCapabilityExperimental
             ) {
                 capabilityByLayer.set(normalized, {
                     id: file.sourceCapabilityId,
                     name: file.sourceCapabilityName,
                     description: file.sourceCapabilityDescription,
                     license: file.sourceCapabilityLicense,
+                    experimental: file.sourceCapabilityExperimental,
                 });
             }
         }
