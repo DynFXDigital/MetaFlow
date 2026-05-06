@@ -11,7 +11,6 @@ import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
-const DEFAULT_COMMAND_TEST_TIMEOUT_MS = 15000;
 const COMPLEX_COMMAND_TEST_TIMEOUT_MS = 30000;
 const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10000;
 
@@ -1984,11 +1983,12 @@ suite('Command Execution', function () {
                       examplePath?: string;
                       draftUri?: string;
                       manifestPath?: string;
+                        packageJsonPath?: string;
                       targetDirectory?: string;
-                                            capabilityDirectoryPath?: string;
-                                            capabilityGithubDirectoryPath?: string;
-                                            capabilityName?: string;
-                                            capabilityDirectoryName?: string;
+                        capabilityDirectoryPath?: string;
+                        capabilityGithubDirectoryPath?: string;
+                        capabilityName?: string;
+                        capabilityDirectoryName?: string;
                   }
                 | undefined;
 
@@ -2007,10 +2007,16 @@ suite('Command Execution', function () {
                 '.github',
             );
             const expectedManifestPath = path.join(expectedCapabilityDirectoryPath, 'CAPABILITY.md');
+            const expectedPackageJsonPath = path.join(expectedCapabilityDirectoryPath, 'package.json');
             assert.strictEqual(
                 path.normalize(result?.manifestPath ?? ''),
                 path.normalize(expectedManifestPath),
                 'guided create should write CAPABILITY.md in the child capability directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.packageJsonPath ?? ''),
+                path.normalize(expectedPackageJsonPath),
+                'guided create should write package.json in the child capability directory',
             );
             assert.strictEqual(
                 path.normalize(result?.targetDirectory ?? ''),
@@ -2046,6 +2052,7 @@ suite('Command Execution', function () {
                 fs.existsSync(expectedCapabilityGithubDirectoryPath),
                 'guided create should create an empty .github directory for the new capability',
             );
+            assert.ok(fs.existsSync(expectedPackageJsonPath), 'guided create should create package.json');
 
             assert.ok(
                 vscode.workspace.textDocuments.some(
@@ -2059,6 +2066,18 @@ suite('Command Execution', function () {
                 ),
                 'guided create should open the bundled example CAPABILITY.md',
             );
+
+            const manifestContent = fs.readFileSync(expectedManifestPath, 'utf-8');
+            assert.ok(manifestContent.includes('agentPlugin: true'));
+
+            const packageJsonContent = JSON.parse(fs.readFileSync(expectedPackageJsonPath, 'utf-8')) as {
+                name?: string;
+                version?: string;
+                metaflow?: { pluginHosts?: string[] };
+            };
+            assert.strictEqual(packageJsonContent.name, '@metaflow-capability/context-capability');
+            assert.strictEqual(packageJsonContent.version, '0.1.0');
+            assert.deepStrictEqual(packageJsonContent.metaflow?.pluginHosts, ['github-copilot']);
 
             assert.ok(vscode.window.activeTextEditor, 'guided create should leave CAPABILITY.md active');
             assert.strictEqual(

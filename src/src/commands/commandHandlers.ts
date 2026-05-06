@@ -12,6 +12,7 @@ import * as jsonc from 'jsonc-parser';
 import { createHash } from 'crypto';
 import type {
     ApplyResult,
+    CapabilityWarning,
     ConfigError,
     GovernanceComplianceResult,
     GovernanceContract,
@@ -297,6 +298,7 @@ export interface ExtensionState {
     governanceContractErrors: ConfigError[];
     governanceCompliance?: GovernanceComplianceResult;
     capabilityWarnings: string[];
+    capabilityDiagnosticFilePaths: string[];
     localGitRepoIds: Set<string>;
     repoSyncByRepoId: Record<string, RepoSyncStatus>;
     builtInCapability: BuiltInCapabilityRuntimeState;
@@ -323,6 +325,7 @@ export function createState(): ExtensionState {
         governanceContractErrors: [],
         governanceCompliance: undefined,
         capabilityWarnings: [],
+        capabilityDiagnosticFilePaths: [],
         localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         builtInCapability: {
@@ -1443,13 +1446,20 @@ function collectConfiguredRepoMetadata(
     return repoMetadataById;
 }
 
-function collectConfiguredCapabilityWarnings(
+function capabilityWarningIdentity(warning: CapabilityWarning): string {
+    return [warning.severity ?? 'warning', warning.code, warning.filePath ?? '', warning.message].join(
+        '|',
+    );
+}
+
+function collectConfiguredCapabilityDiagnosticWarnings(
     config: MetaFlowConfig,
     workspaceRoot: string,
-): string[] {
-    const warnings = new Set<string>();
+): CapabilityWarning[] {
+    const warnings: CapabilityWarning[] = [];
+    const seen = new Set<string>();
 
-    const appendWarningIfMalformed = (repoRoot: string, layerPath: string): void => {
+    const appendManifestWarnings = (repoRoot: string, layerPath: string): void => {
         const layerAbsPath = path.join(repoRoot, layerPath);
         const capabilityFile = path.join(layerAbsPath, 'CAPABILITY.md');
         if (!fs.existsSync(capabilityFile)) {
@@ -1458,12 +1468,13 @@ function collectConfiguredCapabilityWarnings(
 
         const capabilityId = deriveCapabilityIdFromLayerPath(layerPath, repoRoot);
         const manifest = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
-        if (manifest) {
-            return;
+        for (const warning of manifest?.warnings ?? []) {
+            const identity = capabilityWarningIdentity(warning);
+            if (!seen.has(identity)) {
+                seen.add(identity);
+                warnings.push(warning);
+            }
         }
-
-        const displayPath = toPosixPath(path.relative(repoRoot, capabilityFile));
-        warnings.add(`CAPABILITY_NO_FRONTMATTER: ${displayPath}`);
     };
 
     if (config.metadataRepos && config.layerSources) {
@@ -1475,20 +1486,71 @@ function collectConfiguredCapabilityWarnings(
             }
 
             const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
-            appendWarningIfMalformed(repoRoot, source.path);
+            appendManifestWarnings(repoRoot, source.path);
         }
 
-        return Array.from(warnings);
+        return warnings;
     }
 
     if (config.metadataRepo && config.layers) {
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
         for (const layerPath of config.layers) {
-            appendWarningIfMalformed(repoRoot, layerPath);
+            appendManifestWarnings(repoRoot, layerPath);
         }
     }
 
-    return Array.from(warnings);
+    return warnings;
+}
+
+function toCapabilityDiagnosticSeverity(
+    severity: CapabilityWarning['severity'],
+): vscode.DiagnosticSeverity {
+    if (severity === 'error') {
+        return vscode.DiagnosticSeverity.Error;
+    }
+    if (severity === 'info') {
+        return vscode.DiagnosticSeverity.Information;
+    }
+    return vscode.DiagnosticSeverity.Warning;
+}
+
+function replaceCapabilityWarningDiagnostics(
+    collection: vscode.DiagnosticCollection,
+    previousFilePaths: string[],
+    warnings: CapabilityWarning[],
+): string[] {
+    const grouped = new Map<string, vscode.Diagnostic[]>();
+
+    for (const warning of warnings) {
+        if (!warning.filePath) {
+            continue;
+        }
+
+        const filePath = path.normalize(warning.filePath);
+        const diagnostic = new vscode.Diagnostic(
+            new vscode.Range(0, 0, 0, 1),
+            warning.message,
+            toCapabilityDiagnosticSeverity(warning.severity),
+        );
+        diagnostic.source = 'MetaFlow';
+        diagnostic.code = warning.code;
+
+        const diagnostics = grouped.get(filePath) ?? [];
+        diagnostics.push(diagnostic);
+        grouped.set(filePath, diagnostics);
+    }
+
+    for (const previousFilePath of previousFilePaths) {
+        if (!grouped.has(previousFilePath)) {
+            collection.delete(vscode.Uri.file(previousFilePath));
+        }
+    }
+
+    for (const [filePath, diagnostics] of grouped) {
+        collection.set(vscode.Uri.file(filePath), diagnostics);
+    }
+
+    return Array.from(grouped.keys()).sort((left, right) => left.localeCompare(right));
 }
 
 type DirectoryAccessibility =
@@ -2210,6 +2272,7 @@ function resolveOverlay(
         }
     >;
     capabilityWarnings: string[];
+    capabilityDiagnostics: CapabilityWarning[];
 } {
     const layers = resolveLayers(config, workspaceRoot, {
         enableDiscovery: options?.enableDiscovery,
@@ -2226,6 +2289,24 @@ function resolveOverlay(
         }
     > = {};
     const capabilityWarnings: string[] = [];
+    const capabilityDiagnostics: CapabilityWarning[] = [];
+    const seenCapabilityWarningMessages = new Set<string>();
+    const seenCapabilityDiagnostics = new Set<string>();
+
+    const appendCapabilityWarning = (warning: CapabilityWarning): void => {
+        const diagnosticIdentity = capabilityWarningIdentity(warning);
+        if (!seenCapabilityDiagnostics.has(diagnosticIdentity)) {
+            seenCapabilityDiagnostics.add(diagnosticIdentity);
+            capabilityDiagnostics.push(warning);
+        }
+
+        const message = formatCapabilityWarningMessage(warning);
+        if (!seenCapabilityWarningMessages.has(message)) {
+            seenCapabilityWarningMessages.add(message);
+            capabilityWarnings.push(message);
+            logWarn(message);
+        }
+    };
 
     for (const layer of layers) {
         if (layer.capability) {
@@ -2238,9 +2319,7 @@ function resolveOverlay(
         }
 
         for (const warning of layer.capability?.warnings ?? []) {
-            const message = formatCapabilityWarningMessage(warning);
-            capabilityWarnings.push(message);
-            logWarn(message);
+            appendCapabilityWarning(warning);
         }
     }
 
@@ -2254,17 +2333,15 @@ function resolveOverlay(
     }
 
     for (const warning of collectConfiguredSourceWarnings(config, workspaceRoot, layers)) {
-        if (!capabilityWarnings.includes(warning)) {
+        if (!seenCapabilityWarningMessages.has(warning)) {
+            seenCapabilityWarningMessages.add(warning);
             capabilityWarnings.push(warning);
             logWarn(warning);
         }
     }
 
-    for (const warning of collectConfiguredCapabilityWarnings(config, workspaceRoot)) {
-        if (!capabilityWarnings.includes(warning)) {
-            capabilityWarnings.push(warning);
-            logWarn(warning);
-        }
+    for (const warning of collectConfiguredCapabilityDiagnosticWarnings(config, workspaceRoot)) {
+        appendCapabilityWarning(warning);
     }
 
     const profileName = config.activeProfile;
@@ -2275,7 +2352,8 @@ function resolveOverlay(
         profile,
     })) {
         const message = formatSurfacedFileConflictMessage(conflict);
-        if (!capabilityWarnings.includes(message)) {
+        if (!seenCapabilityWarningMessages.has(message)) {
+            seenCapabilityWarningMessages.add(message);
             capabilityWarnings.push(message);
             logWarn(message);
         }
@@ -2295,6 +2373,7 @@ function resolveOverlay(
         effectiveFiles: files,
         capabilityByLayer,
         capabilityWarnings,
+        capabilityDiagnostics,
     };
 }
 
@@ -3067,10 +3146,6 @@ async function promptForCapabilityManifestDirectory(options: {
     return targetPath;
 }
 
-function buildCapabilityManifestStarterTemplate(): string {
-    return buildCapabilityManifestStarterTemplateForName('Capability Name');
-}
-
 function sanitizeCapabilityDirectoryName(value: string): string {
     return value
         .trim()
@@ -3088,6 +3163,7 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
         `name: ${normalizedName}`,
         'description: Describe what this capability offers in one direct declarative sentence.',
         'license: SEE-LICENSE-IN-REPO',
+        'agentPlugin: true',
         '---',
         '',
         `# Capability: ${normalizedName}`,
@@ -3105,6 +3181,29 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
         '- List adjacent concerns this capability does not own.',
         '',
     ].join('\n');
+}
+
+function buildCapabilityPackageJsonStarterTemplate(
+    capabilityName: string,
+    capabilityDirectoryName: string,
+): string {
+    const normalizedCapabilityName = capabilityName.trim() || 'Capability Name';
+    const normalizedPackageName = sanitizeCapabilityDirectoryName(capabilityDirectoryName) || 'capability';
+
+    return `${JSON.stringify(
+        {
+            name: `@metaflow-capability/${normalizedPackageName}`,
+            version: '0.1.0',
+            description: `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`,
+            keywords: ['metaflow', 'agent-plugin', 'capability'],
+            metaflow: {
+                pluginHosts: ['github-copilot'],
+                minimumMetaflowVersion: '^0.1.0-preview.0',
+            },
+        },
+        null,
+        2,
+    )}\n`;
 }
 
 async function refreshRepoSyncStatusCache(
@@ -3547,6 +3646,7 @@ export function registerCommands(
                     state.governanceContractErrors = [];
                     state.governanceCompliance = undefined;
                     state.capabilityWarnings = [];
+                    state.capabilityDiagnosticFilePaths = [];
                     state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     invalidateRepoSyncStatus(state);
@@ -3556,6 +3656,7 @@ export function registerCommands(
                 }
 
                 clearDiagnostics(diagnosticCollection);
+                state.capabilityDiagnosticFilePaths = [];
                 const governanceResult = loadGovernanceContract(ws.uri.fsPath);
                 publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
                 state.governanceContract = governanceResult.ok ? governanceResult.contract : undefined;
@@ -3702,6 +3803,11 @@ export function registerCommands(
                         diagnosticCollection,
                         result.configPath,
                         configuredSourceDiagnosticWarnings,
+                    );
+                    state.capabilityDiagnosticFilePaths = replaceCapabilityWarningDiagnostics(
+                        diagnosticCollection,
+                        state.capabilityDiagnosticFilePaths,
+                        overlay.capabilityDiagnostics,
                     );
                     state.treeSummaryCache = await buildTreeSummaryCache(
                         projectedConfig,
@@ -5861,6 +5967,7 @@ export function registerCommands(
                 state.capabilityByLayer = {};
                 state.repoMetadataById = {};
                 state.capabilityWarnings = [];
+                state.capabilityDiagnosticFilePaths = [];
                 state.treeSummaryCache = undefined;
                 invalidateRepoSyncStatus(state);
                 updateStatusBar('idle');
@@ -6080,6 +6187,7 @@ export function registerCommands(
             await fsp.mkdir(capabilityDirectoryPath, { recursive: true });
             await fsp.mkdir(capabilityGithubDirectoryPath, { recursive: true });
             const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
+            const packageJsonPath = path.join(capabilityDirectoryPath, 'package.json');
             const manifestExists = fs.existsSync(manifestPath);
             if (!manifestExists) {
                 await fsp.writeFile(
@@ -6089,6 +6197,25 @@ export function registerCommands(
                 );
             }
 
+            const packageJsonExists = fs.existsSync(packageJsonPath);
+            if (!packageJsonExists) {
+                await fsp.writeFile(
+                    packageJsonPath,
+                    buildCapabilityPackageJsonStarterTemplate(
+                        capabilityName,
+                        capabilityDirectoryName,
+                    ),
+                    'utf-8',
+                );
+            }
+
+            const packageJsonDoc = await vscode.workspace.openTextDocument(packageJsonPath);
+            await vscode.window.showTextDocument(packageJsonDoc, {
+                viewColumn: vscode.ViewColumn.Beside,
+                preview: true,
+                preserveFocus: true,
+            });
+
             const draftDoc = await vscode.workspace.openTextDocument(manifestPath);
             await vscode.window.showTextDocument(draftDoc, {
                 preview: false,
@@ -6096,7 +6223,7 @@ export function registerCommands(
             });
 
             vscode.window.showInformationMessage(
-                `MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and ${manifestExists ? 'opened' : 'created'} ${manifestPath}.`,
+                `MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and ${manifestExists ? 'opened' : 'created'} ${manifestPath} plus ${packageJsonExists ? 'opened' : 'created'} ${packageJsonPath}.`,
             );
 
             return {
@@ -6104,6 +6231,7 @@ export function registerCommands(
                 examplePath,
                 draftUri: draftDoc.uri.toString(),
                 manifestPath,
+                packageJsonPath,
                 targetDirectory,
                 capabilityDirectoryPath,
                 capabilityGithubDirectoryPath,

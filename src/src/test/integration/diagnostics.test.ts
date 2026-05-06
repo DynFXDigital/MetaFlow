@@ -314,6 +314,96 @@ suite('Diagnostics Integration', () => {
         }
     });
 
+    test('refresh publishes agent-plugin package errors to Problems and diagnostics snapshot', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-agent-plugin-diagnostics');
+        const layerRoot = path.join(repoRoot, 'plugins', 'missing-package');
+        fs.rmSync(repoRoot, { recursive: true, force: true });
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Missing Package Plugin',
+                'description: A capability missing package metadata.',
+                'agentPlugin: true',
+                '---',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const warningConfig = JSON.stringify(
+            {
+                metadataRepos: [
+                    {
+                        id: 'plugin-diag',
+                        localPath: '.tmp-agent-plugin-diagnostics',
+                        enabled: true,
+                    },
+                ],
+                layerSources: [
+                    {
+                        repoId: 'plugin-diag',
+                        path: 'plugins/missing-package',
+                        enabled: true,
+                    },
+                ],
+                filters: { include: ['**/*'], exclude: [] },
+                profiles: { default: { enable: ['**/*'] } },
+                activeProfile: 'default',
+            },
+            null,
+            2,
+        );
+
+        try {
+            fs.writeFileSync(configPath, warningConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const packageJsonPath = path.join(layerRoot, 'package.json');
+            const diagnostics = vscode.languages
+                .getDiagnostics(vscode.Uri.file(packageJsonPath))
+                .filter((diagnostic) => diagnostic.source === 'MetaFlow');
+
+            assert.strictEqual(diagnostics.length, 1, 'Expected one agent-plugin package error');
+            assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+            assert.strictEqual(diagnostics[0].code, 'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING');
+
+            const snapshot = await vscode.commands.executeCommand<{
+                capabilityWarnings: string[];
+                configDiagnostics: Array<{
+                    file: string;
+                    message: string;
+                    severity: number;
+                    startLine: number;
+                    startColumn: number;
+                    source?: string;
+                    code?: string | number;
+                }>;
+            }>('metaflow.getDiagnosticsSnapshot');
+
+            const packageDiagnostics = snapshot.configDiagnostics.filter(
+                (entry) =>
+                    entry.file === vscode.Uri.file(packageJsonPath).fsPath &&
+                    entry.code === 'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING',
+            );
+
+            assert.strictEqual(packageDiagnostics.length, 1);
+            assert.strictEqual(packageDiagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+            assert.ok(
+                snapshot.capabilityWarnings.some((warning) =>
+                    warning.includes('CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING'),
+                ),
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('refresh does not publish diagnostics for disabled missing-layer overrides', async function () {
         this.timeout(15000);
 

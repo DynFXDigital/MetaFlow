@@ -27,6 +27,9 @@ export interface LayerContent {
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
+export type CapabilityDiagnosticSeverity = 'error' | 'warning' | 'info';
+
+/** Warning emitted while parsing/validating capability metadata. */
 export interface CapabilityWarning {
     /** Stable warning code for testability and diagnostics routing. */
     code: string;
@@ -34,6 +37,26 @@ export interface CapabilityWarning {
     message: string;
     /** Optional file path associated with the warning. */
     filePath?: string;
+    /** Severity used for diagnostics routing. */
+    severity?: CapabilityDiagnosticSeverity;
+}
+
+/** Capability-local agent-plugin package metadata loaded from package.json. */
+export interface CapabilityAgentPluginPackage {
+    /** Absolute path to the package.json file. */
+    packageJsonPath: string;
+    /** Plugin package name. */
+    name?: string;
+    /** Plugin package version. */
+    version?: string;
+    /** Plugin package description. */
+    description?: string;
+    /** Optional discovery keywords. */
+    keywords: string[];
+    /** Optional target plugin hosts. */
+    pluginHosts: string[];
+    /** Optional minimum MetaFlow version range. */
+    minimumMetaflowVersion?: string;
 }
 
 /** Parsed CAPABILITY.md metadata associated with a layer. */
@@ -50,6 +73,10 @@ export interface CapabilityMetadata {
     license?: string;
     /** Whether the capability is explicitly marked experimental. */
     experimental?: boolean;
+    /** Whether this capability opts into agent-plugin packaging validation. */
+    agentPlugin?: boolean;
+    /** Optional validated package metadata for agent-plugin-compatible capabilities. */
+    agentPluginPackage?: CapabilityAgentPluginPackage;
     /** Markdown content after frontmatter. */
     body?: string;
     /** Warnings emitted while parsing/validating this manifest. */

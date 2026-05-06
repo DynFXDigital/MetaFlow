@@ -171,12 +171,23 @@ function formatLicenseLabel(license: string | undefined): string {
 }
 
 function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, string]> {
-    return [
+    const items: Array<[string, string]> = [
         ['Repository', model.repoLabel],
         ['Layer', model.layerPath],
         ['License', formatLicenseLabel(model.license)],
         ['Manifest', model.manifestPath ? 'Present' : 'Missing'],
     ];
+
+    if (model.agentPlugin) {
+        items.push([
+            'Agent Plugin',
+            model.agentPluginPackage
+                ? 'Validated package present'
+                : 'Enabled, package attention needed',
+        ]);
+    }
+
+    return items;
 }
 
 function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, string]> {
@@ -192,6 +203,21 @@ function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, st
 
     if (model.manifestPath) {
         items.push(['Manifest Path', model.manifestPath]);
+    }
+    if (model.agentPluginPackage) {
+        items.push(['Package Path', model.agentPluginPackage.packageJsonPath]);
+        if (model.agentPluginPackage.name) {
+            items.push(['Package Name', model.agentPluginPackage.name]);
+        }
+        if (model.agentPluginPackage.version) {
+            items.push(['Package Version', model.agentPluginPackage.version]);
+        }
+        if (model.agentPluginPackage.pluginHosts.length > 0) {
+            items.push(['Plugin Hosts', model.agentPluginPackage.pluginHosts.join(', ')]);
+        }
+        if (model.agentPluginPackage.minimumMetaflowVersion) {
+            items.push(['Minimum MetaFlow', model.agentPluginPackage.minimumMetaflowVersion]);
+        }
     }
     if (model.builtIn) {
         items.push(['Source Type', 'Built-in MetaFlow capability']);
@@ -340,6 +366,7 @@ function renderHeroStats(model: CapabilityDetailModel): string {
                     <div class="hero-stats">
                         <span class="status-pill status-pill-${model.enabled ? 'enabled' : 'disabled'}">${escapeHtml(getStatusText(model))}</span>
                         ${model.experimental ? '<span class="status-pill status-pill-warning">Experimental</span>' : ''}
+                        ${model.agentPlugin ? '<span class="status-pill status-pill-info">Agent Plugin</span>' : ''}
                         ${renderStat('Files', String(model.artifactCount))}
                         ${renderStat('Warnings', String(model.warnings.length))}
                         ${renderStat('Scope Risk', getInstructionScopeStatusLabel(model.instructionScopeSummary))}
@@ -657,6 +684,10 @@ export function renderCapabilityDetailsHtml(
 
         .status-pill-warning {
             color: var(--vscode-editorWarning-foreground);
+        }
+
+        .status-pill-info {
+            color: var(--vscode-terminal-ansiBlue);
         }
 
         .stat-chip {

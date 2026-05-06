@@ -60,12 +60,23 @@ export interface CapabilityDetailArtifactBucket {
     files: string[];
 }
 
+export interface CapabilityDetailAgentPluginPackage {
+    packageJsonPath: string;
+    name?: string;
+    version?: string;
+    description?: string;
+    pluginHosts: string[];
+    minimumMetaflowVersion?: string;
+}
+
 export interface CapabilityDetailModel {
     title: string;
     capabilityId: string;
     description?: string;
     license?: string;
     experimental?: boolean;
+    agentPlugin?: boolean;
+    agentPluginPackage?: CapabilityDetailAgentPluginPackage;
     layerId: string;
     layerIndex?: number;
     layerPath: string;
@@ -157,7 +168,17 @@ function buildArtifactBuckets(files: string[]): CapabilityDetailArtifactBucket[]
     );
 }
 
-function formatWarning(code: string, message: string): string {
+function formatWarning(
+    code: string,
+    message: string,
+    severity?: 'error' | 'warning' | 'info',
+): string {
+    if (severity === 'error') {
+        return `[Error][${code}] ${message}`;
+    }
+    if (severity === 'info') {
+        return `[Info][${code}] ${message}`;
+    }
     return `[${code}] ${message}`;
 }
 
@@ -353,7 +374,9 @@ export async function loadCapabilityDetailModel(
     const layerFiles = await collectLayerFiles(target.layerRoot);
     const artifactBuckets = buildArtifactBuckets(layerFiles);
     const warnings = manifest
-        ? manifest.warnings.map((warning) => formatWarning(warning.code, warning.message))
+        ? manifest.warnings.map((warning) =>
+              formatWarning(warning.code, warning.message, warning.severity),
+          )
         : ['[CAPABILITY_MANIFEST_MISSING] CAPABILITY.md was not found at the layer root.'];
     const instructionScopeSummary = summarizeLayerInstructionScope(
         treeSummaryCache,
@@ -372,6 +395,17 @@ export async function loadCapabilityDetailModel(
         description: manifest?.description?.trim(),
         license: manifest?.license?.trim(),
         experimental: manifest?.experimental,
+        agentPlugin: manifest?.agentPlugin,
+        agentPluginPackage: manifest?.agentPluginPackage
+            ? {
+                  packageJsonPath: manifest.agentPluginPackage.packageJsonPath,
+                  name: manifest.agentPluginPackage.name,
+                  version: manifest.agentPluginPackage.version,
+                  description: manifest.agentPluginPackage.description,
+                  pluginHosts: manifest.agentPluginPackage.pluginHosts,
+                  minimumMetaflowVersion: manifest.agentPluginPackage.minimumMetaflowVersion,
+              }
+            : undefined,
         layerId: target.layerId,
         layerIndex: target.layerIndex,
         layerPath: target.layerPath,

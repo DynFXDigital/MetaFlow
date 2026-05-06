@@ -20,6 +20,8 @@ function makeCapabilityDetailModel(
         description: 'Review shared metadata assets.',
         license: undefined,
         experimental: undefined,
+        agentPlugin: undefined,
+        agentPluginPackage: undefined,
         layerId: 'primary/review/capability-review',
         layerIndex: 2,
         layerPath: 'review/capability-review',
@@ -80,11 +82,29 @@ suite('CapabilityDetails helpers', () => {
                     'description: Shared traceability metadata.',
                     'license: MIT',
                     'experimental: true',
+                    'agentPlugin: true',
                     '---',
                     '',
                     '## Mission',
                     'Keep requirements, design, and tests aligned.',
                 ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(layerRoot, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@metaflow-capability/sdlc-traceability',
+                        version: '1.0.0',
+                        description: 'Traceability plugin package.',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                        },
+                    },
+                    null,
+                    2,
+                ),
                 'utf-8',
             );
             fs.writeFileSync(
@@ -175,8 +195,13 @@ suite('CapabilityDetails helpers', () => {
 
             assert.strictEqual(model.title, 'SDLC Traceability');
             assert.strictEqual(model.repoLabel, 'Team Metadata');
-            assert.strictEqual(model.artifactCount, 2);
+            assert.strictEqual(model.artifactCount, 3);
             assert.strictEqual(model.experimental, true);
+            assert.strictEqual(model.agentPlugin, true);
+            assert.strictEqual(
+                model.agentPluginPackage?.name,
+                '@metaflow-capability/sdlc-traceability',
+            );
             assert.ok(html.includes('capability-tab-details'));
             assert.ok(html.includes('capability-tab-contents'));
             assert.ok(html.includes('Contents'));
@@ -189,6 +214,8 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(html.includes('Open CAPABILITY.md'));
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
             assert.ok(html.includes('status-pill-warning">Experimental'));
+            assert.ok(html.includes('status-pill-info">Agent Plugin'));
+            assert.ok(html.includes('@metaflow-capability/sdlc-traceability'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
             assert.ok(html.includes("script-src 'none'"));
         } finally {

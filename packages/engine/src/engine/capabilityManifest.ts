@@ -3,24 +3,31 @@
  *
  * CAPABILITY.md frontmatter contract (MVP):
  * - required: name, description
- * - optional: license, experimental
+ * - optional: license, experimental, agentPlugin
  *
  * Unknown fields are allowed with warnings for forward compatibility.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CapabilityMetadata, CapabilityWarning } from './types';
+import {
+    CapabilityAgentPluginPackage,
+    CapabilityDiagnosticSeverity,
+    CapabilityMetadata,
+    CapabilityWarning,
+} from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
+const AGENT_PLUGIN_PACKAGE_FILE_NAME = 'package.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
-const KNOWN_FIELDS = new Set(['name', 'description', 'license', 'experimental']);
+const KNOWN_FIELDS = new Set(['name', 'description', 'license', 'experimental', 'agentPlugin']);
 
 type ManifestFields = {
     name?: string;
     description?: string;
     license?: string;
     experimental?: string;
+    agentPlugin?: string;
 };
 
 function parseBooleanField(value: string | undefined): boolean | undefined {
@@ -43,8 +50,13 @@ interface ParseFrontmatterResult {
     warnings: CapabilityWarning[];
 }
 
-function toWarning(code: string, message: string, filePath?: string): CapabilityWarning {
-    return { code, message, filePath };
+function toWarning(
+    code: string,
+    message: string,
+    filePath?: string,
+    severity: CapabilityDiagnosticSeverity = 'warning',
+): CapabilityWarning {
+    return { code, message, filePath, severity };
 }
 
 function stripQuotes(value: string): string {
@@ -229,6 +241,266 @@ function isLikelySpdxExpression(value: string): boolean {
     return ok && index === tokens.length;
 }
 
+function isLikelyVersionRange(value: string): boolean {
+    const trimmed = value.trim();
+    return trimmed.length > 0 && /\d/.test(trimmed) && /^[0-9A-Za-z*.+\-<>=~^|\s]+$/.test(trimmed);
+}
+
+function isValidPackageName(value: string): boolean {
+    const trimmed = value.trim();
+    if (
+        trimmed.length === 0 ||
+        trimmed !== value ||
+        trimmed.startsWith('.') ||
+        trimmed.startsWith('_')
+    ) {
+        return false;
+    }
+
+    return /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(trimmed);
+}
+
+function isLikelySemver(value: string): boolean {
+    return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value.trim());
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    const normalized = value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+
+    return normalized;
+}
+
+function parseAgentPluginPackageContent(
+    rawText: string,
+    packageJsonPath: string,
+): { metadata?: CapabilityAgentPluginPackage; warnings: CapabilityWarning[] } {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(rawText) as unknown;
+    } catch (error) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_JSON_INVALID',
+                    `package.json could not be parsed: ${(error as Error).message}`,
+                    packageJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_JSON_OBJECT_REQUIRED',
+                    'package.json must contain a top-level JSON object.',
+                    packageJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    const packageObject = parsed as Record<string, unknown>;
+    const warnings: CapabilityWarning[] = [];
+    const packageName =
+        typeof packageObject.name === 'string' ? packageObject.name.trim() : undefined;
+    const version =
+        typeof packageObject.version === 'string' ? packageObject.version.trim() : undefined;
+    const description =
+        typeof packageObject.description === 'string'
+            ? packageObject.description.trim()
+            : undefined;
+    const keywords = normalizeStringArray(packageObject.keywords) ?? [];
+
+    if (!packageName) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_NAME_REQUIRED',
+                'package.json requires a non-empty "name" field for agent-plugin capabilities.',
+                packageJsonPath,
+                'error',
+            ),
+        );
+    } else if (!isValidPackageName(packageName)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_NAME_INVALID',
+                'package.json "name" must be a valid npm package name.',
+                packageJsonPath,
+                'error',
+            ),
+        );
+    }
+
+    if (!version) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_VERSION_REQUIRED',
+                'package.json requires a non-empty "version" field for agent-plugin capabilities.',
+                packageJsonPath,
+                'error',
+            ),
+        );
+    } else if (!isLikelySemver(version)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_VERSION_INVALID',
+                'package.json "version" should use SemVer syntax such as 1.0.0.',
+                packageJsonPath,
+                'error',
+            ),
+        );
+    }
+
+    if (!description) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_DESCRIPTION_REQUIRED',
+                'package.json requires a non-empty "description" field for agent-plugin capabilities.',
+                packageJsonPath,
+                'error',
+            ),
+        );
+    }
+
+    if (packageObject.keywords !== undefined && !Array.isArray(packageObject.keywords)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_KEYWORDS_INVALID',
+                'package.json "keywords" should be an array of strings when present.',
+                packageJsonPath,
+                'warning',
+            ),
+        );
+    }
+
+    const metaflow = packageObject.metaflow;
+    let pluginHosts: string[] = [];
+    let minimumMetaflowVersion: string | undefined;
+
+    if (metaflow !== undefined) {
+        if (!metaflow || typeof metaflow !== 'object' || Array.isArray(metaflow)) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_METAFLOW_INVALID',
+                    'package.json "metaflow" should be an object when present.',
+                    packageJsonPath,
+                    'error',
+                ),
+            );
+        } else {
+            const metaflowObject = metaflow as Record<string, unknown>;
+            const normalizedPluginHosts = normalizeStringArray(metaflowObject.pluginHosts);
+            if (metaflowObject.pluginHosts !== undefined && !normalizedPluginHosts) {
+                warnings.push(
+                    toWarning(
+                        'CAPABILITY_AGENT_PLUGIN_PACKAGE_HOSTS_INVALID',
+                        'package.json "metaflow.pluginHosts" should be an array of strings when present.',
+                        packageJsonPath,
+                        'error',
+                    ),
+                );
+            } else {
+                pluginHosts = normalizedPluginHosts ?? [];
+            }
+
+            if (typeof metaflowObject.minimumMetaflowVersion === 'string') {
+                minimumMetaflowVersion = metaflowObject.minimumMetaflowVersion.trim() || undefined;
+                if (minimumMetaflowVersion && !isLikelyVersionRange(minimumMetaflowVersion)) {
+                    warnings.push(
+                        toWarning(
+                            'CAPABILITY_AGENT_PLUGIN_PACKAGE_MINIMUM_METAFLOW_VERSION_INVALID',
+                            'package.json "metaflow.minimumMetaflowVersion" should be a recognizable version range.',
+                            packageJsonPath,
+                            'error',
+                        ),
+                    );
+                }
+            } else if (metaflowObject.minimumMetaflowVersion !== undefined) {
+                warnings.push(
+                    toWarning(
+                        'CAPABILITY_AGENT_PLUGIN_PACKAGE_MINIMUM_METAFLOW_VERSION_INVALID',
+                        'package.json "metaflow.minimumMetaflowVersion" should be a string when present.',
+                        packageJsonPath,
+                        'error',
+                    ),
+                );
+            }
+        }
+    }
+
+    if (pluginHosts.length === 0) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_PACKAGE_HOSTS_RECOMMENDED',
+                'package.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
+                packageJsonPath,
+                'warning',
+            ),
+        );
+    }
+
+    return {
+        metadata: {
+            packageJsonPath,
+            name: packageName,
+            version,
+            description,
+            keywords,
+            pluginHosts,
+            minimumMetaflowVersion,
+        },
+        warnings,
+    };
+}
+
+function loadAgentPluginPackageForLayer(layerPath: string): {
+    metadata?: CapabilityAgentPluginPackage;
+    warnings: CapabilityWarning[];
+} {
+    const packageJsonPath = path.join(layerPath, AGENT_PLUGIN_PACKAGE_FILE_NAME);
+    if (!fs.existsSync(packageJsonPath)) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING',
+                    'CAPABILITY.md declares "agentPlugin: true" but package.json is missing at the capability root.',
+                    packageJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    let rawText: string;
+    try {
+        rawText = fs.readFileSync(packageJsonPath, 'utf-8');
+    } catch (error) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_READ_ERROR',
+                    `Failed to read package.json: ${(error as Error).message}`,
+                    packageJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    return parseAgentPluginPackageContent(rawText, packageJsonPath);
+}
+
 function validateManifestFields(fields: ManifestFields, filePath?: string): CapabilityWarning[] {
     const warnings: CapabilityWarning[] = [];
 
@@ -278,6 +550,17 @@ function validateManifestFields(fields: ManifestFields, filePath?: string): Capa
         );
     }
 
+    if (fields.agentPlugin !== undefined && parseBooleanField(fields.agentPlugin) === undefined) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_INVALID',
+                'CAPABILITY.md "agentPlugin" should be either true or false.',
+                filePath,
+                'error',
+            ),
+        );
+    }
+
     return warnings;
 }
 
@@ -309,6 +592,7 @@ export function parseCapabilityManifestContent(
         description: parsed.fields.description,
         license: parsed.fields.license,
         experimental: parsed.fields.experimental,
+        agentPlugin: parsed.fields.agentPlugin,
     };
 
     warnings.push(...validateManifestFields(fields, manifestPath));
@@ -320,6 +604,7 @@ export function parseCapabilityManifestContent(
         description: fields.description?.trim() || undefined,
         license: fields.license?.trim() || undefined,
         experimental: parseBooleanField(fields.experimental),
+        agentPlugin: parseBooleanField(fields.agentPlugin),
         body: parsed.body,
         warnings,
     };
@@ -354,10 +639,18 @@ export function loadCapabilityManifestForLayer(
         };
     }
 
-    return parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
+    const manifest = parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
+    if (manifest.agentPlugin) {
+        const packageResult = loadAgentPluginPackageForLayer(layerPath);
+        manifest.agentPluginPackage = packageResult.metadata;
+        manifest.warnings.push(...packageResult.warnings);
+    }
+
+    return manifest;
 }
 
 export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
+    AGENT_PLUGIN_PACKAGE_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };

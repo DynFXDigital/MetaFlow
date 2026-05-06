@@ -40,6 +40,8 @@ export type {
     LayerContent,
     EffectiveFile,
     CapabilityMetadata,
+    CapabilityAgentPluginPackage,
+    CapabilityDiagnosticSeverity,
     CapabilityWarning,
     RepoMetadata,
     SurfacedFileConflict,
