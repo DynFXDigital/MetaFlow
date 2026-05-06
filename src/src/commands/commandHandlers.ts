@@ -3062,14 +3062,29 @@ async function promptForCapabilityManifestDirectory(options: {
 }
 
 function buildCapabilityManifestStarterTemplate(): string {
+    return buildCapabilityManifestStarterTemplateForName('Capability Name');
+}
+
+function sanitizeCapabilityDirectoryName(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9._-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function buildCapabilityManifestStarterTemplateForName(capabilityName: string): string {
+    const normalizedName = capabilityName.trim() || 'Capability Name';
     return [
         '---',
-        'name: Capability Name',
+        `name: ${normalizedName}`,
         'description: Describe what this capability offers in one direct declarative sentence.',
         'license: SEE-LICENSE-IN-REPO',
         '---',
         '',
-        '# Capability: Capability Name',
+        `# Capability: ${normalizedName}`,
         '',
         '## Mission',
         '',
@@ -5981,6 +5996,51 @@ export function registerCommands(
                 return;
             }
 
+            const capabilityName = await vscode.window.showInputBox({
+                title: 'MetaFlow: Capability Name',
+                prompt: 'Enter the capability display name',
+                placeHolder: 'Capability Name',
+                ignoreFocusOut: true,
+                validateInput: (value) => {
+                    if (!value.trim()) {
+                        return 'Capability name is required.';
+                    }
+                    return undefined;
+                },
+            });
+            if (!capabilityName) {
+                return;
+            }
+
+            const defaultDirectoryName = sanitizeCapabilityDirectoryName(capabilityName);
+            const capabilityDirectoryNameInput = await vscode.window.showInputBox({
+                title: 'MetaFlow: Capability Directory Name',
+                prompt:
+                    'Enter the directory name to create under the selected parent directory',
+                value: defaultDirectoryName,
+                placeHolder: 'new-capability',
+                ignoreFocusOut: true,
+                validateInput: (value) => {
+                    if (!value.trim()) {
+                        return 'Capability directory name is required.';
+                    }
+                    if (value.includes('/') || value.includes('\\')) {
+                        return 'Capability directory name must not include path separators.';
+                    }
+                    if (value === '.' || value === '..') {
+                        return 'Capability directory name must not be . or ..';
+                    }
+                    return undefined;
+                },
+            });
+            if (!capabilityDirectoryNameInput) {
+                return;
+            }
+
+            const capabilityDirectoryName = capabilityDirectoryNameInput.trim();
+            const capabilityDirectoryPath = path.join(targetDirectory, capabilityDirectoryName);
+            const capabilityGithubDirectoryPath = path.join(capabilityDirectoryPath, '.github');
+
             const guidancePath = path.join(
                 context.extensionPath,
                 BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
@@ -6011,11 +6071,16 @@ export function registerCommands(
                 preserveFocus: true,
             });
 
-            await fsp.mkdir(targetDirectory, { recursive: true });
-            const manifestPath = path.join(targetDirectory, 'CAPABILITY.md');
+            await fsp.mkdir(capabilityDirectoryPath, { recursive: true });
+            await fsp.mkdir(capabilityGithubDirectoryPath, { recursive: true });
+            const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
             const manifestExists = fs.existsSync(manifestPath);
             if (!manifestExists) {
-                await fsp.writeFile(manifestPath, buildCapabilityManifestStarterTemplate(), 'utf-8');
+                await fsp.writeFile(
+                    manifestPath,
+                    buildCapabilityManifestStarterTemplateForName(capabilityName),
+                    'utf-8',
+                );
             }
 
             const draftDoc = await vscode.workspace.openTextDocument(manifestPath);
@@ -6034,6 +6099,10 @@ export function registerCommands(
                 draftUri: draftDoc.uri.toString(),
                 manifestPath,
                 targetDirectory,
+                capabilityDirectoryPath,
+                capabilityGithubDirectoryPath,
+                capabilityName: capabilityName.trim(),
+                capabilityDirectoryName,
             };
         }),
     );

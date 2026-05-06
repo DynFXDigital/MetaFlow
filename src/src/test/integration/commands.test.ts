@@ -1852,7 +1852,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('createCapabilityManifest opens guidance and writes CAPABILITY.md to a prompted contextual directory', async function () {
+    test('createCapabilityManifest prompts for capability naming and creates a child directory under the selected parent', async function () {
         this.timeout(15000);
 
         await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -1888,9 +1888,11 @@ suite('Command Execution', function () {
         const windowAny = vscode.window as unknown as {
             showQuickPick: (...items: unknown[]) => Thenable<unknown>;
             showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInputBox: (...items: unknown[]) => Thenable<string | undefined>;
         };
         const originalQuickPick = windowAny.showQuickPick;
         const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInputBox = windowAny.showInputBox;
 
         windowAny.showQuickPick = async (items: unknown) => {
             if (!Array.isArray(items)) {
@@ -1907,6 +1909,18 @@ suite('Command Execution', function () {
 
         windowAny.showOpenDialog = async () => undefined;
 
+        let inputPromptCount = 0;
+        windowAny.showInputBox = async () => {
+            inputPromptCount += 1;
+            if (inputPromptCount === 1) {
+                return 'Context Capability';
+            }
+            if (inputPromptCount === 2) {
+                return 'context-capability';
+            }
+            return undefined;
+        };
+
         try {
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -1921,6 +1935,10 @@ suite('Command Execution', function () {
                       draftUri?: string;
                       manifestPath?: string;
                       targetDirectory?: string;
+                                            capabilityDirectoryPath?: string;
+                                            capabilityGithubDirectoryPath?: string;
+                                            capabilityName?: string;
+                                            capabilityDirectoryName?: string;
                   }
                 | undefined;
 
@@ -1933,21 +1951,50 @@ suite('Command Execution', function () {
                 'guided create should return the bundled example path',
             );
 
-            const expectedManifestPath = path.join(layerRoot, 'CAPABILITY.md');
+            const expectedCapabilityDirectoryPath = path.join(layerRoot, 'context-capability');
+            const expectedCapabilityGithubDirectoryPath = path.join(
+                expectedCapabilityDirectoryPath,
+                '.github',
+            );
+            const expectedManifestPath = path.join(expectedCapabilityDirectoryPath, 'CAPABILITY.md');
             assert.strictEqual(
                 path.normalize(result?.manifestPath ?? ''),
                 path.normalize(expectedManifestPath),
-                'guided create should target the contextual capability directory',
+                'guided create should write CAPABILITY.md in the child capability directory',
             );
             assert.strictEqual(
                 path.normalize(result?.targetDirectory ?? ''),
                 path.normalize(layerRoot),
-                'guided create should return the selected destination directory',
+                'guided create should return the selected parent destination directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.capabilityDirectoryPath ?? ''),
+                path.normalize(expectedCapabilityDirectoryPath),
+                'guided create should return the created child capability directory path',
+            );
+            assert.strictEqual(
+                path.normalize(result?.capabilityGithubDirectoryPath ?? ''),
+                path.normalize(expectedCapabilityGithubDirectoryPath),
+                'guided create should return the created .github directory path',
+            );
+            assert.strictEqual(
+                result?.capabilityName,
+                'Context Capability',
+                'guided create should return the entered capability name',
+            );
+            assert.strictEqual(
+                result?.capabilityDirectoryName,
+                'context-capability',
+                'guided create should return the entered capability directory name',
             );
             assert.strictEqual(
                 result?.draftUri,
                 vscode.Uri.file(expectedManifestPath).toString(),
                 'guided create should return the created CAPABILITY.md uri',
+            );
+            assert.ok(
+                fs.existsSync(expectedCapabilityGithubDirectoryPath),
+                'guided create should create an empty .github directory for the new capability',
             );
 
             assert.ok(
@@ -1970,12 +2017,15 @@ suite('Command Execution', function () {
                 'guided create should open the created CAPABILITY.md file',
             );
             assert.ok(
-                vscode.window.activeTextEditor!.document.getText().includes('name: Capability Name'),
-                'guided create should seed CAPABILITY.md with frontmatter guidance',
+                vscode.window.activeTextEditor!.document
+                    .getText()
+                    .includes('name: Context Capability'),
+                'guided create should use the entered capability name in CAPABILITY.md frontmatter',
             );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
             windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInputBox = originalInputBox;
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(repoRoot);
             await vscode.commands.executeCommand('metaflow.refresh');

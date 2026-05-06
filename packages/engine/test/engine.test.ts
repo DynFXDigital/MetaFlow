@@ -437,6 +437,21 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(instruction?.classification, 'settings');
     });
 
+    it('discovers CAPABILITY-only layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-capability-only-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'empty-capability'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoRoot, 'capabilities', 'empty-capability', 'CAPABILITY.md'),
+            ['---', 'name: Empty Capability', 'description: Empty', '---'].join('\n'),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/empty-capability']);
+    });
+
     it('classifies deprecated chatmodes as Synchronized-only', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });

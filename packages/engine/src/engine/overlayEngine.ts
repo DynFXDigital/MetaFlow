@@ -418,8 +418,9 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         );
         const hasGithubArtifacts =
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
+        const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
-        if (hasArtifactAtRoot || hasGithubArtifacts) {
+        if (hasArtifactAtRoot || hasGithubArtifacts || hasCapabilityManifest) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
             const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
             if (!matchesAnyExclude(layerPath, excludePatterns)) {
@@ -441,6 +442,19 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
 
     walk(repoRoot);
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
+}
+
+function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string): boolean {
+    if (!childNames.has('CAPABILITY.md')) {
+        return false;
+    }
+
+    const manifestPath = path.join(currentDir, 'CAPABILITY.md');
+    try {
+        return fs.statSync(manifestPath).isFile();
+    } catch {
+        return false;
+    }
 }
 
 function hasAnyKnownArtifactDir(dirPath: string): boolean {
