@@ -14,6 +14,7 @@ import { ConfigTreeViewProvider } from '../../views/configTreeView';
 import { ProfilesTreeViewProvider } from '../../views/profilesTreeView';
 import { LayersTreeViewProvider } from '../../views/layersTreeView';
 import { FilesTreeViewProvider } from '../../views/filesTreeView';
+import { StagedTreeExpandController } from '../../views/stagedTreeExpand';
 import { createState, ExtensionState } from '../../commands/commandHandlers';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
@@ -1417,5 +1418,123 @@ suite('TreeView Providers', () => {
             tooltip.value.includes('Human-friendly grouping metadata for repoTree browsing.'),
             'Tooltip should include directory METAFLOW description',
         );
+    });
+
+    test('staged expand-all runtime stays bounded to capability-depth targets before deeper nodes', async () => {
+        const expandEmitter = new vscode.EventEmitter<{ element: vscode.TreeItem }>();
+        const collapseEmitter = new vscode.EventEmitter<{ element: vscode.TreeItem }>();
+
+        const layersRevealed: string[] = [];
+        state.config = {
+            metadataRepos: [{ id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true }],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: 'primary', path: 'company/core/devtools', enabled: true },
+            ],
+        };
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/root.instructions.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-stage', 'root.instructions.md'),
+                sourceLayer: 'primary/company/core',
+                classification: 'settings',
+            },
+            {
+                relativePath: 'skills/review/SKILL.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-stage', 'review-skill', 'SKILL.md'),
+                sourceLayer: 'primary/company/core/devtools',
+                classification: 'settings',
+            },
+        ];
+
+        const layersProvider = new LayersTreeViewProvider(state, () => 'tree');
+        const layersController = new StagedTreeExpandController(
+            {
+                async reveal(element) {
+                    layersRevealed.push(String(element.label));
+                    expandEmitter.fire({ element });
+                },
+                onDidExpandElement: expandEmitter.event,
+                onDidCollapseElement: collapseEmitter.event,
+            },
+            layersProvider,
+        );
+
+        await layersController.expandAll();
+        assert.deepStrictEqual(
+            layersRevealed,
+            ['CoreMeta', 'company'],
+            'first Layers-tree expansion should stop at capability-depth ancestors',
+        );
+
+        await layersController.expandAll();
+        assert.deepStrictEqual(
+            layersRevealed,
+            ['CoreMeta', 'company', 'core'],
+            'second Layers-tree expansion should reveal the bounded capability node only',
+        );
+
+        const filesExpandEmitter = new vscode.EventEmitter<{ element: vscode.TreeItem }>();
+        const filesCollapseEmitter = new vscode.EventEmitter<{ element: vscode.TreeItem }>();
+        const filesRevealed: string[] = [];
+        state.config = {
+            metadataRepos: [{ id: 'ai-metadata', localPath: '.ai/ai-metadata' }],
+            layerSources: [{ repoId: 'ai-metadata', path: 'areas/browsing' }],
+        };
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/guide.instructions.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-stage-files', 'guide.instructions.md'),
+                sourceLayer: 'ai-metadata/areas/browsing',
+                sourceRepo: 'ai-metadata',
+                classification: 'settings',
+            },
+            {
+                relativePath: 'skills/review/SKILL.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-stage-files', 'review', 'SKILL.md'),
+                sourceLayer: 'ai-metadata/areas/browsing',
+                sourceRepo: 'ai-metadata',
+                classification: 'settings',
+            },
+        ];
+
+        const filesProvider = new FilesTreeViewProvider(state, () => 'repoTree');
+        const filesController = new StagedTreeExpandController(
+            {
+                async reveal(element) {
+                    filesRevealed.push(String(element.label));
+                    filesExpandEmitter.fire({ element });
+                },
+                onDidExpandElement: filesExpandEmitter.event,
+                onDidCollapseElement: filesCollapseEmitter.event,
+            },
+            filesProvider,
+        );
+
+        await filesController.expandAll();
+        assert.deepStrictEqual(
+            filesRevealed,
+            ['ai-metadata', 'areas'],
+            'first Files-tree expansion should stop at capability-depth ancestors',
+        );
+
+        await filesController.expandAll();
+        assert.deepStrictEqual(
+            filesRevealed,
+            ['ai-metadata', 'areas', 'browsing'],
+            'second Files-tree expansion should reveal the bounded capability node only',
+        );
+        assert.strictEqual(
+            filesRevealed.includes('skills'),
+            false,
+            'staged expansion should not auto-expand skill-directory internals',
+        );
+
+        layersController.dispose();
+        filesController.dispose();
+        expandEmitter.dispose();
+        collapseEmitter.dispose();
+        filesExpandEmitter.dispose();
+        filesCollapseEmitter.dispose();
     });
 });
