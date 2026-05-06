@@ -2960,6 +2960,10 @@ interface FlatCapabilityDirectoryPick extends vscode.QuickPickItem {
     targetDirectory: string;
 }
 
+interface MetadataRepoPick extends vscode.QuickPickItem {
+    repoId: string;
+}
+
 function normalizeCapabilityDirectorySegment(value: string | undefined): string | undefined {
     if (typeof value !== 'string') {
         return undefined;
@@ -3083,6 +3087,46 @@ async function promptForFlatCapabilityDirectory(
     });
 
     return selected?.targetDirectory;
+}
+
+async function promptForMetadataRepoId(
+    state: ExtensionState,
+): Promise<string | undefined> {
+    if (!state.config) {
+        return undefined;
+    }
+
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const { metadataRepos } = ensureMultiRepoConfig(projectedConfig);
+    const picks: MetadataRepoPick[] = metadataRepos
+        .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID)
+        .map((repo) => ({
+            label: resolveRepoDisplayLabel(
+                repo.id,
+                repo.name,
+                repo.localPath,
+                state.repoMetadataById[repo.id]?.name,
+            ),
+            description: repo.id,
+            detail: repo.localPath,
+            repoId: repo.id,
+        }));
+
+    if (picks.length === 0) {
+        return undefined;
+    }
+
+    if (picks.length === 1) {
+        return picks[0].repoId;
+    }
+
+    const selected = await vscode.window.showQuickPick(picks, {
+        title: 'MetaFlow: Select Repository Source',
+        placeHolder: 'Choose the metadata repository whose capability plugin metadata should be maintained',
+        ignoreFocusOut: true,
+    });
+
+    return selected?.repoId;
 }
 
 async function promptForCapabilityManifestDirectory(options: {
@@ -3403,6 +3447,60 @@ export function buildMaintainedCapabilityPluginPackageJson(options: {
     return {
         content: nextContent,
         changed: existingRawText !== nextContent,
+    };
+}
+
+export async function maintainCapabilityPluginMetadataInDirectory(
+    capabilityDirectoryPath: string,
+): Promise<{
+    capabilityDirectoryPath: string;
+    capabilityName: string;
+    manifestPath: string;
+    packageJsonPath: string;
+    manifestChanged: boolean;
+    packageJsonChanged: boolean;
+}> {
+    const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
+    if (!fs.existsSync(manifestPath)) {
+        throw new Error(
+            `${manifestPath} was not found. Choose a capability directory that already contains CAPABILITY.md.`,
+        );
+    }
+
+    const manifestRawText = await fsp.readFile(manifestPath, 'utf-8');
+    const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+
+    const capabilityId = path.basename(capabilityDirectoryPath);
+    const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
+    const capabilityName = manifest?.name?.trim() || capabilityId;
+    const capabilityDescription = manifest?.description?.trim();
+
+    const packageJsonPath = path.join(capabilityDirectoryPath, 'package.json');
+    const existingPackageJsonRawText = fs.existsSync(packageJsonPath)
+        ? await fsp.readFile(packageJsonPath, 'utf-8')
+        : undefined;
+
+    const packageUpdate = buildMaintainedCapabilityPluginPackageJson({
+        capabilityName,
+        capabilityDescription,
+        capabilityDirectoryName: path.basename(capabilityDirectoryPath),
+        existingRawText: existingPackageJsonRawText,
+    });
+
+    if (manifestUpdate.changed) {
+        await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
+    }
+    if (packageUpdate.changed) {
+        await fsp.writeFile(packageJsonPath, packageUpdate.content, 'utf-8');
+    }
+
+    return {
+        capabilityDirectoryPath,
+        capabilityName,
+        manifestPath,
+        packageJsonPath,
+        manifestChanged: manifestUpdate.changed,
+        packageJsonChanged: packageUpdate.changed,
     };
 }
 
@@ -6485,84 +6583,166 @@ export function registerCommands(
                     });
                 }
 
-                const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
-                if (!fs.existsSync(manifestPath)) {
-                    vscode.window.showWarningMessage(
-                        `MetaFlow: ${manifestPath} was not found. Choose a capability directory that already contains CAPABILITY.md.`,
-                    );
-                    return;
-                }
-
-                const manifestRawText = await fsp.readFile(manifestPath, 'utf-8');
-                let manifestUpdate: { content: string; changed: boolean };
+                let result: Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>;
                 try {
-                    manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+                    result = await maintainCapabilityPluginMetadataInDirectory(capabilityDirectoryPath);
                 } catch (error: unknown) {
                     const message = error instanceof Error ? error.message : String(error);
                     vscode.window.showWarningMessage(
-                        `MetaFlow: Could not maintain CAPABILITY.md plugin metadata. ${message}`,
+                        `MetaFlow: Could not maintain capability plugin metadata. ${message}`,
                     );
                     return;
                 }
 
-                const capabilityId = path.basename(capabilityDirectoryPath);
-                const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
-                const capabilityName = manifest?.name?.trim() || capabilityId;
-                const capabilityDescription = manifest?.description?.trim();
-
-                const packageJsonPath = path.join(capabilityDirectoryPath, 'package.json');
-                const existingPackageJsonRawText = fs.existsSync(packageJsonPath)
-                    ? await fsp.readFile(packageJsonPath, 'utf-8')
-                    : undefined;
-
-                let packageUpdate: { content: string; changed: boolean };
-                try {
-                    packageUpdate = buildMaintainedCapabilityPluginPackageJson({
-                        capabilityName,
-                        capabilityDescription,
-                        capabilityDirectoryName: path.basename(capabilityDirectoryPath),
-                        existingRawText: existingPackageJsonRawText,
-                    });
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    vscode.window.showWarningMessage(
-                        `MetaFlow: Could not maintain capability package metadata. ${message}`,
-                    );
-                    return;
-                }
-
-                if (manifestUpdate.changed) {
-                    await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
-                }
-                if (packageUpdate.changed) {
-                    await fsp.writeFile(packageJsonPath, packageUpdate.content, 'utf-8');
-                }
-
-                const packageJsonDoc = await vscode.workspace.openTextDocument(packageJsonPath);
+                const packageJsonDoc = await vscode.workspace.openTextDocument(result.packageJsonPath);
                 await vscode.window.showTextDocument(packageJsonDoc, {
                     viewColumn: vscode.ViewColumn.Beside,
                     preview: true,
                     preserveFocus: true,
                 });
 
-                const manifestDoc = await vscode.workspace.openTextDocument(manifestPath);
+                const manifestDoc = await vscode.workspace.openTextDocument(result.manifestPath);
                 await vscode.window.showTextDocument(manifestDoc, {
                     preview: false,
                     viewColumn: vscode.ViewColumn.Active,
                 });
 
                 vscode.window.showInformationMessage(
-                    `MetaFlow: ${manifestUpdate.changed ? 'Updated' : 'Checked'} ${manifestPath} and ${packageUpdate.changed ? 'updated' : 'checked'} ${packageJsonPath} for capability plugin compatibility.`,
+                    `MetaFlow: ${result.manifestChanged ? 'Updated' : 'Checked'} ${result.manifestPath} and ${result.packageJsonChanged ? 'updated' : 'checked'} ${result.packageJsonPath} for capability plugin compatibility.`,
                 );
 
                 return {
-                    manifestPath,
-                    packageJsonPath,
-                    capabilityDirectoryPath,
-                    capabilityName,
+                    manifestPath: result.manifestPath,
+                    packageJsonPath: result.packageJsonPath,
+                    capabilityDirectoryPath: result.capabilityDirectoryPath,
+                    capabilityName: result.capabilityName,
                     guidancePath: fs.existsSync(guidancePath) ? guidancePath : undefined,
-                    manifestChanged: manifestUpdate.changed,
-                    packageJsonChanged: packageUpdate.changed,
+                    manifestChanged: result.manifestChanged,
+                    packageJsonChanged: result.packageJsonChanged,
+                };
+            },
+        ),
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.maintainAllCapabilityPluginMetadata',
+            async (arg?: unknown) => {
+                const ws = getWorkspace();
+                if (!ws || !state.config) {
+                    return;
+                }
+
+                let repoId = extractRepoId(arg);
+                if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: Built-in bundled metadata is read-only. Choose a regular metadata repository source instead.',
+                    );
+                    return;
+                }
+
+                if (!repoId) {
+                    repoId = await promptForMetadataRepoId(state);
+                }
+                if (!repoId) {
+                    return;
+                }
+
+                const projectedConfig = buildGovernanceEvaluationConfig(
+                    state.config,
+                    state.builtInCapability,
+                );
+                const { metadataRepos } = ensureMultiRepoConfig(projectedConfig);
+                const repo = metadataRepos.find((candidate) => candidate.id === repoId);
+                if (!repo) {
+                    vscode.window.showWarningMessage(
+                        `MetaFlow: Repository source "${repoId}" is not available in the active configuration.`,
+                    );
+                    return;
+                }
+
+                const repoRoot = resolvePathFromWorkspace(ws.uri.fsPath, repo.localPath);
+                const layerPaths = discoverLayersInRepo(repoRoot, repo.discover?.exclude).sort(
+                    (left, right) => left.localeCompare(right),
+                );
+                if (layerPaths.length === 0) {
+                    vscode.window.showInformationMessage(
+                        `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
+                    );
+                    return;
+                }
+
+                const changedResults: Array<Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>> = [];
+                const unchangedResults: Array<Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>> = [];
+                const failures: Array<{ layerPath: string; message: string }> = [];
+
+                await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'MetaFlow: Maintaining capability plugin metadata',
+                        cancellable: false,
+                    },
+                    async (progress) => {
+                        for (let index = 0; index < layerPaths.length; index += 1) {
+                            const layerPath = layerPaths[index];
+                            progress.report({
+                                message: `${index + 1}/${layerPaths.length}: ${layerPath}`,
+                                increment: 100 / layerPaths.length,
+                            });
+
+                            try {
+                                const result = await maintainCapabilityPluginMetadataInDirectory(
+                                    path.join(repoRoot, layerPath),
+                                );
+                                if (result.manifestChanged || result.packageJsonChanged) {
+                                    changedResults.push(result);
+                                } else {
+                                    unchangedResults.push(result);
+                                }
+                            } catch (error: unknown) {
+                                failures.push({
+                                    layerPath,
+                                    message: error instanceof Error ? error.message : String(error),
+                                });
+                            }
+                        }
+                    },
+                );
+
+                if (changedResults.length > 0) {
+                    await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                }
+
+                if (failures.length > 0) {
+                    showOutputChannel();
+                    for (const failure of failures) {
+                        logWarn(
+                            `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
+                        );
+                    }
+                }
+
+                const summary =
+                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
+
+                if (failures.length > 0) {
+                    vscode.window.showWarningMessage(summary);
+                } else {
+                    vscode.window.showInformationMessage(summary);
+                }
+
+                return {
+                    repoId,
+                    repoRoot,
+                    scannedCount: layerPaths.length,
+                    changedCount: changedResults.length,
+                    unchangedCount: unchangedResults.length,
+                    failureCount: failures.length,
+                    changedCapabilities: changedResults.map(
+                        (result) => result.capabilityDirectoryPath,
+                    ),
+                    failures,
                 };
             },
         ),

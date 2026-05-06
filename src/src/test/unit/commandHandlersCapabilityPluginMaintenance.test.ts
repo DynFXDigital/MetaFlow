@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 function loadCommandHandlers(): typeof import('../../commands/commandHandlers') {
     const moduleInternals = require('module') as {
@@ -15,7 +18,11 @@ function loadCommandHandlers(): typeof import('../../commands/commandHandlers') 
                 window: {
                     showWarningMessage: async () => undefined,
                     showInformationMessage: async () => undefined,
-                    createOutputChannel: () => ({ appendLine: () => {}, show: () => {}, dispose: () => {} }),
+                    createOutputChannel: () => ({
+                        appendLine: () => {},
+                        show: () => {},
+                        dispose: () => {},
+                    }),
                 },
                 ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
                 workspace: {
@@ -138,8 +145,95 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.name, '@custom/demo-capability');
         assert.strictEqual(parsed.version, '2.3.4');
         assert.strictEqual(parsed.scripts?.test, 'npm test');
-        assert.deepStrictEqual(parsed.keywords, ['existing', 'metaflow', 'agent-plugin', 'capability']);
+        assert.deepStrictEqual(parsed.keywords, [
+            'existing',
+            'metaflow',
+            'agent-plugin',
+            'capability',
+        ]);
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot', 'claude-code']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0-preview.0');
+    });
+
+    test('maintainCapabilityPluginMetadataInDirectory creates missing package data for one capability directory', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-'));
+        try {
+            fs.writeFileSync(
+                path.join(tempRoot, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Demo Capability',
+                    'description: Demo description',
+                    '---',
+                    '',
+                    '# Capability: Demo Capability',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
+            assert.strictEqual(result.manifestChanged, true);
+            assert.strictEqual(result.packageJsonChanged, true);
+
+            const manifestText = fs.readFileSync(path.join(tempRoot, 'CAPABILITY.md'), 'utf-8');
+            assert.ok(manifestText.includes('agentPlugin: true'));
+
+            const packageJson = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, 'package.json'), 'utf-8'),
+            ) as {
+                name?: string;
+                metaflow?: { pluginHosts?: string[] };
+            };
+            assert.ok(
+                packageJson.name?.startsWith('@metaflow-capability/metaflow-plugin-maintain-'),
+                `expected generated package name prefix, got: ${packageJson.name}`,
+            );
+            assert.deepStrictEqual(packageJson.metaflow?.pluginHosts, ['github-copilot']);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainCapabilityPluginMetadataInDirectory is idempotent when managed fields already exist', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-'));
+        try {
+            fs.writeFileSync(
+                path.join(tempRoot, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Demo Capability',
+                    'description: Demo description',
+                    'agentPlugin: true',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tempRoot, 'package.json'),
+                JSON.stringify(
+                    {
+                        name: '@custom/demo-capability',
+                        version: '1.2.3',
+                        description: 'Demo capability package',
+                        keywords: ['metaflow', 'agent-plugin', 'capability'],
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                        },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
+            assert.strictEqual(result.manifestChanged, false);
+            assert.strictEqual(result.packageJsonChanged, false);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
     });
 });

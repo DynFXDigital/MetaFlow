@@ -261,6 +261,41 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('Maintain All Capability Plugin Metadata is contributed for the command palette and repo item menus', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const maintainAllCommand = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.maintainAllCapabilityPluginMetadata',
+        );
+        assert.ok(
+            maintainAllCommand,
+            'Expected metaflow.maintainAllCapabilityPluginMetadata command contribution',
+        );
+        assert.strictEqual(maintainAllCommand?.icon, '$(repo)');
+
+        const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
+        assert.ok(
+            contextMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.maintainAllCapabilityPluginMetadata' &&
+                    entry.when ===
+                        'view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)',
+            ),
+            'Expected Maintain All Capability Plugin Metadata in the AI Metadata repo context menu',
+        );
+        assert.ok(
+            contextMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.maintainAllCapabilityPluginMetadata' &&
+                    entry.when === 'view == metaflow-layers && viewItem == layerRepo',
+            ),
+            'Expected Maintain All Capability Plugin Metadata in the Capabilities repo context menu',
+        );
+    });
+
     test('Capabilities and Effective Files contribute native filter commands and focused keybindings', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

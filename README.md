@@ -101,6 +101,7 @@ MetaFlow can also treat a capability as an agent-plugin-compatible package when 
 - MetaFlow validates the embedded package metadata and surfaces errors or warnings in the normal Problems and diagnostics flows.
 - Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.
 - Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin fields for an existing capability without replacing unrelated `package.json` content.
+- Use `MetaFlow: Maintain All Capability Plugin Metadata` to sweep every capability directory in a selected metadata repository and backfill missing plugin data in one pass.
 
 The maintained package contract currently expects:
 
@@ -115,13 +116,13 @@ MetaFlow also builds a normalized internal plugin catalog from valid capability 
 
 ## Where to go next
 
-| Topic                                                                         | Document                                         |
-| ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                   |
-| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md) |
-| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                         |
+| Topic                                                                         | Document                                           |
+| ----------------------------------------------------------------------------- | -------------------------------------------------- |
+| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                     |
+| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md)   |
+| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                           |
 | Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) |
-| Release process                                                               | [RELEASING.md](RELEASING.md)                     |
+| Release process                                                               | [RELEASING.md](RELEASING.md)                       |
 
 ## Support
 

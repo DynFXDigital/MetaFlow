@@ -144,6 +144,11 @@
         "icon": "$(package)"
       },
       {
+        "command": "metaflow.maintainAllCapabilityPluginMetadata",
+        "title": "MetaFlow: Maintain All Capability Plugin Metadata",
+        "icon": "$(repo)"
+      },
+      {
         "command": "metaflow.configureCapabilityInjection",
         "title": "MetaFlow: Configure Capability Injection"
       },
@@ -518,6 +523,16 @@
           "command": "metaflow.maintainCapabilityPluginMetadata",
           "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
           "group": "inline@3"
+        },
+        {
+          "command": "metaflow.maintainAllCapabilityPluginMetadata",
+          "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
+          "group": "inline@4"
+        },
+        {
+          "command": "metaflow.maintainAllCapabilityPluginMetadata",
+          "when": "view == metaflow-layers && viewItem == layerRepo",
+          "group": "inline@4"
         },
         {
           "command": "metaflow.expandFilesBranch",
