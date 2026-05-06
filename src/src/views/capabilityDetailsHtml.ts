@@ -339,6 +339,7 @@ function renderHeroStats(model: CapabilityDetailModel): string {
     return `
                     <div class="hero-stats">
                         <span class="status-pill status-pill-${model.enabled ? 'enabled' : 'disabled'}">${escapeHtml(getStatusText(model))}</span>
+                        ${model.experimental ? '<span class="status-pill status-pill-warning">Experimental</span>' : ''}
                         ${renderStat('Files', String(model.artifactCount))}
                         ${renderStat('Warnings', String(model.warnings.length))}
                         ${renderStat('Scope Risk', getInstructionScopeStatusLabel(model.instructionScopeSummary))}
@@ -652,6 +653,10 @@ export function renderCapabilityDetailsHtml(
 
         .status-pill-disabled {
             color: var(--vscode-descriptionForeground);
+        }
+
+        .status-pill-warning {
+            color: var(--vscode-editorWarning-foreground);
         }
 
         .stat-chip {

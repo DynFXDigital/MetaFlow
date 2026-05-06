@@ -639,6 +639,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
                 sourceCapabilityName: 'Agent Commit Coordination',
                 sourceCapabilityDescription: 'Shared-worktree coordination and commit locking.',
                 sourceCapabilityLicense: 'MIT',
+                sourceCapabilityExperimental: true,
             } as EffectiveFile,
         ];
         const stateWithMetadata = makeState(files, {
@@ -676,6 +677,10 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.ok(
             tooltipText.includes('License:') && tooltipText.includes('MIT'),
             `expected capability license, got: ${tooltipText}`,
+        );
+        assert.ok(
+            tooltipText.includes('Status: Experimental'),
+            `expected experimental status, got: ${tooltipText}`,
         );
     });
 
@@ -1129,6 +1134,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             sourceCapabilityName: 'SDLC Traceability',
             sourceCapabilityDescription: 'Traceability metadata capability.',
             sourceCapabilityLicense: 'MIT',
+            sourceCapabilityExperimental: true,
         } as EffectiveFile;
 
         const provider = new FilesTreeViewProvider(makeState([file]), () => 'unified');
@@ -1138,6 +1144,14 @@ suite('FilesTreeView – artifact-type grouping', () => {
         await provider.resolveTreeItem!(fileNode, fileNode, mockToken);
         const tooltipText = String(fileNode.tooltip);
 
+        assert.ok(
+            String(fileNode.description).startsWith('[Experimental] '),
+            `expected experimental marker in file description, got: ${fileNode.description}`,
+        );
+        assert.ok(
+            String(fileNode.description).includes('('),
+            `expected classification suffix in file description, got: ${fileNode.description}`,
+        );
         assert.ok(tooltipText.includes('Capability: SDLC Traceability'));
         assert.ok(
             tooltipText.includes('Capability ID:') && tooltipText.includes('sdlc-traceability'),
@@ -1145,6 +1159,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.ok(
             tooltipText.includes('Capability Description: Traceability metadata capability.'),
         );
+        assert.ok(tooltipText.includes('Capability Status: Experimental'));
         assert.ok(tooltipText.includes('Capability License:') && tooltipText.includes('MIT'));
     });
 

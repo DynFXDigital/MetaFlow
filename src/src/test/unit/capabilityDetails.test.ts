@@ -19,6 +19,7 @@ function makeCapabilityDetailModel(
         capabilityId: 'capability-review',
         description: 'Review shared metadata assets.',
         license: undefined,
+        experimental: undefined,
         layerId: 'primary/review/capability-review',
         layerIndex: 2,
         layerPath: 'review/capability-review',
@@ -78,6 +79,7 @@ suite('CapabilityDetails helpers', () => {
                     'name: SDLC Traceability',
                     'description: Shared traceability metadata.',
                     'license: MIT',
+                    'experimental: true',
                     '---',
                     '',
                     '## Mission',
@@ -174,6 +176,7 @@ suite('CapabilityDetails helpers', () => {
             assert.strictEqual(model.title, 'SDLC Traceability');
             assert.strictEqual(model.repoLabel, 'Team Metadata');
             assert.strictEqual(model.artifactCount, 2);
+            assert.strictEqual(model.experimental, true);
             assert.ok(html.includes('capability-tab-details'));
             assert.ok(html.includes('capability-tab-contents'));
             assert.ok(html.includes('Contents'));
@@ -185,6 +188,7 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(html.includes('command:metaflow.openCapabilityManifest?'));
             assert.ok(html.includes('Open CAPABILITY.md'));
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
+            assert.ok(html.includes('status-pill-warning">Experimental'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
             assert.ok(html.includes("script-src 'none'"));
         } finally {

@@ -86,7 +86,13 @@ type LayersTreeViewModule = {
             treeSummaryCache?: unknown;
             capabilityByLayer?: Record<
                 string,
-                { id?: string; name?: string; description?: string; license?: string }
+                {
+                    id?: string;
+                    name?: string;
+                    description?: string;
+                    license?: string;
+                    experimental?: boolean;
+                }
             >;
             repoMetadataById?: Record<string, { name?: string; description?: string }>;
             onDidChange: { event: (_l: unknown) => { dispose: () => void } };
@@ -194,7 +200,13 @@ function makeState(
     effectiveFiles: unknown[] = [],
     capabilityByLayer: Record<
         string,
-        { id?: string; name?: string; description?: string; license?: string }
+        {
+            id?: string;
+            name?: string;
+            description?: string;
+            license?: string;
+            experimental?: boolean;
+        }
     > = {},
     builtInCapability: {
         enabled: boolean;
@@ -874,9 +886,10 @@ suite('LayersTreeView – artifact-type children', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const capabilityByLayer = {
             '__metaflow_builtin__/.': { name: 'MetaFlow' },
-            '__metaflow_builtin__/capabilities/metadata-authoring/github-copilot-metadata-authoring': {
-                name: 'GitHub Copilot Metadata Authoring',
-            },
+            '__metaflow_builtin__/capabilities/metadata-authoring/github-copilot-metadata-authoring':
+                {
+                    name: 'GitHub Copilot Metadata Authoring',
+                },
             '__metaflow_builtin__/capabilities/metadata-authoring/claude-code-metadata-authoring': {
                 name: 'Claude Code Metadata Authoring',
             },
@@ -970,14 +983,11 @@ suite('LayersTreeView – artifact-type children', () => {
         );
 
         const metadataChildren = provider.getChildren(metadataAuthoringFolder as never);
-        assert.deepStrictEqual(
-            metadataChildren.map((item) => String(item.label)).sort(),
-            [
-                'Claude Code Metadata Authoring',
-                'Codex Metadata Authoring',
-                'GitHub Copilot Metadata Authoring',
-            ],
-        );
+        assert.deepStrictEqual(metadataChildren.map((item) => String(item.label)).sort(), [
+            'Claude Code Metadata Authoring',
+            'Codex Metadata Authoring',
+            'GitHub Copilot Metadata Authoring',
+        ]);
     });
 
     test('LTV-AT-10: only types with files are shown (partial coverage)', () => {
@@ -1595,12 +1605,12 @@ suite('LayersTreeView – artifact-type children', () => {
 
         assert.ok(String(layerItem.description).includes('governed'));
         assert.ok(
-            extractTooltipText(layerItem.tooltip).includes('Governance: compliant (severity: warn)'),
+            extractTooltipText(layerItem.tooltip).includes(
+                'Governance: compliant (severity: warn)',
+            ),
         );
         assert.ok(
-            extractTooltipText(layerItem.tooltip).includes(
-                'Governance Rule: required capability',
-            ),
+            extractTooltipText(layerItem.tooltip).includes('Governance Rule: required capability'),
         );
     });
 
@@ -1631,7 +1641,8 @@ suite('LayersTreeView – artifact-type children', () => {
             violations: [
                 {
                     id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::repo1::standards/sdlc',
-                    message: 'Required capability "repo1/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    message:
+                        'Required capability "repo1/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
                     repoId: 'repo1',
                     path: 'standards/sdlc',
                 },
@@ -1780,7 +1791,11 @@ suite('LayersTreeView – artifact-type children', () => {
             layerSources: [{ repoId: 'repo1', path: 'capabilities/devtools' }],
         };
         const capabilityByLayer = {
-            'repo1/capabilities/devtools': { id: 'devtools', name: 'Developer Tools' },
+            'repo1/capabilities/devtools': {
+                id: 'devtools',
+                name: 'Developer Tools',
+                experimental: true,
+            },
         };
         const provider = new LayersTreeViewProvider(
             makeState(config, [], capabilityByLayer),
@@ -1800,6 +1815,10 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(
             String(layerItem.description).includes('CoreMeta'),
             `description should still include repo label, got: ${layerItem.description}`,
+        );
+        assert.ok(
+            String(layerItem.description).includes('experimental'),
+            `description should include experimental marker, got: ${layerItem.description}`,
         );
     });
 
@@ -2102,7 +2121,10 @@ suite('LayersTreeView – artifact-type children', () => {
 
     test('LTV-SEA-02: flat mode keeps recursive expand behavior', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const provider = new LayersTreeViewProvider(makeState(makeMultiRepoConfig(), []), () => 'flat');
+        const provider = new LayersTreeViewProvider(
+            makeState(makeMultiRepoConfig(), []),
+            () => 'flat',
+        );
 
         assert.strictEqual(provider.getExpandAllStrategy(), 'recursive');
         assert.deepStrictEqual(provider.getStagedExpandPlan(), { stageOne: [], stageTwo: [] });

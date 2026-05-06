@@ -521,6 +521,7 @@ describe('Engine package: overlay pipeline', () => {
                 'name: SDLC Traceability',
                 'description: Traceability metadata capability.',
                 'license: MIT',
+                'experimental: true',
                 '---',
             ].join('\n'),
             'utf-8',
@@ -546,6 +547,7 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(file.sourceCapabilityName, 'SDLC Traceability');
         assert.strictEqual(file.sourceCapabilityDescription, 'Traceability metadata capability.');
         assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
+        assert.strictEqual(file.sourceCapabilityExperimental, true);
     });
 });
 

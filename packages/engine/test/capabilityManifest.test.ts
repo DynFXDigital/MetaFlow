@@ -15,6 +15,7 @@ describe('capabilityManifest parser', () => {
             'name: SDLC Traceability',
             'description: Traceable requirements and tests.',
             'license: MIT',
+            'experimental: true',
             '---',
             '',
             '## Mission',
@@ -31,8 +32,26 @@ describe('capabilityManifest parser', () => {
         assert.strictEqual(parsed.name, 'SDLC Traceability');
         assert.strictEqual(parsed.description, 'Traceable requirements and tests.');
         assert.strictEqual(parsed.license, 'MIT');
+        assert.strictEqual(parsed.experimental, true);
         assert.ok(parsed.body?.includes('## Mission'));
         assert.deepStrictEqual(parsed.warnings, []);
+    });
+
+    it('warns on invalid experimental syntax', () => {
+        const content = [
+            '---',
+            'name: My Capability',
+            'description: Desc',
+            'experimental: maybe',
+            '---',
+        ].join('\n');
+
+        const parsed = parseCapabilityManifestContent(
+            content,
+            'my-capability',
+            '/tmp/CAPABILITY.md',
+        );
+        assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_EXPERIMENTAL_INVALID'));
     });
 
     it('warns when frontmatter is missing', () => {

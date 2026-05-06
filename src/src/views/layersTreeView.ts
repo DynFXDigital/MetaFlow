@@ -321,6 +321,7 @@ interface LayerEntry {
         name?: string;
         description?: string;
         license?: string;
+        experimental?: boolean;
     };
 }
 
@@ -413,14 +414,10 @@ class LayerRepoItem extends vscode.TreeItem {
         this.checkboxState = repoDisabled
             ? vscode.TreeItemCheckboxState.Unchecked
             : vscode.TreeItemCheckboxState.Checked;
-        this.description = formatSummaryDescription(
-            undefined,
-            summary,
-            [
-                ...(repoDisabled ? ['disabled'] : []),
-                ...(options?.governance?.descriptionQualifiers ?? []),
-            ],
-        );
+        this.description = formatSummaryDescription(undefined, summary, [
+            ...(repoDisabled ? ['disabled'] : []),
+            ...(options?.governance?.descriptionQualifiers ?? []),
+        ]);
         const detailLines = [`Status: ${repoDisabled ? 'disabled' : 'enabled'}`];
 
         if (options?.builtIn) {
@@ -482,6 +479,7 @@ class LayerItem extends vscode.TreeItem {
             capabilityId?: string;
             capabilityDescription?: string;
             capabilityLicense?: string;
+            capabilityExperimental?: boolean;
             folderDescription?: string;
             summary?: ArtifactSummary;
             scopeSummary?: InstructionScopeSummary;
@@ -546,6 +544,9 @@ class LayerItem extends vscode.TreeItem {
         }
         if (typeof layerIndex === 'number') {
             qualifiers.push(...(options?.governance?.descriptionFlags ?? []));
+            if (options?.capabilityExperimental) {
+                qualifiers.push('experimental');
+            }
         }
 
         // When label was overridden to capability name, show configured path in description
@@ -591,7 +592,7 @@ class LayerItem extends vscode.TreeItem {
 
         if (typeof layerIndex === 'number' && typeof enabled === 'boolean') {
             this.accessibilityInformation = {
-                label: `${displayLabel} ${enabled ? 'enabled' : 'disabled'}`,
+                label: `${displayLabel}${options?.capabilityExperimental ? ' experimental' : ''} ${enabled ? 'enabled' : 'disabled'}`,
                 role: 'checkbox',
             };
         } else if (options?.branchToggleSummary) {
@@ -623,6 +624,9 @@ class LayerItem extends vscode.TreeItem {
 
             if (options.capabilityLicense) {
                 capabilityLines.push(`License: \`${options.capabilityLicense}\``);
+            }
+            if (options.capabilityExperimental) {
+                capabilityLines.push('Status: Experimental');
             }
 
             capabilityLines.push(...contextLines);
@@ -1156,11 +1160,23 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private getCapabilityMetadataByLayerId(): Map<
         string,
-        { id?: string; name?: string; description?: string; license?: string }
+        {
+            id?: string;
+            name?: string;
+            description?: string;
+            license?: string;
+            experimental?: boolean;
+        }
     > {
         const capabilityByLayer = new Map<
             string,
-            { id?: string; name?: string; description?: string; license?: string }
+            {
+                id?: string;
+                name?: string;
+                description?: string;
+                license?: string;
+                experimental?: boolean;
+            }
         >();
 
         for (const [layerId, metadata] of Object.entries(this.state.capabilityByLayer ?? {})) {
@@ -1177,13 +1193,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 file.sourceCapabilityId ||
                 file.sourceCapabilityName ||
                 file.sourceCapabilityDescription ||
-                file.sourceCapabilityLicense
+                file.sourceCapabilityLicense ||
+                file.sourceCapabilityExperimental
             ) {
                 capabilityByLayer.set(normalized, {
                     id: file.sourceCapabilityId,
                     name: file.sourceCapabilityName,
                     description: file.sourceCapabilityDescription,
                     license: file.sourceCapabilityLicense,
+                    experimental: file.sourceCapabilityExperimental,
                 });
             }
         }
@@ -1212,7 +1230,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return projected;
         }
 
-        const fallback = JSON.parse(JSON.stringify(projected)) as NonNullable<ExtensionState['config']>;
+        const fallback = JSON.parse(JSON.stringify(projected)) as NonNullable<
+            ExtensionState['config']
+        >;
         const multiRepoConfig = ensureMultiRepoConfig(fallback);
         const builtInRepoLabel =
             this.state.repoMetadataById?.[BUILT_IN_CAPABILITY_REPO_ID]?.name?.trim() ||
@@ -1616,6 +1636,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityId: matchingEntry?.capability?.id,
                         capabilityDescription: matchingEntry?.capability?.description,
                         capabilityLicense: matchingEntry?.capability?.license,
+                        capabilityExperimental: matchingEntry?.capability?.experimental,
                         folderDescription: directoryMetadata?.description,
                         summary: this.summarizePath(itemRepoId ?? 'primary', node.path || '.'),
                         scopeSummary: summarizeLayerInstructionScope(
@@ -1850,6 +1871,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityId: entry.capability?.id,
                         capabilityDescription: entry.capability?.description,
                         capabilityLicense: entry.capability?.license,
+                        capabilityExperimental: entry.capability?.experimental,
                         summary: this.summarizePath(
                             entry.repoId ?? 'primary',
                             entry.normalizedPath || '.',
@@ -1874,7 +1896,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         if (element instanceof LayerRepoItem) {
             const repoEntries = entries.filter((entry) => entry.repoId === element.repoId);
-            const repoChildren = this.getTreeChildrenForPrefix(repoEntries, '', element.repoId, mode);
+            const repoChildren = this.getTreeChildrenForPrefix(
+                repoEntries,
+                '',
+                element.repoId,
+                mode,
+            );
             if (mode === 'tree' && repoEntries.some((entry) => entry.normalizedPath === '')) {
                 if (element.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
                     return this.trackChildren(repoChildren, element);

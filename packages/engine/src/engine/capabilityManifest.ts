@@ -3,7 +3,7 @@
  *
  * CAPABILITY.md frontmatter contract (MVP):
  * - required: name, description
- * - optional: license
+ * - optional: license, experimental
  *
  * Unknown fields are allowed with warnings for forward compatibility.
  */
@@ -14,13 +14,28 @@ import { CapabilityMetadata, CapabilityWarning } from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
-const KNOWN_FIELDS = new Set(['name', 'description', 'license']);
+const KNOWN_FIELDS = new Set(['name', 'description', 'license', 'experimental']);
 
 type ManifestFields = {
     name?: string;
     description?: string;
     license?: string;
+    experimental?: string;
 };
+
+function parseBooleanField(value: string | undefined): boolean | undefined {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) {
+        return undefined;
+    }
+    if (normalized === 'true') {
+        return true;
+    }
+    if (normalized === 'false') {
+        return false;
+    }
+    return undefined;
+}
 
 interface ParseFrontmatterResult {
     fields: Record<string, string>;
@@ -253,6 +268,19 @@ function validateManifestFields(fields: ManifestFields, filePath?: string): Capa
         }
     }
 
+    if (
+        fields.experimental !== undefined &&
+        parseBooleanField(fields.experimental) === undefined
+    ) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_EXPERIMENTAL_INVALID',
+                'CAPABILITY.md "experimental" should be either true or false.',
+                filePath,
+            ),
+        );
+    }
+
     return warnings;
 }
 
@@ -283,6 +311,7 @@ export function parseCapabilityManifestContent(
         name: parsed.fields.name,
         description: parsed.fields.description,
         license: parsed.fields.license,
+        experimental: parsed.fields.experimental,
     };
 
     warnings.push(...validateManifestFields(fields, manifestPath));
@@ -293,6 +322,7 @@ export function parseCapabilityManifestContent(
         name: fields.name?.trim() || undefined,
         description: fields.description?.trim() || undefined,
         license: fields.license?.trim() || undefined,
+        experimental: parseBooleanField(fields.experimental),
         body: parsed.body,
         warnings,
     };

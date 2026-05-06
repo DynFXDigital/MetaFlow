@@ -282,6 +282,7 @@ export interface ExtensionState {
             name?: string;
             description?: string;
             license?: string;
+            experimental?: boolean;
         }
     >;
     repoMetadataById: Record<
@@ -1337,10 +1338,13 @@ function discoverBuiltInCapabilityLayerPaths(sourceRoot: string | undefined): st
 function collectConfiguredCapabilityMetadata(
     config: MetaFlowConfig,
     workspaceRoot: string,
-): Record<string, { id?: string; name?: string; description?: string; license?: string }> {
+): Record<
+    string,
+    { id?: string; name?: string; description?: string; license?: string; experimental?: boolean }
+> {
     const capabilityByLayer: Record<
         string,
-        { id?: string; name?: string; description?: string; license?: string }
+        { id?: string; name?: string; description?: string; license?: string; experimental?: boolean }
     > = {};
 
     if (config.metadataRepos && config.layerSources) {
@@ -1365,6 +1369,7 @@ function collectConfiguredCapabilityMetadata(
                 name: manifest.name,
                 description: manifest.description,
                 license: manifest.license,
+                experimental: manifest.experimental,
             };
         }
 
@@ -1386,6 +1391,7 @@ function collectConfiguredCapabilityMetadata(
                 name: manifest.name,
                 description: manifest.description,
                 license: manifest.license,
+                experimental: manifest.experimental,
             };
         }
     }

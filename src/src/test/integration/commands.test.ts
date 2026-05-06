@@ -1638,6 +1638,56 @@ suite('Command Execution', function () {
         }
     });
 
+    test('openCapabilityDetails renders experimental status in live runtime', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.ai', 'experimental-details-repo');
+        const layerRoot = path.join(repoRoot, 'review', 'experimental-capability');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Experimental Capability',
+                'description: Preview metadata experience.',
+                'experimental: true',
+                '---',
+                '',
+                '# Experimental Capability',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const config = {
+            metadataRepos: [{ id: 'experimental-details', localPath: '.ai/experimental-details-repo', enabled: true }],
+            layerSources: [{ repoId: 'experimental-details', path: 'review/experimental-capability', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
+                repoId: 'experimental-details',
+                layerPath: 'review/experimental-capability',
+            })) as { html?: string } | undefined;
+
+            assert.ok(snapshot?.html?.includes('status-pill-warning">Experimental'));
+            assert.ok(snapshot?.html?.includes('Experimental Capability'));
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
     test('TC-0317: openCapabilityDetails reuses a capability details webview panel in the current editor group (Verifies: REQ-0311, REQ-0412)', async function () {
         this.timeout(15000);
 

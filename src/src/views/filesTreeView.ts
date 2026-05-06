@@ -52,6 +52,11 @@ interface CapabilityMetadata {
     name?: string;
     description?: string;
     license?: string;
+    experimental?: boolean;
+}
+
+function getExperimentalMarker(experimental: boolean | undefined): string {
+    return experimental ? '[Experimental] ' : '';
 }
 
 interface FolderTooltipMetadata {
@@ -223,6 +228,9 @@ function buildFileItemTooltip(
         if (file.sourceCapabilityName && file.sourceCapabilityId) {
             details.push(`Capability ID: \`${file.sourceCapabilityId}\``);
         }
+        if (file.sourceCapabilityExperimental) {
+            details.push('Capability Status: Experimental');
+        }
         if (file.sourceCapabilityDescription) {
             details.push(`Capability Description: ${file.sourceCapabilityDescription}`);
         }
@@ -342,10 +350,11 @@ class FileItem extends vscode.TreeItem {
         this.sourceLabel = sourceLabel;
         this.displayLayerLabel = displayLayerLabel;
         const classificationLabel = getClassificationLabel(file.classification);
+        const experimentalMarker = getExperimentalMarker(file.sourceCapabilityExperimental);
         this.description =
             options?.showSourceLabelInDescription === false
-                ? `(${classificationLabel})`
-                : `${sourceLabel} (${classificationLabel})`;
+            ? `${experimentalMarker}(${classificationLabel})`
+            : `${experimentalMarker}${sourceLabel} (${classificationLabel})`;
         this.contextValue = 'effectiveFile';
         this.iconPath =
             file.classification === 'settings'
@@ -810,13 +819,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             representative.sourceCapabilityId ||
             representative.sourceCapabilityName ||
             representative.sourceCapabilityDescription ||
-            representative.sourceCapabilityLicense
+            representative.sourceCapabilityLicense ||
+            representative.sourceCapabilityExperimental
         ) {
             return {
                 id: representative.sourceCapabilityId,
                 name: representative.sourceCapabilityName,
                 description: representative.sourceCapabilityDescription,
                 license: representative.sourceCapabilityLicense,
+                experimental: representative.sourceCapabilityExperimental,
             };
         }
 
@@ -893,6 +904,9 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
         if (capability.license) {
             details.push(`License: \`${capability.license}\``);
+        }
+        if (capability.experimental) {
+            details.push('Status: Experimental');
         }
         if (repoLabel) {
             details.push(`Repository: \`${repoLabel}\``);
@@ -993,6 +1007,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     capability?.name?.trim() || skillMetadata?.displayLabel || segmentLabel;
                 const descriptionBase = this.buildDescriptionBase(displayLabel, [
                     capability?.id,
+                    capability?.experimental ? 'experimental' : undefined,
                     skillMetadata?.slug,
                     segmentLabel,
                 ]);
@@ -1239,6 +1254,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     segmentLabel;
                 const descriptionBase = this.buildDescriptionBase(displayLabel, [
                     capability?.id,
+                    capability?.experimental ? 'experimental' : undefined,
                     skillMetadata?.slug,
                     segmentLabel,
                 ]);

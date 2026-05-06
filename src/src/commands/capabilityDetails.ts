@@ -68,6 +68,7 @@ export interface CapabilityDetailModel {
     capabilityId: string;
     description?: string;
     license?: string;
+    experimental?: boolean;
     layerId: string;
     layerIndex?: number;
     layerPath: string;
@@ -369,6 +370,7 @@ export async function loadCapabilityDetailModel(
         capabilityId: manifest?.id ?? target.capabilityId,
         description: manifest?.description?.trim(),
         license: manifest?.license?.trim(),
+        experimental: manifest?.experimental,
         layerId: target.layerId,
         layerIndex: target.layerIndex,
         layerPath: target.layerPath,

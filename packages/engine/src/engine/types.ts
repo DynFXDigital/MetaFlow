@@ -48,6 +48,8 @@ export interface CapabilityMetadata {
     description?: string;
     /** Optional SPDX identifier/expression or fallback token. */
     license?: string;
+    /** Whether the capability is explicitly marked experimental. */
+    experimental?: boolean;
     /** Markdown content after frontmatter. */
     body?: string;
     /** Warnings emitted while parsing/validating this manifest. */
@@ -89,6 +91,8 @@ export interface EffectiveFile {
     sourceCapabilityDescription?: string;
     /** Capability license associated with the source layer. */
     sourceCapabilityLicense?: string;
+    /** Whether the source capability is explicitly marked experimental. */
+    sourceCapabilityExperimental?: boolean;
     /** Classification for realization strategy. */
     classification: ArtifactClassification;
 }

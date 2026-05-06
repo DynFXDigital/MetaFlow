@@ -295,7 +295,8 @@ suite('TreeView Providers', () => {
                 {
                     id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
                     code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING',
-                    message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    message:
+                        'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     severity: 'error',
@@ -308,7 +309,10 @@ suite('TreeView Providers', () => {
         const rootItems = provider.getChildren();
         const repoItems = provider.getChildren(rootItems[0] as never);
 
-        assert.strictEqual(repoItems[0].description, '.ai/ai-metadata (0/0, governance 1 violation)');
+        assert.strictEqual(
+            repoItems[0].description,
+            '.ai/ai-metadata (0/0, governance 1 violation)',
+        );
         assert.ok(
             (repoItems[0].tooltip as vscode.MarkdownString).value.includes(
                 'Governance: non-compliant (severity: error)',
@@ -463,7 +467,8 @@ suite('TreeView Providers', () => {
                 {
                     id: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::default',
                     code: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED',
-                    message: 'Active profile "default" is not allowed by governance. Allowed profiles: default.',
+                    message:
+                        'Active profile "default" is not allowed by governance. Allowed profiles: default.',
                     severity: 'error',
                     rule: 'allowedProfiles',
                     profileId: 'default',
@@ -748,7 +753,9 @@ suite('TreeView Providers', () => {
 
             const tooltip = capabilitiesFolderItem?.tooltip as vscode.MarkdownString;
             assert.ok(
-                tooltip.value.includes('Human-friendly grouping metadata for Capabilities browsing.'),
+                tooltip.value.includes(
+                    'Human-friendly grouping metadata for Capabilities browsing.',
+                ),
                 'Tooltip should include directory METAFLOW description',
             );
         } finally {
@@ -1059,6 +1066,50 @@ suite('TreeView Providers', () => {
         );
     });
 
+    test('experimental capabilities project visible indicators into Capabilities and Effective Files runtime rows', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
+            ],
+            layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: true }],
+        };
+        state.capabilityByLayer = {
+            'primary/standards/sdlc': {
+                id: 'sdlc-traceability',
+                name: 'SDLC Traceability',
+                description: 'Shared SDLC traceability metadata.',
+                experimental: true,
+            },
+        };
+        state.effectiveFiles = [
+            {
+                relativePath: 'instructions/trace.instructions.md',
+                sourcePath: path.join(os.tmpdir(), 'metaflow-experimental', 'trace.instructions.md'),
+                sourceLayer: 'primary/standards/sdlc',
+                sourceRepo: 'primary',
+                sourceCapabilityId: 'sdlc-traceability',
+                sourceCapabilityName: 'SDLC Traceability',
+                sourceCapabilityExperimental: true,
+                classification: 'settings',
+            },
+        ];
+
+        const layersProvider = new LayersTreeViewProvider(state, () => 'flat');
+        const [layerItem] = layersProvider.getChildren();
+        assert.ok(
+            String(layerItem.description).includes('experimental'),
+            `Capabilities row should include experimental marker, got: ${layerItem.description}`,
+        );
+
+        const filesProvider = new FilesTreeViewProvider(state, () => 'unified');
+        const [artifactNode] = filesProvider.getChildren();
+        const [fileNode] = filesProvider.getChildren(artifactNode as never);
+        assert.ok(
+            String(fileNode.description).startsWith('[Experimental] '),
+            `Effective Files row should include an experimental provenance marker, got: ${fileNode.description}`,
+        );
+    });
+
     test('LayersTreeView surfaces governed and violating capability cues in the Extension Host', () => {
         state.config = {
             metadataRepos: [
@@ -1088,7 +1139,8 @@ suite('TreeView Providers', () => {
                 {
                     id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
                     code: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING',
-                    message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                    message:
+                        'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     severity: 'error',
@@ -1426,7 +1478,9 @@ suite('TreeView Providers', () => {
 
         const layersRevealed: string[] = [];
         state.config = {
-            metadataRepos: [{ id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true }],
+            metadataRepos: [
+                { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
+            ],
             layerSources: [
                 { repoId: 'primary', path: 'company/core', enabled: true },
                 { repoId: 'primary', path: 'company/core/devtools', enabled: true },
