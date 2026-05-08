@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as jsonc from 'jsonc-parser';
 import { ConfigError } from './configSchema';
-import { discoverGovernanceContractPath } from './configPathUtils';
+import { discoverGovernanceContractPath, normalizeInputPath } from './configPathUtils';
 
 export type GovernanceSeverity = 'warn' | 'error';
 
@@ -134,12 +134,16 @@ export function validateGovernanceContract(contract: GovernanceContract): Config
 
     const requiredKeys = new Set<string>();
     for (const capability of contract.requiredCapabilities ?? []) {
-        const key = `${capability.repoId}::${capability.path}`;
+        if (!isValidCapabilityRef(capability)) {
+            continue;
+        }
+
+        const key = buildCapabilityRefKey(capability);
         if (requiredKeys.has(key)) {
             errors.push({
                 code: 'GOVERNANCE_DUPLICATE_REQUIRED_CAPABILITY',
                 severity: 'error',
-                message: `Governance contract duplicates required capability "${capability.repoId}/${capability.path}". Remove the duplicate entry.`,
+                message: `Governance contract duplicates required capability "${capability.repoId}/${normalizeCapabilityPath(capability.path)}" after path normalization. Remove the duplicate entry.`,
             });
         } else {
             requiredKeys.add(key);
@@ -148,12 +152,16 @@ export function validateGovernanceContract(contract: GovernanceContract): Config
 
     const defaultOnKeys = new Set<string>();
     for (const capability of contract.defaultOnCapabilities ?? []) {
-        const key = `${capability.repoId}::${capability.path}`;
+        if (!isValidCapabilityRef(capability)) {
+            continue;
+        }
+
+        const key = buildCapabilityRefKey(capability);
         if (defaultOnKeys.has(key)) {
             errors.push({
                 code: 'GOVERNANCE_DUPLICATE_DEFAULT_ON_CAPABILITY',
                 severity: 'error',
-                message: `Governance contract duplicates default-on capability "${capability.repoId}/${capability.path}". Remove the duplicate entry.`,
+                message: `Governance contract duplicates default-on capability "${capability.repoId}/${normalizeCapabilityPath(capability.path)}" after path normalization. Remove the duplicate entry.`,
             });
         } else {
             defaultOnKeys.add(key);
@@ -174,6 +182,27 @@ export function validateGovernanceContract(contract: GovernanceContract): Config
     }
 
     return errors;
+}
+
+function normalizeCapabilityPath(pathValue: string): string {
+    const normalized = normalizeInputPath(pathValue).replace(/\/\.github$/, '');
+    return normalized === '' || normalized === '.github' ? '.' : normalized;
+}
+
+function buildCapabilityRefKey(value: GovernanceCapabilityRef): string {
+    return `${value.repoId}::${normalizeCapabilityPath(value.path)}`;
+}
+
+function isValidCapabilityRef(value: GovernanceCapabilityRef): boolean {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        typeof value.repoId === 'string' &&
+        value.repoId.trim().length > 0 &&
+        typeof value.path === 'string' &&
+        value.path.trim().length > 0
+    );
 }
 
 function normalizeGovernanceContract(contract: GovernanceContract): GovernanceContract {
@@ -202,7 +231,7 @@ function dedupeCapabilityRefs(values: GovernanceCapabilityRef[]): GovernanceCapa
     const seen = new Set<string>();
     const output: GovernanceCapabilityRef[] = [];
     for (const value of values) {
-        const key = `${value.repoId}::${value.path}`;
+        const key = buildCapabilityRefKey(value);
         if (seen.has(key)) {
             continue;
         }
@@ -259,7 +288,10 @@ function validateStringList(
         return;
     }
 
-    if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.trim().length === 0)) {
+    if (
+        !Array.isArray(value) ||
+        value.some((entry) => typeof entry !== 'string' || entry.trim().length === 0)
+    ) {
         errors.push({
             code: `GOVERNANCE_INVALID_${fieldName === 'lockedProfiles' ? 'LOCKED_PROFILES' : 'ALLOWED_PROFILES'}`,
             severity: 'error',

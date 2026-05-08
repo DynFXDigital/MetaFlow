@@ -55,6 +55,10 @@ const KNOWN_ARTIFACT_TYPES = new Set<ExcludableArtifactType>([
     'prompts',
     'agents',
     'skills',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
 ]);
 
 interface ParsedMetadata {
@@ -189,6 +193,15 @@ function extractFirstMarkdownHeading(content: string): string | undefined {
 }
 
 function getPathAfterArtifactType(relativePath: string): string {
+    const posixPath = toPosixPath(relativePath);
+    const claudeMatch = posixPath.match(/(?:^|\/)\.claude\/(?:rules|agents|skills|settings)\/(.*)/);
+    if (claudeMatch) {
+        return claudeMatch[1] ?? '';
+    }
+    if (/(?:^|\/)\.claude\/settings\.json$/.test(posixPath)) {
+        return 'settings.json';
+    }
+
     const parts = toPosixPath(relativePath).split('/').filter(Boolean);
     const githubIndex = parts.indexOf('.github');
     const displayParts =
@@ -240,7 +253,22 @@ const DEFAULT_ARTIFACT_INJECTION_MODE: Record<ExcludableArtifactType, 'settings'
         prompts: 'settings',
         agents: 'settings',
         skills: 'settings',
+        'claude-rules': 'synchronize',
+        'claude-agents': 'synchronize',
+        'claude-skills': 'synchronize',
+        'claude-settings': 'synchronize',
     };
+
+const ARTIFACT_TYPE_ICONS: Record<ExcludableArtifactType, string> = {
+    instructions: 'symbol-method',
+    prompts: 'comment-discussion',
+    agents: 'hubot',
+    skills: 'tools',
+    'claude-rules': 'law',
+    'claude-agents': 'hubot',
+    'claude-skills': 'tools',
+    'claude-settings': 'settings-gear',
+};
 
 function normalizeInjectionPath(layerPath: string): string {
     const normalized = layerPath.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -651,6 +679,10 @@ const ARTIFACT_TYPE_ORDER: ExcludableArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
 ];
 
 function buildArtifactTypeContextValue(artifactType: ExcludableArtifactType): string {
@@ -690,7 +722,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
         this.checkboxState = excluded
             ? vscode.TreeItemCheckboxState.Unchecked
             : vscode.TreeItemCheckboxState.Checked;
-        this.iconPath = new vscode.ThemeIcon('folder');
+        this.iconPath = new vscode.ThemeIcon(ARTIFACT_TYPE_ICONS[artifactType]);
         const countLabel =
             options?.counts !== undefined ? String(options.counts.available) : undefined;
         const qualifiers = [

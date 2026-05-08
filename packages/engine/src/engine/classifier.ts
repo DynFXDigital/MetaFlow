@@ -11,6 +11,7 @@
  * - agents/** → settings
  * - hooks/** → settings
  * - chatmodes/** → synchronized (deprecated, no settings injection)
+ * - .claude/{rules,agents,skills,settings}/** → synchronized
  * - unknown → synchronized
  *
  * Pure TypeScript — no VS Code imports.
@@ -18,6 +19,7 @@
 
 import { InjectionConfig, LayerSource } from '../config/configSchema';
 import { normalizeInputPath } from '../config/configPathUtils';
+import { getArtifactType } from './artifactType';
 import { ArtifactClassification, EffectiveFile } from './types';
 
 /** Default classification rules per artifact type directory prefix. */
@@ -28,7 +30,24 @@ const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
     agents: 'settings',
     hooks: 'settings',
     chatmodes: 'synchronized',
+    'claude-rules': 'synchronized',
+    'claude-agents': 'synchronized',
+    'claude-skills': 'synchronized',
+    'claude-settings': 'synchronized',
 };
+
+function getInjectionKey(relativePath: string): string {
+    const normalized = relativePath.replace(/\\/g, '/');
+    const artifactType = getArtifactType(normalized);
+    if (artifactType !== 'other') {
+        return artifactType;
+    }
+
+    const effectivePath = normalized.startsWith('.github/')
+        ? normalized.slice('.github/'.length)
+        : normalized;
+    return effectivePath.split('/')[0] ?? '';
+}
 
 /**
  * Build a lookup key matching the layerId format used by the overlay engine.
@@ -111,20 +130,16 @@ export function classifySingle(
     relativePath: string,
     injection: InjectionConfig | undefined,
 ): ArtifactClassification {
-    const normalized = relativePath.replace(/\\/g, '/');
-    const effectivePath = normalized.startsWith('.github/')
-        ? normalized.slice('.github/'.length)
-        : normalized;
-    const topDir = effectivePath.split('/')[0];
+    const injectionKey = getInjectionKey(relativePath);
 
     // Deprecated chatmodes remain synchronized-only.
-    if (topDir === 'chatmodes') {
+    if (injectionKey === 'chatmodes') {
         return 'synchronized';
     }
 
     // Check injection override first
     if (injection) {
-        const mode = (injection as Record<string, string | undefined>)[topDir];
+        const mode = (injection as Record<string, string | undefined>)[injectionKey];
         if (mode === 'settings') {
             return 'settings';
         }
@@ -134,5 +149,5 @@ export function classifySingle(
     }
 
     // Fall back to default rules
-    return DEFAULT_CLASSIFICATION[topDir] ?? 'synchronized';
+    return DEFAULT_CLASSIFICATION[injectionKey] ?? 'synchronized';
 }

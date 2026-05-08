@@ -23,6 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
+import { KNOWN_CLAUDE_SUBDIRS } from './artifactType';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -363,6 +364,11 @@ function deriveCapabilityId(layerPath: string, repoRoot: string): string {
 }
 
 function isKnownArtifactPath(relativePath: string): boolean {
+    if (relativePath.startsWith('.claude/')) {
+        const afterClaude = relativePath.slice('.claude/'.length);
+        const firstSeg = afterClaude.split('/')[0] ?? '';
+        return KNOWN_CLAUDE_SUBDIRS.has(firstSeg) || firstSeg === 'settings.json';
+    }
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
 }
@@ -400,8 +406,8 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         }
 
         const currentBase = path.basename(currentDir);
-        if (currentBase === '.github') {
-            // Parent directory is the layer boundary for .github-based packs.
+        if (currentBase === '.github' || currentBase === '.claude') {
+            // Parent directory is the layer boundary for .github/.claude-based packs.
             return;
         }
 
@@ -418,8 +424,11 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         );
         const hasGithubArtifacts =
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
+        const hasClaudeArtifacts =
+            childNames.has('.claude') &&
+            hasAnyKnownClaudeArtifactDir(path.join(currentDir, '.claude'));
 
-        if (hasArtifactAtRoot || hasGithubArtifacts) {
+        if (hasArtifactAtRoot || hasGithubArtifacts || hasClaudeArtifacts) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
             const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
             if (!matchesAnyExclude(layerPath, excludePatterns)) {
@@ -443,6 +452,27 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
 }
 
+function hasAnyKnownClaudeArtifactDir(dirPath: string): boolean {
+    if (!fs.existsSync(dirPath)) {
+        return false;
+    }
+    for (const subdir of KNOWN_CLAUDE_SUBDIRS) {
+        const candidate = path.join(dirPath, subdir);
+        try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+                return true;
+            }
+        } catch {
+            continue;
+        }
+    }
+    const settingsJson = path.join(dirPath, 'settings.json');
+    try {
+        return fs.existsSync(settingsJson) && fs.statSync(settingsJson).isFile();
+    } catch {
+        return false;
+    }
+}
 function hasAnyKnownArtifactDir(dirPath: string): boolean {
     if (!fs.existsSync(dirPath)) {
         return false;

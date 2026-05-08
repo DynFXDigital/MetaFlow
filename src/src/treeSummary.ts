@@ -18,6 +18,10 @@ export const SUMMARY_ARTIFACT_ORDER: SummaryArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'claude-rules',
+    'claude-agents',
+    'claude-skills',
+    'claude-settings',
 ];
 
 export interface ArtifactSummaryCounts {
@@ -119,6 +123,10 @@ function createEmptySummary(): ArtifactSummary {
             prompts: EMPTY_SUMMARY_COUNTS(),
             agents: EMPTY_SUMMARY_COUNTS(),
             skills: EMPTY_SUMMARY_COUNTS(),
+            'claude-rules': EMPTY_SUMMARY_COUNTS(),
+            'claude-agents': EMPTY_SUMMARY_COUNTS(),
+            'claude-skills': EMPTY_SUMMARY_COUNTS(),
+            'claude-settings': EMPTY_SUMMARY_COUNTS(),
         },
     };
 }
@@ -147,11 +155,24 @@ function cloneSummary(summary: ArtifactSummary): ArtifactSummary {
             prompts: { ...summary.byType.prompts },
             agents: { ...summary.byType.agents },
             skills: { ...summary.byType.skills },
+            'claude-rules': { ...summary.byType['claude-rules'] },
+            'claude-agents': { ...summary.byType['claude-agents'] },
+            'claude-skills': { ...summary.byType['claude-skills'] },
+            'claude-settings': { ...summary.byType['claude-settings'] },
         },
     };
 }
 
 function titleCaseArtifactType(type: SummaryArtifactType): string {
+    if (type.startsWith('claude-')) {
+        const label = type
+            .slice('claude-'.length)
+            .split('-')
+            .filter(Boolean)
+            .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+            .join(' ');
+        return `Claude ${label}`;
+    }
     return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
@@ -171,6 +192,15 @@ function toDisplayRelativePath(relativePath: string): string {
 }
 
 function getArtifactPath(relativePath: string): string {
+    const posixPath = toPosixPath(relativePath);
+    const claudeMatch = posixPath.match(/(?:^|\/)\.claude\/(?:rules|agents|skills|settings)\/(.*)/);
+    if (claudeMatch) {
+        return claudeMatch[1] ?? '';
+    }
+    if (/(?:^|\/)\.claude\/settings\.json$/.test(posixPath)) {
+        return 'settings.json';
+    }
+
     const displayPath = toDisplayRelativePath(relativePath);
     const parts = displayPath.split('/').filter(Boolean);
     const typeIndex = parts.findIndex((part) => isKnownArtifactType(part));
@@ -182,10 +212,20 @@ function getArtifactPath(relativePath: string): string {
 }
 
 function getSummaryArtifactType(relativePath: string): SummaryArtifactType | undefined {
+    const posixPath = toPosixPath(relativePath);
+    const claudeMatch = posixPath.match(/(?:^|\/)\.claude\/(rules|agents|skills|settings)\//);
+    if (claudeMatch) {
+        const claudeType = `claude-${claudeMatch[1]}` as SummaryArtifactType;
+        return isKnownArtifactType(claudeType) ? claudeType : undefined;
+    }
+    if (/(?:^|\/)\.claude\/settings\.json$/.test(posixPath)) {
+        const t = 'claude-settings' as SummaryArtifactType;
+        return isKnownArtifactType(t) ? t : undefined;
+    }
+
     const displayPath = toDisplayRelativePath(relativePath);
     const parts = displayPath.split('/').filter(Boolean);
-    const typeSegment = parts.find(isKnownArtifactType);
-    return typeSegment;
+    return parts.find(isKnownArtifactType);
 }
 
 function getRecordKey(repoId: string, repoRelativePath: string): string {
@@ -972,8 +1012,23 @@ export function formatSummaryDescription(
 }
 
 export function getSummaryTooltipLines(summary: ArtifactSummary): string[] {
-    return SUMMARY_ARTIFACT_ORDER.map(
+    const alwaysShow: SummaryArtifactType[] = ['instructions', 'prompts', 'agents', 'skills'];
+    const showIfPresent: SummaryArtifactType[] = [
+        'claude-rules',
+        'claude-agents',
+        'claude-skills',
+        'claude-settings',
+    ];
+    const lines = alwaysShow.map(
         (type) =>
             `${titleCaseArtifactType(type)}: ${summary.byType[type].active}/${summary.byType[type].available} active`,
     );
+    for (const type of showIfPresent) {
+        if (summary.byType[type].available > 0) {
+            lines.push(
+                `${titleCaseArtifactType(type)}: ${summary.byType[type].active}/${summary.byType[type].available} active`,
+            );
+        }
+    }
+    return lines;
 }

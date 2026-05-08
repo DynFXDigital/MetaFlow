@@ -4,7 +4,7 @@ export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from '
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyFilters, applyExcludedTypeFilters } from './filterEngine';
 export { applyProfile } from './profileEngine';
-export { getArtifactType } from './artifactType';
+export { getArtifactType, isClaudeArtifactPath } from './artifactType';
 export type { ArtifactType } from './artifactType';
 export { classifyFiles, classifySingle, resolveFileInjection } from './classifier';
 export { matchesGlob, matchesAnyGlob } from './globMatcher';
@@ -21,7 +21,13 @@ export {
     getStateDirPath,
 } from './managedState';
 export { checkDrift, checkAllDrift } from './driftDetector';
-export { apply, clean, planSynchronization, preview, toSynchronizedRelativePath } from './synchronizer';
+export {
+    apply,
+    clean,
+    planSynchronization,
+    preview,
+    toSynchronizedRelativePath,
+} from './synchronizer';
 export { computeSettingsEntries, computeSettingsKeysToRemove } from './settingsInjector';
 export {
     parseCapabilityManifestContent,

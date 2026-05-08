@@ -52,7 +52,15 @@ export interface RepoDiscoveryConfig {
  * Distinct from the full `ArtifactType` (which includes `'other'`) defined in
  * the engine utility; `'other'` cannot be explicitly excluded.
  */
-export type ExcludableArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills';
+export type ExcludableArtifactType =
+    | 'instructions'
+    | 'prompts'
+    | 'agents'
+    | 'skills'
+    | 'claude-rules'
+    | 'claude-agents'
+    | 'claude-skills'
+    | 'claude-settings';
 
 /** A public capability entry grouped under a metadata repository. */
 export interface CapabilitySource {
@@ -143,6 +151,10 @@ export interface InjectionConfig {
     agents?: InjectionMode;
     hooks?: InjectionMode;
     chatmodes?: InjectionMode;
+    'claude-rules'?: InjectionMode;
+    'claude-agents'?: InjectionMode;
+    'claude-skills'?: InjectionMode;
+    'claude-settings'?: InjectionMode;
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────
