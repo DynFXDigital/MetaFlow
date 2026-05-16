@@ -236,16 +236,16 @@ function buildMarkdownTooltip(
 type ArtifactInjectionSource = 'capability' | 'repo' | 'global' | 'default';
 
 interface ArtifactInjectionState {
-    mode: 'settings' | 'synchronize';
+    mode: 'settings' | 'synchronize' | 'plugin';
     source: ArtifactInjectionSource;
 }
 
-const DEFAULT_ARTIFACT_INJECTION_MODE: Record<ExcludableArtifactType, 'settings' | 'synchronize'> =
+const DEFAULT_ARTIFACT_INJECTION_MODE: Record<ExcludableArtifactType, 'settings' | 'synchronize' | 'plugin'> =
     {
-        instructions: 'settings',
+        instructions: 'plugin',
         prompts: 'settings',
-        agents: 'settings',
-        skills: 'settings',
+        agents: 'plugin',
+        skills: 'plugin',
     };
 
 function normalizeInjectionPath(layerPath: string): string {

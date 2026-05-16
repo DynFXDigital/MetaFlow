@@ -41,15 +41,15 @@ export interface CapabilityWarning {
     severity?: CapabilityDiagnosticSeverity;
 }
 
-/** Capability-local agent-plugin package metadata loaded from package.json. */
-export interface CapabilityAgentPluginPackage {
-    /** Absolute path to the package.json file. */
-    packageJsonPath: string;
-    /** Plugin package name. */
+/** Capability-local agent-plugin manifest metadata loaded from plugin.json. */
+export interface CapabilityAgentPluginManifest {
+    /** Absolute path to the plugin.json file. */
+    pluginJsonPath: string;
+    /** Plugin manifest name. */
     name?: string;
-    /** Plugin package version. */
+    /** Plugin manifest version. */
     version?: string;
-    /** Plugin package description. */
+    /** Plugin manifest description. */
     description?: string;
     /** Optional discovery keywords. */
     keywords: string[];
@@ -61,8 +61,8 @@ export interface CapabilityAgentPluginPackage {
 
 /** A normalized agent-plugin catalog entry derived from a capability layer. */
 export interface CapabilityPluginCatalogEntry {
-    /** Stable package identity used by agent-plugin consumers. */
-    packageName: string;
+    /** Stable plugin identity used by agent-plugin consumers. */
+    pluginName: string;
     /** Published plugin package version. */
     version: string;
     /** User-facing title for marketplace and catalog displays. */
@@ -77,8 +77,8 @@ export interface CapabilityPluginCatalogEntry {
     repoId?: string;
     /** Capability manifest path. */
     manifestPath: string;
-    /** package.json path. */
-    packageJsonPath: string;
+    /** plugin.json path. */
+    pluginJsonPath: string;
     /** Declared plugin hosts. */
     pluginHosts: string[];
     /** Optional minimum MetaFlow version range. */
@@ -105,8 +105,8 @@ export interface CapabilityMetadata {
     experimental?: boolean;
     /** Whether this capability opts into agent-plugin packaging validation. */
     agentPlugin?: boolean;
-    /** Optional validated package metadata for agent-plugin-compatible capabilities. */
-    agentPluginPackage?: CapabilityAgentPluginPackage;
+    /** Optional validated plugin manifest metadata for agent-plugin-compatible capabilities. */
+    agentPluginManifest?: CapabilityAgentPluginManifest;
     /** Markdown content after frontmatter. */
     body?: string;
     /** Warnings emitted while parsing/validating this manifest. */
@@ -127,8 +127,8 @@ export interface RepoMetadata {
 
 // ── Effective file model ───────────────────────────────────────────
 
-/** Classification of an artifact: settings-injected or Synchronized. */
-export type ArtifactClassification = 'settings' | 'synchronized';
+/** Classification of an artifact: settings-injected, plugin-activated, or synchronized. */
+export type ArtifactClassification = 'settings' | 'plugin' | 'synchronized';
 
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {

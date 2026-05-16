@@ -142,16 +142,16 @@ function makeMultiRepoConfig(
         enabled: boolean;
         excludedTypes: ExcludableArtifactType[];
         injection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize'>
+            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
         >;
         repoInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize'>
+            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
         >;
         capabilityInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize'>
+            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
         >;
         globalInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize'>
+            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
         >;
     }>,
 ) {
@@ -544,8 +544,8 @@ suite('LayersTreeView – artifact-type children', () => {
         const agentsItem = artifactChildren.find((c) => String(c.label) === 'agents');
         const skillsItem = artifactChildren.find((c) => String(c.label) === 'skills');
 
-        assert.strictEqual(agentsItem?.description, '(0, settings, excluded)');
-        assert.strictEqual(skillsItem?.description, '(0, settings)');
+        assert.strictEqual(agentsItem?.description, '(0, plugin, excluded)');
+        assert.strictEqual(skillsItem?.description, '(0, plugin)');
     });
 
     test('LTV-AT-06b: artifact type tooltip explains inclusion, exclusion, and injection state', () => {
@@ -571,7 +571,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Status: excluded from this layer',
                 'Capability status: enabled',
                 'Repository status: enabled',
-                'Injection: settings (built-in default)',
+                'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
                 'Toggle the checkbox to change whether this artifact type participates in the layer.',
@@ -583,7 +583,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Status: included in this layer',
                 'Capability status: enabled',
                 'Repository status: enabled',
-                'Injection: settings (built-in default)',
+                'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
                 'Toggle the checkbox to change whether this artifact type participates in the layer.',
@@ -720,14 +720,14 @@ suite('LayersTreeView – artifact-type children', () => {
         );
 
         const instructionsItem = children.find((child) => String(child.label) === 'instructions');
-        assert.strictEqual(instructionsItem?.description, '(0, settings, capability disabled)');
+        assert.strictEqual(instructionsItem?.description, '(0, plugin, capability disabled)');
         assert.strictEqual(
             extractTooltipText(instructionsItem?.tooltip),
             joinTooltip('**Artifact Type**: instructions', [
                 'Status: included in this layer',
                 'Capability status: disabled',
                 'Repository status: enabled',
-                'Injection: settings (built-in default)',
+                'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
                 'Toggle the checkbox to change whether this artifact type participates in the layer.',
@@ -760,14 +760,14 @@ suite('LayersTreeView – artifact-type children', () => {
             instructionsItem,
             'repo-disabled layer should still expose artifact-type children',
         );
-        assert.strictEqual(instructionsItem?.description, '(0, settings, repo disabled)');
+        assert.strictEqual(instructionsItem?.description, '(0, plugin, repo disabled)');
         assert.strictEqual(
             extractTooltipText(instructionsItem?.tooltip),
             joinTooltip('**Artifact Type**: instructions', [
                 'Status: included in this layer',
                 'Capability status: enabled',
                 'Repository status: disabled',
-                'Injection: settings (built-in default)',
+                'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
                 'Toggle the checkbox to change whether this artifact type participates in the layer.',

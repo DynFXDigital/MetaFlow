@@ -405,7 +405,7 @@ describe('Engine package: overlay pipeline', () => {
         const skill = files.find((f) => f.relativePath.includes('skills'));
         const instr = files.find((f) => f.relativePath.includes('instructions'));
         assert.strictEqual(skill?.classification, 'synchronized');
-        assert.strictEqual(instr?.classification, 'settings');
+        assert.strictEqual(instr?.classification, 'plugin');
     });
 
     it('normalizes .github-prefixed paths before classification', () => {
@@ -434,7 +434,7 @@ describe('Engine package: overlay pipeline', () => {
         const instruction = files.find(
             (f) => f.relativePath === 'instructions/test.instructions.md',
         );
-        assert.strictEqual(instruction?.classification, 'settings');
+        assert.strictEqual(instruction?.classification, 'plugin');
     });
 
     it('discovers CAPABILITY-only layer directories', () => {
@@ -840,8 +840,8 @@ describe('Engine: settings injector', () => {
         ]);
     });
 
-    it('classifySingle treats .github instructions as settings artifacts', () => {
-        assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'settings');
+    it('classifySingle treats .github instructions as plugin artifacts by default', () => {
+        assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'plugin');
         assert.strictEqual(
             classifySingle('.github/prompts/review.prompt.md', undefined),
             'settings',
@@ -932,7 +932,7 @@ describe('Engine: settings injector', () => {
         assert.ok((skillsEntry!.value as Record<string, boolean>)['repo/core/.github/skills']);
     });
 
-    it('computeSettingsEntries sorts legacy array-valued settings entries deterministically', () => {
+    it('computeSettingsEntries sorts object-valued settings entries deterministically', () => {
         const files: EffectiveFile[] = [
             {
                 relativePath: 'instructions/beta.md',
@@ -954,14 +954,14 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries(files, tmpDir, config);
-        const legacyInstructionsEntry = entries.find(
-            (entry) => entry.key === 'github.copilot.chat.codeGeneration.instructionFiles',
+        const instructionsEntry = entries.find(
+            (entry) => entry.key === 'chat.instructionsFilesLocations',
         );
 
-        assert.deepStrictEqual(legacyInstructionsEntry?.value, [
-            'repo/alpha/instructions',
-            'repo/zeta/instructions',
-        ]);
+        assert.deepStrictEqual(instructionsEntry?.value, {
+            'repo/alpha/instructions': true,
+            'repo/zeta/instructions': true,
+        });
     });
 
     it('computeSettingsEntries skips hooks when not configured', () => {
@@ -982,8 +982,6 @@ describe('Engine: settings injector', () => {
         assert.ok(keys.includes('chat.agentFilesLocations'));
         assert.ok(keys.includes('chat.agentSkillsLocations'));
         assert.ok(keys.includes('chat.hookFilesLocations'));
-        assert.ok(keys.includes('github.copilot.chat.codeGeneration.instructionFiles'));
-        assert.ok(keys.includes('github.copilot.chat.promptFiles'));
     });
 });
 
@@ -1953,7 +1951,7 @@ describe('Engine: injection mode hierarchy', () => {
         ];
         classifyFiles(files, { instructions: 'synchronize' }, layerSources);
         assert.strictEqual(files[0].classification, 'synchronized');
-        assert.strictEqual(files[1].classification, 'settings'); // default
+        assert.strictEqual(files[1].classification, 'plugin'); // default
     });
 
     // ── normalizeConfigShape injection propagation ─────────────────

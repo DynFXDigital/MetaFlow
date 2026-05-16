@@ -1,5 +1,7 @@
 import * as assert from 'assert';
+import type { EffectiveFile } from '@metaflow/engine';
 import {
+    computeLegacySettingsEntriesFromEffectiveFiles,
     isSettingsInjectionTarget,
     mergeSettingsValue,
     pruneBundledMetaFlowSettingsEntries,
@@ -8,6 +10,19 @@ import {
 } from '../../commands/settingsTargetHelpers';
 
 suite('settingsTargetHelpers', () => {
+    function makeFile(
+        relativePath: string,
+        classification: 'settings' | 'plugin' | 'synchronized',
+        sourcePath: string,
+    ): EffectiveFile {
+        return {
+            relativePath,
+            sourcePath,
+            sourceLayer: 'test',
+            classification,
+        };
+    }
+
     // ── isSettingsInjectionTarget ──────────────────────────────────
 
     suite('isSettingsInjectionTarget', () => {
@@ -226,8 +241,119 @@ suite('settingsTargetHelpers', () => {
 
     // ── pruneBundledMetaFlowSettingsEntries ───────────────────────
 
+    suite('computeLegacySettingsEntriesFromEffectiveFiles', () => {
+        test('SIT-CL-01 includes plugin-classified instruction, agent, and skill roots for stale cleanup', () => {
+            const entries = computeLegacySettingsEntriesFromEffectiveFiles(
+                [
+                    makeFile(
+                        '.github/instructions/a.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/instructions/a.md',
+                    ),
+                    makeFile(
+                        '.github/agents/reviewer.agent.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/agents/reviewer.agent.md',
+                    ),
+                    makeFile(
+                        '.github/skills/testing/SKILL.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/skills/testing/SKILL.md',
+                    ),
+                ],
+                '/workspace',
+            );
+
+            assert.deepStrictEqual(entries, [
+                {
+                    key: 'chat.instructionsFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/instructions': true },
+                },
+                {
+                    key: 'chat.agentFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/agents': true },
+                },
+                {
+                    key: 'chat.agentSkillsLocations',
+                    value: { '../repo/capabilities/smoke/.github/skills': true },
+                },
+            ]);
+        });
+
+        test('SIT-CL-02 preserves prompt settings roots and ignores synchronized files', () => {
+            const entries = computeLegacySettingsEntriesFromEffectiveFiles(
+                [
+                    makeFile(
+                        '.github/prompts/example.prompt.md',
+                        'settings',
+                        '/repo/capabilities/smoke/.github/prompts/example.prompt.md',
+                    ),
+                    makeFile(
+                        '.github/prompts/ignored.prompt.md',
+                        'synchronized',
+                        '/repo/capabilities/smoke/.github/prompts/ignored.prompt.md',
+                    ),
+                ],
+                '/workspace',
+            );
+
+            assert.deepStrictEqual(entries, [
+                {
+                    key: 'chat.promptFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/prompts': true },
+                },
+            ]);
+        });
+    });
+
     suite('pruneBundledMetaFlowSettingsEntries', () => {
-        test('SIT-PB-01 prunes stale bundled prompt map entries from other clients', () => {
+        test('SIT-PB-00 prunes stale bundled plugin locations while retaining selected plugin roots', () => {
+            const existing = {
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata': true,
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            };
+            const retained = {
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            };
+
+            const result = pruneBundledMetaFlowSettingsEntries(
+                existing,
+                'chat.pluginLocations',
+                retained,
+            );
+
+            assert.deepStrictEqual(result, {
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            });
+        });
+
+        test('SIT-PB-01 prunes nested bundled locations for every file-location setting', () => {
+            const cases: Array<{ key: string; suffix: string }> = [
+                { key: 'chat.instructionsFilesLocations', suffix: '.github/instructions' },
+                { key: 'chat.agentFilesLocations', suffix: '.github/agents' },
+                { key: 'chat.agentSkillsLocations', suffix: '.github/skills' },
+                { key: 'chat.promptFilesLocations', suffix: '.github/prompts' },
+            ];
+
+            for (const { key, suffix } of cases) {
+                const nonBuiltInPath = `../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test/${suffix}`;
+                const result = pruneBundledMetaFlowSettingsEntries(
+                    {
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/claude-code-metadata-authoring/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/codex-metadata-authoring/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/${suffix}`]: true,
+                        [nonBuiltInPath]: true,
+                    },
+                    key,
+                    { [nonBuiltInPath]: true },
+                );
+
+                assert.deepStrictEqual(result, { [nonBuiltInPath]: true }, key);
+            }
+        });
+
+        test('SIT-PB-02 prunes stale bundled prompt map entries from other clients', () => {
             const existing = {
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
@@ -249,7 +375,7 @@ suite('settingsTargetHelpers', () => {
             });
         });
 
-        test('SIT-PB-02 prunes stale bundled skill array entries when no bundled root is retained', () => {
+        test('SIT-PB-03 prunes stale bundled skill array entries when no bundled root is retained', () => {
             const existing = [
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
                 '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
@@ -267,7 +393,7 @@ suite('settingsTargetHelpers', () => {
             ]);
         });
 
-        test('SIT-PB-03 leaves unrelated settings keys unchanged', () => {
+        test('SIT-PB-04 leaves unrelated settings keys unchanged', () => {
             const existing = {
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 'user/path': true,

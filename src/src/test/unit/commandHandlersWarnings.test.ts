@@ -67,7 +67,9 @@ suite('Command handler configured source warnings', () => {
             const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
                 {
                     metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
-                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: true },
+                    ],
                 } as never,
                 workspaceRoot,
             );
@@ -95,7 +97,9 @@ suite('Command handler configured source warnings', () => {
             const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
                 {
                     metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
-                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: false }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: false },
+                    ],
                 } as never,
                 workspaceRoot,
             );
@@ -118,7 +122,9 @@ suite('Command handler configured source warnings', () => {
             const warnings = collectEnabledConfiguredSourceDiagnosticWarnings(
                 {
                     metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
-                    layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: true },
+                    ],
                 } as never,
                 workspaceRoot,
             );
@@ -141,7 +147,9 @@ suite('Command handler configured source warnings', () => {
             const warnings = collectConfiguredSourceWarnings(
                 {
                     metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
-                    layerSources: [{ repoId: 'primary', path: 'capabilities/obsolete', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/obsolete', enabled: true },
+                    ],
                 } as never,
                 workspaceRoot,
                 [
@@ -160,5 +168,91 @@ suite('Command handler configured source warnings', () => {
         } finally {
             fs.rmSync(workspaceRoot, { recursive: true, force: true });
         }
+    });
+
+    test('suppresses built-in root overlap conflicts when a nested built-in capability wins', () => {
+        const { shouldSuppressBuiltInSurfacedFileConflictWarning } = loadCommandHandlers();
+
+        const suppressed = shouldSuppressBuiltInSurfacedFileConflictWarning({
+            relativePath: 'instructions/ai-metadata-agent.instructions.md',
+            winner: {
+                relativePath: 'instructions/ai-metadata-agent.instructions.md',
+                sourcePath: '/tmp/nested',
+                sourceLayer:
+                    '__metaflow_builtin__/capabilities/metadata-authoring/github-copilot-metadata-authoring',
+                sourceRepo: '__metaflow_builtin__',
+                sourceCapabilityName: 'GitHub Copilot Metadata Authoring',
+            },
+            overridden: [
+                {
+                    relativePath: 'instructions/ai-metadata-agent.instructions.md',
+                    sourcePath: '/tmp/root',
+                    sourceLayer: '__metaflow_builtin__/.',
+                    sourceRepo: '__metaflow_builtin__',
+                    sourceCapabilityName: 'MetaFlow',
+                },
+            ],
+            contenders: [
+                {
+                    relativePath: 'instructions/ai-metadata-agent.instructions.md',
+                    sourcePath: '/tmp/root',
+                    sourceLayer: '__metaflow_builtin__/.',
+                    sourceRepo: '__metaflow_builtin__',
+                    sourceCapabilityName: 'MetaFlow',
+                },
+                {
+                    relativePath: 'instructions/ai-metadata-agent.instructions.md',
+                    sourcePath: '/tmp/nested',
+                    sourceLayer:
+                        '__metaflow_builtin__/capabilities/metadata-authoring/github-copilot-metadata-authoring',
+                    sourceRepo: '__metaflow_builtin__',
+                    sourceCapabilityName: 'GitHub Copilot Metadata Authoring',
+                },
+            ],
+        } as never);
+
+        assert.strictEqual(suppressed, true);
+    });
+
+    test('does not suppress non-built-in surfaced file conflicts', () => {
+        const { shouldSuppressBuiltInSurfacedFileConflictWarning } = loadCommandHandlers();
+
+        const suppressed = shouldSuppressBuiltInSurfacedFileConflictWarning({
+            relativePath: 'instructions/shared.instructions.md',
+            winner: {
+                relativePath: 'instructions/shared.instructions.md',
+                sourcePath: '/tmp/primary',
+                sourceLayer: 'primary/capabilities/project-management/planning',
+                sourceRepo: 'primary',
+                sourceCapabilityName: 'Planning',
+            },
+            overridden: [
+                {
+                    relativePath: 'instructions/shared.instructions.md',
+                    sourcePath: '/tmp/builtin',
+                    sourceLayer: '__metaflow_builtin__/.',
+                    sourceRepo: '__metaflow_builtin__',
+                    sourceCapabilityName: 'MetaFlow',
+                },
+            ],
+            contenders: [
+                {
+                    relativePath: 'instructions/shared.instructions.md',
+                    sourcePath: '/tmp/builtin',
+                    sourceLayer: '__metaflow_builtin__/.',
+                    sourceRepo: '__metaflow_builtin__',
+                    sourceCapabilityName: 'MetaFlow',
+                },
+                {
+                    relativePath: 'instructions/shared.instructions.md',
+                    sourcePath: '/tmp/primary',
+                    sourceLayer: 'primary/capabilities/project-management/planning',
+                    sourceRepo: 'primary',
+                    sourceCapabilityName: 'Planning',
+                },
+            ],
+        } as never);
+
+        assert.strictEqual(suppressed, false);
     });
 });

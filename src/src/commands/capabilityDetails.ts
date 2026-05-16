@@ -60,8 +60,8 @@ export interface CapabilityDetailArtifactBucket {
     files: string[];
 }
 
-export interface CapabilityDetailAgentPluginPackage {
-    packageJsonPath: string;
+export interface CapabilityDetailAgentPluginManifest {
+    pluginJsonPath: string;
     name?: string;
     version?: string;
     description?: string;
@@ -76,7 +76,7 @@ export interface CapabilityDetailModel {
     license?: string;
     experimental?: boolean;
     agentPlugin?: boolean;
-    agentPluginPackage?: CapabilityDetailAgentPluginPackage;
+    agentPluginManifest?: CapabilityDetailAgentPluginManifest;
     layerId: string;
     layerIndex?: number;
     layerPath: string;
@@ -396,14 +396,14 @@ export async function loadCapabilityDetailModel(
         license: manifest?.license?.trim(),
         experimental: manifest?.experimental,
         agentPlugin: manifest?.agentPlugin,
-        agentPluginPackage: manifest?.agentPluginPackage
+                agentPluginManifest: manifest?.agentPluginManifest
             ? {
-                  packageJsonPath: manifest.agentPluginPackage.packageJsonPath,
-                  name: manifest.agentPluginPackage.name,
-                  version: manifest.agentPluginPackage.version,
-                  description: manifest.agentPluginPackage.description,
-                  pluginHosts: manifest.agentPluginPackage.pluginHosts,
-                  minimumMetaflowVersion: manifest.agentPluginPackage.minimumMetaflowVersion,
+                                    pluginJsonPath: manifest.agentPluginManifest.pluginJsonPath,
+                                    name: manifest.agentPluginManifest.name,
+                                    version: manifest.agentPluginManifest.version,
+                                    description: manifest.agentPluginManifest.description,
+                                    pluginHosts: manifest.agentPluginManifest.pluginHosts,
+                                    minimumMetaflowVersion: manifest.agentPluginManifest.minimumMetaflowVersion,
               }
             : undefined,
         layerId: target.layerId,

@@ -79,7 +79,7 @@ suite('Init Config Helpers', () => {
             enable: ['**/*'],
             disable: [],
         });
-        assert.strictEqual(withUrl.injection.instructions, 'settings');
+        assert.strictEqual(withUrl.injection.instructions, 'plugin');
 
         const withoutUrl = buildConfig('.ai/metadata', ['company']) as {
             compatibilityVersion: number;

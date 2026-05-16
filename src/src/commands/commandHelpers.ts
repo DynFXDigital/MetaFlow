@@ -46,8 +46,8 @@ function toSlug(value: string): string {
     return trimmed.replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'source';
 }
 
-export function isInjectionMode(value: unknown): value is 'settings' | 'synchronize' {
-    return value === 'settings' || value === 'synchronize';
+export function isInjectionMode(value: unknown): value is 'settings' | 'synchronize' | 'plugin' {
+    return value === 'settings' || value === 'synchronize' || value === 'plugin';
 }
 
 export function deriveRepoId(
@@ -486,8 +486,7 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     }
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
-    const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown })
-        .skipBuiltInAutoApply;
+    const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown }).skipBuiltInAutoApply;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
@@ -596,16 +595,24 @@ export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAuto
 export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: string): string[] {
     const pruned: string[] = [];
 
-    if (config.layerSources && config.metadataRepos) {
-        const repoMap = new Map<string, string>();
+    const repoRoots = new Map<string, string>();
+    if (config.metadataRepos) {
         for (const repo of config.metadataRepos) {
             if (repo.enabled !== false) {
-                repoMap.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
+                repoRoots.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
             }
         }
+    }
+    if (config.metadataRepo) {
+        repoRoots.set(
+            'primary',
+            resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath),
+        );
+    }
 
+    if (config.layerSources && config.metadataRepos) {
         const kept = config.layerSources.filter((ls) => {
-            const repoRoot = repoMap.get(ls.repoId);
+            const repoRoot = repoRoots.get(ls.repoId);
             if (!repoRoot) {
                 return true;
             } // unknown repoId — leave for validator
@@ -619,6 +626,25 @@ export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: st
         config.layerSources = kept;
     }
 
+    if (config.metadataRepos) {
+        for (const repo of config.metadataRepos) {
+            const repoRoot = repoRoots.get(repo.id);
+            if (!repoRoot || !repo.capabilities) {
+                continue;
+            }
+
+            repo.capabilities = repo.capabilities.filter((capability) => {
+                const absPath = path.join(repoRoot, capability.path);
+                if (fs.existsSync(absPath)) {
+                    return true;
+                }
+
+                pruned.push(`${repo.id}/${capability.path}`);
+                return false;
+            });
+        }
+    }
+
     if (config.layers && config.metadataRepo) {
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
         const kept = config.layers.filter((layerPath) => {
@@ -630,6 +656,29 @@ export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: st
             return true;
         });
         config.layers = kept;
+    }
+
+    if (config.profiles) {
+        for (const [profileId, profile] of Object.entries(config.profiles)) {
+            if (!profile.layerOverrides || profile.layerOverrides.length === 0) {
+                continue;
+            }
+
+            profile.layerOverrides = profile.layerOverrides.filter((override) => {
+                const repoRoot = repoRoots.get(override.repoId);
+                if (!repoRoot) {
+                    return true;
+                }
+
+                const absPath = path.join(repoRoot, override.path);
+                if (fs.existsSync(absPath)) {
+                    return true;
+                }
+
+                pruned.push(`profile:${profileId}:${override.repoId}/${override.path}`);
+                return false;
+            });
+        }
     }
 
     return pruned;

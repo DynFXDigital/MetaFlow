@@ -143,6 +143,10 @@ export function isBuiltInCapabilityActive(state: BuiltInCapabilityActivationStat
     return state.synchronizedFiles.length > 0;
 }
 
+export function isBuiltInCapabilityEnabled(state: BuiltInCapabilityActivationState): boolean {
+    return state.enabled;
+}
+
 export function sanitizeSynchronizedFiles(values: string[] | undefined): string[] {
     if (!values || values.length === 0) {
         return [];

@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
 import { RepoSyncStatus } from '../commands/repoSyncStatus';
@@ -40,6 +41,116 @@ function buildMarkdownTooltip(
     const header = normalizedDescription ? `${title}  \n${normalizedDescription}` : title;
     const body = normalizedDetails.join('  \n');
     return new vscode.MarkdownString(body ? `${header}\n\n${body}` : header);
+}
+
+const WARNING_LABEL_MAX_LENGTH = 88;
+const WARNING_DESCRIPTION_MAX_LENGTH = 40;
+
+function normalizeWarningMessage(message: string): string {
+    return message.trim().replace(/\s+/g, ' ');
+}
+
+function truncateWarningText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    const truncated = value.slice(0, Math.max(0, maxLength - 1)).trimEnd();
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace >= Math.floor(maxLength * 0.6)) {
+        return `${truncated.slice(0, lastSpace).trimEnd()}…`;
+    }
+
+    return `${truncated}…`;
+}
+
+function truncateMiddle(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    const normalized = value.replace(/\\/g, '/');
+    const segments = normalized.split('/').filter((segment) => segment.length > 0);
+    if (segments.length >= 3) {
+        const suffix = `/${segments.slice(-2).join('/')}`;
+        const prefixLength = Math.max(1, maxLength - suffix.length - 1);
+        const prefix = normalized.slice(0, prefixLength).replace(/[\/]+$/, '');
+        return `${prefix}…${suffix}`;
+    }
+
+    const visibleLength = Math.max(1, maxLength - 1);
+    const prefixLength = Math.ceil(visibleLength / 2);
+    const suffixLength = Math.floor(visibleLength / 2);
+    return `${value.slice(0, prefixLength)}…${value.slice(value.length - suffixLength)}`;
+}
+
+function resolveWarningSourcePath(location: string | undefined): string | undefined {
+    const trimmed = location?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    const candidates: string[] = [];
+    if (path.isAbsolute(trimmed)) {
+        candidates.push(path.normalize(trimmed));
+    } else {
+        for (const folder of vscode.workspace.workspaceFolders ?? []) {
+            candidates.push(path.resolve(folder.uri.fsPath, trimmed));
+        }
+    }
+
+    for (const candidate of candidates) {
+        try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                return candidate;
+            }
+        } catch {
+            // Ignore invalid or unreadable paths and leave the warning non-actionable.
+        }
+    }
+
+    return undefined;
+}
+
+function buildWarningPresentation(message: string): {
+    label: string;
+    description?: string;
+    tooltip: vscode.MarkdownString;
+    normalizedMessage: string;
+    sourcePath?: string;
+} {
+    const normalized = normalizeWarningMessage(message);
+    const structuredMatch = normalized.match(/^\[([^\]]+)\]\s+(.+?)(?:\s+\[([^\]]+)\])?$/);
+    const code = structuredMatch?.[1]?.trim();
+    const details = structuredMatch?.[2]?.trim() ?? normalized;
+    const location = structuredMatch?.[3]?.trim();
+    const sourcePath = resolveWarningSourcePath(location);
+    const label = truncateWarningText(details, WARNING_LABEL_MAX_LENGTH);
+    const description = [
+        code ? `[${code}]` : undefined,
+        location ? truncateMiddle(location, WARNING_DESCRIPTION_MAX_LENGTH) : undefined,
+    ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ');
+
+    const tooltipLines = [details];
+    if (code) {
+        tooltipLines.unshift(`Code: \`${code}\``);
+    }
+    if (location) {
+        tooltipLines.push(`Location: \`${location}\``);
+    }
+    if (sourcePath) {
+        tooltipLines.push('Action: Click to open the warning source file.');
+    }
+
+    return {
+        label,
+        description: description || undefined,
+        tooltip: buildMarkdownTooltip('**Warning**', tooltipLines),
+        normalizedMessage: normalized,
+        sourcePath,
+    };
 }
 
 class SectionItem extends vscode.TreeItem {
@@ -300,11 +411,36 @@ class RepoSourceItem extends vscode.TreeItem {
 }
 
 class WarningItem extends vscode.TreeItem {
+    public readonly warningMessage: string;
+    public readonly sourcePath?: string;
+
     constructor(message: string) {
-        super(message, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = 'configWarning';
+        const presentation = buildWarningPresentation(message);
+        super(presentation.label, vscode.TreeItemCollapsibleState.None);
+        this.warningMessage = presentation.normalizedMessage;
+        this.sourcePath = presentation.sourcePath;
+        this.contextValue = this.sourcePath ? 'configWarningSource' : 'configWarning';
         this.iconPath = new vscode.ThemeIcon('warning');
-        this.tooltip = message;
+        this.description = presentation.description;
+        this.tooltip = presentation.tooltip;
+        if (this.sourcePath) {
+            this.command = {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath: this.sourcePath,
+                        warningMessage: this.warningMessage,
+                    },
+                ],
+            };
+        }
+        this.accessibilityInformation = {
+            label: this.sourcePath
+                ? `${this.warningMessage}. Opens source file.`
+                : this.warningMessage,
+            role: 'listitem',
+        };
     }
 }
 

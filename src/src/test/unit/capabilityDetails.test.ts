@@ -21,7 +21,7 @@ function makeCapabilityDetailModel(
         license: undefined,
         experimental: undefined,
         agentPlugin: undefined,
-        agentPluginPackage: undefined,
+        agentPluginManifest: undefined,
         layerId: 'primary/review/capability-review',
         layerIndex: 2,
         layerPath: 'review/capability-review',
@@ -91,12 +91,12 @@ suite('CapabilityDetails helpers', () => {
                 'utf-8',
             );
             fs.writeFileSync(
-                path.join(layerRoot, 'package.json'),
+                path.join(layerRoot, 'plugin.json'),
                 JSON.stringify(
                     {
-                        name: '@metaflow-capability/sdlc-traceability',
+                        name: 'sdlc-traceability',
                         version: '1.0.0',
-                        description: 'Traceability plugin package.',
+                        description: 'Traceability plugin manifest.',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
                             minimumMetaflowVersion: '^0.1.0-preview.0',
@@ -199,8 +199,8 @@ suite('CapabilityDetails helpers', () => {
             assert.strictEqual(model.experimental, true);
             assert.strictEqual(model.agentPlugin, true);
             assert.strictEqual(
-                model.agentPluginPackage?.name,
-                '@metaflow-capability/sdlc-traceability',
+                model.agentPluginManifest?.name,
+                'sdlc-traceability',
             );
             assert.ok(html.includes('capability-tab-details'));
             assert.ok(html.includes('capability-tab-contents'));
@@ -215,7 +215,7 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
             assert.ok(html.includes('status-pill-warning">Experimental'));
             assert.ok(html.includes('status-pill-info">Agent Plugin'));
-            assert.ok(html.includes('@metaflow-capability/sdlc-traceability'));
+            assert.ok(html.includes('sdlc-traceability'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
             assert.ok(html.includes("script-src 'none'"));
         } finally {

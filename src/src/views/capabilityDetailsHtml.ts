@@ -181,9 +181,9 @@ function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, stri
     if (model.agentPlugin) {
         items.push([
             'Agent Plugin',
-            model.agentPluginPackage
-                ? 'Validated package present'
-                : 'Enabled, package attention needed',
+            model.agentPluginManifest
+                ? 'Validated plugin manifest present'
+                : 'Enabled, plugin manifest attention needed',
         ]);
     }
 
@@ -204,19 +204,19 @@ function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, st
     if (model.manifestPath) {
         items.push(['Manifest Path', model.manifestPath]);
     }
-    if (model.agentPluginPackage) {
-        items.push(['Package Path', model.agentPluginPackage.packageJsonPath]);
-        if (model.agentPluginPackage.name) {
-            items.push(['Package Name', model.agentPluginPackage.name]);
+    if (model.agentPluginManifest) {
+        items.push(['Plugin Manifest Path', model.agentPluginManifest.pluginJsonPath]);
+        if (model.agentPluginManifest.name) {
+            items.push(['Plugin Name', model.agentPluginManifest.name]);
         }
-        if (model.agentPluginPackage.version) {
-            items.push(['Package Version', model.agentPluginPackage.version]);
+        if (model.agentPluginManifest.version) {
+            items.push(['Plugin Version', model.agentPluginManifest.version]);
         }
-        if (model.agentPluginPackage.pluginHosts.length > 0) {
-            items.push(['Plugin Hosts', model.agentPluginPackage.pluginHosts.join(', ')]);
+        if (model.agentPluginManifest.pluginHosts.length > 0) {
+            items.push(['Plugin Hosts', model.agentPluginManifest.pluginHosts.join(', ')]);
         }
-        if (model.agentPluginPackage.minimumMetaflowVersion) {
-            items.push(['Minimum MetaFlow', model.agentPluginPackage.minimumMetaflowVersion]);
+        if (model.agentPluginManifest.minimumMetaflowVersion) {
+            items.push(['Minimum MetaFlow', model.agentPluginManifest.minimumMetaflowVersion]);
         }
     }
     if (model.builtIn) {

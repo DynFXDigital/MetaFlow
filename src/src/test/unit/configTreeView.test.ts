@@ -1,4 +1,7 @@
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 class MockTreeItem {
     label: unknown;
@@ -8,6 +11,7 @@ class MockTreeItem {
     description?: string | boolean;
     checkboxState?: number;
     tooltip?: unknown;
+    command?: { command: string; title: string; arguments?: unknown[] };
     accessibilityInformation?: { label: string; role: string };
 
     constructor(label: unknown, collapsibleState: number) {
@@ -57,9 +61,12 @@ type MockConfigTreeItem = {
     description?: string | boolean;
     checkboxState?: number;
     iconPath?: unknown;
+    command?: { command: string; title: string; arguments?: unknown[] };
     accessibilityInformation?: { label: string; role: string };
     section?: 'repositories' | 'warnings';
     repoId?: string;
+    warningMessage?: string;
+    sourcePath?: string;
 };
 
 type ConfigTreeViewModule = {
@@ -434,15 +441,84 @@ suite('ConfigTreeView', () => {
                 {
                     label: 'Missing METAFLOW.md',
                     contextValue: 'configWarning',
-                    tooltip: 'Missing METAFLOW.md',
+                    tooltip: '**Warning**\n\nMissing METAFLOW.md',
                 },
                 {
                     label: 'Repo path is not accessible',
                     contextValue: 'configWarning',
-                    tooltip: 'Repo path is not accessible',
+                    tooltip: '**Warning**\n\nRepo path is not accessible',
                 },
             ],
         );
+        assert.strictEqual(warningItems[0].command, undefined);
+    });
+
+    test('CTV-07b: long structured warnings render a compact row with full tooltip details', () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-warning-item-'));
+        const sourcePath = path.join(
+            tempRoot,
+            'capabilities',
+            'agentic-development',
+            'sample',
+            '.github',
+            'agents',
+            'plugin.json',
+        );
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(sourcePath, '{}\n', 'utf-8');
+
+        try {
+            const normalizedSourcePath = sourcePath.replace(/\\/g, '/');
+            const { ConfigTreeViewProvider } = loadConfigTreeView();
+            const provider = new ConfigTreeViewProvider(
+                makeState({
+                    config: {},
+                    capabilityWarnings: [
+                        `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]`,
+                    ],
+                }),
+            );
+
+            const [, warningsSection] = provider.getChildren();
+            const [warningItem] = provider.getChildren(warningsSection);
+
+            assert.strictEqual(
+                String(warningItem.label),
+                'Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON…',
+            );
+            assert.strictEqual(warningItem.contextValue, 'configWarningSource');
+            assert.ok(
+                String(warningItem.description).includes(
+                    '[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID]',
+                ),
+            );
+            assert.ok(String(warningItem.description).includes('agents/plugin.json'));
+            assert.strictEqual(
+                extractTooltipText(warningItem.tooltip),
+                joinTooltip('**Warning**', [
+                    'Code: `CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID`',
+                    'Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1',
+                    `Location: \`${normalizedSourcePath}\``,
+                    'Action: Click to open the warning source file.',
+                ]),
+            );
+            assert.deepStrictEqual(warningItem.command, {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath,
+                        warningMessage: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]`,
+                    },
+                ],
+            });
+            assert.deepStrictEqual(warningItem.accessibilityInformation, {
+                label: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]. Opens source file.`,
+                role: 'listitem',
+            });
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
     });
 
     test('CTV-08: repo label falls back to repo id when name and path are empty', () => {

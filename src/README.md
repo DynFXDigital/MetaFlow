@@ -83,17 +83,25 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
     },
     "activeProfile": "default",
     "injection": {
-        "instructions": "settings",
+        "instructions": "plugin",
         "prompts": "settings",
-        "skills": "synchronize",
-        "agents": "synchronize",
+        "skills": "plugin",
+        "agents": "plugin",
     },
 }
 ```
 
+Supported injection modes are:
+
+- `settings`: inject alternate-path settings such as `chat.instructionsFilesLocations`
+- `synchronize`: materialize files into the workspace `.github` directory
+- `plugin`: inject capability roots into `chat.pluginLocations` for local Copilot plugin discovery
+
+`plugin` mode is now the default for `instructions`, `skills`, and `agents`. `prompts` still need `settings` or `synchronize`, and `hooks` still need `settings`, because the current Copilot plugin loader path does not consume those MetaFlow artifact directories directly.
+
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
-After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability in settings-only mode and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.
+After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.
 
 `MetaFlow: Add Repository Source` also recognizes local metadata authoring workflows:
 
@@ -203,8 +211,8 @@ MetaFlow persists local operational state in `.metaflow/state.json`.
 
 ### Copilot settings injected by `MetaFlow: Apply`
 
-- `chat.instructionsFilesLocations` (and legacy `github.copilot.chat.codeGeneration.instructionFiles`)
-- `chat.promptFilesLocations` (and legacy `github.copilot.chat.promptFiles`)
+- `chat.instructionsFilesLocations`
+- `chat.promptFilesLocations`
 - `chat.agentFilesLocations`
 - `chat.agentSkillsLocations`
 - `chat.hookFilesLocations` (file-based hook entries from `hooks.preApply` / `hooks.postApply`)

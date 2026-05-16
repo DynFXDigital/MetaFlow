@@ -5,10 +5,10 @@
  * artifact type and injection config overrides.
  *
  * Default rules:
- * - instructions/** → settings
+ * - instructions/** → plugin
  * - prompts/** → settings
- * - skills/** → settings
- * - agents/** → settings
+ * - skills/** → plugin
+ * - agents/** → plugin
  * - hooks/** → settings
  * - chatmodes/** → synchronized (deprecated, no settings injection)
  * - unknown → synchronized
@@ -22,13 +22,15 @@ import { ArtifactClassification, EffectiveFile } from './types';
 
 /** Default classification rules per artifact type directory prefix. */
 const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
-    instructions: 'settings',
+    instructions: 'plugin',
     prompts: 'settings',
-    skills: 'settings',
-    agents: 'settings',
+    skills: 'plugin',
+    agents: 'plugin',
     hooks: 'settings',
     chatmodes: 'synchronized',
 };
+
+const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents']);
 
 /**
  * Build a lookup key matching the layerId format used by the overlay engine.
@@ -127,6 +129,9 @@ export function classifySingle(
         const mode = (injection as Record<string, string | undefined>)[topDir];
         if (mode === 'settings') {
             return 'settings';
+        }
+        if (mode === 'plugin' && PLUGIN_CAPABLE_ARTIFACT_TYPES.has(topDir)) {
+            return 'plugin';
         }
         if (mode === 'synchronize') {
             return 'synchronized';

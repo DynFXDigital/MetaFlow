@@ -5,7 +5,8 @@
  * No VS Code imports.
  */
 
-import type { SettingsInjectionTarget } from '@metaflow/engine';
+import * as path from 'path';
+import type { EffectiveFile, SettingsInjectionTarget } from '@metaflow/engine';
 
 const VALID_INJECTION_TARGETS: readonly SettingsInjectionTarget[] = [
     'user',
@@ -81,7 +82,7 @@ export function mergeSettingsValue(existing: unknown, managed: unknown): unknown
         ]);
     }
 
-    // Array merge (e.g., github.copilot.chat.codeGeneration.instructionFiles: [path])
+    // Array merge for any managed array-valued settings.
     if (Array.isArray(managed)) {
         const managedValues = buildSortedManagedArrayValues(managed);
         const managedSet = new Set(managedValues.map((value) => normalizeSettingsPath(value)));
@@ -114,7 +115,9 @@ export function removeSettingsEntries(existing: unknown, managed: unknown): unkn
             return undefined;
         }
         const managedKeys = new Set(
-            Object.keys(managed as Record<string, unknown>).map((key) => normalizeSettingsPath(key)),
+            Object.keys(managed as Record<string, unknown>).map((key) =>
+                normalizeSettingsPath(key),
+            ),
         );
         const result = Object.fromEntries(
             Object.entries(existing as Record<string, unknown>).filter(
@@ -129,7 +132,9 @@ export function removeSettingsEntries(existing: unknown, managed: unknown): unkn
         if (!Array.isArray(existing)) {
             return undefined;
         }
-        const managedSet = new Set(buildSortedManagedArrayValues(managed).map(normalizeSettingsPath));
+        const managedSet = new Set(
+            buildSortedManagedArrayValues(managed).map(normalizeSettingsPath),
+        );
         const result = existing.filter(
             (item) => typeof item !== 'string' || !managedSet.has(normalizeSettingsPath(item)),
         );
@@ -140,16 +145,80 @@ export function removeSettingsEntries(existing: unknown, managed: unknown): unkn
 }
 
 const BUNDLED_METAFLOW_SETTING_SUFFIX_BY_KEY: Record<string, string> = {
+    'chat.pluginLocations': '',
     'chat.instructionsFilesLocations': '/.github/instructions',
-    'github.copilot.chat.codeGeneration.instructionFiles': '/.github/instructions',
     'chat.promptFilesLocations': '/.github/prompts',
-    'github.copilot.chat.promptFiles': '/.github/prompts',
     'chat.agentFilesLocations': '/.github/agents',
     'chat.agentSkillsLocations': '/.github/skills',
 };
 
+const LEGACY_SETTINGS_KEYS_BY_ARTIFACT_TYPE: Record<string, string[]> = {
+    instructions: ['chat.instructionsFilesLocations'],
+    prompts: ['chat.promptFilesLocations'],
+    agents: ['chat.agentFilesLocations'],
+    skills: ['chat.agentSkillsLocations'],
+};
+
 function normalizeSettingsPath(value: string): string {
     return value.replace(/\\/g, '/').toLowerCase();
+}
+
+function toWorkspaceRelative(workspaceRoot: string, targetPath: string): string {
+    const relative = path.relative(workspaceRoot, targetPath).replace(/\\/g, '/');
+    return relative === '' ? '.' : relative;
+}
+
+function toLocationMap(paths: string[]): Record<string, boolean> {
+    const entries = paths
+        .map((value) => value.replace(/\\/g, '/'))
+        .sort((left, right) => left.localeCompare(right))
+        .map((value) => [value, true] as const);
+
+    return Object.fromEntries(entries);
+}
+
+export function computeLegacySettingsEntriesFromEffectiveFiles(
+    effectiveFiles: EffectiveFile[],
+    workspaceRoot: string,
+): Array<{ key: string; value: Record<string, boolean> }> {
+    const settingsDirs = new Map<string, Set<string>>();
+
+    for (const file of effectiveFiles) {
+        if (file.classification !== 'settings' && file.classification !== 'plugin') {
+            continue;
+        }
+
+        const normalized = file.relativePath.replace(/\\/g, '/');
+        const rawSegments = normalized.split('/');
+        const relativeSegments =
+            rawSegments[0] === '.github' && rawSegments.length > 1
+                ? rawSegments.slice(1)
+                : rawSegments;
+        const artifactType = relativeSegments[0];
+        if (!artifactType || !(artifactType in LEGACY_SETTINGS_KEYS_BY_ARTIFACT_TYPE)) {
+            continue;
+        }
+
+        let artifactTypeDir = file.sourcePath;
+        for (let index = 0; index < relativeSegments.length - 1; index += 1) {
+            artifactTypeDir = path.dirname(artifactTypeDir);
+        }
+
+        if (!settingsDirs.has(artifactType)) {
+            settingsDirs.set(artifactType, new Set());
+        }
+        settingsDirs.get(artifactType)!.add(toWorkspaceRelative(workspaceRoot, artifactTypeDir));
+    }
+
+    const entries: Array<{ key: string; value: Record<string, boolean> }> = [];
+    for (const [artifactType, dirs] of settingsDirs) {
+        const locationMap = toLocationMap(Array.from(dirs));
+        for (const key of LEGACY_SETTINGS_KEYS_BY_ARTIFACT_TYPE[artifactType] ?? []) {
+            entries.push({ key, value: locationMap });
+        }
+    }
+
+    return entries;
 }
 
 function isBundledMetaFlowPath(value: string, expectedSuffix: string): boolean {
@@ -167,7 +236,7 @@ function collectRetainedBundledMetaFlowPaths(
 ): Set<string> {
     const expectedSuffix = BUNDLED_METAFLOW_SETTING_SUFFIX_BY_KEY[settingKey];
     const retained = new Set<string>();
-    if (!expectedSuffix || retainedValue === null || retainedValue === undefined) {
+    if (expectedSuffix === undefined || retainedValue === null || retainedValue === undefined) {
         return retained;
     }
 
@@ -201,7 +270,7 @@ export function pruneBundledMetaFlowSettingsEntries(
     }
 
     const expectedSuffix = BUNDLED_METAFLOW_SETTING_SUFFIX_BY_KEY[settingKey];
-    if (!expectedSuffix) {
+    if (expectedSuffix === undefined) {
         return existing;
     }
 
@@ -214,20 +283,28 @@ export function pruneBundledMetaFlowSettingsEntries(
                 !isBundledMetaFlowPath(item, expectedSuffix) ||
                 retained.has(normalizeSettingsPath(item)),
         );
+        if (result.length === existing.length) {
+            return existing;
+        }
         return result.length > 0 ? result : undefined;
     }
 
     if (typeof existing === 'object') {
         const result = { ...(existing as Record<string, unknown>) };
+        let changed = false;
         for (const key of Object.keys(result)) {
             if (
                 isBundledMetaFlowPath(key, expectedSuffix) &&
                 !retained.has(normalizeSettingsPath(key))
             ) {
                 delete result[key];
+                changed = true;
             }
         }
 
+        if (!changed) {
+            return existing;
+        }
         return Object.keys(result).length > 0 ? result : undefined;
     }
 

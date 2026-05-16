@@ -11,14 +11,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
-    CapabilityAgentPluginPackage,
+    CapabilityAgentPluginManifest,
     CapabilityDiagnosticSeverity,
     CapabilityMetadata,
     CapabilityWarning,
 } from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
-const AGENT_PLUGIN_PACKAGE_FILE_NAME = 'package.json';
+const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
 const KNOWN_FIELDS = new Set(['name', 'description', 'license', 'experimental', 'agentPlugin']);
 
@@ -246,18 +246,13 @@ function isLikelyVersionRange(value: string): boolean {
     return trimmed.length > 0 && /\d/.test(trimmed) && /^[0-9A-Za-z*.+\-<>=~^|\s]+$/.test(trimmed);
 }
 
-function isValidPackageName(value: string): boolean {
+function isValidPluginName(value: string): boolean {
     const trimmed = value.trim();
-    if (
-        trimmed.length === 0 ||
-        trimmed !== value ||
-        trimmed.startsWith('.') ||
-        trimmed.startsWith('_')
-    ) {
+    if (trimmed.length === 0 || trimmed !== value || trimmed.length > 64) {
         return false;
     }
 
-    return /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(trimmed);
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed);
 }
 
 function isLikelySemver(value: string): boolean {
@@ -277,10 +272,10 @@ function normalizeStringArray(value: unknown): string[] | undefined {
     return normalized;
 }
 
-function parseAgentPluginPackageContent(
+function parseAgentPluginManifestContent(
     rawText: string,
-    packageJsonPath: string,
-): { metadata?: CapabilityAgentPluginPackage; warnings: CapabilityWarning[] } {
+    pluginJsonPath: string,
+): { metadata?: CapabilityAgentPluginManifest; warnings: CapabilityWarning[] } {
     let parsed: unknown;
     try {
         parsed = JSON.parse(rawText) as unknown;
@@ -288,9 +283,9 @@ function parseAgentPluginPackageContent(
         return {
             warnings: [
                 toWarning(
-                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_JSON_INVALID',
-                    `package.json could not be parsed: ${(error as Error).message}`,
-                    packageJsonPath,
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID',
+                    `plugin.json could not be parsed: ${(error as Error).message}`,
+                    pluginJsonPath,
                     'error',
                 ),
             ],
@@ -301,42 +296,42 @@ function parseAgentPluginPackageContent(
         return {
             warnings: [
                 toWarning(
-                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_JSON_OBJECT_REQUIRED',
-                    'package.json must contain a top-level JSON object.',
-                    packageJsonPath,
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_OBJECT_REQUIRED',
+                    'plugin.json must contain a top-level JSON object.',
+                    pluginJsonPath,
                     'error',
                 ),
             ],
         };
     }
 
-    const packageObject = parsed as Record<string, unknown>;
+    const manifestObject = parsed as Record<string, unknown>;
     const warnings: CapabilityWarning[] = [];
-    const packageName =
-        typeof packageObject.name === 'string' ? packageObject.name.trim() : undefined;
+    const pluginName =
+        typeof manifestObject.name === 'string' ? manifestObject.name.trim() : undefined;
     const version =
-        typeof packageObject.version === 'string' ? packageObject.version.trim() : undefined;
+        typeof manifestObject.version === 'string' ? manifestObject.version.trim() : undefined;
     const description =
-        typeof packageObject.description === 'string'
-            ? packageObject.description.trim()
+        typeof manifestObject.description === 'string'
+            ? manifestObject.description.trim()
             : undefined;
-    const keywords = normalizeStringArray(packageObject.keywords) ?? [];
+    const keywords = normalizeStringArray(manifestObject.keywords) ?? [];
 
-    if (!packageName) {
+    if (!pluginName) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_NAME_REQUIRED',
-                'package.json requires a non-empty "name" field for agent-plugin capabilities.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_REQUIRED',
+                'plugin.json requires a non-empty "name" field for agent-plugin capabilities.',
+                pluginJsonPath,
                 'error',
             ),
         );
-    } else if (!isValidPackageName(packageName)) {
+    } else if (!isValidPluginName(pluginName)) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_NAME_INVALID',
-                'package.json "name" must be a valid npm package name.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_INVALID',
+                'plugin.json "name" must be kebab-case using only lowercase letters, numbers, and hyphens.',
+                pluginJsonPath,
                 'error',
             ),
         );
@@ -345,46 +340,35 @@ function parseAgentPluginPackageContent(
     if (!version) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_VERSION_REQUIRED',
-                'package.json requires a non-empty "version" field for agent-plugin capabilities.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_REQUIRED',
+                'plugin.json requires a non-empty "version" field for agent-plugin capabilities.',
+                pluginJsonPath,
                 'error',
             ),
         );
     } else if (!isLikelySemver(version)) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_VERSION_INVALID',
-                'package.json "version" should use SemVer syntax such as 1.0.0.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_INVALID',
+                'plugin.json "version" should use SemVer syntax such as 1.0.0.',
+                pluginJsonPath,
                 'error',
             ),
         );
     }
 
-    if (!description) {
+    if (manifestObject.keywords !== undefined && !Array.isArray(manifestObject.keywords)) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_DESCRIPTION_REQUIRED',
-                'package.json requires a non-empty "description" field for agent-plugin capabilities.',
-                packageJsonPath,
-                'error',
-            ),
-        );
-    }
-
-    if (packageObject.keywords !== undefined && !Array.isArray(packageObject.keywords)) {
-        warnings.push(
-            toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_KEYWORDS_INVALID',
-                'package.json "keywords" should be an array of strings when present.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_KEYWORDS_INVALID',
+                'plugin.json "keywords" should be an array of strings when present.',
+                pluginJsonPath,
                 'warning',
             ),
         );
     }
 
-    const metaflow = packageObject.metaflow;
+    const metaflow = manifestObject.metaflow;
     let pluginHosts: string[] = [];
     let minimumMetaflowVersion: string | undefined;
 
@@ -392,9 +376,9 @@ function parseAgentPluginPackageContent(
         if (!metaflow || typeof metaflow !== 'object' || Array.isArray(metaflow)) {
             warnings.push(
                 toWarning(
-                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_METAFLOW_INVALID',
-                    'package.json "metaflow" should be an object when present.',
-                    packageJsonPath,
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_METAFLOW_INVALID',
+                    'plugin.json "metaflow" should be an object when present.',
+                    pluginJsonPath,
                     'error',
                 ),
             );
@@ -404,9 +388,9 @@ function parseAgentPluginPackageContent(
             if (metaflowObject.pluginHosts !== undefined && !normalizedPluginHosts) {
                 warnings.push(
                     toWarning(
-                        'CAPABILITY_AGENT_PLUGIN_PACKAGE_HOSTS_INVALID',
-                        'package.json "metaflow.pluginHosts" should be an array of strings when present.',
-                        packageJsonPath,
+                        'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_INVALID',
+                        'plugin.json "metaflow.pluginHosts" should be an array of strings when present.',
+                        pluginJsonPath,
                         'error',
                     ),
                 );
@@ -419,9 +403,9 @@ function parseAgentPluginPackageContent(
                 if (minimumMetaflowVersion && !isLikelyVersionRange(minimumMetaflowVersion)) {
                     warnings.push(
                         toWarning(
-                            'CAPABILITY_AGENT_PLUGIN_PACKAGE_MINIMUM_METAFLOW_VERSION_INVALID',
-                            'package.json "metaflow.minimumMetaflowVersion" should be a recognizable version range.',
-                            packageJsonPath,
+                            'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID',
+                            'plugin.json "metaflow.minimumMetaflowVersion" should be a recognizable version range.',
+                            pluginJsonPath,
                             'error',
                         ),
                     );
@@ -429,9 +413,9 @@ function parseAgentPluginPackageContent(
             } else if (metaflowObject.minimumMetaflowVersion !== undefined) {
                 warnings.push(
                     toWarning(
-                        'CAPABILITY_AGENT_PLUGIN_PACKAGE_MINIMUM_METAFLOW_VERSION_INVALID',
-                        'package.json "metaflow.minimumMetaflowVersion" should be a string when present.',
-                        packageJsonPath,
+                        'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID',
+                        'plugin.json "metaflow.minimumMetaflowVersion" should be a string when present.',
+                        pluginJsonPath,
                         'error',
                     ),
                 );
@@ -442,9 +426,9 @@ function parseAgentPluginPackageContent(
     if (pluginHosts.length === 0) {
         warnings.push(
             toWarning(
-                'CAPABILITY_AGENT_PLUGIN_PACKAGE_HOSTS_RECOMMENDED',
-                'package.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
-                packageJsonPath,
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED',
+                'plugin.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
+                pluginJsonPath,
                 'warning',
             ),
         );
@@ -452,8 +436,8 @@ function parseAgentPluginPackageContent(
 
     return {
         metadata: {
-            packageJsonPath,
-            name: packageName,
+            pluginJsonPath,
+            name: pluginName,
             version,
             description,
             keywords,
@@ -464,18 +448,18 @@ function parseAgentPluginPackageContent(
     };
 }
 
-function loadAgentPluginPackageForLayer(layerPath: string): {
-    metadata?: CapabilityAgentPluginPackage;
+function loadAgentPluginManifestForLayer(layerPath: string): {
+    metadata?: CapabilityAgentPluginManifest;
     warnings: CapabilityWarning[];
 } {
-    const packageJsonPath = path.join(layerPath, AGENT_PLUGIN_PACKAGE_FILE_NAME);
-    if (!fs.existsSync(packageJsonPath)) {
+    const pluginJsonPath = path.join(layerPath, AGENT_PLUGIN_MANIFEST_FILE_NAME);
+    if (!fs.existsSync(pluginJsonPath)) {
         return {
             warnings: [
                 toWarning(
-                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING',
-                    'CAPABILITY.md declares "agentPlugin: true" but package.json is missing at the capability root.',
-                    packageJsonPath,
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING',
+                    'CAPABILITY.md declares "agentPlugin: true" but plugin.json is missing at the capability root.',
+                    pluginJsonPath,
                     'error',
                 ),
             ],
@@ -484,21 +468,21 @@ function loadAgentPluginPackageForLayer(layerPath: string): {
 
     let rawText: string;
     try {
-        rawText = fs.readFileSync(packageJsonPath, 'utf-8');
+        rawText = fs.readFileSync(pluginJsonPath, 'utf-8');
     } catch (error) {
         return {
             warnings: [
                 toWarning(
-                    'CAPABILITY_AGENT_PLUGIN_PACKAGE_READ_ERROR',
-                    `Failed to read package.json: ${(error as Error).message}`,
-                    packageJsonPath,
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_READ_ERROR',
+                    `Failed to read plugin.json: ${(error as Error).message}`,
+                    pluginJsonPath,
                     'error',
                 ),
             ],
         };
     }
 
-    return parseAgentPluginPackageContent(rawText, packageJsonPath);
+    return parseAgentPluginManifestContent(rawText, pluginJsonPath);
 }
 
 function validateManifestFields(fields: ManifestFields, filePath?: string): CapabilityWarning[] {
@@ -641,9 +625,9 @@ export function loadCapabilityManifestForLayer(
 
     const manifest = parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
     if (manifest.agentPlugin) {
-        const packageResult = loadAgentPluginPackageForLayer(layerPath);
-        manifest.agentPluginPackage = packageResult.metadata;
-        manifest.warnings.push(...packageResult.warnings);
+        const pluginResult = loadAgentPluginManifestForLayer(layerPath);
+        manifest.agentPluginManifest = pluginResult.metadata;
+        manifest.warnings.push(...pluginResult.warnings);
     }
 
     return manifest;
@@ -651,6 +635,6 @@ export function loadCapabilityManifestForLayer(
 
 export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
-    AGENT_PLUGIN_PACKAGE_FILE_NAME,
+    AGENT_PLUGIN_MANIFEST_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };

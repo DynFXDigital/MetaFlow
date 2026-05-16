@@ -57,6 +57,32 @@ function loadCommandHandlers(): typeof import('../../commands/commandHandlers') 
 }
 
 suite('Command handler capability plugin maintenance helpers', () => {
+    test('mergeCapabilityWarningMessages appends only unique non-empty warnings', () => {
+        const { mergeCapabilityWarningMessages } = loadCommandHandlers();
+        const warnings = ['Existing warning'];
+
+        const changed = mergeCapabilityWarningMessages(warnings, [
+            'Existing warning',
+            '  ',
+            'New warning',
+            'New warning',
+            '  Trimmed warning  ',
+        ]);
+
+        assert.strictEqual(changed, true);
+        assert.deepStrictEqual(warnings, ['Existing warning', 'New warning', 'Trimmed warning']);
+
+        const unchanged = mergeCapabilityWarningMessages(warnings, [
+            'Existing warning',
+            'New warning',
+            'Trimmed warning',
+            '',
+        ]);
+
+        assert.strictEqual(unchanged, false);
+        assert.deepStrictEqual(warnings, ['Existing warning', 'New warning', 'Trimmed warning']);
+    });
+
     test('ensureCapabilityManifestAgentPluginEnabled adds agentPlugin to existing frontmatter', () => {
         const { ensureCapabilityManifestAgentPluginEnabled } = loadCommandHandlers();
         const source = [
@@ -92,9 +118,41 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.ok(updated.content.includes('## Mission'));
     });
 
-    test('buildMaintainedCapabilityPluginPackageJson creates a valid package scaffold when absent', () => {
-        const { buildMaintainedCapabilityPluginPackageJson } = loadCommandHandlers();
-        const result = buildMaintainedCapabilityPluginPackageJson({
+    test('resolveSettingsEntryTarget forces chat.pluginLocations into user scope', () => {
+        const { resolveSettingsEntryTarget } = loadCommandHandlers();
+
+        const result = resolveSettingsEntryTarget('chat.pluginLocations', {
+            requested: 'workspace',
+            effective: 'workspace',
+            configurationTarget: 2,
+        });
+
+        assert.deepStrictEqual(result, {
+            requested: 'user',
+            effective: 'user',
+            configurationTarget: 1,
+        });
+    });
+
+    test('resolveSettingsEntryTarget leaves non-plugin settings on the configured target', () => {
+        const { resolveSettingsEntryTarget } = loadCommandHandlers();
+
+        const result = resolveSettingsEntryTarget('chat.instructionsFilesLocations', {
+            requested: 'workspaceFolder',
+            effective: 'workspaceFolder',
+            configurationTarget: 3,
+        });
+
+        assert.deepStrictEqual(result, {
+            requested: 'workspaceFolder',
+            effective: 'workspaceFolder',
+            configurationTarget: 3,
+        });
+    });
+
+    test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const result = buildMaintainedCapabilityPluginManifestJson({
             capabilityName: 'Demo Capability',
             capabilityDescription: 'Demo package description.',
             capabilityDirectoryName: 'demo-capability',
@@ -104,29 +162,34 @@ suite('Command handler capability plugin maintenance helpers', () => {
             name?: string;
             version?: string;
             keywords?: string[];
+            agents?: string;
+            skills?: string;
+            rules?: string;
             metaflow?: { pluginHosts?: string[]; minimumMetaflowVersion?: string };
         };
 
-        assert.strictEqual(parsed.name, '@metaflow-capability/demo-capability');
+        assert.strictEqual(parsed.name, 'demo-capability');
         assert.strictEqual(parsed.version, '0.1.0');
         assert.deepStrictEqual(parsed.keywords, ['metaflow', 'agent-plugin', 'capability']);
+        assert.strictEqual(parsed.agents, '.github/agents');
+        assert.strictEqual(parsed.skills, '.github/skills');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0-preview.0');
         assert.strictEqual(result.changed, true);
     });
 
-    test('buildMaintainedCapabilityPluginPackageJson preserves unrelated fields while repairing managed metadata', () => {
-        const { buildMaintainedCapabilityPluginPackageJson } = loadCommandHandlers();
-        const result = buildMaintainedCapabilityPluginPackageJson({
+    test('buildMaintainedCapabilityPluginManifestJson preserves unrelated fields while repairing managed metadata', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const result = buildMaintainedCapabilityPluginManifestJson({
             capabilityName: 'Demo Capability',
             capabilityDescription: 'Demo package description.',
             capabilityDirectoryName: 'demo-capability',
             existingRawText: JSON.stringify(
                 {
-                    name: '@custom/demo-capability',
+                    name: 'custom-demo-capability',
                     version: '2.3.4',
-                    scripts: { test: 'npm test' },
                     keywords: ['existing'],
+                    agents: 'agents',
                     metaflow: { pluginHosts: ['github-copilot', 'claude-code'] },
                 },
                 null,
@@ -137,25 +200,29 @@ suite('Command handler capability plugin maintenance helpers', () => {
         const parsed = JSON.parse(result.content) as {
             name?: string;
             version?: string;
-            scripts?: { test?: string };
             keywords?: string[];
+            agents?: string;
+            skills?: string;
+            rules?: string;
             metaflow?: { pluginHosts?: string[]; minimumMetaflowVersion?: string };
         };
 
-        assert.strictEqual(parsed.name, '@custom/demo-capability');
+        assert.strictEqual(parsed.name, 'custom-demo-capability');
         assert.strictEqual(parsed.version, '2.3.4');
-        assert.strictEqual(parsed.scripts?.test, 'npm test');
         assert.deepStrictEqual(parsed.keywords, [
             'existing',
             'metaflow',
             'agent-plugin',
             'capability',
         ]);
+        assert.strictEqual(parsed.agents, 'agents');
+        assert.strictEqual(parsed.skills, '.github/skills');
+        assert.strictEqual(parsed.rules, '.github/instructions');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot', 'claude-code']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0-preview.0');
     });
 
-    test('maintainCapabilityPluginMetadataInDirectory creates missing package data for one capability directory', async () => {
+    test('maintainCapabilityPluginMetadataInDirectory creates missing plugin data for one capability directory', async () => {
         const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-'));
         try {
@@ -174,22 +241,23 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
             const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
             assert.strictEqual(result.manifestChanged, true);
-            assert.strictEqual(result.packageJsonChanged, true);
+            assert.strictEqual(result.pluginJsonChanged, true);
 
             const manifestText = fs.readFileSync(path.join(tempRoot, 'CAPABILITY.md'), 'utf-8');
             assert.ok(manifestText.includes('agentPlugin: true'));
 
-            const packageJson = JSON.parse(
-                fs.readFileSync(path.join(tempRoot, 'package.json'), 'utf-8'),
+            const pluginJson = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
             ) as {
                 name?: string;
+                agents?: string;
+                rules?: string;
                 metaflow?: { pluginHosts?: string[] };
             };
-            assert.ok(
-                packageJson.name?.startsWith('@metaflow-capability/metaflow-plugin-maintain-'),
-                `expected generated package name prefix, got: ${packageJson.name}`,
-            );
-            assert.deepStrictEqual(packageJson.metaflow?.pluginHosts, ['github-copilot']);
+            assert.ok(pluginJson.name?.startsWith('metaflow-plugin-maintain-'));
+            assert.strictEqual(pluginJson.agents, '.github/agents');
+            assert.strictEqual(pluginJson.rules, '.github/instructions');
+            assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -211,13 +279,16 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 'utf-8',
             );
             fs.writeFileSync(
-                path.join(tempRoot, 'package.json'),
+                path.join(tempRoot, 'plugin.json'),
                 JSON.stringify(
                     {
-                        name: '@custom/demo-capability',
+                        name: 'custom-demo-capability',
                         version: '1.2.3',
-                        description: 'Demo capability package',
+                        description: 'Demo capability plugin',
                         keywords: ['metaflow', 'agent-plugin', 'capability'],
+                        agents: '.github/agents',
+                        skills: '.github/skills',
+                        rules: '.github/instructions',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
                             minimumMetaflowVersion: '^0.1.0-preview.0',
@@ -231,9 +302,115 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
             const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
             assert.strictEqual(result.manifestChanged, false);
-            assert.strictEqual(result.packageJsonChanged, false);
+            assert.strictEqual(result.pluginJsonChanged, false);
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainCapabilityPluginMarketplaceInRepo writes .github/plugin/marketplace.json from capability manifests', async () => {
+        const { maintainCapabilityPluginMarketplaceInRepo } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-marketplace-'));
+        try {
+            const firstCapability = path.join(repoRoot, 'capabilities', 'first');
+            const secondCapability = path.join(repoRoot, 'capabilities', 'second');
+            fs.mkdirSync(firstCapability, { recursive: true });
+            fs.mkdirSync(secondCapability, { recursive: true });
+
+            fs.writeFileSync(
+                path.join(firstCapability, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: First Capability',
+                    'description: First description',
+                    'agentPlugin: true',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(secondCapability, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Second Capability',
+                    'description: Second description',
+                    'agentPlugin: true',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(firstCapability, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'example-first',
+                        version: '1.2.3',
+                        description: 'First plugin description',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                        },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(secondCapability, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'example-second',
+                        version: '2.3.4',
+                        description: 'Second plugin description',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                        },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+
+            const firstRun = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
+                repoId: 'example-repo',
+            });
+
+            assert.strictEqual(firstRun.changed, true);
+            assert.strictEqual(firstRun.pluginCount, 2);
+            assert.deepStrictEqual(firstRun.warnings, []);
+
+            const marketplace = JSON.parse(fs.readFileSync(firstRun.marketplacePath, 'utf-8')) as {
+                name?: string;
+                owner?: { name?: string };
+                plugins?: Array<{ name?: string; source?: string; version?: string }>;
+            };
+
+            assert.strictEqual(marketplace.name, 'example-repo');
+            assert.strictEqual(marketplace.owner?.name, path.basename(repoRoot));
+            assert.deepStrictEqual(marketplace.plugins, [
+                {
+                    name: 'example-first',
+                    source: './capabilities/first',
+                    description: 'First description',
+                    version: '1.2.3',
+                },
+                {
+                    name: 'example-second',
+                    source: './capabilities/second',
+                    description: 'Second description',
+                    version: '2.3.4',
+                },
+            ]);
+
+            const secondRun = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
+                repoId: 'example-repo',
+            });
+            assert.strictEqual(secondRun.changed, false);
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
         }
     });
 });

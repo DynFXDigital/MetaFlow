@@ -80,6 +80,7 @@ Artifact rows inside a capability stay toggleable at the class level, but they a
 - **Keep local-only materialization out of git**: use `.gitignore` when file-based metadata is required locally but should not be committed.
 - **Promote improvements upstream**: when a synchronized local copy is improved, treat it as a candidate to reverse-sync back into the shared metadata repository for broader reuse.
 - **Mix delivery models by type**: keep some artifact types settings-backed while materializing others as files.
+- **Activate plugin-capable capabilities locally**: route supported artifact types through local Copilot plugin discovery instead of only alternate-path settings or `.github` synchronization.
 - **Choose the right scope for settings injection**: deliver settings-backed metadata at the user, workspace, or workspace-folder level depending on how your team operates.
 
 ## Built-in MetaFlow Capability
@@ -94,25 +95,52 @@ MetaFlow includes a bundled starter capability so you can try the workflow befor
 
 ## Capability Plugin Metadata
 
-MetaFlow can also treat a capability as an agent-plugin-compatible package when the capability opts in explicitly.
+MetaFlow can also treat a capability as an agent-plugin-compatible manifest when the capability opts in explicitly.
 
 - Set `agentPlugin: true` in the capability frontmatter inside `CAPABILITY.md`.
-- Place a `package.json` file beside `CAPABILITY.md` at the capability root.
-- MetaFlow validates the embedded package metadata and surfaces errors or warnings in the normal Problems and diagnostics flows.
+- Place a `plugin.json` file beside `CAPABILITY.md` at the capability root.
+- MetaFlow validates the embedded plugin manifest and surfaces errors or warnings in the normal Problems and diagnostics flows.
 - Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.
-- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin fields for an existing capability without replacing unrelated `package.json` content.
+- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin manifest fields for an existing capability without replacing unrelated `plugin.json` content.
 - Use `MetaFlow: Maintain All Capability Plugin Metadata` to sweep every capability directory in a selected metadata repository and backfill missing plugin data in one pass.
 
-The maintained package contract currently expects:
+The maintained plugin manifest contract currently expects:
 
-- `name`: a stable package identity such as `@metaflow-capability/my-capability`
-- `version`: a SemVer package version such as `1.0.0`
+- `name`: a stable plugin identifier such as `my-capability`
+- `version`: a SemVer plugin version such as `1.0.0`
 - `description`: a concise user-facing summary
-- `keywords`: package discovery tags; MetaFlow ensures `metaflow`, `agent-plugin`, and `capability` are present
+- `keywords`: plugin discovery tags; MetaFlow ensures `metaflow`, `agent-plugin`, and `capability` are present
+- `agents`: defaults to `.github/agents` when MetaFlow scaffolds or repairs the manifest
+- `skills`: defaults to `.github/skills` when MetaFlow scaffolds or repairs the manifest
+- `rules`: defaults to `.github/instructions` when MetaFlow scaffolds or repairs the manifest
 - `metaflow.pluginHosts`: an array of supported consumers such as `github-copilot`
-- `metaflow.minimumMetaflowVersion`: the minimum MetaFlow version range expected by the package
+- `metaflow.minimumMetaflowVersion`: the minimum MetaFlow version range expected by the plugin manifest
 
-MetaFlow also builds a normalized internal plugin catalog from valid capability package metadata so future marketplace or discovery surfaces can consume one stable model.
+MetaFlow also builds a normalized internal plugin catalog from valid capability plugin manifests and can generate `.github/plugin/marketplace.json` from those manifests for discovery surfaces.
+
+Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, and `agents` to `plugin`, while `prompts` and `hooks` remain settings-backed until the host consumes those artifact types through plugin discovery.
+
+An explicit config looks like this:
+
+```jsonc
+{
+    "injection": {
+        "instructions": "plugin",
+        "skills": "plugin",
+        "agents": "plugin",
+        "prompts": "settings",
+    },
+}
+```
+
+When `MetaFlow: Apply` runs, MetaFlow injects those capability roots into the user-scoped `chat.pluginLocations` setting, which VS Code uses as the local plugin registration and enablement map for repo-backed plugins. MetaFlow does not rewrite `.github/copilot/settings.local.json` for local plugin roots.
+
+Current scope:
+
+- `plugin` is the default mode for `instructions`, `skills`, and `agents`
+- `prompts` remain `settings` or `synchronize` because Copilot plugin discovery does not consume MetaFlow prompt directories directly
+- `hooks` remain `settings` because the current plugin discovery path does not consume MetaFlow hook directories directly
+- `plugin.json` must exist at the capability root and should be kept in sync with `CAPABILITY.md`
 
 ## Where to go next
 

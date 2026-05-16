@@ -280,7 +280,7 @@ describe('capabilityManifest parser', () => {
         assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_DESCRIPTION_REQUIRED'));
     });
 
-    it('loads validated agent-plugin package metadata when opted in', () => {
+    it('loads validated agent-plugin manifest metadata when opted in', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
         try {
             fs.writeFileSync(
@@ -295,12 +295,12 @@ describe('capabilityManifest parser', () => {
                 'utf-8',
             );
             fs.writeFileSync(
-                path.join(tmpDir, 'package.json'),
+                path.join(tmpDir, 'plugin.json'),
                 JSON.stringify(
                     {
-                        name: '@example/capability-name',
+                        name: 'capability-name',
                         version: '1.2.3',
-                        description: 'Capability package description',
+                        description: 'Capability plugin description',
                         keywords: ['metaflow', 'agent-plugin'],
                         metaflow: {
                             pluginHosts: ['github-copilot'],
@@ -316,9 +316,9 @@ describe('capabilityManifest parser', () => {
             const loaded = loadCapabilityManifestForLayer(tmpDir, 'capability-id');
             assert.ok(loaded);
             assert.strictEqual(loaded?.agentPlugin, true);
-            assert.strictEqual(loaded?.agentPluginPackage?.name, '@example/capability-name');
-            assert.strictEqual(loaded?.agentPluginPackage?.version, '1.2.3');
-            assert.deepStrictEqual(loaded?.agentPluginPackage?.pluginHosts, ['github-copilot']);
+            assert.strictEqual(loaded?.agentPluginManifest?.name, 'capability-name');
+            assert.strictEqual(loaded?.agentPluginManifest?.version, '1.2.3');
+            assert.deepStrictEqual(loaded?.agentPluginManifest?.pluginHosts, ['github-copilot']);
             assert.ok(
                 !loaded?.warnings.some((warning) => warning.severity === 'error'),
                 `expected no agent-plugin errors, got: ${JSON.stringify(loaded?.warnings)}`,
@@ -328,7 +328,7 @@ describe('capabilityManifest parser', () => {
         }
     });
 
-    it('emits an error when agentPlugin is enabled but package.json is missing', () => {
+    it('emits an error when agentPlugin is enabled but plugin.json is missing', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
         try {
             fs.writeFileSync(
@@ -347,7 +347,7 @@ describe('capabilityManifest parser', () => {
             assert.ok(
                 loaded?.warnings.some(
                     (warning) =>
-                        warning.code === 'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING' &&
+                        warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING' &&
                         warning.severity === 'error',
                 ),
             );
@@ -356,7 +356,7 @@ describe('capabilityManifest parser', () => {
         }
     });
 
-    it('emits an error when agent-plugin package.json is invalid', () => {
+    it('emits an error when agent-plugin plugin.json is invalid', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
         try {
             fs.writeFileSync(
@@ -370,13 +370,13 @@ describe('capabilityManifest parser', () => {
                 ].join('\n'),
                 'utf-8',
             );
-            fs.writeFileSync(path.join(tmpDir, 'package.json'), '{ invalid json', 'utf-8');
+            fs.writeFileSync(path.join(tmpDir, 'plugin.json'), '{ invalid json', 'utf-8');
 
             const loaded = loadCapabilityManifestForLayer(tmpDir, 'capability-id');
             assert.ok(
                 loaded?.warnings.some(
                     (warning) =>
-                        warning.code === 'CAPABILITY_AGENT_PLUGIN_PACKAGE_JSON_INVALID' &&
+                        warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID' &&
                         warning.severity === 'error',
                 ),
             );

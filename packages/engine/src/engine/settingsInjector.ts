@@ -35,6 +35,47 @@ function toLocationMap(paths: string[]): LocationMap {
     return Object.fromEntries(entries);
 }
 
+function resolvePluginRoot(file: EffectiveFile): string | undefined {
+    const normalized = file.relativePath.replace(/\\/g, '/');
+    const rawSegments = normalized.split('/').filter((segment) => segment.length > 0);
+    if (rawSegments.length === 0) {
+        return undefined;
+    }
+
+    const relativeSegments = rawSegments[0] === '.github' ? rawSegments.slice(1) : rawSegments;
+    if (relativeSegments.length === 0) {
+        return undefined;
+    }
+
+    let currentPath = file.sourcePath;
+    for (let index = 0; index < relativeSegments.length; index += 1) {
+        currentPath = path.dirname(currentPath);
+    }
+
+    if (path.basename(currentPath) === '.github') {
+        currentPath = path.dirname(currentPath);
+    }
+
+    return currentPath;
+}
+
+export function computePluginRootPaths(effectiveFiles: EffectiveFile[]): string[] {
+    const pluginRoots = new Set<string>();
+
+    for (const file of effectiveFiles) {
+        if (file.classification !== 'plugin') {
+            continue;
+        }
+
+        const pluginRoot = resolvePluginRoot(file);
+        if (pluginRoot) {
+            pluginRoots.add(pluginRoot);
+        }
+    }
+
+    return Array.from(pluginRoots).sort((left, right) => left.localeCompare(right));
+}
+
 /**
  * Compute settings entries for settings-injected directories.
  *
@@ -52,7 +93,12 @@ export function computeSettingsEntries(
 
     // Collect unique settings-backed directories by artifact type
     const settingsDirs = new Map<string, Set<string>>();
+    const pluginRoots = computePluginRootPaths(effectiveFiles);
     for (const file of effectiveFiles) {
+        if (file.classification === 'plugin') {
+            continue;
+        }
+
         if (file.classification !== 'settings') {
             continue;
         }
@@ -80,11 +126,8 @@ export function computeSettingsEntries(
 
     // Map artifact types to VS Code setting keys
     const settingsMap: Record<string, string[]> = {
-        instructions: [
-            'chat.instructionsFilesLocations',
-            'github.copilot.chat.codeGeneration.instructionFiles',
-        ],
-        prompts: ['chat.promptFilesLocations', 'github.copilot.chat.promptFiles'],
+            instructions: ['chat.instructionsFilesLocations'],
+            prompts: ['chat.promptFilesLocations'],
         agents: ['chat.agentFilesLocations'],
         skills: ['chat.agentSkillsLocations'],
     };
@@ -101,6 +144,15 @@ export function computeSettingsEntries(
                 entries.push({ key: settingKey, value });
             }
         }
+    }
+
+    if (pluginRoots.length > 0) {
+        entries.push({
+            key: 'chat.pluginLocations',
+            value: toLocationMap(
+                pluginRoots.map((pluginRoot) => toWorkspaceRelative(workspaceRoot, pluginRoot)),
+            ),
+        });
     }
 
     // Hook file locations (hooks are file-based)
@@ -138,12 +190,11 @@ export function computeSettingsEntries(
  */
 export function computeSettingsKeysToRemove(): string[] {
     return [
+        'chat.pluginLocations',
         'chat.instructionsFilesLocations',
         'chat.promptFilesLocations',
         'chat.agentFilesLocations',
         'chat.agentSkillsLocations',
         'chat.hookFilesLocations',
-        'github.copilot.chat.codeGeneration.instructionFiles',
-        'github.copilot.chat.promptFiles',
     ];
 }

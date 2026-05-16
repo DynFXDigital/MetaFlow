@@ -315,6 +315,16 @@
       {
         "command": "metaflow.getDiagnosticsSnapshot",
         "title": "MetaFlow: Get Diagnostics Snapshot"
+      },
+      {
+        "command": "metaflow.openWarningSource",
+        "title": "MetaFlow: Open Warning Source",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "metaflow.copyWarningMessage",
+        "title": "MetaFlow: Copy Warning Message",
+        "icon": "$(copy)"
       }
     ],
     "submenus": [
@@ -488,6 +498,16 @@
           "command": "metaflow.addRepoSource",
           "when": "view == metaflow-config && viewItem == configRepoSection",
           "group": "inline"
+        },
+        {
+          "command": "metaflow.openWarningSource",
+          "when": "view == metaflow-config && viewItem == configWarningSource",
+          "group": "inline@1"
+        },
+        {
+          "command": "metaflow.copyWarningMessage",
+          "when": "view == metaflow-config && (viewItem == configWarning || viewItem == configWarningSource)",
+          "group": "inline@2"
         },
         {
           "command": "metaflow.expandLayersBranch",

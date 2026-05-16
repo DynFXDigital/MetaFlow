@@ -1,11 +1,19 @@
 import * as assert from 'assert';
-import { buildAgentPluginCatalog, LayerContent } from '../src/index';
+import {
+    buildAgentPluginCatalog,
+    buildCapabilityPluginMarketplaceManifest,
+    LayerContent,
+} from '../src/index';
 
 function makeLayer(
     layerId: string,
     repoId: string,
-    packageName: string,
-    warnings: Array<{ code: string; message: string; severity?: 'error' | 'warning' | 'info' }> = [],
+    pluginName: string,
+    warnings: Array<{
+        code: string;
+        message: string;
+        severity?: 'error' | 'warning' | 'info';
+    }> = [],
 ): LayerContent {
     return {
         layerId,
@@ -17,11 +25,11 @@ function makeLayer(
             name: `Capability ${layerId}`,
             description: `Description for ${layerId}`,
             agentPlugin: true,
-            agentPluginPackage: {
-                packageJsonPath: `/workspace/${layerId}/package.json`,
-                name: packageName,
+            agentPluginManifest: {
+                pluginJsonPath: `/workspace/${layerId}/plugin.json`,
+                name: pluginName,
                 version: '1.0.0',
-                description: `Package for ${layerId}`,
+                description: `Plugin for ${layerId}`,
                 keywords: ['metaflow'],
                 pluginHosts: ['github-copilot'],
                 minimumMetaflowVersion: '^0.1.0-preview.0',
@@ -34,22 +42,22 @@ function makeLayer(
 describe('pluginCatalog', () => {
     it('returns normalized entries for unique valid agent-plugin capabilities', () => {
         const result = buildAgentPluginCatalog([
-            makeLayer('repo/review/first', 'repo', '@example/first'),
-            makeLayer('repo/review/second', 'repo', '@example/second'),
+            makeLayer('repo/review/first', 'repo', 'example-first'),
+            makeLayer('repo/review/second', 'repo', 'example-second'),
         ]);
 
         assert.deepStrictEqual(
-            result.entries.map((entry) => entry.packageName),
-            ['@example/first', '@example/second'],
+            result.entries.map((entry) => entry.pluginName),
+            ['example-first', 'example-second'],
         );
         assert.deepStrictEqual(result.warnings, []);
     });
 
     it('omits invalid agent-plugin capabilities that already have error-severity manifest warnings', () => {
         const result = buildAgentPluginCatalog([
-            makeLayer('repo/review/invalid', 'repo', '@example/invalid', [
+            makeLayer('repo/review/invalid', 'repo', 'example-invalid', [
                 {
-                    code: 'CAPABILITY_AGENT_PLUGIN_PACKAGE_VERSION_INVALID',
+                    code: 'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_INVALID',
                     message: 'Version is invalid.',
                     severity: 'error',
                 },
@@ -62,8 +70,8 @@ describe('pluginCatalog', () => {
 
     it('emits duplicate package-name warnings and omits conflicting entries from the catalog', () => {
         const result = buildAgentPluginCatalog([
-            makeLayer('repo/review/first', 'repo', '@example/shared'),
-            makeLayer('repo/review/second', 'repo', '@example/shared'),
+            makeLayer('repo/review/first', 'repo', 'example-shared'),
+            makeLayer('repo/review/second', 'repo', 'example-shared'),
         ]);
 
         assert.deepStrictEqual(result.entries, []);
@@ -71,7 +79,86 @@ describe('pluginCatalog', () => {
         assert.ok(
             result.warnings.every(
                 (warning) =>
-                    warning.code === 'CAPABILITY_AGENT_PLUGIN_PACKAGE_DUPLICATE' &&
+                    warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_DUPLICATE' &&
+                    warning.severity === 'error',
+            ),
+        );
+    });
+
+    it('builds a host-compatible marketplace manifest from catalog entries', () => {
+        const catalog = buildAgentPluginCatalog([
+            makeLayer('repo/review/first', 'repo', 'example-first'),
+            makeLayer('repo/review/second', 'repo', 'example-second'),
+        ]);
+
+        const result = buildCapabilityPluginMarketplaceManifest(catalog.entries, {
+            repoRoot: '/workspace/repo',
+            marketplaceName: 'Example Repo',
+            ownerName: 'Example Org',
+            description: 'Generated from capability plugin metadata.',
+        });
+
+        assert.deepStrictEqual(result.warnings, []);
+        assert.strictEqual(result.manifest.name, 'example-repo');
+        assert.strictEqual(result.manifest.owner.name, 'Example Org');
+        assert.deepStrictEqual(result.manifest.plugins, [
+            {
+                name: 'example-first',
+                source: './review/first',
+                description: 'Description for repo/review/first',
+                version: '1.0.0',
+            },
+            {
+                name: 'example-second',
+                source: './review/second',
+                description: 'Description for repo/review/second',
+                version: '1.0.0',
+            },
+        ]);
+        assert.strictEqual(
+            result.manifest.metadata?.description,
+            'Generated from capability plugin metadata.',
+        );
+    });
+
+    it('omits marketplace entries whose generated host plugin names collide', () => {
+        const result = buildCapabilityPluginMarketplaceManifest(
+            [
+                {
+                    pluginName: 'example-shared',
+                    version: '1.0.0',
+                    displayName: 'Shared Example',
+                    capabilityId: 'shared-example',
+                    layerId: 'repo/shared/example',
+                    repoId: 'repo',
+                    manifestPath: '/workspace/repo/shared/example/CAPABILITY.md',
+                    pluginJsonPath: '/workspace/repo/shared/example/plugin.json',
+                    pluginHosts: ['github-copilot'],
+                },
+                {
+                    pluginName: 'example-shared',
+                    version: '1.0.0',
+                    displayName: 'Shared Example Duplicate',
+                    capabilityId: 'shared-example-duplicate',
+                    layerId: 'repo/shared/duplicate',
+                    repoId: 'repo',
+                    manifestPath: '/workspace/repo/shared/duplicate/CAPABILITY.md',
+                    pluginJsonPath: '/workspace/repo/shared/duplicate/plugin.json',
+                    pluginHosts: ['github-copilot'],
+                },
+            ],
+            {
+                repoRoot: '/workspace/repo',
+                marketplaceName: 'Example Repo',
+            },
+        );
+
+        assert.deepStrictEqual(result.manifest.plugins, []);
+        assert.strictEqual(result.warnings.length, 2);
+        assert.ok(
+            result.warnings.every(
+                (warning) =>
+                    warning.code === 'CAPABILITY_AGENT_PLUGIN_MARKETPLACE_PLUGIN_DUPLICATE' &&
                     warning.severity === 'error',
             ),
         );

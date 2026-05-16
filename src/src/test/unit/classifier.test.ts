@@ -12,20 +12,20 @@ function makeFile(relativePath: string): EffectiveFile {
 
 suite('classifier', () => {
     suite('classifySingle', () => {
-        test('instructions → settings', () => {
-            assert.strictEqual(classifySingle('instructions/coding.md', undefined), 'settings');
+        test('instructions → plugin', () => {
+            assert.strictEqual(classifySingle('instructions/coding.md', undefined), 'plugin');
         });
 
         test('prompts → settings', () => {
             assert.strictEqual(classifySingle('prompts/gen.prompt.md', undefined), 'settings');
         });
 
-        test('skills → settings (default)', () => {
-            assert.strictEqual(classifySingle('skills/build/SKILL.md', undefined), 'settings');
+        test('skills → plugin (default)', () => {
+            assert.strictEqual(classifySingle('skills/build/SKILL.md', undefined), 'plugin');
         });
 
-        test('agents → settings (default)', () => {
-            assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'settings');
+        test('agents → plugin (default)', () => {
+            assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'plugin');
         });
 
         test('hooks → settings', () => {
@@ -50,11 +50,11 @@ suite('classifier', () => {
         test('.github settings artifacts normalize to their effective top-level type', () => {
             assert.strictEqual(
                 classifySingle('.github/instructions/coding.md', undefined),
-                'settings',
+                'plugin',
             );
             assert.strictEqual(
                 classifySingle('.github/skills/build/SKILL.md', undefined),
-                'settings',
+                'plugin',
             );
         });
     });
@@ -74,10 +74,38 @@ suite('classifier', () => {
             );
         });
 
+        test('instructions override to plugin → plugin', () => {
+            assert.strictEqual(
+                classifySingle('instructions/coding.md', { instructions: 'plugin' }),
+                'plugin',
+            );
+        });
+
+        test('skills override to plugin → plugin', () => {
+            assert.strictEqual(
+                classifySingle('skills/build/SKILL.md', { skills: 'plugin' }),
+                'plugin',
+            );
+        });
+
+        test('agents override to plugin → plugin', () => {
+            assert.strictEqual(
+                classifySingle('agents/coder.agent.md', { agents: 'plugin' }),
+                'plugin',
+            );
+        });
+
         test('instructions override to synchronize → synchronized', () => {
             assert.strictEqual(
                 classifySingle('instructions/coding.md', { instructions: 'synchronize' }),
                 'synchronized',
+            );
+        });
+
+        test('prompts ignore plugin override and remain settings', () => {
+            assert.strictEqual(
+                classifySingle('prompts/gen.prompt.md', { prompts: 'plugin' }),
+                'settings',
             );
         });
 
@@ -104,15 +132,15 @@ suite('classifier', () => {
                 makeFile('random/c.txt'),
             ];
             const result = classifyFiles(files, undefined);
-            assert.strictEqual(result[0].classification, 'settings');
-            assert.strictEqual(result[1].classification, 'settings');
+            assert.strictEqual(result[0].classification, 'plugin');
+            assert.strictEqual(result[1].classification, 'plugin');
             assert.strictEqual(result[2].classification, 'synchronized');
         });
 
         test('backslash paths are normalized', () => {
             const files = [makeFile('instructions\\coding.md')];
             const result = classifyFiles(files, undefined);
-            assert.strictEqual(result[0].classification, 'settings');
+            assert.strictEqual(result[0].classification, 'plugin');
         });
 
         test('layer-specific injection matches Windows-style layerSource paths', () => {
@@ -129,6 +157,22 @@ suite('classifier', () => {
 
             const result = classifyFiles(files, { skills: 'settings' }, layerSources);
             assert.strictEqual(result[0].classification, 'synchronized');
+        });
+
+        test('layer-specific plugin injection matches Windows-style layerSource paths', () => {
+            const files = [makeFile('agents/coder.agent.md')];
+            files[0].sourceLayer = 'repo/team/core';
+
+            const layerSources: LayerSource[] = [
+                {
+                    repoId: 'repo',
+                    path: 'team\\core',
+                    injection: { agents: 'plugin' },
+                },
+            ];
+
+            const result = classifyFiles(files, { agents: 'settings' }, layerSources);
+            assert.strictEqual(result[0].classification, 'plugin');
         });
     });
 });

@@ -127,7 +127,7 @@ export interface ProfileLayerOverride {
 // ── Injection modes ────────────────────────────────────────────────
 
 /** Per-artifact-type injection mode. */
-export type InjectionMode = 'settings' | 'synchronize';
+export type InjectionMode = 'settings' | 'synchronize' | 'plugin';
 
 /** Target VS Code configuration scope for settings-backed injection. */
 export type SettingsInjectionTarget = 'user' | 'workspace' | 'workspaceFolder';

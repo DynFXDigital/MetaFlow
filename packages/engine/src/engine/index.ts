@@ -1,6 +1,9 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
 export type { ResolveLayersOptions } from './overlayEngine';
-export { buildAgentPluginCatalog } from './pluginCatalog';
+export {
+    buildAgentPluginCatalog,
+    buildCapabilityPluginMarketplaceManifest,
+} from './pluginCatalog';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyFilters, applyExcludedTypeFilters } from './filterEngine';
@@ -22,8 +25,18 @@ export {
     getStateDirPath,
 } from './managedState';
 export { checkDrift, checkAllDrift } from './driftDetector';
-export { apply, clean, planSynchronization, preview, toSynchronizedRelativePath } from './synchronizer';
-export { computeSettingsEntries, computeSettingsKeysToRemove } from './settingsInjector';
+export {
+    apply,
+    clean,
+    planSynchronization,
+    preview,
+    toSynchronizedRelativePath,
+} from './synchronizer';
+export {
+    computePluginRootPaths,
+    computeSettingsEntries,
+    computeSettingsKeysToRemove,
+} from './settingsInjector';
 export {
     parseCapabilityManifestContent,
     loadCapabilityManifestForLayer,
@@ -41,7 +54,7 @@ export type {
     LayerContent,
     EffectiveFile,
     CapabilityMetadata,
-    CapabilityAgentPluginPackage,
+    CapabilityAgentPluginManifest,
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,

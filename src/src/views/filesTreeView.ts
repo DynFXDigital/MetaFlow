@@ -152,7 +152,13 @@ function getDisplayLayerLabel(file: EffectiveFile, sourceLabel: string): string 
 }
 
 function getClassificationLabel(classification: EffectiveFile['classification']): string {
-    return classification === 'settings' ? 'settings' : 'synchronized';
+    if (classification === 'settings') {
+        return 'settings';
+    }
+    if (classification === 'plugin') {
+        return 'plugin';
+    }
+    return 'synchronized';
 }
 
 function buildMarkdownTooltip(

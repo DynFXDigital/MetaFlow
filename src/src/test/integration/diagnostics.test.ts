@@ -120,8 +120,14 @@ suite('Diagnostics Integration', () => {
         }>('metaflow.getDiagnosticsSnapshot');
 
         assert.ok(snapshot, 'Command should return a payload');
-        assert.ok(Array.isArray(snapshot.capabilityWarnings), 'capabilityWarnings should be an array');
-        assert.ok(Array.isArray(snapshot.configDiagnostics), 'configDiagnostics should be an array');
+        assert.ok(
+            Array.isArray(snapshot.capabilityWarnings),
+            'capabilityWarnings should be an array',
+        );
+        assert.ok(
+            Array.isArray(snapshot.configDiagnostics),
+            'configDiagnostics should be an array',
+        );
         assert.strictEqual(
             snapshot.configDiagnostics.length,
             0,
@@ -327,7 +333,7 @@ suite('Diagnostics Integration', () => {
             [
                 '---',
                 'name: Missing Package Plugin',
-                'description: A capability missing package metadata.',
+                'description: A capability missing plugin metadata.',
                 'agentPlugin: true',
                 '---',
             ].join('\n'),
@@ -362,14 +368,14 @@ suite('Diagnostics Integration', () => {
             fs.writeFileSync(configPath, warningConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const packageJsonPath = path.join(layerRoot, 'package.json');
+            const pluginJsonPath = path.join(layerRoot, 'plugin.json');
             const diagnostics = vscode.languages
-                .getDiagnostics(vscode.Uri.file(packageJsonPath))
+                .getDiagnostics(vscode.Uri.file(pluginJsonPath))
                 .filter((diagnostic) => diagnostic.source === 'MetaFlow');
 
-            assert.strictEqual(diagnostics.length, 1, 'Expected one agent-plugin package error');
+            assert.strictEqual(diagnostics.length, 1, 'Expected one agent-plugin manifest error');
             assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Error);
-            assert.strictEqual(diagnostics[0].code, 'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING');
+            assert.strictEqual(diagnostics[0].code, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING');
 
             const snapshot = await vscode.commands.executeCommand<{
                 capabilityWarnings: string[];
@@ -384,17 +390,17 @@ suite('Diagnostics Integration', () => {
                 }>;
             }>('metaflow.getDiagnosticsSnapshot');
 
-            const packageDiagnostics = snapshot.configDiagnostics.filter(
+            const pluginDiagnostics = snapshot.configDiagnostics.filter(
                 (entry) =>
-                    entry.file === vscode.Uri.file(packageJsonPath).fsPath &&
-                    entry.code === 'CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING',
+                    entry.file === vscode.Uri.file(pluginJsonPath).fsPath &&
+                    entry.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING',
             );
 
-            assert.strictEqual(packageDiagnostics.length, 1);
-            assert.strictEqual(packageDiagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+            assert.strictEqual(pluginDiagnostics.length, 1);
+            assert.strictEqual(pluginDiagnostics[0].severity, vscode.DiagnosticSeverity.Error);
             assert.ok(
                 snapshot.capabilityWarnings.some((warning) =>
-                    warning.includes('CAPABILITY_AGENT_PLUGIN_PACKAGE_MISSING'),
+                    warning.includes('CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING'),
                 ),
             );
         } finally {
@@ -584,7 +590,9 @@ suite('Diagnostics Integration', () => {
                 ['GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::review'],
             );
 
-            const statusLines = (await vscode.commands.executeCommand('metaflow.status')) as string[];
+            const statusLines = (await vscode.commands.executeCommand(
+                'metaflow.status',
+            )) as string[];
             assert.ok(
                 statusLines.some((line) => line.includes('Governance: non-compliant')),
                 'Status output should include the governance compliance summary',

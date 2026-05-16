@@ -589,6 +589,31 @@ suite('pruneStaleLayerSources', () => {
         assert.strictEqual(config.layerSources[0].path, 'present');
     });
 
+    test('removes authored metadata repo capabilities whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present'), { recursive: true });
+
+        const config = {
+            metadataRepos: [
+                {
+                    id: 'org',
+                    localPath: repoRoot,
+                    enabled: true,
+                    capabilities: [
+                        { path: 'present', enabled: false },
+                        { path: 'removed', enabled: false },
+                    ],
+                },
+            ],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['org/removed']);
+        assert.deepStrictEqual(config.metadataRepos[0].capabilities, [
+            { path: 'present', enabled: false },
+        ]);
+    });
+
     test('removes single-repo layers whose directories do not exist', () => {
         const repoRoot = path.join(tmpDir, 'meta');
         fs.mkdirSync(path.join(repoRoot, 'live'), { recursive: true });
@@ -630,5 +655,31 @@ suite('pruneStaleLayerSources', () => {
         const pruned = pruneStaleLayerSources(config as never, tmpDir);
         assert.deepStrictEqual(pruned, []);
         assert.strictEqual(config.layerSources.length, 1);
+    });
+
+    test('removes stale profile layer overrides whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present'), { recursive: true });
+
+        const config = {
+            metadataRepos: [{ id: 'org', localPath: repoRoot, enabled: true }],
+            profiles: {
+                default: {
+                    displayName: 'Default',
+                    enable: ['**/*'],
+                    disable: [],
+                    layerOverrides: [
+                        { repoId: 'org', path: 'present', enabled: true },
+                        { repoId: 'org', path: 'removed', enabled: true },
+                    ],
+                },
+            },
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['profile:default:org/removed']);
+        assert.deepStrictEqual(config.profiles.default.layerOverrides, [
+            { repoId: 'org', path: 'present', enabled: true },
+        ]);
     });
 });

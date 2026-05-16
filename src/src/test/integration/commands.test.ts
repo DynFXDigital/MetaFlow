@@ -80,10 +80,7 @@ suite('Command Execution', function () {
         target: vscode.ConfigurationTarget,
         wsFolder?: vscode.WorkspaceFolder,
     ): Promise<void> {
-        const wsConfig = vscode.workspace.getConfiguration(
-            undefined,
-            wsFolder?.uri,
-        );
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder?.uri);
         await wsConfig.update(section, value, target);
         // In a clean Extension Host sandbox, configuration writes may not
         // propagate synchronously.  Poll until a fresh getConfiguration()
@@ -131,9 +128,13 @@ suite('Command Execution', function () {
     }
 
     function getInjectedLocationValue<T>(
-        inspection: { workspaceValue?: T; workspaceFolderValue?: T } | undefined,
+        inspection: { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined,
     ): T | undefined {
-        return inspection?.workspaceValue ?? inspection?.workspaceFolderValue;
+        return (
+            inspection?.workspaceValue ??
+            inspection?.workspaceFolderValue ??
+            inspection?.globalValue
+        );
     }
 
     function createSettingsBackedWorkspaceConfig() {
@@ -163,8 +164,48 @@ suite('Command Execution', function () {
         };
     }
 
+    function createPluginBackedWorkspaceConfig(repoLocalPath: string, capabilityPath: string) {
+        return {
+            compatibilityVersion: 2,
+            metadataRepos: [
+                {
+                    id: 'plugin-enable',
+                    localPath: repoLocalPath,
+                    enabled: true,
+                    capabilities: [
+                        {
+                            path: capabilityPath,
+                            enabled: true,
+                        },
+                    ],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'plugin',
+                prompts: 'settings',
+                skills: 'plugin',
+                agents: 'plugin',
+                hooks: 'settings',
+            },
+        };
+    }
+
     function hasBuiltInInstructionPath(
         locations: Record<string, boolean> | string[] | undefined,
+    ): boolean {
+        return hasBundledMetaFlowPath(locations, '/.github/instructions');
+    }
+
+    function hasBundledMetaFlowPath(
+        locations: Record<string, boolean> | string[] | undefined,
+        suffix?: string,
     ): boolean {
         if (!locations) {
             return false;
@@ -176,7 +217,8 @@ suite('Command Execution', function () {
             return (
                 normalized.includes(
                     '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/',
-                ) && normalized.endsWith('/.github/instructions')
+                ) &&
+                (!suffix || normalized.endsWith(suffix))
             );
         });
     }
@@ -198,32 +240,22 @@ suite('Command Execution', function () {
         });
     }
 
-    function getBuiltInInstructionSettingsPresence(
-        wsConfig: vscode.WorkspaceConfiguration,
-    ): {
+    function getBuiltInInstructionSettingsPresence(wsConfig: vscode.WorkspaceConfiguration): {
         hasBuiltIn: boolean;
         hasExtensionInstall: boolean;
     } {
         const instructionLocations = getInjectedLocationValue(
             wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
         );
-        const instructionFiles = getInjectedLocationValue(
-            wsConfig.inspect<string[]>('github.copilot.chat.codeGeneration.instructionFiles'),
-        );
 
         return {
-            hasBuiltIn:
-                hasBuiltInInstructionPath(instructionLocations) ||
-                hasBuiltInInstructionPath(instructionFiles),
-            hasExtensionInstall:
-                hasExtensionInstallInstructionPath(instructionLocations) ||
-                hasExtensionInstallInstructionPath(instructionFiles),
+            hasBuiltIn: hasBuiltInInstructionPath(instructionLocations),
+            hasExtensionInstall: hasExtensionInstallInstructionPath(instructionLocations),
         };
     }
 
     interface InstructionSettingsSnapshot {
         instructionLocations?: Record<string, boolean>;
-        instructionFiles?: string[];
     }
 
     function getInstructionSettingsSnapshot(
@@ -236,12 +268,6 @@ suite('Command Execution', function () {
                     'chat.instructionsFilesLocations',
                 ),
             ),
-            instructionFiles: cloneJson(
-                getScopedSettingValue<string[]>(
-                    wsConfig,
-                    'github.copilot.chat.codeGeneration.instructionFiles',
-                ),
-            ),
         };
     }
 
@@ -249,9 +275,7 @@ suite('Command Execution', function () {
         return hasBuiltInInstructionPath(snapshot.instructionLocations);
     }
 
-    function getUnmanagedInstructionLocationKeys(
-        snapshot: InstructionSettingsSnapshot,
-    ): string[] {
+    function getUnmanagedInstructionLocationKeys(snapshot: InstructionSettingsSnapshot): string[] {
         return Object.keys(snapshot.instructionLocations ?? {}).filter(
             (location) => !hasBuiltInInstructionPath([location]),
         );
@@ -455,13 +479,7 @@ suite('Command Execution', function () {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
         const repoRoot = path.join(workspaceRoot, '.ai', 'sync-naming-repo');
-        const nestedSkillDir = path.join(
-            repoRoot,
-            'core',
-            'skills',
-            'naming-strategy',
-            'nested',
-        );
+        const nestedSkillDir = path.join(repoRoot, 'core', 'skills', 'naming-strategy', 'nested');
         const layerChatmodesDir = path.join(repoRoot, 'core', '.github', 'chatmodes');
         const originalSkillPath = path.join(
             workspaceRoot,
@@ -537,7 +555,9 @@ suite('Command Execution', function () {
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(repoRoot);
-            removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+            removeDirectoryRecursive(
+                path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'),
+            );
             fs.rmSync(prefixedChatmodePath, { force: true });
             fs.rmSync(unprefixedChatmodePath, { force: true });
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -800,6 +820,85 @@ suite('Command Execution', function () {
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh clears stale built-in instruction settings when no capabilities are effective', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const disabledConfig = {
+            compatibilityVersion: 2,
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    capabilities: [{ path: 'company/core', enabled: false }],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+        await metaflowConfig.update(
+            'aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+        );
+        await wsConfig.update(
+            'chat.instructionsFilesLocations',
+            {
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/instructions': true,
+            },
+            vscode.ConfigurationTarget.Workspace,
+        );
+
+        try {
+            await resetBuiltInCapabilityState();
+            fs.writeFileSync(configPath, JSON.stringify(disabledConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const instructionLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+            );
+
+            assert.ok(
+                !hasBuiltInInstructionPath(instructionLocations),
+                'Refresh should clear stale built-in instruction paths when no capabilities are effective',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await metaflowConfig.update(
+                'autoApply',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await metaflowConfig.update(
+                'aiMetadataAutoApplyMode',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
@@ -1345,6 +1444,215 @@ suite('Command Execution', function () {
         );
     });
 
+    test('apply manages one non-built-in plugin capability without retaining disabled built-in registrations', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-plugin-enable-repo');
+        const capabilityPath = 'capabilities/plugin-smoke';
+        const capabilityRoot = path.join(repoRoot, 'capabilities', 'plugin-smoke');
+        const copilotSettingsPath = path.join(
+            workspaceRoot,
+            '.github',
+            'copilot',
+            'settings.local.json',
+        );
+        const originalCopilotSettings = fs.existsSync(copilotSettingsPath)
+            ? fs.readFileSync(copilotSettingsPath, 'utf-8')
+            : undefined;
+        const seededCopilotSettings =
+            JSON.stringify(
+                {
+                    enabledPlugins: {
+                        'code-formatter@company-tools': true,
+                    },
+                    extraKnownMarketplaces: {
+                        sample: {
+                            source: 'github',
+                            repo: 'owner/repo',
+                        },
+                    },
+                },
+                null,
+                2,
+            ) + '\n';
+
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(path.join(capabilityRoot, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Plugin Smoke',
+                'description: Plugin-backed capability for enablement testing.',
+                'agentPlugin: true',
+                '---',
+            ].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'plugin.json'),
+            JSON.stringify(
+                {
+                    name: 'plugin-smoke',
+                    version: '0.1.0',
+                    description: 'Plugin enablement smoke test.',
+                    rules: '.github/instructions',
+                    metaflow: {
+                        pluginHosts: ['github-copilot'],
+                        minimumMetaflowVersion: '^0.1.0-preview.0',
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.github', 'instructions', 'plugin-smoke.instructions.md'),
+            '# Plugin Smoke\n',
+            'utf-8',
+        );
+
+        fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+        fs.writeFileSync(copilotSettingsPath, seededCopilotSettings, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+
+        try {
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify(
+                    createPluginBackedWorkspaceConfig('.tmp-plugin-enable-repo', capabilityPath),
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+            await resetBuiltInCapabilityState();
+            await vscode.workspace
+                .getConfiguration('metaflow', vscode.workspace.workspaceFolders?.[0]?.uri)
+                .update('aiMetadataAutoApplyMode', 'off', vscode.ConfigurationTarget.Workspace);
+            await wsConfig.update(
+                'chat.instructionsFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/instructions': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/instructions': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.agentFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/agents': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/agents': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.agentSkillsLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/skills': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.promptFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/prompts': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.pluginLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata': true,
+                },
+                vscode.ConfigurationTarget.Global,
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const instructionLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+            );
+            const agentLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.agentFilesLocations'),
+            );
+            const skillLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.agentSkillsLocations'),
+            );
+            const promptLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations'),
+            );
+            const pluginLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.pluginLocations'),
+            );
+
+            assert.ok(
+                !hasBundledMetaFlowPath(instructionLocations, '/.github/instructions'),
+                'Non-built-in plugin enablement should prune disabled built-in instruction locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(agentLocations, '/.github/agents'),
+                'Non-built-in plugin enablement should prune disabled built-in agent locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(skillLocations, '/.github/skills'),
+                'Non-built-in plugin enablement should prune disabled built-in skill locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(promptLocations, '/.github/prompts'),
+                'Non-built-in plugin enablement should prune disabled built-in prompt locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(pluginLocations),
+                'Non-built-in plugin enablement should prune disabled built-in plugin locations',
+            );
+            const expectedPluginLocation = path
+                .relative(workspaceRoot, capabilityRoot)
+                .replace(/\\/g, '/');
+            assert.strictEqual(pluginLocations?.[expectedPluginLocation], true);
+            assert.strictEqual(
+                fs.readFileSync(copilotSettingsPath, 'utf-8'),
+                seededCopilotSettings,
+                'Local plugin mode should not rewrite workspace plugin recommendation settings',
+            );
+
+            windowAny.showWarningMessage = async () => 'Remove';
+            await vscode.commands.executeCommand('metaflow.clean');
+            assert.strictEqual(
+                fs.readFileSync(copilotSettingsPath, 'utf-8'),
+                seededCopilotSettings,
+                'Cleaning local plugin mode should leave workspace plugin recommendation settings untouched',
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.workspace
+                .getConfiguration('metaflow', vscode.workspace.workspaceFolders?.[0]?.uri)
+                .update('aiMetadataAutoApplyMode', undefined, vscode.ConfigurationTarget.Workspace);
+            if (originalCopilotSettings !== undefined) {
+                fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+                fs.writeFileSync(copilotSettingsPath, originalCopilotSettings, 'utf-8');
+            } else if (fs.existsSync(copilotSettingsPath)) {
+                fs.unlinkSync(copilotSettingsPath);
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoRoot);
+        }
+    });
+
     test('status logs key metrics to output channel', async function () {
         this.timeout(15000);
 
@@ -1554,10 +1862,13 @@ suite('Command Execution', function () {
 
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
-                repoId: 'refresh-name-repo',
-                layerPath: 'named-capability',
-            })) as { title?: string; html?: string } | undefined;
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'refresh-name-repo',
+                    layerPath: 'named-capability',
+                },
+            )) as { title?: string; html?: string } | undefined;
 
             assert.ok(snapshot, 'Expected capability details snapshot for discovered capability');
             assert.strictEqual(snapshot?.title, 'Capability Details: Named Capability');
@@ -1609,10 +1920,13 @@ suite('Command Execution', function () {
             fs.writeFileSync(governancePath, JSON.stringify(governanceContract, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
-                repoId: 'primary',
-                layerPath: 'standards/sdlc',
-            })) as { title?: string; html?: string } | undefined;
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'primary',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { title?: string; html?: string } | undefined;
 
             assert.ok(snapshot, 'Expected capability details snapshot for governed capability');
             assert.ok(snapshot?.html?.includes('<h2>Governance</h2>'));
@@ -1661,8 +1975,20 @@ suite('Command Execution', function () {
         );
 
         const config = {
-            metadataRepos: [{ id: 'experimental-details', localPath: '.ai/experimental-details-repo', enabled: true }],
-            layerSources: [{ repoId: 'experimental-details', path: 'review/experimental-capability', enabled: true }],
+            metadataRepos: [
+                {
+                    id: 'experimental-details',
+                    localPath: '.ai/experimental-details-repo',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'experimental-details',
+                    path: 'review/experimental-capability',
+                    enabled: true,
+                },
+            ],
             filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
@@ -1672,10 +1998,13 @@ suite('Command Execution', function () {
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
-                repoId: 'experimental-details',
-                layerPath: 'review/experimental-capability',
-            })) as { html?: string } | undefined;
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'experimental-details',
+                    layerPath: 'review/experimental-capability',
+                },
+            )) as { html?: string } | undefined;
 
             assert.ok(snapshot?.html?.includes('status-pill-warning">Experimental'));
             assert.ok(snapshot?.html?.includes('Experimental Capability'));
@@ -1855,13 +2184,24 @@ suite('Command Execution', function () {
         fs.mkdirSync(layerRoot, { recursive: true });
         fs.writeFileSync(
             path.join(layerRoot, 'CAPABILITY.md'),
-            ['---', 'name: Capability Open', 'description: Open raw manifest.', '---', '', '# Capability Open'].join('\n'),
+            [
+                '---',
+                'name: Capability Open',
+                'description: Open raw manifest.',
+                '---',
+                '',
+                '# Capability Open',
+            ].join('\n'),
             'utf-8',
         );
 
         const config = {
-            metadataRepos: [{ id: 'manifest-open', localPath: '.ai/manifest-open-repo', enabled: true }],
-            layerSources: [{ repoId: 'manifest-open', path: 'review/capability-open', enabled: true }],
+            metadataRepos: [
+                { id: 'manifest-open', localPath: '.ai/manifest-open-repo', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'manifest-open', path: 'review/capability-open', enabled: true },
+            ],
             filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
@@ -1871,23 +2211,35 @@ suite('Command Execution', function () {
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const snapshot = (await vscode.commands.executeCommand('metaflow.openCapabilityDetails', {
-                repoId: 'manifest-open',
-                layerPath: 'review/capability-open',
-            })) as { html?: string } | undefined;
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'manifest-open',
+                    layerPath: 'review/capability-open',
+                },
+            )) as { html?: string } | undefined;
 
-            assert.ok(snapshot?.html?.includes('Open CAPABILITY.md'), 'details view should render the open-manifest action');
+            assert.ok(
+                snapshot?.html?.includes('Open CAPABILITY.md'),
+                'details view should render the open-manifest action',
+            );
             assert.ok(
                 snapshot?.html?.includes('command:metaflow.openCapabilityManifest?'),
                 'details view should expose the open-manifest command uri',
             );
 
-            const openedPath = (await vscode.commands.executeCommand('metaflow.openCapabilityManifest', {
-                manifestPath: path.join(layerRoot, 'CAPABILITY.md'),
-            })) as string | undefined;
+            const openedPath = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityManifest',
+                {
+                    manifestPath: path.join(layerRoot, 'CAPABILITY.md'),
+                },
+            )) as string | undefined;
 
             assert.strictEqual(openedPath, path.join(layerRoot, 'CAPABILITY.md'));
-            assert.ok(vscode.window.activeTextEditor, 'opening the manifest should reveal a text editor');
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'opening the manifest should reveal a text editor',
+            );
             assert.strictEqual(
                 path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
                 path.normalize(path.join(layerRoot, 'CAPABILITY.md')),
@@ -1897,6 +2249,53 @@ suite('Command Execution', function () {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(repoRoot);
             await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openWarningSource opens the backing warning source file and copyWarningMessage copies full text', async function () {
+        this.timeout(15000);
+
+        const warningRoot = path.join(workspaceRoot, '.tmp-warning-source-command');
+        const sourcePath = path.join(
+            warningRoot,
+            'capabilities',
+            'sample',
+            '.github',
+            'agents',
+            'plugin.json',
+        );
+        const warningMessage = `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Sample warning [${sourcePath.replace(/\\/g, '/')}]`;
+
+        removeDirectoryRecursive(warningRoot);
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(sourcePath, '{"name":"sample"}\n', 'utf-8');
+
+        try {
+            const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
+                sourcePath,
+                warningMessage,
+            })) as string | undefined;
+
+            assert.strictEqual(openedPath, sourcePath);
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'opening a warning source should reveal a text editor',
+            );
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(sourcePath),
+                'openWarningSource should open the exact warning source file',
+            );
+
+            const copied = (await vscode.commands.executeCommand('metaflow.copyWarningMessage', {
+                warningMessage,
+            })) as string | undefined;
+
+            assert.strictEqual(copied, warningMessage);
+            assert.strictEqual(await vscode.env.clipboard.readText(), warningMessage);
+        } finally {
+            removeDirectoryRecursive(warningRoot);
             await vscode.commands.executeCommand('workbench.action.closeAllEditors');
         }
     });
@@ -1974,21 +2373,24 @@ suite('Command Execution', function () {
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const result = (await vscode.commands.executeCommand('metaflow.createCapabilityManifest', {
-                repoId: 'context-repo',
-                layerPath,
-            })) as
+            const result = (await vscode.commands.executeCommand(
+                'metaflow.createCapabilityManifest',
+                {
+                    repoId: 'context-repo',
+                    layerPath,
+                },
+            )) as
                 | {
                       guidancePath?: string;
                       examplePath?: string;
                       draftUri?: string;
                       manifestPath?: string;
-                        packageJsonPath?: string;
+                      pluginJsonPath?: string;
                       targetDirectory?: string;
-                        capabilityDirectoryPath?: string;
-                        capabilityGithubDirectoryPath?: string;
-                        capabilityName?: string;
-                        capabilityDirectoryName?: string;
+                      capabilityDirectoryPath?: string;
+                      capabilityGithubDirectoryPath?: string;
+                      capabilityName?: string;
+                      capabilityDirectoryName?: string;
                   }
                 | undefined;
 
@@ -1996,27 +2398,30 @@ suite('Command Execution', function () {
                 result?.guidancePath,
                 'guided create should return the bundled guidance path',
             );
-            assert.ok(
-                result?.examplePath,
-                'guided create should return the bundled example path',
-            );
+            assert.ok(result?.examplePath, 'guided create should return the bundled example path');
 
             const expectedCapabilityDirectoryPath = path.join(layerRoot, 'context-capability');
             const expectedCapabilityGithubDirectoryPath = path.join(
                 expectedCapabilityDirectoryPath,
                 '.github',
             );
-            const expectedManifestPath = path.join(expectedCapabilityDirectoryPath, 'CAPABILITY.md');
-            const expectedPackageJsonPath = path.join(expectedCapabilityDirectoryPath, 'package.json');
+            const expectedManifestPath = path.join(
+                expectedCapabilityDirectoryPath,
+                'CAPABILITY.md',
+            );
+            const expectedPluginJsonPath = path.join(
+                expectedCapabilityDirectoryPath,
+                'plugin.json',
+            );
             assert.strictEqual(
                 path.normalize(result?.manifestPath ?? ''),
                 path.normalize(expectedManifestPath),
                 'guided create should write CAPABILITY.md in the child capability directory',
             );
             assert.strictEqual(
-                path.normalize(result?.packageJsonPath ?? ''),
-                path.normalize(expectedPackageJsonPath),
-                'guided create should write package.json in the child capability directory',
+                path.normalize(result?.pluginJsonPath ?? ''),
+                path.normalize(expectedPluginJsonPath),
+                'guided create should write plugin.json in the child capability directory',
             );
             assert.strictEqual(
                 path.normalize(result?.targetDirectory ?? ''),
@@ -2052,17 +2457,22 @@ suite('Command Execution', function () {
                 fs.existsSync(expectedCapabilityGithubDirectoryPath),
                 'guided create should create an empty .github directory for the new capability',
             );
-            assert.ok(fs.existsSync(expectedPackageJsonPath), 'guided create should create package.json');
+            assert.ok(
+                fs.existsSync(expectedPluginJsonPath),
+                'guided create should create plugin.json',
+            );
 
             assert.ok(
                 vscode.workspace.textDocuments.some(
-                    (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
+                    (doc) =>
+                        path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
                 ),
                 'guided create should open the bundled capability-contract guidance',
             );
             assert.ok(
                 vscode.workspace.textDocuments.some(
-                    (doc) => path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
+                    (doc) =>
+                        path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
                 ),
                 'guided create should open the bundled example CAPABILITY.md',
             );
@@ -2070,24 +2480,31 @@ suite('Command Execution', function () {
             const manifestContent = fs.readFileSync(expectedManifestPath, 'utf-8');
             assert.ok(manifestContent.includes('agentPlugin: true'));
 
-            const packageJsonContent = JSON.parse(fs.readFileSync(expectedPackageJsonPath, 'utf-8')) as {
+            const pluginJsonContent = JSON.parse(
+                fs.readFileSync(expectedPluginJsonPath, 'utf-8'),
+            ) as {
                 name?: string;
                 version?: string;
+                agents?: string;
                 metaflow?: { pluginHosts?: string[] };
             };
-            assert.strictEqual(packageJsonContent.name, '@metaflow-capability/context-capability');
-            assert.strictEqual(packageJsonContent.version, '0.1.0');
-            assert.deepStrictEqual(packageJsonContent.metaflow?.pluginHosts, ['github-copilot']);
+            assert.strictEqual(pluginJsonContent.name, 'context-capability');
+            assert.strictEqual(pluginJsonContent.version, '0.1.0');
+            assert.strictEqual(pluginJsonContent.agents, '.github/agents');
+            assert.deepStrictEqual(pluginJsonContent.metaflow?.pluginHosts, ['github-copilot']);
 
-            assert.ok(vscode.window.activeTextEditor, 'guided create should leave CAPABILITY.md active');
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'guided create should leave CAPABILITY.md active',
+            );
             assert.strictEqual(
                 path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
                 path.normalize(expectedManifestPath),
                 'guided create should open the created CAPABILITY.md file',
             );
             assert.ok(
-                vscode.window.activeTextEditor!.document
-                    .getText()
+                vscode.window
+                    .activeTextEditor!.document.getText()
                     .includes('name: Context Capability'),
                 'guided create should use the entered capability name in CAPABILITY.md frontmatter',
             );
@@ -4437,9 +4854,20 @@ suite('Command Execution', function () {
             );
 
             assert.ok(addedRepo, 'Add repo source should add the selected local git directory');
-            assert.strictEqual(addedRepo?.url, undefined, 'Local git repo without remote should remain untracked');
-            assert.ok(localGitInfoCount > 0, 'Local git info message should appear during add repo source flow');
-            assert.strictEqual(promotionPromptCount, 0, 'Remote promotion prompt should not appear when no remotes exist');
+            assert.strictEqual(
+                addedRepo?.url,
+                undefined,
+                'Local git repo without remote should remain untracked',
+            );
+            assert.ok(
+                localGitInfoCount > 0,
+                'Local git info message should appear during add repo source flow',
+            );
+            assert.strictEqual(
+                promotionPromptCount,
+                0,
+                'Remote promotion prompt should not appear when no remotes exist',
+            );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
             windowAny.showOpenDialog = originalOpenDialog;
@@ -4505,7 +4933,9 @@ suite('Command Execution', function () {
         windowAny.showInformationMessage = async (message: unknown) => {
             if (
                 typeof message === 'string' &&
-                message.includes('is not a git repository. Initialize it for local promotion workflows?')
+                message.includes(
+                    'is not a git repository. Initialize it for local promotion workflows?',
+                )
             ) {
                 initPromptCount += 1;
                 return 'Initialize Git';
@@ -4518,8 +4948,14 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.addRepoSource');
 
-            assert.ok(initPromptCount > 0, 'Git initialization prompt should appear for non-git metadata directories');
-            assert.ok(fs.existsSync(path.join(repoPath, '.git')), 'Accepted init flow should create a git repository');
+            assert.ok(
+                initPromptCount > 0,
+                'Git initialization prompt should appear for non-git metadata directories',
+            );
+            assert.ok(
+                fs.existsSync(path.join(repoPath, '.git')),
+                'Accepted init flow should create a git repository',
+            );
 
             const head = execFileSync('git', ['rev-parse', 'HEAD'], {
                 cwd: repoPath,
@@ -4536,7 +4972,7 @@ suite('Command Execution', function () {
             assert.strictEqual(
                 committedFiles,
                 '',
-                'Accepted init flow should not stage or commit the directory\'s pre-existing files',
+                "Accepted init flow should not stage or commit the directory's pre-existing files",
             );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
@@ -4603,7 +5039,9 @@ suite('Command Execution', function () {
         windowAny.showInformationMessage = async (message: unknown) => {
             if (
                 typeof message === 'string' &&
-                message.includes('is not a git repository. Initialize it for local promotion workflows?')
+                message.includes(
+                    'is not a git repository. Initialize it for local promotion workflows?',
+                )
             ) {
                 initPromptCount += 1;
                 return 'Skip';
@@ -4628,10 +5066,24 @@ suite('Command Execution', function () {
                         path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
             );
 
-            assert.ok(initPromptCount > 0, 'Git initialization prompt should appear for non-git metadata directories');
-            assert.ok(addedRepo, 'Declining init should still keep the new repository source configured');
-            assert.strictEqual(addedRepo?.url, undefined, 'Declining init should keep the repo source local-only');
-            assert.strictEqual(fs.existsSync(path.join(repoPath, '.git')), false, 'Declining init should not create a git repository');
+            assert.ok(
+                initPromptCount > 0,
+                'Git initialization prompt should appear for non-git metadata directories',
+            );
+            assert.ok(
+                addedRepo,
+                'Declining init should still keep the new repository source configured',
+            );
+            assert.strictEqual(
+                addedRepo?.url,
+                undefined,
+                'Declining init should keep the repo source local-only',
+            );
+            assert.strictEqual(
+                fs.existsSync(path.join(repoPath, '.git')),
+                false,
+                'Declining init should not create a git repository',
+            );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
             windowAny.showOpenDialog = originalOpenDialog;
@@ -4818,7 +5270,10 @@ suite('Command Execution', function () {
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 compatibilityVersion?: number;
-                metadataRepos?: Array<{ localPath: string; capabilities?: Array<{ path: string }> }>;
+                metadataRepos?: Array<{
+                    localPath: string;
+                    capabilities?: Array<{ path: string }>;
+                }>;
             };
 
             assert.strictEqual(updatedConfig.compatibilityVersion, 2);
@@ -6179,9 +6634,8 @@ suite('Command Execution', function () {
             const finalSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
             );
-            const baselineUnmanagedInstructionLocations = getUnmanagedInstructionLocationKeys(
-                baselineSnapshot,
-            );
+            const baselineUnmanagedInstructionLocations =
+                getUnmanagedInstructionLocationKeys(baselineSnapshot);
             const preservedBaselineInstructionLocations = getUnmanagedInstructionLocationKeys(
                 finalSnapshot,
             ).filter((location) => baselineUnmanagedInstructionLocations.includes(location));
@@ -6210,5 +6664,4 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
-
 });
