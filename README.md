@@ -133,7 +133,7 @@ An explicit config looks like this:
 }
 ```
 
-When `MetaFlow: Apply` runs, MetaFlow injects those capability roots into the user-scoped `chat.pluginLocations` setting, which VS Code uses as the local plugin registration and enablement map for repo-backed plugins. MetaFlow does not read, create, or rewrite `.github/copilot/settings.json` or `.github/copilot/settings.local.json`.
+When `MetaFlow: Apply` runs, MetaFlow injects those capability roots into the user-scoped `chat.pluginLocations` setting, which VS Code uses as the local plugin registration and enablement map for repo-backed plugins.
 
 Current scope:
 
