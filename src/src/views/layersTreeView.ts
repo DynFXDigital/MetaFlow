@@ -240,13 +240,15 @@ interface ArtifactInjectionState {
     source: ArtifactInjectionSource;
 }
 
-const DEFAULT_ARTIFACT_INJECTION_MODE: Record<ExcludableArtifactType, 'settings' | 'synchronize' | 'plugin'> =
-    {
-        instructions: 'plugin',
-        prompts: 'settings',
-        agents: 'plugin',
-        skills: 'plugin',
-    };
+const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
+    ExcludableArtifactType,
+    'settings' | 'synchronize' | 'plugin'
+> = {
+    instructions: 'plugin',
+    prompts: 'settings',
+    agents: 'plugin',
+    skills: 'plugin',
+};
 
 function normalizeInjectionPath(layerPath: string): string {
     const normalized = layerPath.replace(/\\/g, '/').replace(/\/+$/, '');
