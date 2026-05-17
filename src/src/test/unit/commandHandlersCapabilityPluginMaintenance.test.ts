@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-function loadCommandHandlers(): typeof import('../../commands/commandHandlers') {
+function loadCommandHandlers(vscodeOverride?: unknown): typeof import('../../commands/commandHandlers') {
     const moduleInternals = require('module') as {
         _load: (request: string, parent: NodeModule | null, isMain: boolean) => unknown;
     };
@@ -14,7 +14,7 @@ function loadCommandHandlers(): typeof import('../../commands/commandHandlers') 
         isMain: boolean,
     ): unknown {
         if (request === 'vscode') {
-            return {
+            return vscodeOverride ?? {
                 window: {
                     showWarningMessage: async () => undefined,
                     showInformationMessage: async () => undefined,
@@ -189,6 +189,119 @@ suite('Command handler capability plugin maintenance helpers', () => {
             target: 'none',
             keys: 'none',
         });
+    });
+
+    test('clearManagedWorkspaceSettings removes managed entries from workspace and user scopes', async () => {
+        const workspaceValues = new Map<string, unknown>([
+            ['chat.instructionsFilesLocations', { '.ai/ai-metadata/standards/sdlc/instructions': true }],
+        ]);
+        const globalValues = new Map<string, unknown>([
+            ['chat.pluginLocations', { '../repo/capabilities/plugin-smoke': true }],
+        ]);
+        const workspaceStateStore = new Map<string, unknown>([
+            [
+                'metaflow.settingsInjection.v1',
+                {
+                    effectiveTarget: 'workspace',
+                    managedEntries: {
+                        workspace: {
+                            'chat.instructionsFilesLocations': {
+                                '.ai/ai-metadata/standards/sdlc/instructions': true,
+                            },
+                        },
+                        user: {
+                            'chat.pluginLocations': {
+                                '../repo/capabilities/plugin-smoke': true,
+                            },
+                        },
+                    },
+                },
+            ],
+        ]);
+
+        const makeConfig = () => ({
+            get: (_key: string, defaultValue: unknown) => defaultValue,
+            inspect: (key: string) => ({
+                globalValue: globalValues.get(key),
+                workspaceValue: workspaceValues.get(key),
+                workspaceFolderValue: undefined,
+            }),
+            update: async (key: string, value: unknown, target: number) => {
+                if (target === 1) {
+                    if (value === undefined) {
+                        globalValues.delete(key);
+                    } else {
+                        globalValues.set(key, value);
+                    }
+                    return;
+                }
+
+                if (target === 2) {
+                    if (value === undefined) {
+                        workspaceValues.delete(key);
+                    } else {
+                        workspaceValues.set(key, value);
+                    }
+                    return;
+                }
+
+                throw new Error(`Unexpected target ${target}`);
+            },
+        });
+
+        const mockVscode = {
+            window: {
+                showWarningMessage: async () => undefined,
+                showInformationMessage: async () => undefined,
+                createOutputChannel: () => ({
+                    appendLine: () => {},
+                    show: () => {},
+                    dispose: () => {},
+                }),
+            },
+            ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+            workspace: {
+                workspaceFolders: undefined,
+                getConfiguration: (_section?: string, resource?: { fsPath?: string }) => {
+                    void resource;
+                    return makeConfig();
+                },
+            },
+            TreeItemCheckboxState: { Checked: 1, Unchecked: 0 },
+            TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+            EventEmitter: class {
+                event(listener: unknown): { dispose: () => void } {
+                    void listener;
+                    return { dispose: () => {} };
+                }
+                fire(value: unknown): void {
+                    void value;
+                }
+            },
+            Uri: { file: (fsPath: string) => ({ fsPath }) },
+        };
+
+        const { clearManagedWorkspaceSettings } = loadCommandHandlers(mockVscode);
+
+        await clearManagedWorkspaceSettings(
+            {
+                uri: { fsPath: 'C:/workspace/project' },
+                name: 'project',
+                index: 0,
+            } as unknown as Parameters<typeof clearManagedWorkspaceSettings>[0],
+            {
+                workspaceState: {
+                    get: (key: string) => workspaceStateStore.get(key),
+                    update: async (key: string, value: unknown) => {
+                        workspaceStateStore.set(key, value);
+                    },
+                },
+            } as unknown as Parameters<typeof clearManagedWorkspaceSettings>[1],
+        );
+
+        assert.strictEqual(workspaceValues.get('chat.instructionsFilesLocations'), undefined);
+        assert.strictEqual(globalValues.get('chat.pluginLocations'), undefined);
+        assert.deepStrictEqual(workspaceStateStore.get('metaflow.settingsInjection.v1'), {});
     });
 
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {

@@ -4164,7 +4164,7 @@ async function cleanManagedEntriesFromScope(
     }
 }
 
-async function clearManagedWorkspaceSettings(
+export async function clearManagedWorkspaceSettings(
     workspace: vscode.WorkspaceFolder,
     context: vscode.ExtensionContext,
 ): Promise<void> {
