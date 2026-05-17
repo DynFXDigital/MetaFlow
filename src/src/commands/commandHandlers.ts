@@ -166,7 +166,7 @@ function formatInjectionModesSummary(config: MetaFlowConfig | undefined): string
     ).join(', ');
 }
 
-function formatManagedSettingsStateSummary(context: vscode.ExtensionContext): {
+export function formatManagedSettingsStateSummary(context: vscode.ExtensionContext): {
     target: string;
     keys: string;
 } {

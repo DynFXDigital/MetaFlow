@@ -150,6 +150,47 @@ suite('Command handler capability plugin maintenance helpers', () => {
         });
     });
 
+    test('formatManagedSettingsStateSummary reports deduplicated keys across scopes', () => {
+        const { formatManagedSettingsStateSummary } = loadCommandHandlers();
+
+        const summary = formatManagedSettingsStateSummary({
+            workspaceState: {
+                get: () => ({
+                    effectiveTarget: 'workspace',
+                    managedEntries: {
+                        workspace: {
+                            'chat.instructionsFilesLocations': { a: true },
+                        },
+                        user: {
+                            'chat.pluginLocations': { b: true },
+                            'chat.instructionsFilesLocations': { c: true },
+                        },
+                    },
+                }),
+            },
+        } as unknown as Parameters<typeof formatManagedSettingsStateSummary>[0]);
+
+        assert.deepStrictEqual(summary, {
+            target: 'workspace',
+            keys: 'chat.instructionsFilesLocations, chat.pluginLocations',
+        });
+    });
+
+    test('formatManagedSettingsStateSummary reports none when no managed keys exist', () => {
+        const { formatManagedSettingsStateSummary } = loadCommandHandlers();
+
+        const summary = formatManagedSettingsStateSummary({
+            workspaceState: {
+                get: () => ({}),
+            },
+        } as unknown as Parameters<typeof formatManagedSettingsStateSummary>[0]);
+
+        assert.deepStrictEqual(summary, {
+            target: 'none',
+            keys: 'none',
+        });
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({
