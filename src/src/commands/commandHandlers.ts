@@ -108,7 +108,6 @@ import {
     BuiltInCapabilityRuntimeState,
     BuiltInCapabilityWorkspaceState,
     isBuiltInCapabilityActive,
-    isBuiltInCapabilityEnabled,
     normalizeBuiltInLayerPath,
     readBuiltInCapabilityRuntimeState,
     resolveBuiltInCapabilityDisplayName,
@@ -119,7 +118,6 @@ import {
 } from '../builtInCapability';
 import { CapabilityDetailsPanelManager } from '../views/capabilityDetailsPanel';
 import {
-    computeLegacySettingsEntriesFromEffectiveFiles,
     mergeSettingsValue,
     pruneBundledMetaFlowSettingsEntries,
     removeSettingsEntries,
@@ -135,22 +133,17 @@ import { buildTreeSummaryCache, TreeSummaryCache } from '../treeSummary';
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 type InjectionKey = (typeof INJECTION_KEYS)[number];
 
-const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 'plugin'> = {
-    instructions: 'plugin',
+const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize'> = {
+    instructions: 'settings',
     prompts: 'settings',
-    skills: 'plugin',
-    agents: 'plugin',
+    skills: 'settings',
+    agents: 'settings',
     hooks: 'settings',
 };
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
-const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
-    '.github',
-    'copilot',
-    'settings.local.json',
-);
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -259,8 +252,6 @@ interface ManagedSettingsState {
      * ('user' | 'workspace' | 'workspaceFolder').
      */
     managedEntries?: Record<string, Record<string, unknown>>;
-    /** Legacy plugin URIs written by older MetaFlow versions into workspace recommendations. */
-    managedPluginUris?: string[];
 }
 
 function getWorkspace(): vscode.WorkspaceFolder | undefined {
@@ -291,114 +282,6 @@ async function writeManagedSettingsState(
     state: ManagedSettingsState,
 ): Promise<void> {
     await context.workspaceState.update(SETTINGS_INJECTION_STATE_KEY, state);
-}
-
-function normalizeManagedPluginUris(pluginUris: string[] | undefined): string[] {
-    return Array.from(new Set((pluginUris ?? []).filter((value) => value.trim().length > 0))).sort(
-        (left, right) => left.localeCompare(right),
-    );
-}
-
-function isBooleanRecord(value: unknown): value is Record<string, boolean> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return false;
-    }
-
-    return Object.values(value).every((entry) => typeof entry === 'boolean');
-}
-
-function isPathWithin(candidatePath: string, rootPath: string): boolean {
-    const relative = path.relative(rootPath, candidatePath);
-    return (
-        relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
-    );
-}
-
-function filterSettingsEligibleEffectiveFiles(
-    effectiveFiles: EffectiveFile[],
-    builtInCapability: BuiltInCapabilityRuntimeState,
-): EffectiveFile[] {
-    if (isBuiltInCapabilityEnabled(builtInCapability)) {
-        return effectiveFiles;
-    }
-
-    const builtInRoot = builtInCapability.sourceRoot
-        ? path.normalize(builtInCapability.sourceRoot)
-        : undefined;
-
-    return effectiveFiles.filter((file) => {
-        if (file.sourceRepo === BUILT_IN_CAPABILITY_REPO_ID) {
-            return false;
-        }
-
-        if (builtInRoot && isPathWithin(path.normalize(file.sourcePath), builtInRoot)) {
-            return false;
-        }
-
-        return true;
-    });
-}
-
-async function cleanupLegacyManagedCopilotPluginSettings(
-    workspaceRoot: string,
-    legacyManagedPluginUris: string[] | undefined,
-): Promise<void> {
-    const normalizedLegacyUris = normalizeManagedPluginUris(legacyManagedPluginUris);
-    if (normalizedLegacyUris.length === 0) {
-        return;
-    }
-
-    const settingsPath = path.join(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
-
-    let existing: string;
-    try {
-        existing = await fsp.readFile(settingsPath, 'utf-8');
-    } catch (err: unknown) {
-        const code = (err as NodeJS.ErrnoException | undefined)?.code;
-        if (code === 'ENOENT') {
-            return;
-        }
-        throw err;
-    }
-
-    const parseErrors: jsonc.ParseError[] = [];
-    const parsed = jsonc.parse(existing, parseErrors, {
-        allowTrailingComma: true,
-        disallowComments: false,
-    });
-
-    if (parseErrors.length > 0) {
-        const first = parseErrors[0];
-        throw new Error(
-            `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} could not be parsed near offset ${first.offset}.`,
-        );
-    }
-
-    if (parsed !== undefined && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) {
-        throw new Error(
-            `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} must contain a top-level JSON object.`,
-        );
-    }
-
-    const parsedObject = (parsed ?? {}) as Record<string, unknown>;
-    if (!isBooleanRecord(parsedObject.enabledPlugins)) {
-        return;
-    }
-
-    const nextEnabledPlugins = { ...parsedObject.enabledPlugins };
-    for (const pluginUri of normalizedLegacyUris) {
-        delete nextEnabledPlugins[pluginUri];
-    }
-
-    const formatOptions: jsonc.FormattingOptions = { tabSize: 2, insertSpaces: true };
-    const edits = jsonc.modify(
-        existing,
-        ['enabledPlugins'],
-        Object.keys(nextEnabledPlugins).length > 0 ? nextEnabledPlugins : undefined,
-        { formattingOptions: formatOptions },
-    );
-    const updated = jsonc.applyEdits(existing, edits);
-    await fsp.writeFile(settingsPath, updated, 'utf-8');
 }
 
 /** Cached state for the current workspace. */
@@ -533,28 +416,12 @@ function previewBuiltInCapabilityWorkspaceState(
     };
 }
 
-function previewBuiltInRootLayerEnabledState(
-    currentState: BuiltInCapabilityRuntimeState,
-    enabled: boolean,
-): BuiltInCapabilityRuntimeState {
-    return previewBuiltInCapabilityWorkspaceState(currentState, {
-        enabled,
-        layerEnabled: enabled,
-        disabledByUser: !enabled,
-        layerStates: {},
-    });
-}
-
 function previewBuiltInLayerEnabledState(
     currentState: BuiltInCapabilityRuntimeState,
     layerPath: string,
     enabled: boolean,
 ): BuiltInCapabilityRuntimeState {
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
-    if (normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH) {
-        return previewBuiltInRootLayerEnabledState(currentState, enabled);
-    }
-
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     if (enabled === currentState.layerEnabled) {
@@ -573,16 +440,10 @@ function previewBuiltInLayerEnabledStates(
     layerPaths: Iterable<string>,
     enabled: boolean,
 ): BuiltInCapabilityRuntimeState {
-    const normalizedLayerPaths = Array.from(layerPaths, (layerPath) =>
-        normalizeBuiltInLayerPath(layerPath),
-    );
-    if (normalizedLayerPaths.includes(BUILT_IN_CAPABILITY_LAYER_PATH)) {
-        return previewBuiltInRootLayerEnabledState(currentState, enabled);
-    }
-
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    for (const normalizedLayerPath of normalizedLayerPaths) {
+    for (const layerPath of layerPaths) {
+        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
         if (enabled === currentState.layerEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
@@ -2051,7 +1912,7 @@ function withBuiltInCapabilityProjected(
     config: MetaFlowConfig,
     builtInState: BuiltInCapabilityRuntimeState,
 ): MetaFlowConfig {
-    if (!isBuiltInCapabilityEnabled(builtInState) || !builtInState.sourceRoot) {
+    if (!isBuiltInCapabilityActive(builtInState) || !builtInState.sourceRoot) {
         return config;
     }
 
@@ -2167,15 +2028,6 @@ async function writeBuiltInLayerEnabledState(
     enabled: boolean,
 ): Promise<BuiltInCapabilityRuntimeState> {
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
-    if (normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH) {
-        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled,
-            layerEnabled: enabled,
-            disabledByUser: !enabled,
-            layerStates: {},
-        });
-    }
-
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     if (enabled === currentState.layerEnabled) {
@@ -2195,21 +2047,10 @@ async function writeBuiltInLayerEnabledStates(
     layerPaths: Iterable<string>,
     enabled: boolean,
 ): Promise<BuiltInCapabilityRuntimeState> {
-    const normalizedLayerPaths = Array.from(layerPaths, (layerPath) =>
-        normalizeBuiltInLayerPath(layerPath),
-    );
-    if (normalizedLayerPaths.includes(BUILT_IN_CAPABILITY_LAYER_PATH)) {
-        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled,
-            layerEnabled: enabled,
-            disabledByUser: !enabled,
-            layerStates: {},
-        });
-    }
-
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    for (const normalizedLayerPath of normalizedLayerPaths) {
+    for (const layerPath of layerPaths) {
+        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
         if (enabled === currentState.layerEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
@@ -2243,7 +2084,7 @@ async function enableBuiltInCapabilityDuringInit(
 
     const nextState = await enableBuiltInCapabilityInSettingsMode(context, currentState);
     vscode.window.showInformationMessage(
-        'MetaFlow: Built-in MetaFlow capability enabled automatically (plugin-first defaults).',
+        'MetaFlow: Built-in MetaFlow capability enabled automatically (settings-only mode).',
     );
     return nextState;
 }
@@ -3951,38 +3792,23 @@ async function injectWorkspaceSettings(
     config: MetaFlowConfig,
     effectiveFiles: EffectiveFile[],
     context: vscode.ExtensionContext,
-    builtInCapability: BuiltInCapabilityRuntimeState,
 ): Promise<void> {
     try {
-        const previousState = readManagedSettingsState(context);
-        const settingsEffectiveFiles = filterSettingsEligibleEffectiveFiles(
-            effectiveFiles,
-            builtInCapability,
-        );
         const hooksEnabled = vscode.workspace
             .getConfiguration('metaflow', workspace.uri)
             .get<boolean>('hooksEnabled', true);
         const configForSettings = hooksEnabled ? config : { ...config, hooks: undefined };
         const entries = computeSettingsEntries(
-            settingsEffectiveFiles,
+            effectiveFiles,
             workspace.uri.fsPath,
             configForSettings,
         );
         const entriesByKey = new Map(entries.map((entry) => [entry.key, entry.value] as const));
-        const legacyEntriesByKey = new Map(
-            computeLegacySettingsEntriesFromEffectiveFiles(
-                settingsEffectiveFiles,
-                workspace.uri.fsPath,
-            ).map((entry) => [entry.key, entry.value] as const),
-        );
         const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
         const managedKeys = computeSettingsKeysToRemove();
 
         const target = resolveSettingsInjectionTarget(workspace, config);
-
-        if (!isBuiltInCapabilityEnabled(builtInCapability)) {
-            await pruneDisabledBuiltInSettingsEntriesFromLocalScopes(wsConfig, managedKeys);
-        }
+        const previousState = readManagedSettingsState(context);
 
         // Clean stale entries from a previously-used scope if the target changed
         if (previousState.effectiveTarget && previousState.effectiveTarget !== target.effective) {
@@ -3996,50 +3822,31 @@ async function injectWorkspaceSettings(
 
         const newManagedEntries: Record<string, Record<string, unknown>> = {};
 
-        for (const [scope, entries] of Object.entries(previousState.managedEntries ?? {})) {
-            if (scope === target.effective || scope === 'user') {
-                continue;
-            }
-
-            await cleanManagedEntriesFromScope(
-                wsConfig,
-                scope as SettingsInjectionTarget,
-                entries,
-                workspace,
-            );
-        }
-
         for (const key of managedKeys) {
             try {
-                const entryTarget = resolveSettingsEntryTarget(key, target);
                 const existing = wsConfig.inspect(key);
-                let scopeValue = getScopeValue(existing, entryTarget.effective);
+                let scopeValue = getScopeValue(existing, target.effective);
                 const newValue = entriesByKey.get(key);
                 scopeValue = pruneBundledMetaFlowSettingsEntries(scopeValue, key, newValue);
 
                 if (newValue === undefined) {
                     // Remove previously-managed entries for this key if any
-                    const prevManaged =
-                        previousState.managedEntries?.[entryTarget.effective]?.[key];
-                    const legacyManaged = legacyEntriesByKey.get(key);
+                    const prevManaged = previousState.managedEntries?.[target.effective]?.[key];
                     if (
                         prevManaged !== undefined ||
-                        legacyManaged !== undefined ||
-                        scopeValue !== getScopeValue(existing, entryTarget.effective)
+                        scopeValue !== getScopeValue(existing, target.effective)
                     ) {
-                        let cleaned = scopeValue;
-                        if (prevManaged !== undefined) {
-                            cleaned = removeSettingsEntries(cleaned, prevManaged);
-                        }
-                        if (legacyManaged !== undefined) {
-                            cleaned = removeSettingsEntries(cleaned, legacyManaged);
-                        }
-                        await wsConfig.update(key, cleaned, entryTarget.configurationTarget);
+                        const cleaned =
+                            prevManaged !== undefined
+                                ? removeSettingsEntries(scopeValue, prevManaged)
+                                : scopeValue;
+                        await wsConfig.update(key, cleaned, target.configurationTarget);
                     }
                     continue;
                 }
 
                 // Remove previously-managed entries, then merge new ones
+                const entryTarget = resolveSettingsEntryTarget(key, target);
                 const prevManaged = previousState.managedEntries?.[entryTarget.effective]?.[key];
                 if (prevManaged !== undefined) {
                     scopeValue = removeSettingsEntries(scopeValue, prevManaged) ?? undefined;
@@ -4057,31 +3864,10 @@ async function injectWorkspaceSettings(
             }
         }
 
-        let remainingLegacyManagedPluginUris = normalizeManagedPluginUris(
-            previousState.managedPluginUris,
-        );
-        if (remainingLegacyManagedPluginUris.length > 0) {
-            try {
-                await cleanupLegacyManagedCopilotPluginSettings(
-                    workspace.uri.fsPath,
-                    remainingLegacyManagedPluginUris,
-                );
-                remainingLegacyManagedPluginUris = [];
-            } catch (pluginErr: unknown) {
-                const pluginMsg =
-                    pluginErr instanceof Error ? pluginErr.message : String(pluginErr);
-                logWarn(`Legacy Copilot plugin recommendation cleanup skipped: ${pluginMsg}`);
-            }
-        }
-
         await writeManagedSettingsState(context, {
             requestedTarget: target.requested,
             effectiveTarget: target.effective,
             managedEntries: newManagedEntries,
-            managedPluginUris:
-                remainingLegacyManagedPluginUris.length > 0
-                    ? remainingLegacyManagedPluginUris
-                    : undefined,
         });
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -4106,35 +3892,6 @@ function getScopeValue(
             return inspection.workspaceValue;
         case 'workspaceFolder':
             return inspection.workspaceFolderValue;
-    }
-}
-
-async function pruneDisabledBuiltInSettingsEntriesFromLocalScopes(
-    wsConfig: vscode.WorkspaceConfiguration,
-    keys: string[],
-): Promise<void> {
-    const targets: Array<{
-        scope: SettingsInjectionTarget;
-        target: vscode.ConfigurationTarget;
-    }> = [
-        { scope: 'workspace', target: vscode.ConfigurationTarget.Workspace },
-        { scope: 'workspaceFolder', target: vscode.ConfigurationTarget.WorkspaceFolder },
-    ];
-
-    for (const key of keys) {
-        for (const { scope, target } of targets) {
-            try {
-                const inspection = wsConfig.inspect(key);
-                const scopeValue = getScopeValue(inspection, scope);
-                const cleaned = pruneBundledMetaFlowSettingsEntries(scopeValue, key, undefined);
-                if (cleaned !== scopeValue) {
-                    await wsConfig.update(key, cleaned, target);
-                }
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
-                logWarn(`Disabled built-in settings pruning skipped (${key}, ${scope}): ${msg}`);
-            }
-        }
     }
 }
 
@@ -4210,26 +3967,7 @@ export async function clearManagedWorkspaceSettings(
         }
     }
 
-    let remainingManagedPluginUris = normalizeManagedPluginUris(previousState.managedPluginUris);
-    if (remainingManagedPluginUris.length > 0) {
-        try {
-            await cleanupLegacyManagedCopilotPluginSettings(
-                workspace.uri.fsPath,
-                remainingManagedPluginUris,
-            );
-            remainingManagedPluginUris = [];
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            logWarn(`Legacy Copilot plugin recommendation cleanup skipped: ${msg}`);
-        }
-    }
-
-    await writeManagedSettingsState(
-        context,
-        remainingManagedPluginUris.length > 0
-            ? { managedPluginUris: remainingManagedPluginUris }
-            : {},
-    );
+    await writeManagedSettingsState(context, {});
 }
 
 /**
@@ -4581,13 +4319,6 @@ export function registerCommands(
                         state.baseProfileFiles,
                         state.builtInCapability,
                     );
-                    await injectWorkspaceSettings(
-                        ws,
-                        result.config,
-                        state.effectiveFiles,
-                        context,
-                        state.builtInCapability,
-                    );
                     overlayResolved = true;
                     logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
                     updateStatusBar(
@@ -4703,13 +4434,7 @@ export function registerCommands(
                         });
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
-                        await injectWorkspaceSettings(
-                            ws,
-                            config,
-                            state.effectiveFiles,
-                            context,
-                            state.builtInCapability,
-                        );
+                        await injectWorkspaceSettings(ws, config, state.effectiveFiles, context);
                         logInfo(
                             `Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed.`,
                         );
@@ -5136,10 +4861,10 @@ export function registerCommands(
                               requestedLayerPath,
                               nextLayerEnabled,
                           )
-                        : previewBuiltInRootLayerEnabledState(
-                              state.builtInCapability,
-                              nextLayerEnabled,
-                          );
+                        : previewBuiltInCapabilityWorkspaceState(state.builtInCapability, {
+                              layerEnabled: nextLayerEnabled,
+                              layerStates: {},
+                          });
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
                 const applied = await executeGovernedMutation({
                     actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
@@ -5158,12 +4883,7 @@ export function registerCommands(
                                 : await writeBuiltInCapabilityWorkspaceState(
                                       context,
                                       state.builtInCapability,
-                                      {
-                                          enabled: nextLayerEnabled,
-                                          layerEnabled: nextLayerEnabled,
-                                          disabledByUser: !nextLayerEnabled,
-                                          layerStates: {},
-                                      },
+                                      { layerEnabled: nextLayerEnabled, layerStates: {} },
                                   );
                     },
                 });
@@ -7419,7 +7139,7 @@ export function registerCommands(
             );
 
             vscode.window.showInformationMessage(
-                'MetaFlow: Built-in MetaFlow capability enabled (plugin-first defaults).',
+                'MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).',
             );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }),
