@@ -311,6 +311,108 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.deepStrictEqual(workspaceStateStore.get('metaflow.settingsInjection.v1'), {});
     });
 
+    test('injectWorkspaceSettings removes stale plugin roots from user scope when no plugin entries remain', async () => {
+        const globalValues = new Map<string, unknown>([
+            ['chat.pluginLocations', { '../repo/capabilities/plugin-smoke': true, '../user/other-plugin': true }],
+        ]);
+        const workspaceStateStore = new Map<string, unknown>([
+            [
+                'metaflow.settingsInjection.v1',
+                {
+                    effectiveTarget: 'workspace',
+                    managedEntries: {
+                        user: {
+                            'chat.pluginLocations': {
+                                '../repo/capabilities/plugin-smoke': true,
+                            },
+                        },
+                    },
+                },
+            ],
+        ]);
+
+        const makeConfig = () => ({
+            get: (_key: string, defaultValue: unknown) => defaultValue,
+            inspect: (key: string) => ({
+                globalValue: globalValues.get(key),
+                workspaceValue: undefined,
+                workspaceFolderValue: undefined,
+            }),
+            update: async (key: string, value: unknown, target: number) => {
+                if (target !== 1) {
+                    throw new Error(`Unexpected target ${target}`);
+                }
+
+                if (value === undefined) {
+                    globalValues.delete(key);
+                } else {
+                    globalValues.set(key, value);
+                }
+            },
+        });
+
+        const mockVscode = {
+            window: {
+                showWarningMessage: async () => undefined,
+                showInformationMessage: async () => undefined,
+                createOutputChannel: () => ({
+                    appendLine: () => {},
+                    show: () => {},
+                    dispose: () => {},
+                }),
+            },
+            ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+            workspace: {
+                workspaceFolders: undefined,
+                getConfiguration: (_section?: string, resource?: { fsPath?: string }) => {
+                    void resource;
+                    return makeConfig();
+                },
+            },
+            TreeItemCheckboxState: { Checked: 1, Unchecked: 0 },
+            TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+            EventEmitter: class {
+                event(listener: unknown): { dispose: () => void } {
+                    void listener;
+                    return { dispose: () => {} };
+                }
+                fire(value: unknown): void {
+                    void value;
+                }
+            },
+            Uri: { file: (fsPath: string) => ({ fsPath }) },
+        };
+
+        const { injectWorkspaceSettings } = loadCommandHandlers(mockVscode);
+
+        await injectWorkspaceSettings(
+            {
+                uri: { fsPath: 'C:/workspace/project' },
+                name: 'project',
+                index: 0,
+            } as Parameters<typeof injectWorkspaceSettings>[0],
+            {} as Parameters<typeof injectWorkspaceSettings>[1],
+            [],
+            {
+                workspaceState: {
+                    get: (key: string) => workspaceStateStore.get(key),
+                    update: async (key: string, value: unknown) => {
+                        workspaceStateStore.set(key, value);
+                    },
+                },
+            } as unknown as Parameters<typeof injectWorkspaceSettings>[3],
+        );
+
+        assert.deepStrictEqual(globalValues.get('chat.pluginLocations'), {
+            '../user/other-plugin': true,
+        });
+        assert.deepStrictEqual(workspaceStateStore.get('metaflow.settingsInjection.v1'), {
+            requestedTarget: 'workspace',
+            effectiveTarget: 'workspace',
+            managedEntries: {},
+        });
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({

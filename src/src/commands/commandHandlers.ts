@@ -3787,7 +3787,7 @@ async function pickGitBackedRepo(
     return repos.find((repo) => repo.repoId === pickedRepoId.repoId);
 }
 
-async function injectWorkspaceSettings(
+export async function injectWorkspaceSettings(
     workspace: vscode.WorkspaceFolder,
     config: MetaFlowConfig,
     effectiveFiles: EffectiveFile[],
@@ -3825,28 +3825,29 @@ async function injectWorkspaceSettings(
         for (const key of managedKeys) {
             try {
                 const existing = wsConfig.inspect(key);
-                let scopeValue = getScopeValue(existing, target.effective);
+                const entryTarget = resolveSettingsEntryTarget(key, target);
+                let scopeValue = getScopeValue(existing, entryTarget.effective);
                 const newValue = entriesByKey.get(key);
                 scopeValue = pruneBundledMetaFlowSettingsEntries(scopeValue, key, newValue);
 
                 if (newValue === undefined) {
                     // Remove previously-managed entries for this key if any
-                    const prevManaged = previousState.managedEntries?.[target.effective]?.[key];
+                    const prevManaged =
+                        previousState.managedEntries?.[entryTarget.effective]?.[key];
                     if (
                         prevManaged !== undefined ||
-                        scopeValue !== getScopeValue(existing, target.effective)
+                        scopeValue !== getScopeValue(existing, entryTarget.effective)
                     ) {
                         const cleaned =
                             prevManaged !== undefined
                                 ? removeSettingsEntries(scopeValue, prevManaged)
                                 : scopeValue;
-                        await wsConfig.update(key, cleaned, target.configurationTarget);
+                        await wsConfig.update(key, cleaned, entryTarget.configurationTarget);
                     }
                     continue;
                 }
 
                 // Remove previously-managed entries, then merge new ones
-                const entryTarget = resolveSettingsEntryTarget(key, target);
                 const prevManaged = previousState.managedEntries?.[entryTarget.effective]?.[key];
                 if (prevManaged !== undefined) {
                     scopeValue = removeSettingsEntries(scopeValue, prevManaged) ?? undefined;
