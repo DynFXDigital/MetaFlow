@@ -838,7 +838,7 @@
     "esbuild": "^0.27.4",
     "eslint": "^10.1.0",
     "glob": "^13.0.6",
-    "minimatch": "^10.2.4",
+    "minimatch": "^10.2.5",
     "mocha": "^11.7.5",
     "typescript": "^5.3.2"
   }
