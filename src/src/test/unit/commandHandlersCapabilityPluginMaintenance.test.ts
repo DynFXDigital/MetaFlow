@@ -313,7 +313,10 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
     test('injectWorkspaceSettings removes stale plugin roots from user scope when no plugin entries remain', async () => {
         const globalValues = new Map<string, unknown>([
-            ['chat.pluginLocations', { '../repo/capabilities/plugin-smoke': true, '../user/other-plugin': true }],
+            [
+                'chat.pluginLocations',
+                { '../repo/capabilities/plugin-smoke': true, '../user/other-plugin': true },
+            ],
         ]);
         const workspaceStateStore = new Map<string, unknown>([
             [

@@ -2084,7 +2084,7 @@ async function enableBuiltInCapabilityDuringInit(
 
     const nextState = await enableBuiltInCapabilityInSettingsMode(context, currentState);
     vscode.window.showInformationMessage(
-        'MetaFlow: Built-in MetaFlow capability enabled automatically (settings-only mode).',
+        'MetaFlow: Built-in MetaFlow capability enabled automatically (plugin-first defaults).',
     );
     return nextState;
 }
@@ -4855,15 +4855,20 @@ export function registerCommands(
                     typeof requestedCheckedState === 'boolean'
                         ? requestedCheckedState
                         : !state.builtInCapability.layerEnabled;
+                const isRootBuiltInToggle =
+                    typeof requestedLayerPath !== 'string' ||
+                    normalizeBuiltInLayerPath(requestedLayerPath) === '.';
                 const candidateBuiltInCapability =
-                    typeof requestedLayerPath === 'string'
+                    typeof requestedLayerPath === 'string' && !isRootBuiltInToggle
                         ? previewBuiltInLayerEnabledState(
                               state.builtInCapability,
                               requestedLayerPath,
                               nextLayerEnabled,
                           )
                         : previewBuiltInCapabilityWorkspaceState(state.builtInCapability, {
+                              enabled: nextLayerEnabled,
                               layerEnabled: nextLayerEnabled,
+                              disabledByUser: !nextLayerEnabled,
                               layerStates: {},
                           });
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
@@ -4874,7 +4879,7 @@ export function registerCommands(
                     candidateBuiltInCapability,
                     persist: async () => {
                         state.builtInCapability =
-                            typeof requestedLayerPath === 'string'
+                            typeof requestedLayerPath === 'string' && !isRootBuiltInToggle
                                 ? await writeBuiltInLayerEnabledState(
                                       context,
                                       state.builtInCapability,
@@ -4884,7 +4889,12 @@ export function registerCommands(
                                 : await writeBuiltInCapabilityWorkspaceState(
                                       context,
                                       state.builtInCapability,
-                                      { layerEnabled: nextLayerEnabled, layerStates: {} },
+                                      {
+                                          enabled: nextLayerEnabled,
+                                          layerEnabled: nextLayerEnabled,
+                                          disabledByUser: !nextLayerEnabled,
+                                          layerStates: {},
+                                      },
                                   );
                     },
                 });
