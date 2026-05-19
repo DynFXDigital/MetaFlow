@@ -12,6 +12,8 @@ export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
     skipBuiltInAutoApply?: boolean;
     skipRepoSync?: boolean;
+    skipSettingsInjection?: boolean;
+    preferStateConfig?: boolean;
     forceDiscovery?: boolean;
     forceDiscoveryRepoId?: string;
 }
@@ -488,6 +490,9 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
     const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown }).skipBuiltInAutoApply;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
+    const skipSettingsInjection = (arg as { skipSettingsInjection?: unknown })
+        .skipSettingsInjection;
+    const preferStateConfig = (arg as { preferStateConfig?: unknown }).preferStateConfig;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
@@ -495,6 +500,9 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
         skipBuiltInAutoApply:
             typeof skipBuiltInAutoApply === 'boolean' ? skipBuiltInAutoApply : undefined,
         skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
+        skipSettingsInjection:
+            typeof skipSettingsInjection === 'boolean' ? skipSettingsInjection : undefined,
+        preferStateConfig: typeof preferStateConfig === 'boolean' ? preferStateConfig : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
         forceDiscoveryRepoId:
             typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,

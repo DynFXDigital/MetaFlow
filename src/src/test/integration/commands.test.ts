@@ -1464,22 +1464,23 @@ suite('Command Execution', function () {
         const originalCopilotSettings = fs.existsSync(copilotSettingsPath)
             ? fs.readFileSync(copilotSettingsPath, 'utf-8')
             : undefined;
-        const seededCopilotSettings =
-            JSON.stringify(
-                {
-                    enabledPlugins: {
-                        'code-formatter@company-tools': true,
-                    },
-                    extraKnownMarketplaces: {
-                        sample: {
-                            source: 'github',
-                            repo: 'owner/repo',
-                        },
-                    },
-                },
-                null,
-                2,
-            ) + '\n';
+        const staleBundledPluginUri = vscode.Uri.file(
+            path.join(
+                workspaceRoot,
+                '..',
+                '..',
+                '..',
+                'AppData',
+                'Roaming',
+                'Code - Insiders',
+                'User',
+                'globalStorage',
+                'dynfxdigital.metaflow-ai',
+                'bundled-metadata',
+                'metaflow-ai-metadata',
+            ),
+        ).toString();
+        const unrelatedPluginUri = 'file:///unrelated-plugin-root';
 
         removeDirectoryRecursive(repoRoot);
         fs.mkdirSync(path.join(capabilityRoot, '.github', 'instructions'), { recursive: true });
@@ -1519,7 +1520,28 @@ suite('Command Execution', function () {
         );
 
         fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
-        fs.writeFileSync(copilotSettingsPath, seededCopilotSettings, 'utf-8');
+        fs.writeFileSync(
+            copilotSettingsPath,
+            JSON.stringify(
+                {
+                    enabledPlugins: {
+                        [unrelatedPluginUri]: true,
+                        [staleBundledPluginUri]: true,
+                    },
+                    extraKnownMarketplaces: {
+                        sample: {
+                            source: 'github',
+                            repo: 'owner/repo',
+                        },
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+
+        const expectedPluginUri = vscode.Uri.file(capabilityRoot).toString();
 
         const windowAny = vscode.window as unknown as {
             showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
@@ -1623,19 +1645,29 @@ suite('Command Execution', function () {
                 .relative(workspaceRoot, capabilityRoot)
                 .replace(/\\/g, '/');
             assert.strictEqual(pluginLocations?.[expectedPluginLocation], true);
-            assert.strictEqual(
-                fs.readFileSync(copilotSettingsPath, 'utf-8'),
-                seededCopilotSettings,
-                'Local plugin mode should not rewrite workspace plugin recommendation settings',
-            );
+
+            const appliedSettings = JSON.parse(fs.readFileSync(copilotSettingsPath, 'utf-8')) as {
+                enabledPlugins?: Record<string, boolean>;
+                extraKnownMarketplaces?: Record<string, unknown>;
+            };
+
+            assert.strictEqual(appliedSettings.enabledPlugins?.[unrelatedPluginUri], true);
+            assert.strictEqual(appliedSettings.enabledPlugins?.[expectedPluginUri], true);
+            assert.strictEqual(appliedSettings.enabledPlugins?.[staleBundledPluginUri], undefined);
+            assert.ok(appliedSettings.extraKnownMarketplaces?.sample);
 
             windowAny.showWarningMessage = async () => 'Remove';
             await vscode.commands.executeCommand('metaflow.clean');
-            assert.strictEqual(
-                fs.readFileSync(copilotSettingsPath, 'utf-8'),
-                seededCopilotSettings,
-                'Cleaning local plugin mode should leave workspace plugin recommendation settings untouched',
-            );
+
+            const cleanedSettings = JSON.parse(fs.readFileSync(copilotSettingsPath, 'utf-8')) as {
+                enabledPlugins?: Record<string, boolean>;
+                extraKnownMarketplaces?: Record<string, unknown>;
+            };
+
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[expectedPluginUri], undefined);
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[unrelatedPluginUri], true);
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[staleBundledPluginUri], undefined);
+            assert.ok(cleanedSettings.extraKnownMarketplaces?.sample);
         } finally {
             windowAny.showWarningMessage = originalWarning;
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -1648,8 +1680,8 @@ suite('Command Execution', function () {
             } else if (fs.existsSync(copilotSettingsPath)) {
                 fs.unlinkSync(copilotSettingsPath);
             }
-            await vscode.commands.executeCommand('metaflow.refresh');
             removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 
@@ -2082,14 +2114,28 @@ suite('Command Execution', function () {
         this.timeout(20000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const config = {
             metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata', enabled: true }],
             layerSources: [{ repoId: 'details-toggle', path: 'standards/sdlc', enabled: false }],
             filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                    disable: [],
+                },
+            },
+            activeProfile: 'default',
         };
+        const originalGovernance = fs.readFileSync(governancePath, 'utf-8');
 
         try {
+            fs.writeFileSync(
+                governancePath,
+                JSON.stringify({ severity: 'error', allowedProfiles: ['default'] }, null, 2),
+                'utf-8',
+            );
             fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
             await vscode.commands.executeCommand('workbench.action.closeAllEditors');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -2168,6 +2214,7 @@ suite('Command Execution', function () {
                 ),
             );
         } finally {
+            fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -3001,7 +3048,9 @@ suite('Command Execution', function () {
         this.timeout(20000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const originalGovernance = fs.readFileSync(governancePath, 'utf-8');
 
         const profileScopedConfig = {
             metadataRepos: [
@@ -3042,6 +3091,15 @@ suite('Command Execution', function () {
         };
 
         try {
+            fs.writeFileSync(
+                governancePath,
+                JSON.stringify(
+                    { severity: 'error', allowedProfiles: ['default', 'focused'] },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
             fs.writeFileSync(configPath, JSON.stringify(profileScopedConfig, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
@@ -3163,6 +3221,7 @@ suite('Command Execution', function () {
                 'Edited profile should retain its layer override after being reselected',
             );
         } finally {
+            fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }

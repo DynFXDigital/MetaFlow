@@ -268,11 +268,13 @@ function createCommandHandlersHarness(initResult: boolean) {
                 },
                 normalizeBuiltInLayerPath: (layerPath: string) => layerPath || '.',
                 resolveBuiltInCapabilityDisplayName: () => 'MetaFlow: AI Metadata Overlay',
-                resolveBuiltInLayerEnabled: (state: {
-                    layerEnabled: boolean;
-                    layerStates?: Record<string, boolean>;
-                }, layerPath: string) =>
-                    state.layerStates?.[layerPath] ?? state.layerEnabled,
+                resolveBuiltInLayerEnabled: (
+                    state: {
+                        layerEnabled: boolean;
+                        layerStates?: Record<string, boolean>;
+                    },
+                    layerPath: string,
+                ) => state.layerStates?.[layerPath] ?? state.layerEnabled,
                 sanitizeBuiltInLayerStates: (value: Record<string, boolean> | undefined) =>
                     value ?? {},
                 sanitizeSynchronizedFiles: (files: string[]) => files,
@@ -523,7 +525,7 @@ suite('Command Handlers initConfig command', () => {
                 sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
                 sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
-            } as (typeof harness.state.builtInCapability) & {
+            } as typeof harness.state.builtInCapability & {
                 layerStates: Record<string, boolean>;
             };
 
@@ -574,7 +576,7 @@ suite('Command Handlers initConfig command', () => {
                 sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
                 sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
-            } as (typeof harness.state.builtInCapability) & {
+            } as typeof harness.state.builtInCapability & {
                 layerStates: Record<string, boolean>;
             };
 
@@ -603,7 +605,7 @@ suite('Command Handlers initConfig command', () => {
                 [
                     {
                         command: 'metaflow.refresh',
-                        args: [{ skipRepoSync: true }],
+                        args: [{ skipRepoSync: true, preferStateConfig: true }],
                     },
                 ],
             );
@@ -629,7 +631,7 @@ suite('Command Handlers initConfig command', () => {
                 sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
                 sourceId: 'dynfxdigital.metaflow-ai',
                 sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
-            } as (typeof harness.state.builtInCapability) & {
+            } as typeof harness.state.builtInCapability & {
                 layerStates: Record<string, boolean>;
             };
 

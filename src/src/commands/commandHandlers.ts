@@ -46,6 +46,7 @@ import {
     apply,
     clean,
     preview,
+    computePluginRootPaths,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
     checkAllDrift,
@@ -89,7 +90,6 @@ import {
     type LayersViewMode,
     type AiMetadataAutoApplyMode,
     normalizeAndDeduplicateLayerPaths,
-    pruneStaleLayerSources,
     updateProfileLayerOverride,
     writeManagedViewsState,
 } from './commandHelpers';
@@ -108,6 +108,7 @@ import {
     BuiltInCapabilityRuntimeState,
     BuiltInCapabilityWorkspaceState,
     isBuiltInCapabilityActive,
+    isBuiltInCapabilityEnabled,
     normalizeBuiltInLayerPath,
     readBuiltInCapabilityRuntimeState,
     resolveBuiltInCapabilityDisplayName,
@@ -118,6 +119,7 @@ import {
 } from '../builtInCapability';
 import { CapabilityDetailsPanelManager } from '../views/capabilityDetailsPanel';
 import {
+    computeLegacySettingsEntriesFromEffectiveFiles,
     mergeSettingsValue,
     pruneBundledMetaFlowSettingsEntries,
     removeSettingsEntries,
@@ -133,17 +135,22 @@ import { buildTreeSummaryCache, TreeSummaryCache } from '../treeSummary';
 const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 type InjectionKey = (typeof INJECTION_KEYS)[number];
 
-const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize'> = {
-    instructions: 'settings',
+const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 'plugin'> = {
+    instructions: 'plugin',
     prompts: 'settings',
-    skills: 'settings',
-    agents: 'settings',
+    skills: 'plugin',
+    agents: 'plugin',
     hooks: 'settings',
 };
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
+const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
+    '.github',
+    'copilot',
+    'settings.local.json',
+);
 
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
@@ -173,7 +180,15 @@ export function formatManagedSettingsStateSummary(context: vscode.ExtensionConte
 
     return {
         target: effectiveTarget,
-        keys: managedKeys.length > 0 ? managedKeys.join(', ') : 'none',
+        keys:
+            managedKeys.length > 0 || (state.managedPluginUris?.length ?? 0) > 0
+                ? [
+                      ...managedKeys,
+                      ...((state.managedPluginUris?.length ?? 0) > 0
+                          ? [`enabledPlugins=${state.managedPluginUris!.length}`]
+                          : []),
+                  ].join(', ')
+                : 'none',
     };
 }
 
@@ -191,6 +206,21 @@ interface ResolvedInjectionTarget {
     requested: SettingsInjectionTarget;
     effective: SettingsInjectionTarget;
     configurationTarget: vscode.ConfigurationTarget;
+}
+
+export function resolveSettingsEntryTarget(
+    key: string,
+    target: ResolvedInjectionTarget,
+): ResolvedInjectionTarget {
+    if (key === 'chat.pluginLocations') {
+        return {
+            requested: 'user',
+            effective: 'user',
+            configurationTarget: vscode.ConfigurationTarget.Global,
+        };
+    }
+
+    return target;
 }
 
 /**
@@ -226,21 +256,6 @@ function resolveSettingsInjectionTarget(
     };
 }
 
-export function resolveSettingsEntryTarget(
-    settingKey: string,
-    defaultTarget: ResolvedInjectionTarget,
-): ResolvedInjectionTarget {
-    if (settingKey === 'chat.pluginLocations') {
-        return {
-            requested: 'user',
-            effective: 'user',
-            configurationTarget: vscode.ConfigurationTarget.Global,
-        };
-    }
-
-    return defaultTarget;
-}
-
 /** Per-scope managed entries that MetaFlow has written. */
 interface ManagedSettingsState {
     /** Target requested by the user/config at the time of last injection. */
@@ -252,6 +267,8 @@ interface ManagedSettingsState {
      * ('user' | 'workspace' | 'workspaceFolder').
      */
     managedEntries?: Record<string, Record<string, unknown>>;
+    /** MetaFlow-managed plugin root URIs enabled via Copilot plugin settings. */
+    managedPluginUris?: string[];
 }
 
 function getWorkspace(): vscode.WorkspaceFolder | undefined {
@@ -281,7 +298,179 @@ async function writeManagedSettingsState(
     context: vscode.ExtensionContext,
     state: ManagedSettingsState,
 ): Promise<void> {
-    await context.workspaceState.update(SETTINGS_INJECTION_STATE_KEY, state);
+    const sanitized: ManagedSettingsState = {};
+    if (state.requestedTarget) {
+        sanitized.requestedTarget = state.requestedTarget;
+    }
+    if (state.effectiveTarget) {
+        sanitized.effectiveTarget = state.effectiveTarget;
+    }
+    if (state.managedEntries) {
+        sanitized.managedEntries = state.managedEntries;
+    }
+    const managedPluginUris = normalizeManagedPluginUris(state.managedPluginUris);
+    if (managedPluginUris.length > 0) {
+        sanitized.managedPluginUris = managedPluginUris;
+    }
+
+    await context.workspaceState.update(SETTINGS_INJECTION_STATE_KEY, sanitized);
+}
+
+function getCopilotPluginSettingsPath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
+}
+
+function normalizeManagedPluginUris(pluginUris: string[] | undefined): string[] {
+    return Array.from(new Set((pluginUris ?? []).filter((value) => value.trim().length > 0))).sort(
+        (left, right) => left.localeCompare(right),
+    );
+}
+
+function isBooleanRecord(value: unknown): value is Record<string, boolean> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+
+    return Object.values(value).every((entry) => typeof entry === 'boolean');
+}
+
+function isBundledMetaFlowPluginUri(value: string): boolean {
+    return value
+        .replace(/\\/g, '/')
+        .toLowerCase()
+        .includes('/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata');
+}
+
+function isPathWithin(candidatePath: string, rootPath: string): boolean {
+    const relative = path.relative(rootPath, candidatePath);
+    return (
+        relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
+    );
+}
+
+function filterSettingsEligibleEffectiveFiles(
+    effectiveFiles: EffectiveFile[],
+    builtInCapability: BuiltInCapabilityRuntimeState,
+): EffectiveFile[] {
+    if (isBuiltInCapabilityEnabled(builtInCapability)) {
+        return effectiveFiles;
+    }
+
+    const builtInRoot = builtInCapability.sourceRoot
+        ? path.normalize(builtInCapability.sourceRoot)
+        : undefined;
+
+    return effectiveFiles.filter((file) => {
+        if (file.sourceRepo === BUILT_IN_CAPABILITY_REPO_ID) {
+            return false;
+        }
+
+        if (builtInRoot && isPathWithin(path.normalize(file.sourcePath), builtInRoot)) {
+            return false;
+        }
+
+        return true;
+    });
+}
+
+async function updateManagedCopilotPluginSettings(
+    workspaceRoot: string,
+    previousManagedPluginUris: string[],
+    nextManagedPluginUris: string[],
+): Promise<void> {
+    const settingsPath = getCopilotPluginSettingsPath(workspaceRoot);
+    const normalizedPrevious = normalizeManagedPluginUris(previousManagedPluginUris);
+    const normalizedNext = normalizeManagedPluginUris(nextManagedPluginUris);
+
+    let existing: string | undefined;
+    try {
+        existing = await fsp.readFile(settingsPath, 'utf-8');
+    } catch (err: unknown) {
+        const code = (err as NodeJS.ErrnoException | undefined)?.code;
+        if (code !== 'ENOENT') {
+            throw err;
+        }
+    }
+
+    const nextEnabledPlugins = (() => {
+        const enabledPlugins: Record<string, boolean> = {};
+
+        if (existing !== undefined) {
+            const parseErrors: jsonc.ParseError[] = [];
+            const parsed = jsonc.parse(existing, parseErrors, {
+                allowTrailingComma: true,
+                disallowComments: false,
+            });
+
+            if (parseErrors.length > 0) {
+                const first = parseErrors[0];
+                throw new Error(
+                    `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} could not be parsed near offset ${first.offset}.`,
+                );
+            }
+
+            if (
+                parsed !== undefined &&
+                (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            ) {
+                throw new Error(
+                    `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} must contain a top-level JSON object.`,
+                );
+            }
+
+            const parsedObject = (parsed ?? {}) as Record<string, unknown>;
+            if (isBooleanRecord(parsedObject.enabledPlugins)) {
+                for (const [pluginUri, enabled] of Object.entries(parsedObject.enabledPlugins)) {
+                    enabledPlugins[pluginUri] = enabled;
+                }
+            }
+        }
+
+        for (const pluginUri of normalizedPrevious) {
+            delete enabledPlugins[pluginUri];
+        }
+
+        const normalizedNextSet = new Set(normalizedNext);
+        for (const pluginUri of Object.keys(enabledPlugins)) {
+            if (isBundledMetaFlowPluginUri(pluginUri) && !normalizedNextSet.has(pluginUri)) {
+                delete enabledPlugins[pluginUri];
+            }
+        }
+
+        for (const pluginUri of normalizedNext) {
+            enabledPlugins[pluginUri] = true;
+        }
+
+        return Object.fromEntries(
+            Object.entries(enabledPlugins).sort(([left], [right]) => left.localeCompare(right)),
+        );
+    })();
+
+    if (existing === undefined) {
+        if (Object.keys(nextEnabledPlugins).length === 0) {
+            return;
+        }
+
+        await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+        await fsp.writeFile(
+            settingsPath,
+            JSON.stringify({ enabledPlugins: nextEnabledPlugins }, null, 2) + '\n',
+            'utf-8',
+        );
+        return;
+    }
+
+    const formatOptions: jsonc.FormattingOptions = { tabSize: 2, insertSpaces: true };
+    const edits = jsonc.modify(
+        existing,
+        ['enabledPlugins'],
+        Object.keys(nextEnabledPlugins).length > 0 ? nextEnabledPlugins : undefined,
+        { formattingOptions: formatOptions },
+    );
+    const updated = jsonc.applyEdits(existing, edits);
+
+    await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+    await fsp.writeFile(settingsPath, updated, 'utf-8');
 }
 
 /** Cached state for the current workspace. */
@@ -416,12 +605,28 @@ function previewBuiltInCapabilityWorkspaceState(
     };
 }
 
+function previewBuiltInRootLayerEnabledState(
+    currentState: BuiltInCapabilityRuntimeState,
+    enabled: boolean,
+): BuiltInCapabilityRuntimeState {
+    return previewBuiltInCapabilityWorkspaceState(currentState, {
+        enabled,
+        layerEnabled: enabled,
+        disabledByUser: !enabled,
+        layerStates: {},
+    });
+}
+
 function previewBuiltInLayerEnabledState(
     currentState: BuiltInCapabilityRuntimeState,
     layerPath: string,
     enabled: boolean,
 ): BuiltInCapabilityRuntimeState {
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    if (normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH) {
+        return previewBuiltInRootLayerEnabledState(currentState, enabled);
+    }
+
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     if (enabled === currentState.layerEnabled) {
@@ -440,10 +645,16 @@ function previewBuiltInLayerEnabledStates(
     layerPaths: Iterable<string>,
     enabled: boolean,
 ): BuiltInCapabilityRuntimeState {
+    const normalizedLayerPaths = Array.from(layerPaths, (layerPath) =>
+        normalizeBuiltInLayerPath(layerPath),
+    );
+    if (normalizedLayerPaths.includes(BUILT_IN_CAPABILITY_LAYER_PATH)) {
+        return previewBuiltInRootLayerEnabledState(currentState, enabled);
+    }
+
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    for (const layerPath of layerPaths) {
-        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    for (const normalizedLayerPath of normalizedLayerPaths) {
         if (enabled === currentState.layerEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
@@ -1749,9 +1960,9 @@ export function collectEnabledConfiguredSourceDiagnosticWarnings(
         }
     };
 
-    if (config.metadataRepos && config.layerSources) {
+    if (config.metadataRepos) {
         const enabledSourcesByRepoId = new Map<string, Set<string>>();
-        for (const source of config.layerSources) {
+        for (const source of config.layerSources ?? []) {
             if (source.enabled === false) {
                 continue;
             }
@@ -1912,7 +2123,7 @@ function withBuiltInCapabilityProjected(
     config: MetaFlowConfig,
     builtInState: BuiltInCapabilityRuntimeState,
 ): MetaFlowConfig {
-    if (!isBuiltInCapabilityActive(builtInState) || !builtInState.sourceRoot) {
+    if (!isBuiltInCapabilityEnabled(builtInState) || !builtInState.sourceRoot) {
         return config;
     }
 
@@ -2028,6 +2239,15 @@ async function writeBuiltInLayerEnabledState(
     enabled: boolean,
 ): Promise<BuiltInCapabilityRuntimeState> {
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    if (normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH) {
+        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
+            enabled,
+            layerEnabled: enabled,
+            disabledByUser: !enabled,
+            layerStates: {},
+        });
+    }
+
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     if (enabled === currentState.layerEnabled) {
@@ -2047,10 +2267,21 @@ async function writeBuiltInLayerEnabledStates(
     layerPaths: Iterable<string>,
     enabled: boolean,
 ): Promise<BuiltInCapabilityRuntimeState> {
+    const normalizedLayerPaths = Array.from(layerPaths, (layerPath) =>
+        normalizeBuiltInLayerPath(layerPath),
+    );
+    if (normalizedLayerPaths.includes(BUILT_IN_CAPABILITY_LAYER_PATH)) {
+        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
+            enabled,
+            layerEnabled: enabled,
+            disabledByUser: !enabled,
+            layerStates: {},
+        });
+    }
+
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    for (const layerPath of layerPaths) {
-        const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
+    for (const normalizedLayerPath of normalizedLayerPaths) {
         if (enabled === currentState.layerEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
@@ -2576,6 +2807,22 @@ async function persistConfig(
     } else {
         await fsp.writeFile(configPath, JSON.stringify(authoredConfig, null, 2) + '\n', 'utf-8');
     }
+}
+
+function loadLatestConfigForMutation(
+    workspaceRoot: string,
+    state: ExtensionState,
+): MetaFlowConfig | undefined {
+    if (!state.configPath) {
+        return state.config ? cloneConfig(state.config) : undefined;
+    }
+
+    const loaded = loadConfig(workspaceRoot);
+    if (loaded.ok) {
+        return cloneConfig(loaded.config);
+    }
+
+    return state.config ? cloneConfig(state.config) : undefined;
 }
 
 interface ProfileQuickPickItem extends vscode.QuickPickItem {
@@ -3792,23 +4039,38 @@ export async function injectWorkspaceSettings(
     config: MetaFlowConfig,
     effectiveFiles: EffectiveFile[],
     context: vscode.ExtensionContext,
+    builtInCapability: BuiltInCapabilityRuntimeState,
 ): Promise<void> {
     try {
+        const previousState = readManagedSettingsState(context);
+        const settingsEffectiveFiles = filterSettingsEligibleEffectiveFiles(
+            effectiveFiles,
+            builtInCapability,
+        );
         const hooksEnabled = vscode.workspace
             .getConfiguration('metaflow', workspace.uri)
             .get<boolean>('hooksEnabled', true);
         const configForSettings = hooksEnabled ? config : { ...config, hooks: undefined };
         const entries = computeSettingsEntries(
-            effectiveFiles,
+            settingsEffectiveFiles,
             workspace.uri.fsPath,
             configForSettings,
         );
         const entriesByKey = new Map(entries.map((entry) => [entry.key, entry.value] as const));
+        const legacyEntriesByKey = new Map(
+            computeLegacySettingsEntriesFromEffectiveFiles(
+                settingsEffectiveFiles,
+                workspace.uri.fsPath,
+            ).map((entry) => [entry.key, entry.value] as const),
+        );
         const wsConfig = vscode.workspace.getConfiguration(undefined, workspace.uri);
         const managedKeys = computeSettingsKeysToRemove();
 
         const target = resolveSettingsInjectionTarget(workspace, config);
-        const previousState = readManagedSettingsState(context);
+
+        if (!isBuiltInCapabilityEnabled(builtInCapability)) {
+            await pruneDisabledBuiltInSettingsEntriesFromLocalScopes(wsConfig, managedKeys);
+        }
 
         // Clean stale entries from a previously-used scope if the target changed
         if (previousState.effectiveTarget && previousState.effectiveTarget !== target.effective) {
@@ -3820,12 +4082,13 @@ export async function injectWorkspaceSettings(
             );
         }
 
-        const newManagedEntries: Record<string, Record<string, unknown>> = {};
+        let managedPluginUris = normalizeManagedPluginUris(previousState.managedPluginUris);
+        const newManagedEntriesByScope: Record<string, Record<string, unknown>> = {};
 
         for (const key of managedKeys) {
             try {
-                const existing = wsConfig.inspect(key);
                 const entryTarget = resolveSettingsEntryTarget(key, target);
+                const existing = wsConfig.inspect(key);
                 let scopeValue = getScopeValue(existing, entryTarget.effective);
                 const newValue = entriesByKey.get(key);
                 scopeValue = pruneBundledMetaFlowSettingsEntries(scopeValue, key, newValue);
@@ -3834,15 +4097,41 @@ export async function injectWorkspaceSettings(
                     // Remove previously-managed entries for this key if any
                     const prevManaged =
                         previousState.managedEntries?.[entryTarget.effective]?.[key];
+                    const legacyTargetManaged =
+                        entryTarget.effective !== target.effective
+                            ? previousState.managedEntries?.[target.effective]?.[key]
+                            : undefined;
+                    const legacyManaged = legacyEntriesByKey.get(key);
                     if (
                         prevManaged !== undefined ||
+                        legacyTargetManaged !== undefined ||
+                        legacyManaged !== undefined ||
                         scopeValue !== getScopeValue(existing, entryTarget.effective)
                     ) {
-                        const cleaned =
-                            prevManaged !== undefined
-                                ? removeSettingsEntries(scopeValue, prevManaged)
-                                : scopeValue;
+                        let cleaned = scopeValue;
+                        if (prevManaged !== undefined) {
+                            cleaned = removeSettingsEntries(cleaned, prevManaged);
+                        }
+                        if (legacyTargetManaged !== undefined) {
+                            cleaned = removeSettingsEntries(cleaned, legacyTargetManaged);
+                        }
+                        if (legacyManaged !== undefined) {
+                            cleaned = removeSettingsEntries(cleaned, legacyManaged);
+                        }
                         await wsConfig.update(key, cleaned, entryTarget.configurationTarget);
+
+                        if (legacyTargetManaged !== undefined) {
+                            const legacyInspection = wsConfig.inspect(key);
+                            const legacyScopeValue = getScopeValue(
+                                legacyInspection,
+                                target.effective,
+                            );
+                            const legacyCleaned = removeSettingsEntries(
+                                legacyScopeValue,
+                                legacyTargetManaged,
+                            );
+                            await wsConfig.update(key, legacyCleaned, target.configurationTarget);
+                        }
                     }
                     continue;
                 }
@@ -3853,22 +4142,52 @@ export async function injectWorkspaceSettings(
                     scopeValue = removeSettingsEntries(scopeValue, prevManaged) ?? undefined;
                 }
 
+                if (entryTarget.effective !== target.effective) {
+                    const legacyTargetManaged =
+                        previousState.managedEntries?.[target.effective]?.[key];
+                    if (legacyTargetManaged !== undefined) {
+                        const legacyInspection = wsConfig.inspect(key);
+                        const legacyScopeValue = getScopeValue(legacyInspection, target.effective);
+                        const legacyCleaned = removeSettingsEntries(
+                            legacyScopeValue,
+                            legacyTargetManaged,
+                        );
+                        await wsConfig.update(key, legacyCleaned, target.configurationTarget);
+                    }
+                }
+
                 const merged = mergeSettingsValue(scopeValue, newValue);
                 await wsConfig.update(key, merged, entryTarget.configurationTarget);
-                if (!newManagedEntries[entryTarget.effective]) {
-                    newManagedEntries[entryTarget.effective] = {};
+                if (!newManagedEntriesByScope[entryTarget.effective]) {
+                    newManagedEntriesByScope[entryTarget.effective] = {};
                 }
-                newManagedEntries[entryTarget.effective][key] = newValue;
+                newManagedEntriesByScope[entryTarget.effective][key] = newValue;
             } catch (entryErr: unknown) {
                 const entryMsg = entryErr instanceof Error ? entryErr.message : String(entryErr);
                 logWarn(`Settings key update skipped (${key}): ${entryMsg}`);
             }
         }
 
+        try {
+            const nextManagedPluginUris = computePluginRootPaths(settingsEffectiveFiles).map(
+                (pluginRoot) => vscode.Uri.file(pluginRoot).toString(),
+            );
+            await updateManagedCopilotPluginSettings(
+                workspace.uri.fsPath,
+                managedPluginUris,
+                nextManagedPluginUris,
+            );
+            managedPluginUris = normalizeManagedPluginUris(nextManagedPluginUris);
+        } catch (pluginErr: unknown) {
+            const pluginMsg = pluginErr instanceof Error ? pluginErr.message : String(pluginErr);
+            logWarn(`Copilot plugin enablement update skipped: ${pluginMsg}`);
+        }
+
         await writeManagedSettingsState(context, {
             requestedTarget: target.requested,
             effectiveTarget: target.effective,
-            managedEntries: newManagedEntries,
+            managedEntries: newManagedEntriesByScope,
+            managedPluginUris: managedPluginUris.length > 0 ? managedPluginUris : undefined,
         });
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -3893,6 +4212,35 @@ function getScopeValue(
             return inspection.workspaceValue;
         case 'workspaceFolder':
             return inspection.workspaceFolderValue;
+    }
+}
+
+async function pruneDisabledBuiltInSettingsEntriesFromLocalScopes(
+    wsConfig: vscode.WorkspaceConfiguration,
+    keys: string[],
+): Promise<void> {
+    const targets: Array<{
+        scope: SettingsInjectionTarget;
+        target: vscode.ConfigurationTarget;
+    }> = [
+        { scope: 'workspace', target: vscode.ConfigurationTarget.Workspace },
+        { scope: 'workspaceFolder', target: vscode.ConfigurationTarget.WorkspaceFolder },
+    ];
+
+    for (const key of keys) {
+        for (const { scope, target } of targets) {
+            try {
+                const inspection = wsConfig.inspect(key);
+                const scopeValue = getScopeValue(inspection, scope);
+                const cleaned = pruneBundledMetaFlowSettingsEntries(scopeValue, key, undefined);
+                if (cleaned !== scopeValue) {
+                    await wsConfig.update(key, cleaned, target);
+                }
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                logWarn(`Disabled built-in settings pruning skipped (${key}, ${scope}): ${msg}`);
+            }
+        }
     }
 }
 
@@ -3968,7 +4316,29 @@ export async function clearManagedWorkspaceSettings(
         }
     }
 
-    await writeManagedSettingsState(context, {});
+    let remainingManagedPluginUris: string[] | undefined;
+    if ((previousState.managedPluginUris?.length ?? 0) > 0) {
+        try {
+            await updateManagedCopilotPluginSettings(
+                workspace.uri.fsPath,
+                previousState.managedPluginUris ?? [],
+                [],
+            );
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logWarn(`Copilot plugin enablement cleanup skipped: ${msg}`);
+            remainingManagedPluginUris = normalizeManagedPluginUris(
+                previousState.managedPluginUris,
+            );
+        }
+    }
+
+    await writeManagedSettingsState(
+        context,
+        remainingManagedPluginUris && remainingManagedPluginUris.length > 0
+            ? { managedPluginUris: remainingManagedPluginUris }
+            : {},
+    );
 }
 
 /**
@@ -3997,8 +4367,10 @@ export function registerCommands(
             return undefined;
         }
 
+        const latestConfig = loadLatestConfigForMutation(getWorkspace()?.uri.fsPath ?? '', state);
+
         return {
-            config: state.config,
+            config: latestConfig ?? state.config,
             configPath: state.configPath,
         };
     };
@@ -4069,18 +4441,20 @@ export function registerCommands(
         }
 
         logInfo(`Switched profile to: ${getProfileDisplayName(profileId, nextProfile)}`);
-        await vscode.commands.executeCommand('metaflow.refresh');
+        await vscode.commands.executeCommand('metaflow.refresh', { preferStateConfig: true });
     };
 
     const refreshOpenCapabilityDetailsPanel = async (options?: { enabled?: boolean }) => {
         const request = capabilityDetailsPanel.getCurrentRequest();
         const ws = getWorkspace();
-        if (!request || !ws || !state.config) {
+        const latestConfig = ws ? loadLatestConfigForMutation(ws.uri.fsPath, state) : undefined;
+        const detailConfig = latestConfig ?? state.config;
+        if (!request || !ws || !detailConfig) {
             return capabilityDetailsPanel.getSnapshot();
         }
 
         const target = resolveCapabilityDetailTarget(
-            state.config,
+            detailConfig,
             ws.uri.fsPath,
             state.builtInCapability,
             request,
@@ -4118,7 +4492,16 @@ export function registerCommands(
             state.onDidChange.fire();
 
             try {
-                const result = loadConfig(ws.uri.fsPath);
+                const result =
+                    refreshOptions.preferStateConfig === true && state.config && state.configPath
+                        ? {
+                              ok: true as const,
+                              config: cloneConfig(state.config),
+                              configPath: state.configPath,
+                              migrated: false,
+                              migrationMessages: [],
+                          }
+                        : loadConfig(ws.uri.fsPath);
                 if (!result.ok) {
                     logError(`Config errors: ${result.errors.map((e) => e.message).join('; ')}`);
                     publishConfigDiagnostics(diagnosticCollection, result);
@@ -4169,7 +4552,6 @@ export function registerCommands(
                     : governanceResult.errors.map(cloneConfigError);
                 state.governanceCompliance = undefined;
                 const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-                const prunedLayers = pruneStaleLayerSources(result.config, ws.uri.fsPath);
                 const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
                 const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
                 const discoveryResult = discoverAndPersistConfiguredRepoLayers(
@@ -4179,10 +4561,7 @@ export function registerCommands(
                     { enableDiscovery: true },
                 );
                 if (
-                    (result.migrated ||
-                        configNormalized ||
-                        prunedLayers.length > 0 ||
-                        discoveryResult.totalAdded > 0) &&
+                    (result.migrated || configNormalized || discoveryResult.totalAdded > 0) &&
                     result.configPath
                 ) {
                     await persistConfig(result.configPath, result.config, state);
@@ -4197,11 +4576,6 @@ export function registerCommands(
                     if (configNormalized) {
                         logInfo(
                             'Normalized layer paths in config (removed redundant .github suffix entries).',
-                        );
-                    }
-                    if (prunedLayers.length > 0) {
-                        logInfo(
-                            `Pruned ${prunedLayers.length} stale layer source(s) from config: ${prunedLayers.join(', ')}`,
                         );
                     }
                     if (discoveryResult.totalAdded > 0) {
@@ -4320,6 +4694,15 @@ export function registerCommands(
                         state.baseProfileFiles,
                         state.builtInCapability,
                     );
+                    if (!refreshOptions.skipSettingsInjection) {
+                        await injectWorkspaceSettings(
+                            ws,
+                            result.config,
+                            state.effectiveFiles,
+                            context,
+                            state.builtInCapability,
+                        );
+                    }
                     overlayResolved = true;
                     logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
                     updateStatusBar(
@@ -4435,7 +4818,13 @@ export function registerCommands(
                         });
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
-                        await injectWorkspaceSettings(ws, config, state.effectiveFiles, context);
+                        await injectWorkspaceSettings(
+                            ws,
+                            config,
+                            state.effectiveFiles,
+                            context,
+                            state.builtInCapability,
+                        );
                         logInfo(
                             `Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed.`,
                         );
@@ -4515,6 +4904,7 @@ export function registerCommands(
 
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipAutoApply: true,
+                        skipSettingsInjection: true,
                     });
 
                     return result;
@@ -4855,22 +5245,17 @@ export function registerCommands(
                     typeof requestedCheckedState === 'boolean'
                         ? requestedCheckedState
                         : !state.builtInCapability.layerEnabled;
-                const isRootBuiltInToggle =
-                    typeof requestedLayerPath !== 'string' ||
-                    normalizeBuiltInLayerPath(requestedLayerPath) === '.';
                 const candidateBuiltInCapability =
-                    typeof requestedLayerPath === 'string' && !isRootBuiltInToggle
+                    typeof requestedLayerPath === 'string'
                         ? previewBuiltInLayerEnabledState(
                               state.builtInCapability,
                               requestedLayerPath,
                               nextLayerEnabled,
                           )
-                        : previewBuiltInCapabilityWorkspaceState(state.builtInCapability, {
-                              enabled: nextLayerEnabled,
-                              layerEnabled: nextLayerEnabled,
-                              disabledByUser: !nextLayerEnabled,
-                              layerStates: {},
-                          });
+                        : previewBuiltInRootLayerEnabledState(
+                              state.builtInCapability,
+                              nextLayerEnabled,
+                          );
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
                 const applied = await executeGovernedMutation({
                     actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
@@ -4879,7 +5264,7 @@ export function registerCommands(
                     candidateBuiltInCapability,
                     persist: async () => {
                         state.builtInCapability =
-                            typeof requestedLayerPath === 'string' && !isRootBuiltInToggle
+                            typeof requestedLayerPath === 'string'
                                 ? await writeBuiltInLayerEnabledState(
                                       context,
                                       state.builtInCapability,
@@ -4905,7 +5290,10 @@ export function registerCommands(
                 logInfo(
                     `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                    preferStateConfig: true,
+                });
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             }
 
@@ -5030,7 +5418,10 @@ export function registerCommands(
                 if (repoAutoEnabled) {
                     logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
                 }
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                    preferStateConfig: true,
+                });
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -6532,13 +6923,15 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.openCapabilityDetails', async (arg?: unknown) => {
             const ws = getWorkspace();
-            if (!ws || !state.config) {
+            const latestConfig = ws ? loadLatestConfigForMutation(ws.uri.fsPath, state) : undefined;
+            const detailConfig = latestConfig ?? state.config;
+            if (!ws || !detailConfig) {
                 vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
                 return;
             }
 
             const target = resolveCapabilityDetailTarget(
-                state.config,
+                detailConfig,
                 ws.uri.fsPath,
                 state.builtInCapability,
                 (arg ?? {}) as { layerIndex?: number; repoId?: string; skipPreview?: boolean },
@@ -7150,7 +7543,7 @@ export function registerCommands(
             );
 
             vscode.window.showInformationMessage(
-                'MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).',
+                'MetaFlow: Built-in MetaFlow capability enabled (plugin-first defaults).',
             );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }),

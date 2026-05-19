@@ -404,6 +404,16 @@ suite('Command handler capability plugin maintenance helpers', () => {
                     },
                 },
             } as unknown as Parameters<typeof injectWorkspaceSettings>[3],
+            {
+                enabled: false,
+                layerEnabled: false,
+                disabledByUser: true,
+                synchronizedFiles: [],
+                layerStates: {},
+                sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            } as Parameters<typeof injectWorkspaceSettings>[4],
         );
 
         assert.deepStrictEqual(globalValues.get('chat.pluginLocations'), {

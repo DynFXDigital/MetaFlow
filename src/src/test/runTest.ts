@@ -304,24 +304,26 @@ function createDefaultDeps(): RunTestDeps {
             await withIntegrationTestSandbox(async ({ userDataDir, extensionsDir }) => {
                 await ensureIntegrationUserSettings(userDataDir);
                 await withFilteredIntegrationOutput(async () => {
-                    await runTests({
-                        extensionDevelopmentPath,
-                        extensionTestsPath,
-                        launchArgs: [
-                            testWorkspace,
-                            '--disable-gpu',
-                            '--disable-extensions',
-                            '--disable-extension',
-                            'vscode.git',
-                            '--disable-extension',
-                            'vscode.git-base',
-                            '--disable-updates',
-                            '--user-data-dir',
-                            userDataDir,
-                            '--extensions-dir',
-                            extensionsDir,
-                        ],
-                    });
+                    await runWithTimeout('Integration test run', INTEGRATION_RUN_TIMEOUT_MS, () =>
+                        runTests({
+                            extensionDevelopmentPath,
+                            extensionTestsPath,
+                            launchArgs: [
+                                testWorkspace,
+                                '--disable-gpu',
+                                '--disable-extensions',
+                                '--disable-extension',
+                                'vscode.git',
+                                '--disable-extension',
+                                'vscode.git-base',
+                                '--disable-updates',
+                                '--user-data-dir',
+                                userDataDir,
+                                '--extensions-dir',
+                                extensionsDir,
+                            ],
+                        }),
+                    );
                 });
             });
         },
