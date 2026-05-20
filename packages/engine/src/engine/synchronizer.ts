@@ -24,6 +24,7 @@ import { checkDrift } from './driftDetector';
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
 const DEFAULT_FILE_NAMING_STRATEGY: SyncFileNamingStrategy = 'prefixed';
+const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
 
 export interface PlannedSynchronizedFile {
     /** Destination relative path under the synchronization output directory. */
@@ -140,6 +141,10 @@ function buildFileNamingStrategyMap(
 function isChatmodesFile(file: EffectiveFile): boolean {
     const normalized = normalizeRelativePath(file.relativePath);
     return normalized === 'chatmodes' || normalized.startsWith('chatmodes/');
+}
+
+function isRepoWideCopilotInstructionsFile(file: EffectiveFile): boolean {
+    return normalizeRelativePath(file.relativePath) === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH;
 }
 
 function resolveEffectiveFileNamingStrategy(
@@ -347,6 +352,10 @@ export function toSynchronizedRelativePath(
     fileNamingStrategy?: SyncFileNamingStrategy,
 ): string {
     const normalizedPath = normalizeRelativePath(file.relativePath);
+    if (isRepoWideCopilotInstructionsFile(file)) {
+        return REPO_WIDE_COPILOT_INSTRUCTIONS_PATH;
+    }
+
     if (resolveFileNamingStrategy(fileNamingStrategy) === 'original-unless-conflict') {
         return normalizedPath;
     }

@@ -33,6 +33,8 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
     'chatmodes',
 ]);
 
+const KNOWN_GITHUB_ROOT_FILES = new Set(['copilot-instructions.md']);
+
 export interface ResolveLayersOptions {
     /** Enables runtime layer discovery for repos with discover.enabled=true. */
     enableDiscovery?: boolean;
@@ -364,6 +366,10 @@ function deriveCapabilityId(layerPath: string, repoRoot: string): string {
 }
 
 function isKnownArtifactPath(relativePath: string): boolean {
+    if (KNOWN_GITHUB_ROOT_FILES.has(relativePath)) {
+        return true;
+    }
+
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
 }
@@ -464,6 +470,17 @@ function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string
 function hasAnyKnownArtifactDir(dirPath: string): boolean {
     if (!fs.existsSync(dirPath)) {
         return false;
+    }
+
+    for (const rootFile of KNOWN_GITHUB_ROOT_FILES) {
+        const candidate = path.join(dirPath, rootFile);
+        try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                return true;
+            }
+        } catch {
+            continue;
+        }
     }
 
     for (const root of KNOWN_ARTIFACT_ROOTS) {

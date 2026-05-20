@@ -847,6 +847,33 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.drifted, 1);
         assert.ok(data.drifted.includes(synchronizedPath('skills/testing/SKILL.md')));
     });
+
+    it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        const beforeApply = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(beforeApply.exitCode, 1);
+        const beforeData = JSON.parse(beforeApply.stdout);
+        assert.ok(beforeData.unmanaged.includes('copilot-instructions.md'));
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(path.join(ws.root, '.github', 'copilot-instructions.md'), 'local edit');
+
+        const afterDrift = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(afterDrift.exitCode, 1);
+        const afterData = JSON.parse(afterDrift.stdout);
+        assert.ok(afterData.drifted.includes('copilot-instructions.md'));
+    });
 });
 
 // ── Multi-repo ─────────────────────────────────────────────────────
@@ -1661,6 +1688,50 @@ describe('CLI: promote --auto', () => {
             encoding: 'utf-8',
         }).trim();
         assert.strictEqual(branch, 'test-promote');
+    });
+
+    it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        gitInit(ws.metadataRepo);
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(
+            path.join(ws.root, '.github', 'copilot-instructions.md'),
+            '# Updated Repo-wide Copilot Instructions',
+        );
+
+        const result = promoteAuto(ws.root, {
+            noBranch: true,
+            message: 'test: promote repo-wide instructions',
+        });
+
+        assert.strictEqual(result.committed, true);
+        assert.ok(result.filesPromoted.includes('copilot-instructions.md'));
+
+        const promotedFile = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            '.github',
+            'copilot-instructions.md',
+        );
+        assert.ok(fs.existsSync(promotedFile), 'promoted file should stay under .github');
+        assert.ok(
+            fs
+                .readFileSync(promotedFile, 'utf-8')
+                .includes('Updated Repo-wide Copilot Instructions'),
+        );
     });
 
     it('should fall back to tracked synchronized relative path for older managed state files', async () => {

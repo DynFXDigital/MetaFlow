@@ -206,6 +206,27 @@ suite('synchronization engine', () => {
         assert.ok(fs.existsSync(path.join(tmpDir, outputDir, 'skills', 'nested', 'guide.md')));
     });
 
+    test('repo-wide copilot instructions always synchronize to canonical root path', () => {
+        const files = [makeEffectiveFile('copilot-instructions.md', '# Repo Instructions')];
+
+        const prefixedChanges = preview(tmpDir, files, outputDir);
+        assert.strictEqual(prefixedChanges[0].relativePath, 'copilot-instructions.md');
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(result.written.includes('copilot-instructions.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, outputDir, 'copilot-instructions.md')));
+
+        const state = loadManagedState(tmpDir);
+        assert.strictEqual(
+            state.files['copilot-instructions.md']?.sourceRelativePath,
+            'copilot-instructions.md',
+        );
+    });
+
     test('preview and apply report the same remap conflict when changing strategies', () => {
         const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });

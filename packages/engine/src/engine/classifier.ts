@@ -31,6 +31,7 @@ const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
 };
 
 const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents']);
+const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
 
 /**
  * Build a lookup key matching the layerId format used by the overlay engine.
@@ -118,6 +119,10 @@ export function classifySingle(
         ? normalized.slice('.github/'.length)
         : normalized;
     const topDir = effectivePath.split('/')[0];
+
+    if (effectivePath === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH) {
+        return 'synchronized';
+    }
 
     // Deprecated chatmodes remain synchronized-only.
     if (topDir === 'chatmodes') {

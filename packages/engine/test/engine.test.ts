@@ -1767,6 +1767,44 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'skills', 'nested', 'guide.md')));
     });
 
+    it('discovers and synchronizes repo-wide copilot instructions', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'copilot-instructions.md'),
+            '# Repo-wide Copilot Instructions',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { instructions: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const file = fileMap.get('copilot-instructions.md');
+        assert.ok(file, 'repo-wide copilot instructions should be retained');
+        assert.strictEqual(file?.classification, 'synchronized');
+
+        const pending = preview(tmpDir, files);
+        assert.ok(pending.some((change) => change.relativePath === 'copilot-instructions.md'));
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('copilot-instructions.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'copilot-instructions.md')));
+
+        fs.writeFileSync(path.join(tmpDir, '.github', 'copilot-instructions.md'), 'local edit');
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === 'copilot-instructions.md')?.status,
+            'drifted',
+        );
+    });
+
     it('preview and apply fail with the same message when strategy change would remap managed files', () => {
         const files = setupAndApply();
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });

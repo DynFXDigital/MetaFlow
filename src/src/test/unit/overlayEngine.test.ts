@@ -49,6 +49,21 @@ suite('overlayEngine', () => {
             assert.ok(!fileMap.has('.github/instructions/test.instructions.md'));
         });
 
+        test('recognizes repo-wide copilot instructions at .github root', () => {
+            const repoDir = path.join(tmpDir, 'repo');
+            createLayer(repoDir, 'company/core', ['.github/copilot-instructions.md']);
+
+            const config: MetaFlowConfig = {
+                metadataRepo: { localPath: repoDir },
+                layers: ['company/core'],
+            };
+
+            const layers = resolveLayers(config, tmpDir);
+            const fileMap = buildEffectiveFileMap(layers);
+            assert.ok(fileMap.has('copilot-instructions.md'));
+            assert.ok(!fileMap.has('.github/copilot-instructions.md'));
+        });
+
         test('single layer with all files', () => {
             // Create repo with one layer
             const repoDir = path.join(tmpDir, 'repo');
