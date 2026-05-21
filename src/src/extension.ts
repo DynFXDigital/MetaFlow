@@ -141,6 +141,12 @@ async function openTreeViewFilter(
 
     await prepareForFilter?.();
 
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
     await vscode.commands.executeCommand('list.find');
 }
 
