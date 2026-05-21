@@ -39,6 +39,10 @@ import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedul
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
 
+type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
+    getChildren(element?: T): T[];
+};
+
 function getFilesViewMode(): FilesViewMode {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     return readManagedViewsState(workspaceRoot).filesViewMode;
@@ -127,7 +131,18 @@ async function collapseBranch<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.collapse');
 }
 
-async function openTreeViewFilter(viewId: string): Promise<void> {
+async function prepareTreeViewFilter<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    await revealAll(treeView, provider);
+}
+
+async function openTreeViewFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
     await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
 
     try {
@@ -135,6 +150,8 @@ async function openTreeViewFilter(viewId: string): Promise<void> {
     } catch {
         // Fall back to the current sidebar focus when the generated focus command is unavailable.
     }
+
+    await prepareTreeViewFilter(treeView, provider);
 
     await vscode.commands.executeCommand('list.find');
 }
@@ -253,10 +270,18 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openTreeViewFilter('metaflow-layers');
+            await openTreeViewFilter(
+                'metaflow-layers',
+                layersTreeView,
+                layersTreeViewProvider,
+            );
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
-            await openTreeViewFilter('metaflow-files');
+            await openTreeViewFilter(
+                'metaflow-files',
+                filesTreeView,
+                filesTreeViewProvider,
+            );
         }),
         vscode.commands.registerCommand(
             'metaflow.expandLayersBranch',
