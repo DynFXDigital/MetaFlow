@@ -1892,17 +1892,29 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
 
         const level2 = provider.getChildren(roots[0]);
-        assert.deepStrictEqual(level2.map((item) => String(item.label)), ['capabilities']);
+        assert.deepStrictEqual(
+            level2.map((item) => String(item.label)),
+            ['capabilities'],
+        );
         assert.strictEqual(level2[0].collapsibleState, 2, 'ancestor folder should auto-expand');
 
         const level3 = provider.getChildren(level2[0]);
-        assert.deepStrictEqual(level3.map((item) => String(item.label)), ['devtools']);
+        assert.deepStrictEqual(
+            level3.map((item) => String(item.label)),
+            ['devtools'],
+        );
         assert.strictEqual(level3[0].collapsibleState, 2, 'matching branch should auto-expand');
 
         const level4 = provider.getChildren(level3[0]);
-        assert.deepStrictEqual(level4.map((item) => String(item.label)), ['instructions']);
+        assert.deepStrictEqual(
+            level4.map((item) => String(item.label)),
+            ['instructions'],
+        );
 
         const leaves = provider.getChildren(level4[0]);
-        assert.deepStrictEqual(leaves.map((item) => String(item.label)), ['foo.md']);
+        assert.deepStrictEqual(
+            leaves.map((item) => String(item.label)),
+            ['foo.md'],
+        );
     });
 });

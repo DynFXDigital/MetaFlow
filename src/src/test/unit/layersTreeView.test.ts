@@ -145,16 +145,28 @@ function makeMultiRepoConfig(
         enabled: boolean;
         excludedTypes: ExcludableArtifactType[];
         injection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
+            Record<
+                'instructions' | 'prompts' | 'agents' | 'skills',
+                'settings' | 'synchronize' | 'plugin'
+            >
         >;
         repoInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
+            Record<
+                'instructions' | 'prompts' | 'agents' | 'skills',
+                'settings' | 'synchronize' | 'plugin'
+            >
         >;
         capabilityInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
+            Record<
+                'instructions' | 'prompts' | 'agents' | 'skills',
+                'settings' | 'synchronize' | 'plugin'
+            >
         >;
         globalInjection: Partial<
-            Record<'instructions' | 'prompts' | 'agents' | 'skills', 'settings' | 'synchronize' | 'plugin'>
+            Record<
+                'instructions' | 'prompts' | 'agents' | 'skills',
+                'settings' | 'synchronize' | 'plugin'
+            >
         >;
     }>,
 ) {
@@ -2090,7 +2102,11 @@ suite('LayersTreeView – artifact-type children', () => {
             makeState(
                 config,
                 [
-                    makeEffectiveFile('instructions/a.md', 'repo1', 'capabilities/devtools/tooling'),
+                    makeEffectiveFile(
+                        'instructions/a.md',
+                        'repo1',
+                        'capabilities/devtools/tooling',
+                    ),
                     makeEffectiveFile('prompts/b.md', 'repo1', 'capabilities/devtools/tooling'),
                     makeEffectiveFile('agents/c.md', 'repo1', 'capabilities/devtools/tooling'),
                     makeEffectiveFile('skills/d.md', 'repo1', 'capabilities/devtools/tooling'),
@@ -2114,9 +2130,11 @@ suite('LayersTreeView – artifact-type children', () => {
         );
         assert.ok(
             Array.isArray(plan.stages) &&
-                plan.stages.map((stage) => stage.map((item) => String(item.label))).every(
-                    (labels) => !labels.includes('instructions') && !labels.includes('prompts'),
-                ),
+                plan.stages
+                    .map((stage) => stage.map((item) => String(item.label)))
+                    .every(
+                        (labels) => !labels.includes('instructions') && !labels.includes('prompts'),
+                    ),
             'staged expansion should never include artifact-type nodes',
         );
         assert.deepStrictEqual(
@@ -2161,6 +2179,9 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(repoChildren[0].collapsibleState, 2, 'layer should auto-expand');
 
         const layerChildren = provider.getChildren(repoChildren[0]);
-        assert.deepStrictEqual(layerChildren.map((item) => String(item.label)), ['prompts']);
+        assert.deepStrictEqual(
+            layerChildren.map((item) => String(item.label)),
+            ['prompts'],
+        );
     });
 });

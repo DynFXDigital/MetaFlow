@@ -900,24 +900,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof ArtifactBrowseFolderItem) {
-            return [
-                element.label,
-                element.artifactType,
-                element.browsePrefix,
-                element.description,
-            ]
+            return [element.label, element.artifactType, element.browsePrefix, element.description]
                 .filter((value): value is string => typeof value === 'string')
                 .join(' ')
                 .toLowerCase();
         }
 
         if (element instanceof ArtifactBrowseFileItem) {
-            return [
-                element.label,
-                element.artifactType,
-                element.browsePath,
-                element.description,
-            ]
+            return [element.label, element.artifactType, element.browsePath, element.description]
                 .filter((value): value is string => typeof value === 'string')
                 .join(' ')
                 .toLowerCase();
@@ -2196,7 +2186,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         const stages: LayerTreeItem[][] = [];
         const seenByStage: Set<string>[] = [];
-        let currentLevel = this.getChildren().filter((node) => this.shouldAutoExpandLayerNode(node));
+        let currentLevel = this.getChildren().filter((node) =>
+            this.shouldAutoExpandLayerNode(node),
+        );
 
         while (currentLevel.length > 0) {
             const stageIndex = stages.length;

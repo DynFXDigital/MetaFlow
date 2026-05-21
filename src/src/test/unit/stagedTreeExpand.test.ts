@@ -41,9 +41,9 @@ type StagedTreeExpandModule = {
         treeView: {
             reveal(element: T, options: unknown): Promise<void>;
             onDidExpandElement(listener: (event: { element: T }) => void): { dispose: () => void };
-            onDidCollapseElement(
-                listener: (event: { element: T }) => void,
-            ): { dispose: () => void };
+            onDidCollapseElement(listener: (event: { element: T }) => void): {
+                dispose: () => void;
+            };
         },
         provider: {
             onDidChangeTreeData?: (listener: () => void) => { dispose: () => void };
@@ -52,7 +52,6 @@ type StagedTreeExpandModule = {
         },
     ) => {
         expandAll(): Promise<void>;
-        expandAllToCompletion(): Promise<void>;
         reset(): void;
         dispose(): void;
     };
@@ -92,7 +91,11 @@ suite('StagedTreeExpandController', () => {
         const refreshEmitter = new MockEventEmitter<void>();
         const revealed: string[] = [];
 
-        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const repo = new MockTreeItem(
+            'repo',
+            'Repo',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
         const capabilities = new MockTreeItem(
             'capabilities',
             'capabilities',
@@ -138,7 +141,11 @@ suite('StagedTreeExpandController', () => {
         const collapseEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
         const revealed: string[] = [];
 
-        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const repo = new MockTreeItem(
+            'repo',
+            'Repo',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
         const capabilities = new MockTreeItem(
             'capabilities',
             'capabilities',
@@ -192,7 +199,11 @@ suite('StagedTreeExpandController', () => {
         const refreshEmitter = new MockEventEmitter<void>();
         const revealed: string[] = [];
 
-        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const repo = new MockTreeItem(
+            'repo',
+            'Repo',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
         const capabilities = new MockTreeItem(
             'capabilities',
             'capabilities',
@@ -229,17 +240,25 @@ suite('StagedTreeExpandController', () => {
 
         refreshEmitter.fire(undefined);
         await controller.expandAll();
-        assert.deepStrictEqual(
-            revealed,
-            ['repo', 'capabilities', 'capability', 'repo', 'capabilities'],
-        );
+        assert.deepStrictEqual(revealed, [
+            'repo',
+            'capabilities',
+            'capability',
+            'repo',
+            'capabilities',
+        ]);
 
         controller.reset();
         await controller.expandAll();
-        assert.deepStrictEqual(
-            revealed,
-            ['repo', 'capabilities', 'capability', 'repo', 'capabilities', 'repo', 'capabilities'],
-        );
+        assert.deepStrictEqual(revealed, [
+            'repo',
+            'capabilities',
+            'capability',
+            'repo',
+            'capabilities',
+            'repo',
+            'capabilities',
+        ]);
 
         controller.dispose();
     });
@@ -250,7 +269,11 @@ suite('StagedTreeExpandController', () => {
         const collapseEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
         const revealed: string[] = [];
 
-        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const repo = new MockTreeItem(
+            'repo',
+            'Repo',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
         const capabilities = new MockTreeItem(
             'capabilities',
             'capabilities',
@@ -292,57 +315,6 @@ suite('StagedTreeExpandController', () => {
             revealed,
             ['repo', 'capabilities', 'devtools'],
             'once all planned stages are expanded, further calls should stop',
-        );
-
-        controller.dispose();
-    });
-
-    test('can expand every planned staged level in one call', async () => {
-        const { StagedTreeExpandController } = loadStagedTreeExpand();
-        const expandEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
-        const collapseEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
-        const revealed: string[] = [];
-
-        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
-        const capabilities = new MockTreeItem(
-            'capabilities',
-            'capabilities',
-            mockVscode.TreeItemCollapsibleState.Collapsed,
-        );
-        const devtools = new MockTreeItem(
-            'devtools',
-            'devtools',
-            mockVscode.TreeItemCollapsibleState.Collapsed,
-        );
-
-        const controller = new StagedTreeExpandController(
-            {
-                async reveal(element) {
-                    revealed.push(element.id ?? 'unknown');
-                    expandEmitter.fire({ element });
-                },
-                onDidExpandElement: expandEmitter.event,
-                onDidCollapseElement: collapseEmitter.event,
-            },
-            {
-                getExpandAllStrategy: () => 'staged',
-                getStagedExpandPlan: () => ({
-                    stageOne: [repo],
-                    stageTwo: [capabilities],
-                    stages: [[repo], [capabilities], [devtools]],
-                }),
-            },
-        );
-
-        await controller.expandAllToCompletion();
-
-        assert.deepStrictEqual(revealed, ['repo', 'capabilities', 'devtools']);
-
-        await controller.expandAllToCompletion();
-        assert.deepStrictEqual(
-            revealed,
-            ['repo', 'capabilities', 'devtools'],
-            'once all planned stages are expanded, repeated full expansion should stop',
         );
 
         controller.dispose();

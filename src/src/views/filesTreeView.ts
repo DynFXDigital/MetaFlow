@@ -543,12 +543,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
 
         if (element instanceof FolderItem) {
-            return [
-                element.label,
-                element.prefix,
-                element.folderSourcePath,
-                element.description,
-            ]
+            return [element.label, element.prefix, element.folderSourcePath, element.description]
                 .filter((value): value is string => typeof value === 'string')
                 .join(' ')
                 .toLowerCase();

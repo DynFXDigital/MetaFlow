@@ -48,24 +48,6 @@ export class StagedTreeExpandController<T extends vscode.TreeItem> implements vs
             return;
         }
 
-        await this.expandNextStage();
-    }
-
-    async expandAllToCompletion(): Promise<void> {
-        if (this.provider.getExpandAllStrategy() !== 'staged') {
-            return;
-        }
-
-        while (await this.expandNextStage()) {
-            // Continue until all planned stages are expanded.
-        }
-    }
-
-    private async expandNextStage(): Promise<boolean> {
-        if (this.provider.getExpandAllStrategy() !== 'staged') {
-            return false;
-        }
-
         const plan = this.provider.getStagedExpandPlan();
         const stages =
             plan.stages && plan.stages.length > 0 ? plan.stages : [plan.stageOne, plan.stageTwo];
@@ -74,11 +56,9 @@ export class StagedTreeExpandController<T extends vscode.TreeItem> implements vs
             const targets = stage.filter((node) => !this.isExpanded(node));
             if (targets.length > 0) {
                 await this.revealTargets(targets);
-                return true;
+                return;
             }
         }
-
-        return false;
     }
 
     reset(): void {
