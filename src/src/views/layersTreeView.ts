@@ -90,6 +90,11 @@ function normalizeRelativePath(value: string): string {
     return normalized || '.';
 }
 
+function normalizeSearchQuery(value: string | undefined): string | undefined {
+    const normalized = value?.trim().toLowerCase();
+    return normalized ? normalized : undefined;
+}
+
 function projectBuiltInCapabilityConfig(
     config: ExtensionState['config'],
     builtInCapability: ExtensionState['builtInCapability'],
@@ -817,6 +822,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     private readonly _parentMap = new WeakMap<LayerTreeItem, LayerTreeItem | undefined>();
     private readonly parsedMetadataByPath = new Map<string, ParsedMetadata | null>();
     private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
+    private searchQuery: string | undefined;
+    private searchVersion = 0;
 
     constructor(
         private state: ExtensionState,
@@ -835,6 +842,21 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         this._onDidChangeTreeData.fire(undefined);
     }
 
+    setSearchQuery(value: string | undefined): void {
+        const normalized = normalizeSearchQuery(value);
+        if (normalized === this.searchQuery) {
+            return;
+        }
+
+        this.searchQuery = normalized;
+        this.searchVersion += 1;
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    getSearchQuery(): string | undefined {
+        return this.searchQuery;
+    }
+
     getTreeItem(element: LayerTreeItem): vscode.TreeItem {
         return element;
     }
@@ -847,6 +869,102 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             this._parentMap.set(item, parent);
         }
         return items;
+    }
+
+    private getSearchableText(element: LayerTreeItem): string {
+        if (element instanceof LayerRepoItem) {
+            return [element.label, element.repoId, element.description]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof LayerItem) {
+            return [
+                element.label,
+                element.repoId,
+                element.pathKey,
+                element.layerPath,
+                element.description,
+            ]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof ArtifactTypeLayerItem) {
+            return [element.label, element.artifactType, element.description]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof ArtifactBrowseFolderItem) {
+            return [
+                element.label,
+                element.artifactType,
+                element.browsePrefix,
+                element.description,
+            ]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof ArtifactBrowseFileItem) {
+            return [
+                element.label,
+                element.artifactType,
+                element.browsePath,
+                element.description,
+            ]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        return String(element.label ?? '').toLowerCase();
+    }
+
+    private matchesSearch(element: LayerTreeItem): boolean {
+        if (!this.searchQuery) {
+            return true;
+        }
+
+        return this.getSearchableText(element).includes(this.searchQuery);
+    }
+
+    private applySearchPresentation<T extends LayerTreeItem>(element: T): T {
+        if (element.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
+            element.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        }
+
+        if (typeof element.id === 'string' && element.id.length > 0) {
+            element.id = `${element.id}|search:${this.searchVersion}`;
+        }
+
+        return element;
+    }
+
+    private getSearchFilteredChildren(element?: LayerTreeItem): LayerTreeItem[] {
+        const children = this.getChildrenCore(element);
+        if (!this.searchQuery) {
+            return children;
+        }
+
+        return children.filter((child) => {
+            const descendantMatches =
+                child.collapsibleState === vscode.TreeItemCollapsibleState.None
+                    ? []
+                    : this.getSearchFilteredChildren(child);
+            const include = this.matchesSearch(child) || descendantMatches.length > 0;
+
+            if (include && descendantMatches.length > 0) {
+                this.applySearchPresentation(child);
+            }
+
+            return include;
+        });
     }
 
     private formatLayerLabel(layerPath: string, repoLabel?: string): string {
@@ -1833,7 +1951,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             );
     }
 
-    getChildren(element?: LayerTreeItem): LayerTreeItem[] {
+    private getChildrenCore(element?: LayerTreeItem): LayerTreeItem[] {
         if (this.state.isLoading && !this.state.config) {
             return element ? [] : [new LoadingLayerItem()];
         }
@@ -2061,6 +2179,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return this.trackChildren(this.getTreeChildrenForPrefix(entries, ''), undefined);
     }
 
+    getChildren(element?: LayerTreeItem): LayerTreeItem[] {
+        return this.searchQuery
+            ? this.getSearchFilteredChildren(element)
+            : this.getChildrenCore(element);
+    }
+
     getExpandAllStrategy(): ExpandAllStrategy {
         return this.modeResolver() === 'tree' ? 'staged' : 'recursive';
     }
@@ -2070,39 +2194,45 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return { stageOne: [], stageTwo: [] };
         }
 
-        const stageOne: LayerTreeItem[] = [];
-        const stageTwo: LayerTreeItem[] = [];
-        const stageOneSeen = new Set<string>();
-        const stageTwoSeen = new Set<string>();
+        const stages: LayerTreeItem[][] = [];
+        const seenByStage: Set<string>[] = [];
+        let currentLevel = this.getChildren().filter((node) => this.shouldAutoExpandLayerNode(node));
 
-        const visit = (node: LayerTreeItem, ancestors: LayerTreeItem[]): void => {
-            if (
-                node instanceof LayerItem &&
-                typeof node.layerIndex === 'number' &&
-                node.collapsibleState !== vscode.TreeItemCollapsibleState.None
-            ) {
-                for (const ancestor of this.getExpandPlanAncestors(node, ancestors)) {
-                    this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
-                }
-                this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
-                return;
+        while (currentLevel.length > 0) {
+            const stageIndex = stages.length;
+            stages.push([]);
+            seenByStage.push(new Set<string>());
+
+            for (const node of currentLevel) {
+                this.appendExpandPlanNode(stages[stageIndex], seenByStage[stageIndex], node);
             }
 
-            const nextAncestors =
-                node.collapsibleState === vscode.TreeItemCollapsibleState.None
-                    ? ancestors
-                    : [...ancestors, node];
-
-            for (const child of this.getChildren(node)) {
-                visit(child, nextAncestors);
-            }
-        };
-
-        for (const root of this.getChildren()) {
-            visit(root, []);
+            currentLevel = currentLevel
+                .flatMap((node) => this.getChildren(node))
+                .filter((node) => this.shouldAutoExpandLayerNode(node));
         }
 
-        return { stageOne, stageTwo };
+        return {
+            stageOne: stages[0] ?? [],
+            stageTwo: stages[1] ?? [],
+            stages,
+        };
+    }
+
+    private shouldAutoExpandLayerNode(node: LayerTreeItem): boolean {
+        if (node.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            return false;
+        }
+
+        if (node instanceof LayerRepoItem) {
+            return true;
+        }
+
+        if (node instanceof LayerItem) {
+            return typeof node.layerIndex !== 'number';
+        }
+
+        return false;
     }
 
     private getExpandPlanAncestors(

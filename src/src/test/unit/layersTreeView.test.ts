@@ -101,11 +101,14 @@ type LayersTreeViewModule = {
     ) => {
         getChildren(element?: MockLayerTreeItem): MockLayerTreeItem[];
         getExpandAllStrategy(): string;
+        getSearchQuery(): string | undefined;
         getStagedExpandPlan(): {
             stageOne: MockLayerTreeItem[];
             stageTwo: MockLayerTreeItem[];
+            stages?: MockLayerTreeItem[][];
         };
         getParent(element: MockLayerTreeItem): MockLayerTreeItem | undefined;
+        setSearchQuery(value: string | undefined): void;
     };
 };
 
@@ -2074,23 +2077,23 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-SEA-01: tree mode stops stage one at capability depth and stage two at artifact toggles', () => {
+    test('LTV-SEA-01: tree mode expands one capability-folder depth per click and stops before artifact toggles', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
-            layerSources: [{ repoId: 'repo1', path: 'capabilities/devtools' }],
+            layerSources: [{ repoId: 'repo1', path: 'capabilities/devtools/tooling' }],
         };
         const capabilityByLayer = {
-            'repo1/capabilities/devtools': { name: 'Developer Tools' },
+            'repo1/capabilities/devtools/tooling': { name: 'Developer Tooling' },
         };
         const provider = new LayersTreeViewProvider(
             makeState(
                 config,
                 [
-                    makeEffectiveFile('instructions/a.md', 'repo1', 'capabilities/devtools'),
-                    makeEffectiveFile('prompts/b.md', 'repo1', 'capabilities/devtools'),
-                    makeEffectiveFile('agents/c.md', 'repo1', 'capabilities/devtools'),
-                    makeEffectiveFile('skills/d.md', 'repo1', 'capabilities/devtools'),
+                    makeEffectiveFile('instructions/a.md', 'repo1', 'capabilities/devtools/tooling'),
+                    makeEffectiveFile('prompts/b.md', 'repo1', 'capabilities/devtools/tooling'),
+                    makeEffectiveFile('agents/c.md', 'repo1', 'capabilities/devtools/tooling'),
+                    makeEffectiveFile('skills/d.md', 'repo1', 'capabilities/devtools/tooling'),
                 ],
                 capabilityByLayer,
             ),
@@ -2103,15 +2106,23 @@ suite('LayersTreeView – artifact-type children', () => {
 
         assert.deepStrictEqual(
             plan.stageOne.map((item) => String(item.label)),
-            ['CoreMeta', 'capabilities'],
+            ['CoreMeta'],
         );
         assert.deepStrictEqual(
             plan.stageTwo.map((item) => String(item.label)),
-            ['Developer Tools'],
+            ['capabilities'],
         );
         assert.ok(
-            plan.stageTwo.every((item) => item.contextValue === 'layer'),
-            'stage two should stop at capability nodes instead of expanding artifact contents',
+            Array.isArray(plan.stages) &&
+                plan.stages.map((stage) => stage.map((item) => String(item.label))).every(
+                    (labels) => !labels.includes('instructions') && !labels.includes('prompts'),
+                ),
+            'staged expansion should never include artifact-type nodes',
+        );
+        assert.deepStrictEqual(
+            plan.stages?.map((stage) => stage.map((item) => String(item.label))),
+            [['CoreMeta'], ['capabilities'], ['devtools']],
+            'each click should reveal one more capability-folder depth before the capability node becomes visible',
         );
         assert.ok(
             !plan.stageOne.concat(plan.stageTwo).some((item) => String(item.label) === 'skills'),
@@ -2128,5 +2139,28 @@ suite('LayersTreeView – artifact-type children', () => {
 
         assert.strictEqual(provider.getExpandAllStrategy(), 'recursive');
         assert.deepStrictEqual(provider.getStagedExpandPlan(), { stageOne: [], stageTwo: [] });
+    });
+
+    test('LTV-SCH-01: tree search keeps only matching artifact branches and expands ancestors', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES),
+            () => 'tree',
+        );
+
+        provider.setSearchQuery('prompts');
+
+        const roots = provider.getChildren();
+        assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
+        assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
+
+        const repoChildren = provider.getChildren(roots[0]);
+        assert.strictEqual(repoChildren.length, 1, 'expected a single visible layer');
+        assert.strictEqual(repoChildren[0].contextValue, 'layer');
+        assert.strictEqual(repoChildren[0].collapsibleState, 2, 'layer should auto-expand');
+
+        const layerChildren = provider.getChildren(repoChildren[0]);
+        assert.deepStrictEqual(layerChildren.map((item) => String(item.label)), ['prompts']);
     });
 });

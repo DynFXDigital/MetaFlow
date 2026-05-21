@@ -775,6 +775,10 @@
         }
       }
     },
+    "configurationDefaults": {
+      "workbench.list.defaultFindMode": "filter",
+      "workbench.list.defaultFindMatchType": "contiguous"
+    },
     "keybindings": [
       {
         "command": "metaflow.refresh",

@@ -5,6 +5,7 @@ export type ExpandAllStrategy = 'recursive' | 'staged';
 export interface StagedExpandPlan<T extends vscode.TreeItem> {
     stageOne: T[];
     stageTwo: T[];
+    stages?: T[][];
 }
 
 export interface StagedExpandProvider<T extends vscode.TreeItem> {
@@ -47,15 +48,37 @@ export class StagedTreeExpandController<T extends vscode.TreeItem> implements vs
             return;
         }
 
-        const plan = this.provider.getStagedExpandPlan();
-        const stageOneTargets = plan.stageOne.filter((node) => !this.isExpanded(node));
-        if (stageOneTargets.length > 0) {
-            await this.revealTargets(stageOneTargets);
+        await this.expandNextStage();
+    }
+
+    async expandAllToCompletion(): Promise<void> {
+        if (this.provider.getExpandAllStrategy() !== 'staged') {
             return;
         }
 
-        const stageTwoTargets = plan.stageTwo.filter((node) => !this.isExpanded(node));
-        await this.revealTargets(stageTwoTargets);
+        while (await this.expandNextStage()) {
+            // Continue until all planned stages are expanded.
+        }
+    }
+
+    private async expandNextStage(): Promise<boolean> {
+        if (this.provider.getExpandAllStrategy() !== 'staged') {
+            return false;
+        }
+
+        const plan = this.provider.getStagedExpandPlan();
+        const stages =
+            plan.stages && plan.stages.length > 0 ? plan.stages : [plan.stageOne, plan.stageTwo];
+
+        for (const stage of stages) {
+            const targets = stage.filter((node) => !this.isExpanded(node));
+            if (targets.length > 0) {
+                await this.revealTargets(targets);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     reset(): void {

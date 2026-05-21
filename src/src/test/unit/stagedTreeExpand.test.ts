@@ -48,10 +48,11 @@ type StagedTreeExpandModule = {
         provider: {
             onDidChangeTreeData?: (listener: () => void) => { dispose: () => void };
             getExpandAllStrategy(): string;
-            getStagedExpandPlan(): { stageOne: T[]; stageTwo: T[] };
+            getStagedExpandPlan(): { stageOne: T[]; stageTwo: T[]; stages?: T[][] };
         },
     ) => {
         expandAll(): Promise<void>;
+        expandAllToCompletion(): Promise<void>;
         reset(): void;
         dispose(): void;
     };
@@ -238,6 +239,110 @@ suite('StagedTreeExpandController', () => {
         assert.deepStrictEqual(
             revealed,
             ['repo', 'capabilities', 'capability', 'repo', 'capabilities', 'repo', 'capabilities'],
+        );
+
+        controller.dispose();
+    });
+
+    test('supports multiple staged depth passes before stopping', async () => {
+        const { StagedTreeExpandController } = loadStagedTreeExpand();
+        const expandEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
+        const collapseEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
+        const revealed: string[] = [];
+
+        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const capabilities = new MockTreeItem(
+            'capabilities',
+            'capabilities',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
+        const devtools = new MockTreeItem(
+            'devtools',
+            'devtools',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
+
+        const controller = new StagedTreeExpandController(
+            {
+                async reveal(element) {
+                    revealed.push(element.id ?? 'unknown');
+                    expandEmitter.fire({ element });
+                },
+                onDidExpandElement: expandEmitter.event,
+                onDidCollapseElement: collapseEmitter.event,
+            },
+            {
+                getExpandAllStrategy: () => 'staged',
+                getStagedExpandPlan: () => ({
+                    stageOne: [repo],
+                    stageTwo: [capabilities],
+                    stages: [[repo], [capabilities], [devtools]],
+                }),
+            },
+        );
+
+        await controller.expandAll();
+        await controller.expandAll();
+        await controller.expandAll();
+
+        assert.deepStrictEqual(revealed, ['repo', 'capabilities', 'devtools']);
+
+        await controller.expandAll();
+        assert.deepStrictEqual(
+            revealed,
+            ['repo', 'capabilities', 'devtools'],
+            'once all planned stages are expanded, further calls should stop',
+        );
+
+        controller.dispose();
+    });
+
+    test('can expand every planned staged level in one call', async () => {
+        const { StagedTreeExpandController } = loadStagedTreeExpand();
+        const expandEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
+        const collapseEmitter = new MockEventEmitter<{ element: MockTreeItem }>();
+        const revealed: string[] = [];
+
+        const repo = new MockTreeItem('repo', 'Repo', mockVscode.TreeItemCollapsibleState.Collapsed);
+        const capabilities = new MockTreeItem(
+            'capabilities',
+            'capabilities',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
+        const devtools = new MockTreeItem(
+            'devtools',
+            'devtools',
+            mockVscode.TreeItemCollapsibleState.Collapsed,
+        );
+
+        const controller = new StagedTreeExpandController(
+            {
+                async reveal(element) {
+                    revealed.push(element.id ?? 'unknown');
+                    expandEmitter.fire({ element });
+                },
+                onDidExpandElement: expandEmitter.event,
+                onDidCollapseElement: collapseEmitter.event,
+            },
+            {
+                getExpandAllStrategy: () => 'staged',
+                getStagedExpandPlan: () => ({
+                    stageOne: [repo],
+                    stageTwo: [capabilities],
+                    stages: [[repo], [capabilities], [devtools]],
+                }),
+            },
+        );
+
+        await controller.expandAllToCompletion();
+
+        assert.deepStrictEqual(revealed, ['repo', 'capabilities', 'devtools']);
+
+        await controller.expandAllToCompletion();
+        assert.deepStrictEqual(
+            revealed,
+            ['repo', 'capabilities', 'devtools'],
+            'once all planned stages are expanded, repeated full expansion should stop',
         );
 
         controller.dispose();

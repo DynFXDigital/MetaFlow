@@ -63,6 +63,7 @@ const mockVscode = {
 type MockItem = {
     contextValue?: string;
     label?: unknown;
+    collapsibleState?: number;
     description?: string | boolean;
     artifactType?: string;
     files?: EffectiveFile[];
@@ -80,8 +81,10 @@ type MockProvider = {
         stageOne: MockItem[];
         stageTwo: MockItem[];
     };
+    getSearchQuery?(): string | undefined;
     getParent?(element: MockItem): MockItem | undefined;
     resolveTreeItem?(item: MockItem, element: MockItem, token: unknown): Promise<MockItem>;
+    setSearchQuery?(value: string | undefined): void;
 };
 
 type FilesTreeViewModule = {
@@ -1855,5 +1858,51 @@ suite('FilesTreeView – artifact-type grouping', () => {
 
         assert.strictEqual(provider.getExpandAllStrategy?.(), 'recursive');
         assert.deepStrictEqual(provider.getStagedExpandPlan?.(), { stageOne: [], stageTwo: [] });
+    });
+
+    test('FTV-SCH-01: repoTree search prunes unmatched branches and expands the match path', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [
+            {
+                relativePath: '.github/instructions/foo.md',
+                sourcePath: '/repo/capabilities/devtools/.github/instructions/foo.md',
+                sourceLayer: '/repo/capabilities/devtools',
+                sourceRepo: '/repo',
+                classification: 'synchronized',
+            } as EffectiveFile,
+            {
+                relativePath: '.github/skills/my-skill/SKILL.md',
+                sourcePath: '/repo/capabilities/devtools/.github/skills/my-skill/SKILL.md',
+                sourceLayer: '/repo/capabilities/devtools',
+                sourceRepo: '/repo',
+                classification: 'synchronized',
+            } as EffectiveFile,
+        ];
+        const provider = new FilesTreeViewProvider(
+            makeState(files, {
+                metadataRepos: [{ id: 'primary', name: 'Team Metadata', localPath: '/repo' }],
+            }),
+            () => 'repoTree',
+        );
+
+        provider.setSearchQuery?.('foo');
+
+        const roots = provider.getChildren();
+        assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
+        assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
+
+        const level2 = provider.getChildren(roots[0]);
+        assert.deepStrictEqual(level2.map((item) => String(item.label)), ['capabilities']);
+        assert.strictEqual(level2[0].collapsibleState, 2, 'ancestor folder should auto-expand');
+
+        const level3 = provider.getChildren(level2[0]);
+        assert.deepStrictEqual(level3.map((item) => String(item.label)), ['devtools']);
+        assert.strictEqual(level3[0].collapsibleState, 2, 'matching branch should auto-expand');
+
+        const level4 = provider.getChildren(level3[0]);
+        assert.deepStrictEqual(level4.map((item) => String(item.label)), ['instructions']);
+
+        const leaves = provider.getChildren(level4[0]);
+        assert.deepStrictEqual(leaves.map((item) => String(item.label)), ['foo.md']);
     });
 });
