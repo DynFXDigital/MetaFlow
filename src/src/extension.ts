@@ -270,18 +270,10 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openTreeViewFilter(
-                'metaflow-layers',
-                layersTreeView,
-                layersTreeViewProvider,
-            );
+            await openTreeViewFilter('metaflow-layers', layersTreeView, layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
-            await openTreeViewFilter(
-                'metaflow-files',
-                filesTreeView,
-                filesTreeViewProvider,
-            );
+            await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand(
             'metaflow.expandLayersBranch',
