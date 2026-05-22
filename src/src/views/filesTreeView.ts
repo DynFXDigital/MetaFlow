@@ -316,10 +316,11 @@ class FolderItem extends vscode.TreeItem {
         public readonly artifactType?: ArtifactType,
         summary?: ArtifactSummary,
         descriptionBase?: string,
+        isCapabilityFolder = false,
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
         this.id = `effectiveFolder:${repoId ?? 'no-repo'}:${artifactType ?? 'folder'}:${prefix || '.'}`;
-        this.contextValue = 'effectiveFolder';
+        this.contextValue = isCapabilityFolder ? 'effectiveCapabilityFolder' : 'effectiveFolder';
         this.iconPath = new vscode.ThemeIcon('folder');
         if (summary) {
             this.description = formatSummaryDescription(descriptionBase, summary);
@@ -1273,6 +1274,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     undefined,
                     summarizeDisplayPrefix(this.state.treeSummaryCache, repoId, nextPrefix),
                     descriptionBase,
+                    !!capability,
                 );
             }),
         );

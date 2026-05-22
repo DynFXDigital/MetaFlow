@@ -622,6 +622,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             .getChildren(capabilitiesFolder)
             .find((item) => String(item.label) === 'Agent Commit Coordination');
         assert.ok(capabilityFolder, 'expected capability folder to use display name');
+        assert.strictEqual(capabilityFolder?.contextValue, 'effectiveCapabilityFolder');
         assert.strictEqual(
             String(capabilityFolder?.description),
             'agent-commit-coordination (0/0)',

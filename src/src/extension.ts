@@ -56,7 +56,12 @@ function isCapabilitySearchBoundary(
     item: vscode.TreeItem,
     children: readonly vscode.TreeItem[],
 ): boolean {
-    return getContextValue(item) === 'layer' || children.some((child) => isArtifactTypeNode(child));
+    const contextValue = getContextValue(item);
+    return (
+        contextValue === 'layer' ||
+        contextValue === 'effectiveCapabilityFolder' ||
+        children.some((child) => isArtifactTypeNode(child))
+    );
 }
 
 function getFilesViewMode(): FilesViewMode {
