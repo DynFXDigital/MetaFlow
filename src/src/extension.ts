@@ -43,6 +43,22 @@ type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
 };
 
+function getContextValue(item: vscode.TreeItem): string {
+    return typeof item.contextValue === 'string' ? item.contextValue : '';
+}
+
+function isArtifactTypeNode(item: vscode.TreeItem): boolean {
+    const contextValue = getContextValue(item);
+    return contextValue === 'artifactTypeFolder' || contextValue.startsWith('layerArtifactType:');
+}
+
+function isCapabilitySearchBoundary(
+    item: vscode.TreeItem,
+    children: readonly vscode.TreeItem[],
+): boolean {
+    return getContextValue(item) === 'layer' || children.some((child) => isArtifactTypeNode(child));
+}
+
 function getFilesViewMode(): FilesViewMode {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     return readManagedViewsState(workspaceRoot).filesViewMode;
@@ -113,6 +129,25 @@ async function revealAll<T extends vscode.TreeItem>(
     }
 }
 
+async function revealSearchBranches<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+    element?: T,
+): Promise<void> {
+    for (const child of provider.getChildren(element)) {
+        if (child.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            continue;
+        }
+
+        await treeView.reveal(child, { expand: 1, select: false, focus: false });
+
+        const children = provider.getChildren(child);
+        if (!isCapabilitySearchBoundary(child, children)) {
+            await revealSearchBranches(treeView, provider, child);
+        }
+    }
+}
+
 async function revealBranch<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: { getChildren(e?: T): T[] },
@@ -135,7 +170,7 @@ async function prepareTreeViewFilter<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: SearchPreparedTreeProvider<T>,
 ): Promise<void> {
-    await revealAll(treeView, provider);
+    await revealSearchBranches(treeView, provider);
 }
 
 async function openTreeViewFilter<T extends vscode.TreeItem>(
