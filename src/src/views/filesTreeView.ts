@@ -77,11 +77,6 @@ interface DirectoryManifestMetadata {
 
 type FilesViewMode = 'unified' | 'repoTree';
 
-function normalizeSearchQuery(value: string | undefined): string | undefined {
-    const normalized = value?.trim().toLowerCase();
-    return normalized ? normalized : undefined;
-}
-
 // ArtifactType and getArtifactType are imported from @metaflow/engine.
 export type { ArtifactType } from '@metaflow/engine';
 
@@ -394,8 +389,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private readonly _parentMap = new WeakMap<FileTreeNode, FileTreeNode | undefined>();
     private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
-    private searchQuery: string | undefined;
-    private searchVersion = 0;
 
     constructor(
         private state: ExtensionState,
@@ -411,21 +404,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     refresh(): void {
         this.directoryManifestByPath.clear();
         this._onDidChangeTreeData.fire(undefined);
-    }
-
-    setSearchQuery(value: string | undefined): void {
-        const normalized = normalizeSearchQuery(value);
-        if (normalized === this.searchQuery) {
-            return;
-        }
-
-        this.searchQuery = normalized;
-        this.searchVersion += 1;
-        this._onDidChangeTreeData.fire(undefined);
-    }
-
-    getSearchQuery(): string | undefined {
-        return this.searchQuery;
     }
 
     getTreeItem(element: FileTreeNode): vscode.TreeItem {
@@ -525,86 +503,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             this._parentMap.set(item, parent);
         }
         return items;
-    }
-
-    private getSearchableText(element: FileTreeNode): string {
-        if (element instanceof RepoItem) {
-            return [element.label, element.repoId, element.description]
-                .filter((value): value is string => typeof value === 'string')
-                .join(' ')
-                .toLowerCase();
-        }
-
-        if (element instanceof ArtifactTypeItem) {
-            return [element.label, element.artifactType, element.description]
-                .filter((value): value is string => typeof value === 'string')
-                .join(' ')
-                .toLowerCase();
-        }
-
-        if (element instanceof FolderItem) {
-            return [element.label, element.prefix, element.folderSourcePath, element.description]
-                .filter((value): value is string => typeof value === 'string')
-                .join(' ')
-                .toLowerCase();
-        }
-
-        if (element instanceof FileItem) {
-            return [
-                element.label,
-                element.file.relativePath,
-                element.file.sourcePath,
-                element.sourceLabel,
-                element.displayLayerLabel,
-                element.description,
-            ]
-                .filter((value): value is string => typeof value === 'string')
-                .join(' ')
-                .toLowerCase();
-        }
-
-        return String(element.label ?? '').toLowerCase();
-    }
-
-    private matchesSearch(element: FileTreeNode): boolean {
-        if (!this.searchQuery) {
-            return true;
-        }
-
-        return this.getSearchableText(element).includes(this.searchQuery);
-    }
-
-    private applySearchPresentation<T extends FileTreeNode>(element: T): T {
-        if (element.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
-            element.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
-        }
-
-        if (typeof element.id === 'string' && element.id.length > 0) {
-            element.id = `${element.id}|search:${this.searchVersion}`;
-        }
-
-        return element;
-    }
-
-    private getSearchFilteredChildren(element?: FileTreeNode): FileTreeNode[] {
-        const children = this.getChildrenCore(element);
-        if (!this.searchQuery) {
-            return children;
-        }
-
-        return children.filter((child) => {
-            const descendantMatches =
-                child.collapsibleState === vscode.TreeItemCollapsibleState.None
-                    ? []
-                    : this.getSearchFilteredChildren(child);
-            const include = this.matchesSearch(child) || descendantMatches.length > 0;
-
-            if (include && descendantMatches.length > 0) {
-                this.applySearchPresentation(child);
-            }
-
-            return include;
-        });
     }
 
     private getSourceRoots(): SourceRoot[] {
@@ -1397,7 +1295,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return [...folders, ...typeItems, ...sortByLabel(leafFiles)];
     }
 
-    private getChildrenCore(element?: FileTreeNode): FileTreeNode[] {
+    getChildren(element?: FileTreeNode): FileTreeNode[] {
         if (this.state.isLoading && !this.state.config) {
             return element ? [] : [new LoadingFileItem()];
         }
@@ -1459,12 +1357,6 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
 
         const rootRepoId = this.getRepoIdForFiles(files, roots);
         return this.trackChildren(this.groupByArtifactType(files, rootRepoId), undefined);
-    }
-
-    getChildren(element?: FileTreeNode): FileTreeNode[] {
-        return this.searchQuery
-            ? this.getSearchFilteredChildren(element)
-            : this.getChildrenCore(element);
     }
 
     getExpandAllStrategy(): ExpandAllStrategy {
