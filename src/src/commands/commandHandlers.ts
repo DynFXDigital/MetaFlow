@@ -2756,6 +2756,7 @@ function resolveOverlay(
         forceDiscoveryRepoIds?: string[];
         builtInCapability?: BuiltInCapabilityRuntimeState;
     },
+    emitLogs: boolean = true,
 ): {
     baseProfileFiles: EffectiveFile[];
     effectiveFiles: EffectiveFile[];
@@ -2802,7 +2803,9 @@ function resolveOverlay(
         if (!seenCapabilityWarningMessages.has(message)) {
             seenCapabilityWarningMessages.add(message);
             capabilityWarnings.push(message);
-            logWarn(message);
+            if (emitLogs) {
+                logWarn(message);
+            }
         }
     };
 
@@ -2834,7 +2837,9 @@ function resolveOverlay(
         if (!seenCapabilityWarningMessages.has(warning)) {
             seenCapabilityWarningMessages.add(warning);
             capabilityWarnings.push(warning);
-            logWarn(warning);
+            if (emitLogs) {
+                logWarn(warning);
+            }
         }
     }
 
@@ -2857,7 +2862,9 @@ function resolveOverlay(
         if (!seenCapabilityWarningMessages.has(message)) {
             seenCapabilityWarningMessages.add(message);
             capabilityWarnings.push(message);
-            logWarn(message);
+            if (emitLogs) {
+                logWarn(message);
+            }
         }
     }
 
@@ -2882,6 +2889,43 @@ function resolveOverlay(
         capabilityDiagnostics,
         agentPluginCatalog: agentPluginCatalog.entries,
     };
+}
+
+function buildProfileEffectiveFilesLookup(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    injection: InjectionConfig,
+    activeProfileId: string | undefined,
+    activeProfileFiles: EffectiveFile[],
+    options?: {
+        enableDiscovery?: boolean;
+        forceDiscoveryRepoIds?: string[];
+        builtInCapability?: BuiltInCapabilityRuntimeState;
+    },
+): Record<string, EffectiveFile[]> {
+    const profileIds = Object.keys(config.profiles ?? {});
+    if (profileIds.length === 0) {
+        return {};
+    }
+
+    const profileEffectiveFilesByName: Record<string, EffectiveFile[]> = {};
+    for (const profileId of profileIds) {
+        if (profileId === activeProfileId) {
+            profileEffectiveFilesByName[profileId] = [...activeProfileFiles];
+            continue;
+        }
+
+        const projectedProfileConfig = projectConfigForProfile(config, profileId);
+        profileEffectiveFilesByName[profileId] = resolveOverlay(
+            projectedProfileConfig,
+            workspaceRoot,
+            injection,
+            options,
+            false,
+        ).effectiveFiles;
+    }
+
+    return profileEffectiveFilesByName;
 }
 
 function toPosixPath(value: string): string {
@@ -4997,12 +5041,27 @@ export function registerCommands(
                         state.capabilityDiagnosticFilePaths,
                         overlay.capabilityDiagnostics,
                     );
+                    const profileEffectiveFilesByName = buildProfileEffectiveFilesLookup(
+                        projectedConfig,
+                        ws.uri.fsPath,
+                        injectionConfig,
+                        result.config.activeProfile,
+                        state.effectiveFiles,
+                        {
+                            enableDiscovery: shouldEnableDiscovery,
+                            forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
+                                ? [refreshOptions.forceDiscoveryRepoId]
+                                : undefined,
+                            builtInCapability: state.builtInCapability,
+                        },
+                    );
                     state.treeSummaryCache = await buildTreeSummaryCache(
                         projectedConfig,
                         ws.uri.fsPath,
                         state.effectiveFiles,
                         state.baseProfileFiles,
                         state.builtInCapability,
+                        profileEffectiveFilesByName,
                     );
                     if (!refreshOptions.skipSettingsInjection) {
                         await injectWorkspaceSettings(

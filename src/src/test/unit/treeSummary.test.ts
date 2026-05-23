@@ -150,6 +150,103 @@ suite('treeSummary', () => {
         assert.strictEqual(leanSummary.byType.agents.available, 1);
     });
 
+    test('buildTreeSummaryCache honors provided per-profile effective files for layerOverride-driven summaries', async () => {
+        const repoRoot = path.join(workspaceRoot, '.ai', 'repo-meta');
+        const coreRoot = path.join(repoRoot, 'company', 'core');
+        const productManagerRoot = path.join(repoRoot, 'roles', 'product-manager');
+        fs.mkdirSync(path.join(coreRoot, '.github', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(productManagerRoot, '.github', 'instructions'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(coreRoot, '.github', 'instructions', 'baseline.instructions.md'),
+            '# baseline\n',
+        );
+        fs.writeFileSync(
+            path.join(productManagerRoot, '.github', 'instructions', 'pm.instructions.md'),
+            '# pm\n',
+        );
+
+        const config = {
+            metadataRepos: [{ id: 'primary', localPath: '.ai/repo-meta', enabled: true }],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: 'primary', path: 'roles/product-manager', enabled: true },
+            ],
+            profiles: {
+                default: {},
+                'product-manager': {
+                    layerOverrides: [
+                        {
+                            repoId: 'primary',
+                            path: 'roles/product-manager',
+                            enabled: false,
+                        },
+                    ],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const baselineInstruction: EffectiveFile = {
+            relativePath: 'instructions/baseline.instructions.md',
+            sourcePath: path.join(
+                coreRoot,
+                '.github',
+                'instructions',
+                'baseline.instructions.md',
+            ),
+            sourceLayer: 'primary/company/core',
+            sourceRepo: repoRoot,
+            classification: 'settings',
+        };
+        const productManagerInstruction: EffectiveFile = {
+            relativePath: 'instructions/pm.instructions.md',
+            sourcePath: path.join(
+                productManagerRoot,
+                '.github',
+                'instructions',
+                'pm.instructions.md',
+            ),
+            sourceLayer: 'primary/roles/product-manager',
+            sourceRepo: repoRoot,
+            classification: 'settings',
+        };
+
+        const defaultEffectiveFiles = [baselineInstruction, productManagerInstruction];
+        const productManagerEffectiveFiles = [baselineInstruction];
+
+        const cache = await buildTreeSummaryCache(
+            config,
+            workspaceRoot,
+            defaultEffectiveFiles,
+            defaultEffectiveFiles,
+            {
+                enabled: false,
+                layerEnabled: true,
+                synchronizedFiles: [],
+                sourceRoot: undefined,
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            },
+            {
+                default: defaultEffectiveFiles,
+                'product-manager': productManagerEffectiveFiles,
+            },
+        );
+
+        const defaultSummary = summarizeProfile(cache, 'default');
+        assert.strictEqual(defaultSummary.totalActive, 2);
+        assert.strictEqual(defaultSummary.totalAvailable, 2);
+
+        const productManagerSummary = summarizeProfile(cache, 'product-manager');
+        assert.strictEqual(productManagerSummary.totalActive, 1);
+        assert.strictEqual(productManagerSummary.totalAvailable, 2);
+
+        const productManagerScope = summarizeProfileInstructionScope(cache, 'product-manager');
+        assert.strictEqual(productManagerScope.activeCount, 1);
+    });
+
     test('buildTreeSummaryCache counts available files for nested capability metadata paths', async () => {
         const repoRoot = path.join(workspaceRoot, '.ai', 'repo-meta');
         const capabilityRoot = path.join(repoRoot, 'capabilities', 'planning');

@@ -247,6 +247,14 @@
         "enabled": {
           "type": "boolean",
           "description": "Whether this layer is enabled while the profile is active."
+        },
+        "excludedTypes": {
+          "type": "array",
+          "description": "Artifact-type directories to exclude for this layer while the profile is active.",
+          "items": {
+            "type": "string",
+            "enum": ["instructions", "prompts", "agents", "skills"]
+          }
         }
       }
     },

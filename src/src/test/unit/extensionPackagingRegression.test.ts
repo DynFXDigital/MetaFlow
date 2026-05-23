@@ -134,6 +134,26 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('config schema accepts profile layerOverrides', () => {
+        const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
+        const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
+            definitions?: Record<
+                string,
+                {
+                    properties?: Record<string, unknown>;
+                    required?: string[];
+                }
+            >;
+        };
+
+        const profileConfig = schema.definitions?.profileConfig;
+        const profileLayerOverride = schema.definitions?.profileLayerOverride;
+
+        assert.ok(profileConfig?.properties?.layerOverrides);
+        assert.ok(profileLayerOverride);
+        assert.deepStrictEqual(profileLayerOverride?.required, ['repoId', 'path']);
+    });
+
     test('vscode prepublish uses bundle script', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
