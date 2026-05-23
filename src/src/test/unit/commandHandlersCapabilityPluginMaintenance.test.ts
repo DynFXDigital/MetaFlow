@@ -689,4 +689,76 @@ suite('Command handler capability plugin maintenance helpers', () => {
             fs.rmSync(repoRoot, { recursive: true, force: true });
         }
     });
+
+    test('maintainAllCapabilityPluginMetadataInRepo updates dirty capabilities and marketplace together', async () => {
+        const { maintainAllCapabilityPluginMetadataInRepo } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-all-'));
+        try {
+            const firstCapability = path.join(repoRoot, 'capabilities', 'first');
+            const secondCapability = path.join(repoRoot, 'capabilities', 'second');
+            fs.mkdirSync(firstCapability, { recursive: true });
+            fs.mkdirSync(secondCapability, { recursive: true });
+
+            fs.writeFileSync(
+                path.join(firstCapability, 'CAPABILITY.md'),
+                ['---', 'name: First Capability', 'description: First description', '---'].join(
+                    '\n',
+                ),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(secondCapability, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Second Capability',
+                    'description: Second description',
+                    'agentPlugin: true',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(secondCapability, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'second-capability',
+                        version: '1.0.0',
+                        description: 'Second plugin description',
+                        metaflow: { pluginHosts: ['github-copilot'] },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+
+            const result = await maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
+                repoId: 'example-repo',
+                capabilityDirectoryPaths: [firstCapability],
+            });
+
+            assert.strictEqual(result.scannedCount, 1);
+            assert.strictEqual(result.changedCount, 1);
+            assert.strictEqual(result.unchangedCount, 0);
+            assert.strictEqual(result.failureCount, 0);
+            assert.strictEqual(result.marketplaceChanged, true);
+            assert.strictEqual(result.marketplacePluginCount, 2);
+            assert.ok(
+                fs
+                    .readFileSync(path.join(firstCapability, 'CAPABILITY.md'), 'utf-8')
+                    .includes('agentPlugin: true'),
+            );
+            assert.ok(fs.existsSync(path.join(firstCapability, 'plugin.json')));
+
+            const marketplace = JSON.parse(fs.readFileSync(result.marketplacePath, 'utf-8')) as {
+                plugins?: Array<{ name?: string }>;
+            };
+            assert.deepStrictEqual(
+                marketplace.plugins?.map((plugin) => plugin.name),
+                ['first', 'second-capability'],
+            );
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
 });

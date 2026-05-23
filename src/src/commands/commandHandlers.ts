@@ -3903,6 +3903,7 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
         repoId: string;
         marketplaceName?: string;
         ownerName?: string;
+        excludePatterns?: string[];
     },
 ): Promise<{
     marketplacePath: string;
@@ -3910,7 +3911,7 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     pluginCount: number;
     warnings: CapabilityWarning[];
 }> {
-    const layerPaths = discoverLayersInRepo(repoRoot).sort((left, right) =>
+    const layerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort((left, right) =>
         left.localeCompare(right),
     );
     const layers = layerPaths.map((layerPath) => {
@@ -3948,6 +3949,107 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
         changed,
         pluginCount: marketplace.manifest.plugins.length,
         warnings: [...agentPluginCatalog.warnings, ...marketplace.warnings],
+    };
+}
+
+export async function maintainAllCapabilityPluginMetadataInRepo(
+    repoRoot: string,
+    options: {
+        repoId: string;
+        marketplaceName?: string;
+        ownerName?: string;
+        excludePatterns?: string[];
+        capabilityDirectoryPaths?: string[];
+        onProgress?: (progress: { layerPath: string; index: number; total: number }) => void;
+    },
+): Promise<{
+    repoId: string;
+    repoRoot: string;
+    scannedCount: number;
+    changedCount: number;
+    unchangedCount: number;
+    failureCount: number;
+    changedCapabilities: string[];
+    failures: Array<{ layerPath: string; message: string }>;
+    marketplacePath: string;
+    marketplaceChanged: boolean;
+    marketplacePluginCount: number;
+    warnings: CapabilityWarning[];
+}> {
+    const discoveredLayerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort(
+        (left, right) => left.localeCompare(right),
+    );
+    const layerPathByCapabilityDirectory = new Map(
+        discoveredLayerPaths.map((layerPath) => [
+            path.resolve(repoRoot, layerPath === '.' ? '' : layerPath),
+            layerPath,
+        ]),
+    );
+
+    const candidateCapabilityDirectories = options.capabilityDirectoryPaths
+        ? Array.from(
+              new Set(options.capabilityDirectoryPaths.map((candidate) => path.resolve(candidate))),
+          )
+              .filter((candidate) => layerPathByCapabilityDirectory.has(candidate))
+              .sort((left, right) => left.localeCompare(right))
+        : Array.from(layerPathByCapabilityDirectory.keys()).sort((left, right) =>
+              left.localeCompare(right),
+          );
+
+    const changedResults: Array<
+        Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
+    > = [];
+    const unchangedResults: Array<
+        Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
+    > = [];
+    const failures: Array<{ layerPath: string; message: string }> = [];
+
+    for (let index = 0; index < candidateCapabilityDirectories.length; index += 1) {
+        const capabilityDirectoryPath = candidateCapabilityDirectories[index];
+        const layerPath =
+            layerPathByCapabilityDirectory.get(capabilityDirectoryPath) ?? capabilityDirectoryPath;
+        options.onProgress?.({
+            layerPath,
+            index,
+            total: candidateCapabilityDirectories.length,
+        });
+
+        try {
+            const result =
+                await maintainCapabilityPluginMetadataInDirectory(capabilityDirectoryPath);
+            if (result.manifestChanged || result.pluginJsonChanged) {
+                changedResults.push(result);
+            } else {
+                unchangedResults.push(result);
+            }
+        } catch (error: unknown) {
+            failures.push({
+                layerPath,
+                message: error instanceof Error ? error.message : String(error),
+            });
+        }
+    }
+
+    const marketplace = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
+        repoId: options.repoId,
+        marketplaceName: options.marketplaceName,
+        ownerName: options.ownerName,
+        excludePatterns: options.excludePatterns,
+    });
+
+    return {
+        repoId: options.repoId,
+        repoRoot,
+        scannedCount: candidateCapabilityDirectories.length,
+        changedCount: changedResults.length,
+        unchangedCount: unchangedResults.length,
+        failureCount: failures.length,
+        changedCapabilities: changedResults.map((result) => result.capabilityDirectoryPath),
+        failures,
+        marketplacePath: marketplace.marketplacePath,
+        marketplaceChanged: marketplace.changed,
+        marketplacePluginCount: marketplace.pluginCount,
+        warnings: marketplace.warnings,
     };
 }
 
@@ -7289,84 +7391,55 @@ export function registerCommands(
                     return;
                 }
 
-                const changedResults: Array<
-                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
-                > = [];
-                const unchangedResults: Array<
-                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
-                > = [];
-                const failures: Array<{ layerPath: string; message: string }> = [];
-
-                await vscode.window.withProgress(
+                const result = await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
                         title: 'MetaFlow: Maintaining capability plugin metadata',
                         cancellable: false,
                     },
-                    async (progress) => {
-                        for (let index = 0; index < layerPaths.length; index += 1) {
-                            const layerPath = layerPaths[index];
-                            progress.report({
-                                message: `${index + 1}/${layerPaths.length}: ${layerPath}`,
-                                increment: 100 / layerPaths.length,
-                            });
-
-                            try {
-                                const result = await maintainCapabilityPluginMetadataInDirectory(
-                                    path.join(repoRoot, layerPath),
-                                );
-                                if (result.manifestChanged || result.pluginJsonChanged) {
-                                    changedResults.push(result);
-                                } else {
-                                    unchangedResults.push(result);
-                                }
-                            } catch (error: unknown) {
-                                failures.push({
-                                    layerPath,
-                                    message: error instanceof Error ? error.message : String(error),
+                    async (progress) =>
+                        maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
+                            repoId,
+                            excludePatterns: repo.discover?.exclude,
+                            onProgress: ({ layerPath, index, total }) => {
+                                progress.report({
+                                    message: `${index + 1}/${total}: ${layerPath}`,
+                                    increment: total > 0 ? 100 / total : 100,
                                 });
-                            }
-                        }
-                    },
+                            },
+                        }),
                 );
 
-                if (changedResults.length > 0) {
+                if (result.changedCount > 0 || result.marketplaceChanged) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipRepoSync: true,
                     });
                 }
 
-                if (failures.length > 0) {
+                if (result.failures.length > 0 || result.warnings.length > 0) {
                     showOutputChannel();
-                    for (const failure of failures) {
+                    for (const failure of result.failures) {
                         logWarn(
                             `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
                         );
                     }
+                    for (const warning of result.warnings) {
+                        logWarn(formatCapabilityWarningMessage(warning));
+                    }
                 }
 
                 const summary =
-                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
-                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
+                    `MetaFlow: Checked ${result.scannedCount} capability director${result.scannedCount === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `${result.changedCount} changed, ${result.unchangedCount} already up to date, ${result.failureCount} failed, ` +
+                    `marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'} (${result.marketplacePluginCount} plugins).`;
 
-                if (failures.length > 0) {
+                if (result.failureCount > 0 || result.warnings.length > 0) {
                     vscode.window.showWarningMessage(summary);
                 } else {
                     vscode.window.showInformationMessage(summary);
                 }
 
-                return {
-                    repoId,
-                    repoRoot,
-                    scannedCount: layerPaths.length,
-                    changedCount: changedResults.length,
-                    unchangedCount: unchangedResults.length,
-                    failureCount: failures.length,
-                    changedCapabilities: changedResults.map(
-                        (result) => result.capabilityDirectoryPath,
-                    ),
-                    failures,
-                };
+                return result;
             },
         ),
     );

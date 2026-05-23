@@ -233,7 +233,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('Maintain Capability Plugin Metadata is contributed for the command palette and Capabilities item menu', () => {
+    test('Maintain Capability Plugin Metadata is contributed for the command palette only', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -249,15 +249,11 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(maintainCommand?.icon, '$(package)');
 
         const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
-        const contextEntry = contextMenuEntries.find(
-            (entry) =>
-                entry.command === 'metaflow.maintainCapabilityPluginMetadata' &&
-                entry.when ===
-                    'view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)',
-        );
         assert.ok(
-            contextEntry,
-            'Expected Maintain Capability Plugin Metadata in the Capabilities item context menu',
+            !contextMenuEntries.some(
+                (entry) => entry.command === 'metaflow.maintainCapabilityPluginMetadata',
+            ),
+            'Expected single-capability plugin metadata maintenance to stay out of tree item menus',
         );
     });
 
@@ -287,12 +283,12 @@ suite('Extension Packaging Regression Guards', () => {
             'Expected Maintain All Capability Plugin Metadata in the AI Metadata repo context menu',
         );
         assert.ok(
-            contextMenuEntries.some(
+            !contextMenuEntries.some(
                 (entry) =>
                     entry.command === 'metaflow.maintainAllCapabilityPluginMetadata' &&
                     entry.when === 'view == metaflow-layers && viewItem == layerRepo',
             ),
-            'Expected Maintain All Capability Plugin Metadata in the Capabilities repo context menu',
+            'Expected Maintain All Capability Plugin Metadata to stay off the Capabilities repo inline menu',
         );
     });
 

@@ -540,18 +540,8 @@
           "group": "inline@2"
         },
         {
-          "command": "metaflow.maintainCapabilityPluginMetadata",
-          "when": "view == metaflow-layers && (viewItem == layerRepo || viewItem == layerFolder || viewItem == layer)",
-          "group": "inline@3"
-        },
-        {
           "command": "metaflow.maintainAllCapabilityPluginMetadata",
           "when": "view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)",
-          "group": "inline@4"
-        },
-        {
-          "command": "metaflow.maintainAllCapabilityPluginMetadata",
-          "when": "view == metaflow-layers && viewItem == layerRepo",
           "group": "inline@4"
         },
         {
@@ -772,6 +762,20 @@
             "monthly"
           ],
           "description": "How often MetaFlow checks git-backed metadata repositories for upstream updates in the background"
+        },
+        "metaflow.pluginMetadata.autoMaintain": {
+          "type": "boolean",
+          "default": true,
+          "order": 10,
+          "description": "Automatically maintain capability plugin metadata after configured metadata repository files change"
+        },
+        "metaflow.pluginMetadata.autoMaintainDelayMs": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 250,
+          "maximum": 60000,
+          "order": 11,
+          "description": "Idle delay in milliseconds before MetaFlow regenerates dirty capability plugin metadata"
         }
       }
     },

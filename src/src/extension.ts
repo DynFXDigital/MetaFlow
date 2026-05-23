@@ -35,6 +35,7 @@ import { extractLayerPath, extractRepoId, readManagedViewsState } from './comman
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
+import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -275,6 +276,8 @@ export function activate(context: vscode.ExtensionContext): void {
         filesTreeViewProvider,
     );
 
+    let syncCapabilityPluginMetadataScheduler = (): void => {};
+
     context.subscriptions.push(
         configTreeView,
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
@@ -410,6 +413,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 hasLoadedConfig(state),
             );
 
+            syncCapabilityPluginMetadataScheduler();
             syncCapabilityDetailsPanel();
         }),
         configTreeView.onDidChangeCheckboxState(async (e) => {
@@ -636,6 +640,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Start/stop automatic background checks for upstream repo updates.
         syncRepoUpdateSchedulerLifecycle();
+
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (workspaceRoot) {
+            const capabilityPluginMetadataScheduler = createCapabilityPluginMetadataScheduler(
+                state,
+                workspaceRoot,
+            );
+            syncCapabilityPluginMetadataScheduler = (): void => {
+                capabilityPluginMetadataScheduler.sync();
+            };
+            syncCapabilityPluginMetadataScheduler();
+            context.subscriptions.push(capabilityPluginMetadataScheduler);
+        }
     }
 
     logInfo('MetaFlow extension activated.');
