@@ -62,9 +62,10 @@ GitHub Copilot-native metadata quality, structure, compatibility, context effici
 - Compose with `model-role-guidance` when agent or prompt construction needs source-backed model defaults, tier mapping, or delegator override guidance.
 - Compose with `reflection` for durable-memory and reinforcement workflows.
 - Compose with `planning` for structured planning conventions around metadata work.---
-name: GitHub Copilot Metadata Authoring
-description: GitHub Copilot metadata standards, prompts, and skills support portable AI metadata artifacts and promotion workflows.
-license: SEE-LICENSE-IN-REPO
+  name: GitHub Copilot Metadata Authoring
+  description: GitHub Copilot metadata standards, prompts, and skills support portable AI metadata artifacts and promotion workflows.
+  license: SEE-LICENSE-IN-REPO
+
 ---
 
 # Capability: GitHub Copilot Metadata Authoring
