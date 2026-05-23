@@ -403,7 +403,7 @@ describe('Engine package: overlay pipeline', () => {
         const skill = files.find((f) => f.relativePath.includes('skills'));
         const instr = files.find((f) => f.relativePath.includes('instructions'));
         assert.strictEqual(skill?.classification, 'synchronized');
-        assert.strictEqual(instr?.classification, 'plugin');
+        assert.strictEqual(instr?.classification, 'settings');
     });
 
     it('normalizes .github-prefixed paths before classification', () => {
@@ -432,7 +432,7 @@ describe('Engine package: overlay pipeline', () => {
         const instruction = files.find(
             (f) => f.relativePath === 'instructions/test.instructions.md',
         );
-        assert.strictEqual(instruction?.classification, 'plugin');
+        assert.strictEqual(instruction?.classification, 'settings');
     });
 
     it('discovers CAPABILITY-only layer directories', () => {
@@ -779,7 +779,7 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries(files, tmpDir, config);
-        assert.ok(entries.length >= 4, `expected >=4 entries, got ${entries.length}`);
+        assert.strictEqual(entries.length, 2, `expected 2 entries, got ${entries.length}`);
 
         const instrEntry = entries.find((e) => e.key === 'chat.instructionsFilesLocations');
         const promptEntry = entries.find((e) => e.key === 'chat.promptFilesLocations');
@@ -830,7 +830,9 @@ describe('Engine: settings injector', () => {
             metadataRepo: { localPath: 'repo' },
             layers: ['team', 'team/core'],
         });
-        const entry = entries.find((candidate) => candidate.key === 'chat.instructionsFilesLocations');
+        const entry = entries.find(
+            (candidate) => candidate.key === 'chat.instructionsFilesLocations',
+        );
 
         assert.deepStrictEqual(Object.keys(entry?.value as Record<string, boolean>), [
             'repo/team/core/instructions',
@@ -1525,9 +1527,7 @@ describe('Engine: config validation', () => {
             assert.strictEqual(result.config.compatibilityVersion, 2);
             assert.strictEqual(result.migrated, true);
             assert.ok(
-                result.migrationMessages?.some((message) =>
-                    message.includes('implicit v1 to v2'),
-                ),
+                result.migrationMessages?.some((message) => message.includes('implicit v1 to v2')),
             );
         }
     });
@@ -1922,7 +1922,9 @@ describe('Engine: synchronizer advanced', () => {
         const pending = preview(tmpDir, files, undefined, config.fileNamingStrategy);
         const prefixedPath = expectedSynchronizedPath('chatmodes/legacy.chatmode.md');
         assert.ok(pending.some((change) => change.relativePath === prefixedPath));
-        assert.ok(!pending.some((change) => change.relativePath === 'chatmodes/legacy.chatmode.md'));
+        assert.ok(
+            !pending.some((change) => change.relativePath === 'chatmodes/legacy.chatmode.md'),
+        );
 
         const result = apply({
             workspaceRoot: tmpDir,
@@ -2035,7 +2037,7 @@ describe('Engine: injection mode hierarchy', () => {
         ];
         classifyFiles(files, { instructions: 'synchronize' }, layerSources);
         assert.strictEqual(files[0].classification, 'synchronized');
-        assert.strictEqual(files[1].classification, 'plugin'); // default
+        assert.strictEqual(files[1].classification, 'settings'); // default
     });
 
     // ── normalizeConfigShape injection propagation ─────────────────
