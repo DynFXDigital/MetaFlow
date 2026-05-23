@@ -32,7 +32,7 @@ function makeLayer(
                 description: `Plugin for ${layerId}`,
                 keywords: ['metaflow'],
                 pluginHosts: ['github-copilot'],
-                minimumMetaflowVersion: '^0.1.0-preview.0',
+                minimumMetaflowVersion: '^0.1.0',
             },
             warnings,
         },

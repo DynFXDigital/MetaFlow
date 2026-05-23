@@ -3649,7 +3649,7 @@ function buildCapabilityPluginManifestStarterTemplate(
             rules: '.github/instructions',
             metaflow: {
                 pluginHosts: ['github-copilot'],
-                minimumMetaflowVersion: '^0.1.0-preview.0',
+                minimumMetaflowVersion: '^0.1.0',
             },
         },
         null,
@@ -3848,7 +3848,7 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
         typeof existingMetaflow.minimumMetaflowVersion === 'string' &&
         existingMetaflow.minimumMetaflowVersion.trim().length > 0
             ? existingMetaflow.minimumMetaflowVersion.trim()
-            : '^0.1.0-preview.0';
+            : '^0.1.0';
     existingMetaflow.minimumMetaflowVersion = minimumMetaflowVersion;
     packageObject.metaflow = existingMetaflow;
 

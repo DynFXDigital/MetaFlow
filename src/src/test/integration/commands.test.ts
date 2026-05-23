@@ -1505,7 +1505,7 @@ suite('Command Execution', function () {
                     rules: '.github/instructions',
                     metaflow: {
                         pluginHosts: ['github-copilot'],
-                        minimumMetaflowVersion: '^0.1.0-preview.0',
+                        minimumMetaflowVersion: '^0.1.0',
                     },
                 },
                 null,

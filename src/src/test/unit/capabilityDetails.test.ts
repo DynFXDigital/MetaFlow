@@ -99,7 +99,7 @@ suite('CapabilityDetails helpers', () => {
                         description: 'Traceability plugin manifest.',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
-                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                            minimumMetaflowVersion: '^0.1.0',
                         },
                     },
                     null,

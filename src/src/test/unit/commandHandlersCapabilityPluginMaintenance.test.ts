@@ -481,7 +481,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.agents, '.github/agents');
         assert.strictEqual(parsed.skills, '.github/skills');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot']);
-        assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0-preview.0');
+        assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
         assert.strictEqual(result.changed, true);
     });
 
@@ -526,7 +526,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.skills, '.github/skills');
         assert.strictEqual(parsed.rules, '.github/instructions');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot', 'claude-code']);
-        assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0-preview.0');
+        assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
     });
 
     test('maintainCapabilityPluginMetadataInDirectory creates missing plugin data for one capability directory', async () => {
@@ -598,7 +598,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                         rules: '.github/instructions',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
-                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                            minimumMetaflowVersion: '^0.1.0',
                         },
                     },
                     null,
@@ -655,7 +655,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                         description: 'First plugin description',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
-                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                            minimumMetaflowVersion: '^0.1.0',
                         },
                     },
                     null,
@@ -672,7 +672,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                         description: 'Second plugin description',
                         metaflow: {
                             pluginHosts: ['github-copilot'],
-                            minimumMetaflowVersion: '^0.1.0-preview.0',
+                            minimumMetaflowVersion: '^0.1.0',
                         },
                     },
                     null,
