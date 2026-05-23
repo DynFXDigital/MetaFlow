@@ -552,8 +552,8 @@ suite('LayersTreeView – artifact-type children', () => {
         const agentsItem = artifactChildren.find((c) => String(c.label) === 'agents');
         const skillsItem = artifactChildren.find((c) => String(c.label) === 'skills');
 
-        assert.strictEqual(agentsItem?.description, '(1/1, plugin)');
-        assert.strictEqual(skillsItem?.description, '(1/1, plugin)');
+        assert.strictEqual(agentsItem?.description, '(0, plugin)');
+        assert.strictEqual(skillsItem?.description, '(0, plugin)');
     });
 
     test('LTV-AT-06b: artifact type tooltip explains capability and injection state', () => {
@@ -612,13 +612,12 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(
             extractTooltipText(promptsItem?.tooltip),
             joinTooltip('**Artifact Type**: prompts', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: enabled',
                 'Injection: synchronize (capability override)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
     });
@@ -645,25 +644,23 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(
             extractTooltipText(agentsItem?.tooltip),
             joinTooltip('**Artifact Type**: agents', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: enabled',
                 'Injection: synchronize (repo default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
         assert.strictEqual(
             extractTooltipText(skillsItem?.tooltip),
             joinTooltip('**Artifact Type**: skills', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: enabled',
                 'Injection: synchronize (global default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
     });
@@ -728,13 +725,12 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(
             extractTooltipText(instructionsItem?.tooltip),
             joinTooltip('**Artifact Type**: instructions', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: disabled',
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
     });

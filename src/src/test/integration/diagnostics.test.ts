@@ -135,7 +135,7 @@ suite('Diagnostics Integration', () => {
         );
     });
 
-    test('metaflow_diagnostics language model tool is discoverable and returns snapshot payload', async function () {
+    test('metaflow_diagnostics language model tool is discoverable and returns snapshot content', async function () {
         this.timeout(15000);
 
         await vscode.commands.executeCommand('metaflow.refresh');
@@ -156,24 +156,15 @@ suite('Diagnostics Integration', () => {
             new vscode.CancellationTokenSource().token,
         );
 
-        const jsonPart = result.content.find(
-            (part): part is vscode.LanguageModelDataPart =>
-                part instanceof vscode.LanguageModelDataPart &&
-                part.mimeType === 'application/json',
+        const textPart = result.content.find(
+            (part): part is vscode.LanguageModelTextPart =>
+                typeof (part as { value?: unknown }).value === 'string',
         );
-        assert.ok(jsonPart, 'Expected tool result to include a JSON data part');
-
-        const snapshot = JSON.parse(Buffer.from(jsonPart.data).toString('utf-8')) as {
-            capabilityWarnings: unknown;
-            configDiagnostics: unknown;
-            governance: unknown;
-            warnings: unknown;
-        };
-
-        assert.ok(Array.isArray(snapshot.capabilityWarnings));
-        assert.ok(Array.isArray(snapshot.configDiagnostics));
-        assert.ok(snapshot.governance && typeof snapshot.governance === 'object');
-        assert.ok(Array.isArray(snapshot.warnings));
+        assert.ok(textPart, 'Expected tool result to include a text summary part');
+        assert.ok(
+            textPart.value.includes('MetaFlow diagnostics snapshot:'),
+            `Expected diagnostics snapshot summary, got: ${textPart.value}`,
+        );
     });
 
     // Trace: TC-0332

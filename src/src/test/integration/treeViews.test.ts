@@ -763,7 +763,7 @@ suite('TreeView Providers', () => {
         }
     });
 
-    test('LayersTreeView tree mode shows artifact-type checkbox children for single-repo layers', () => {
+    test('LayersTreeView tree mode shows browse-only artifact-type children for single-repo layers', () => {
         state.config = {
             metadataRepo: { localPath: '.ai/ai-metadata', name: 'PrimaryRepo' },
             layers: ['capabilities/communication'],
@@ -816,8 +816,8 @@ suite('TreeView Providers', () => {
             'Artifact-type children should be rendered with artifact-specific layerArtifactType context',
         );
         assert.ok(
-            artifactChildren.every((i) => i.checkboxState === vscode.TreeItemCheckboxState.Checked),
-            'Artifact-type children should be checked by default',
+            artifactChildren.every((i) => i.checkboxState === undefined),
+            'Artifact-type children should be browse-only without checkboxes',
         );
     });
 
@@ -1521,15 +1521,22 @@ suite('TreeView Providers', () => {
         await layersController.expandAll();
         assert.deepStrictEqual(
             layersRevealed,
-            ['CoreMeta', 'company'],
-            'first Layers-tree expansion should stop at capability-depth ancestors',
+            ['CoreMeta'],
+            'first Layers-tree expansion should reveal only the repository root',
         );
 
         await layersController.expandAll();
         assert.deepStrictEqual(
             layersRevealed,
-            ['CoreMeta', 'company', 'core'],
-            'second Layers-tree expansion should reveal the bounded capability node only',
+            ['CoreMeta', 'company'],
+            'second Layers-tree expansion should reveal the first capability ancestor only',
+        );
+
+        await layersController.expandAll();
+        assert.deepStrictEqual(
+            layersRevealed,
+            ['CoreMeta', 'company'],
+            'third Layers-tree expansion should remain bounded before concrete capability nodes',
         );
 
         const filesExpandEmitter = new vscode.EventEmitter<{ element: vscode.TreeItem }>();

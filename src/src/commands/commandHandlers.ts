@@ -160,6 +160,27 @@ const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     hooks: 'metaflow.injection.hooksMode',
 };
 
+const TRANSIENT_FILE_LOCK_ERROR_CODES = new Set(['EBUSY', 'EPERM', 'ENOTEMPTY']);
+
+async function retryTransientFileLock<T>(operation: () => Promise<T>): Promise<T> {
+    const maxAttempts = 5;
+    let delayMs = 25;
+
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            return await operation();
+        } catch (err: unknown) {
+            const code = (err as NodeJS.ErrnoException)?.code;
+            if (!code || !TRANSIENT_FILE_LOCK_ERROR_CODES.has(code) || attempt >= maxAttempts) {
+                throw err;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+            delayMs *= 2;
+        }
+    }
+}
+
 function formatInjectionModesSummary(config: MetaFlowConfig | undefined): string {
     return INJECTION_KEYS.map(
         (key) => `${key}=${config?.injection?.[key] ?? DEFAULT_INJECTION_MODE[key]}`,
@@ -2491,7 +2512,7 @@ async function removeSynchronizedCapabilityFiles(
             continue;
         }
 
-        await fsp.unlink(destination);
+        await retryTransientFileLock(() => fsp.unlink(destination));
         removedCount += 1;
 
         let currentDir = path.dirname(destination);
@@ -2515,7 +2536,7 @@ async function removeSynchronizedCapabilityFiles(
             }
 
             try {
-                await fsp.rmdir(currentDir);
+                await retryTransientFileLock(() => fsp.rmdir(currentDir));
             } catch (err: unknown) {
                 const code = (err as NodeJS.ErrnoException)?.code;
                 if (code === 'ENOENT' || code === 'ENOTEMPTY') {
