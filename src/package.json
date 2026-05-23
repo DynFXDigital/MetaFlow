@@ -859,7 +859,11 @@
     "test:integration": "npm run gate:integration",
     "test:coverage": "c8 --reporter=text --reporter=lcov node ./out/test/runTest.js",
     "test:coverage:unit": "c8 --reporter=text node ./out/test/runTest.js --unit",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "package:gui": "vsce package --no-dependencies -o metaflow-test.vsix",
+    "pretest:gui": "npm run compile && npm run bundle:dev && npm run package:gui",
+    "test:gui": "extest setup-and-run 'out/test/gui/**/*.test.js' -s .vscode-test/gui -f test-workspace --vsix metaflow-test.vsix",
+    "test:gui:xvfb": "xvfb-run -a npm run test:gui"
   },
   "dependencies": {
     "@metaflow/engine": "file:../packages/engine",
@@ -882,6 +886,7 @@
     "glob": "^13.0.6",
     "minimatch": "^10.2.4",
     "mocha": "^11.7.5",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vscode-extension-tester": "^8.23.0"
   }
 }
