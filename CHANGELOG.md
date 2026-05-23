@@ -8,17 +8,11 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 
 ### Added
 
-- Plugin-based delivery for instructions, skills, and agents, so teams can register capability packages through local Copilot plugin discovery instead of only using settings paths or synchronized files.
-- Capability plugin manifest tooling, including commands to create, repair, or sweep plugin metadata across a metadata repository and generate a discovery catalog for plugin-capable capabilities.
-- Automatic plugin metadata maintenance after metadata repository changes, with visible warnings when MetaFlow cannot safely update a manifest.
-- A guided capability authoring flow that opens bundled contract guidance, a working example, and a seeded `CAPABILITY.md` draft for new capability packages.
-- Governance visibility for workspaces that require specific capabilities or profile choices, with warnings surfaced in tree views and capability details.
-- Automatic migration for older preview configs into the current repository-and-capability format, with migration notices instead of silent rewrites.
-- Better local metadata authoring support: selected local git repositories work immediately, and new local folders can be initialized as git repositories during setup.
-- An agent-readable diagnostics snapshot command plus clearer diagnostics for missing metadata sources, unresolved capability paths, duplicate effective files, governance issues, and plugin metadata problems.
-- Tree navigation improvements, including native tree filtering, safer expand-all behavior, direct opening of raw capability manifests, and directory-level metadata labels.
-- Capabilities tree folder checkboxes for branch-wide enable or disable operations in tree mode.
-- Browse-only artifact folders and files beneath Capabilities tree artifact rows, with friendly labels and metadata tooltips.
+- Plugin-based capability delivery for instructions, skills, and agents, so teams can package shared metadata as discoverable Copilot plugins instead of relying only on settings paths or synchronized files.
+- Guided capability authoring and plugin manifest maintenance, including commands to scaffold capability metadata, repair plugin manifests, and sweep a metadata repository for packaging issues.
+- Governance and diagnostics visibility for required capabilities, profile constraints, missing metadata sources, duplicate effective files, and plugin metadata problems.
+- Smoother metadata repository setup, including automatic migration for older preview configs and better support for local git-backed metadata repositories.
+- Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
 - Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
 
 ### Changed
