@@ -3,6 +3,7 @@
 Last reviewed: 2026-05-22
 
 ## Instruction files (`AGENTS.md` and `AGENTS.override.md`)
+
 Sources: https://developers.openai.com/codex/guides/agents-md, https://developers.openai.com/codex/config-basic
 
 - Use repository-root `AGENTS.md` as the primary Codex instruction entry point.
@@ -14,6 +15,7 @@ Sources: https://developers.openai.com/codex/guides/agents-md, https://developer
 - Move large reusable procedures into `.agents/skills/` instead of expanding `AGENTS.md` indefinitely.
 
 ## Config (`.codex/config.toml`)
+
 Sources: https://developers.openai.com/codex/config-basic, https://developers.openai.com/codex/config-reference, https://developers.openai.com/codex/mcp
 
 - Treat `.codex/config.toml` as configuration, not the primary repository documentation surface.
@@ -25,6 +27,7 @@ Sources: https://developers.openai.com/codex/config-basic, https://developers.op
 - Document non-portable local assumptions rather than burying them in opaque config.
 
 ## Skills (`.agents/skills/`)
+
 Source: https://developers.openai.com/codex/skills
 
 - Use skills for reusable workflows, templates, scripts, and references that should not live in `AGENTS.md`.
@@ -44,6 +47,7 @@ Source: https://developers.openai.com/codex/skills
 - Rename references, prompts, and instructions in the same change when a template naming convention is updated.
 
 ## Subagents (`.codex/agents/*.toml`)
+
 Source: https://developers.openai.com/codex/subagents
 
 - Use explicit subagents for narrow specialist roles rather than general repository guidance.
@@ -52,6 +56,7 @@ Source: https://developers.openai.com/codex/subagents
 - Keep subagents complementary to `AGENTS.md` and skills instead of duplicating either layer.
 
 ## Hooks (`.codex/hooks.json`)
+
 Source: https://developers.openai.com/codex/hooks
 
 - Treat hooks as optional lifecycle automation rather than foundational workflow infrastructure.
@@ -62,6 +67,7 @@ Source: https://developers.openai.com/codex/hooks
 - Prefer git-root-stable command paths and add `commandWindows` when a hook needs a Windows-specific launcher.
 
 ## Rules (`.codex/rules/*.rules`)
+
 Source: https://developers.openai.com/codex/rules
 
 - Keep rules focused on approval and command-governance policy.
@@ -69,6 +75,7 @@ Source: https://developers.openai.com/codex/rules
 - Do not hide repository reasoning or style guidance inside rules.
 
 ## Plugins (`.codex-plugin/plugin.json`)
+
 Source: https://developers.openai.com/codex/plugins/build
 
 - Put the required manifest at `.codex-plugin/plugin.json`.

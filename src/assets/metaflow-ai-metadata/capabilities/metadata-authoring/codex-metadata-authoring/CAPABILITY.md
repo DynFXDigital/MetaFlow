@@ -75,9 +75,10 @@ Codex-native metadata quality, structure, compatibility, and promotion readiness
 - Compose with `model-role-guidance` when subagent, hook, or config authoring needs source-backed role-to-model defaults and override guidance.
 - Compose with `reflection` when durable memory captures or planning retrospectives should become Codex metadata improvements.
 - Compose with `devtools` for shared shell, validation, and temp-artifact handling conventions.---
-name: Codex Metadata Authoring
-description: Standards and workflows support authoring, reviewing, and maintaining OpenAI Codex metadata constructs.
-license: SEE-LICENSE-IN-REPO
+  name: Codex Metadata Authoring
+  description: Standards and workflows support authoring, reviewing, and maintaining OpenAI Codex metadata constructs.
+  license: SEE-LICENSE-IN-REPO
+
 ---
 
 # Capability: Codex Metadata Authoring

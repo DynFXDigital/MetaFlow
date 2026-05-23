@@ -3,6 +3,7 @@
 Last reviewed: 2026-05-22
 
 ## Instruction files
+
 Source: https://developers.openai.com/codex/guides/agents-md
 
 - Codex loads a global `~/.codex/AGENTS.override.md` or `~/.codex/AGENTS.md`, then repository/folder `AGENTS.override.md`, `AGENTS.md`, and any configured fallback filenames from root to the current working directory.
@@ -10,6 +11,7 @@ Source: https://developers.openai.com/codex/guides/agents-md
 - Codex includes at most one instruction file per directory and stops when the combined project instruction chain reaches `project_doc_max_bytes` (32 KiB by default).
 
 ## Config
+
 Sources: https://developers.openai.com/codex/config-basic, https://developers.openai.com/codex/config-reference
 
 - `.codex/config.toml` is the Codex configuration surface for project-scoped behavior.
@@ -20,6 +22,7 @@ Sources: https://developers.openai.com/codex/config-basic, https://developers.op
 - `approval_policy = "on-failure"` is deprecated; use `on-request`, `never`, or granular approval controls.
 
 ## Skills
+
 Source: https://developers.openai.com/codex/skills
 
 - Repository-local skills live under `.agents/skills/`, discovered from the current directory up to the repository root.
@@ -29,12 +32,14 @@ Source: https://developers.openai.com/codex/skills
 - Based on the current official Codex documentation reviewed for this capability, no separate repository-native prompt library is documented; skills are the closest supported reusable workflow surface.
 
 ## Subagents
+
 Source: https://developers.openai.com/codex/subagents
 
 - Codex custom agents are explicit structured definitions under `.codex/agents/*.toml`.
 - They are not auto-loaded repository instructions; current Codex docs say subagents run when you explicitly ask Codex to spawn them.
 
 ## Hooks
+
 Source: https://developers.openai.com/codex/hooks
 
 - Hooks are enabled by default and can live in either `hooks.json` or inline `[hooks]` tables next to active config layers.
@@ -43,6 +48,7 @@ Source: https://developers.openai.com/codex/hooks
 - Current Codex releases run command hooks only; prompt and agent hook handlers are parsed but skipped.
 
 ## Rules and MCP
+
 Sources: https://developers.openai.com/codex/rules, https://developers.openai.com/codex/mcp
 
 - Approval rules are a separate governance surface from repo instructions.
@@ -51,6 +57,7 @@ Sources: https://developers.openai.com/codex/rules, https://developers.openai.co
 - Codex now documents streamable HTTP as the preferred remote MCP transport; SSE is deprecated where HTTP is available.
 
 ## Plugins
+
 Source: https://developers.openai.com/codex/plugins/build
 
 - Codex plugins use `.codex-plugin/plugin.json` as the required manifest entry point.
@@ -61,6 +68,7 @@ Source: https://developers.openai.com/codex/plugins/build
 Last reviewed: 2026-03-28
 
 ## Instruction files
+
 Source: https://developers.openai.com/codex/guides/agents-md
 
 - Codex loads a global `~/.codex/AGENTS.md` and then repository/folder `AGENTS.md` files from root to the current working directory.
@@ -68,6 +76,7 @@ Source: https://developers.openai.com/codex/guides/agents-md
 - `AGENTS.override.md` is supported for more local overrides.
 
 ## Config
+
 Sources: https://developers.openai.com/codex/config-basic, https://developers.openai.com/codex/config-reference
 
 - `.codex/config.toml` is the Codex configuration surface for project-scoped behavior.
@@ -76,6 +85,7 @@ Sources: https://developers.openai.com/codex/config-basic, https://developers.op
 - Project-scoped config is only applied for trusted projects.
 
 ## Skills
+
 Source: https://developers.openai.com/codex/skills
 
 - Repository-local skills live under `.agents/skills/`.
@@ -83,18 +93,21 @@ Source: https://developers.openai.com/codex/skills
 - Based on the current official Codex documentation reviewed for this capability, no separate repository-native prompt library is documented; skills are the closest supported reusable workflow surface.
 
 ## Subagents
+
 Source: https://developers.openai.com/codex/subagents
 
 - Codex custom agents are explicit structured definitions under `.codex/agents/*.toml`.
 - They are not auto-loaded repository instructions; they are specialist workers used when explicitly spawned.
 
 ## Hooks
+
 Source: https://developers.openai.com/codex/hooks
 
 - Hooks are documented as experimental.
 - As of 2026-03-28, official Codex documentation states that Windows support is temporarily disabled.
 
 ## Rules and MCP
+
 Sources: https://developers.openai.com/codex/rules, https://developers.openai.com/codex/mcp
 
 - Approval rules are a separate governance surface from repo instructions.

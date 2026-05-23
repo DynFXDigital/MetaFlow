@@ -8,24 +8,28 @@ Provide an evidence-gated workflow for turning repeated Codex metadata mistakes 
 
 ## Layering model
 
-1) Stable policy
+1. Stable policy
+
 - `AGENTS.md` for repository-level Codex defaults and routing.
 - `.github/instructions/*.instructions.md` for authoring guidance about Codex metadata files.
 - `.agents/skills/` for reusable Codex procedures.
 
-2) Volatile lessons
+2. Volatile lessons
+
 - Short dated lessons with an evidence pointer and trigger condition.
 - Promote to stable policy only after repetition or a high-cost failure.
 
 ## Evidence-gated reinforcement schema
 
 Every proposed reinforcement should include:
+
 - Trigger: when the rule applies.
 - Directive: exact behavior or file-placement rule.
 - Rationale: why the change reduces drift or breakage.
 - Evidence: a failing review, stale guidance example, issue, or reproducible metadata mistake.
 
 Reject proposals that are:
+
 - subjective or non-testable
 - unscoped across all Codex metadata without broad evidence
 - already covered by a narrower existing artifact
@@ -52,24 +56,28 @@ Provide an evidence-gated workflow for turning repeated Codex metadata mistakes 
 
 ## Layering model
 
-1) Stable policy
+1. Stable policy
+
 - `AGENTS.md` for repository-level Codex defaults and routing.
 - `.github/instructions/*.instructions.md` for authoring guidance about Codex metadata files.
 - `.agents/skills/` for reusable Codex procedures.
 
-2) Volatile lessons
+2. Volatile lessons
+
 - Short dated lessons with an evidence pointer and trigger condition.
 - Promote to stable policy only after repetition or a high-cost failure.
 
 ## Evidence-gated reinforcement schema
 
 Every proposed reinforcement should include:
+
 - Trigger: when the rule applies.
 - Directive: exact behavior or file-placement rule.
 - Rationale: why the change reduces drift or breakage.
 - Evidence: a failing review, stale guidance example, issue, or reproducible metadata mistake.
 
 Reject proposals that are:
+
 - subjective or non-testable
 - unscoped across all Codex metadata without broad evidence
 - already covered by a narrower existing artifact

@@ -3,6 +3,7 @@
 Last reviewed: 2026-05-22
 
 ## OpenAI Codex docs (authoritative)
+
 - AGENTS.md: https://developers.openai.com/codex/guides/agents-md
 - Config basics: https://developers.openai.com/codex/config-basic
 - Config reference: https://developers.openai.com/codex/config-reference
@@ -19,6 +20,7 @@ Last reviewed: 2026-05-22
 - Changelog: https://developers.openai.com/codex/changelog
 
 ## Repo-local research and design inputs
+
 - `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\README.md`
 - `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\codex.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`# Codex metadata references
@@ -26,6 +28,7 @@ Last reviewed: 2026-05-22
 Last reviewed: 2026-03-28
 
 ## OpenAI Codex docs (authoritative)
+
 - AGENTS.md: https://developers.openai.com/codex/guides/agents-md
 - Config basics: https://developers.openai.com/codex/config-basic
 - Config reference: https://developers.openai.com/codex/config-reference
@@ -37,6 +40,7 @@ Last reviewed: 2026-03-28
 - MCP: https://developers.openai.com/codex/mcp
 
 ## Repo-local research and design inputs
+
 - `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\README.md`
 - `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\codex.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
