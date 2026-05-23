@@ -16,7 +16,9 @@ suite('bundled metadata assets', () => {
         const content = fs.readFileSync(instructionPath, 'utf-8');
 
         assert.ok(
-            content.includes('Use the frontmatter `name` as the user-facing capability title throughout the file.'),
+            content.includes(
+                'Use the frontmatter `name` as the user-facing capability title throughout the file.',
+            ),
             'Expected bundled CAPABILITY contract guidance to require the frontmatter name as the user-facing title.',
         );
         assert.ok(
@@ -45,7 +47,10 @@ suite('bundled metadata assets', () => {
 
         for (const relativePath of requiredPaths) {
             const absolutePath = path.join(GITHUB_ROOT, relativePath);
-            assert.ok(fs.existsSync(absolutePath), `Expected bundled metadata asset: ${relativePath}`);
+            assert.ok(
+                fs.existsSync(absolutePath),
+                `Expected bundled metadata asset: ${relativePath}`,
+            );
         }
 
         const instructionPaths = requiredPaths.filter((relativePath) =>
@@ -76,8 +81,14 @@ suite('bundled metadata assets', () => {
             const capabilityPath = path.join(root, 'CAPABILITY.md');
             const pluginPath = path.join(root, 'plugin.json');
 
-            assert.ok(fs.existsSync(capabilityPath), `Expected bundled capability contract: ${capabilityName}`);
-            assert.ok(fs.existsSync(pluginPath), `Expected bundled plugin manifest: ${capabilityName}`);
+            assert.ok(
+                fs.existsSync(capabilityPath),
+                `Expected bundled capability contract: ${capabilityName}`,
+            );
+            assert.ok(
+                fs.existsSync(pluginPath),
+                `Expected bundled plugin manifest: ${capabilityName}`,
+            );
 
             const capabilityContent = fs.readFileSync(capabilityPath, 'utf-8');
             assert.ok(
@@ -99,7 +110,10 @@ suite('bundled metadata assets', () => {
 
         for (const relativePath of codexNativePaths) {
             const absolutePath = path.join(codexRoot, relativePath);
-            assert.ok(fs.existsSync(absolutePath), `Expected bundled Codex-native asset: ${relativePath}`);
+            assert.ok(
+                fs.existsSync(absolutePath),
+                `Expected bundled Codex-native asset: ${relativePath}`,
+            );
         }
     });
 
@@ -146,22 +160,37 @@ suite('bundled metadata assets', () => {
         const agentFiles = artifactFiles.filter((f) => getArtifactType(f) === 'agents');
         const skillFiles = artifactFiles.filter((f) => getArtifactType(f) === 'skills');
 
-        assert.ok(instructionFiles.length > 0, 'Expected at least one instructions artifact in .github');
+        assert.ok(
+            instructionFiles.length > 0,
+            'Expected at least one instructions artifact in .github',
+        );
         assert.ok(promptFiles.length > 0, 'Expected at least one prompts artifact in .github');
         assert.ok(agentFiles.length > 0, 'Expected at least one agents artifact in .github');
         assert.ok(skillFiles.length > 0, 'Expected at least one skills artifact in .github');
 
         for (const filePath of instructionFiles) {
-            assert.ok(filePath.startsWith('.github/instructions/'), `Expected instructions artifact under .github/instructions/: ${filePath}`);
+            assert.ok(
+                filePath.startsWith('.github/instructions/'),
+                `Expected instructions artifact under .github/instructions/: ${filePath}`,
+            );
         }
         for (const filePath of promptFiles) {
-            assert.ok(filePath.startsWith('.github/prompts/'), `Expected prompts artifact under .github/prompts/: ${filePath}`);
+            assert.ok(
+                filePath.startsWith('.github/prompts/'),
+                `Expected prompts artifact under .github/prompts/: ${filePath}`,
+            );
         }
         for (const filePath of agentFiles) {
-            assert.ok(filePath.startsWith('.github/agents/'), `Expected agents artifact under .github/agents/: ${filePath}`);
+            assert.ok(
+                filePath.startsWith('.github/agents/'),
+                `Expected agents artifact under .github/agents/: ${filePath}`,
+            );
         }
         for (const filePath of skillFiles) {
-            assert.ok(filePath.startsWith('.github/skills/'), `Expected skills artifact under .github/skills/: ${filePath}`);
+            assert.ok(
+                filePath.startsWith('.github/skills/'),
+                `Expected skills artifact under .github/skills/: ${filePath}`,
+            );
         }
     });
 
@@ -181,10 +210,7 @@ suite('bundled metadata assets', () => {
             'Expected bundled agents-md instruction to cover AGENTS.md (Codex/OpenAI) authoring',
         );
 
-        const compatibilityPath = path.join(
-            GITHUB_ROOT,
-            'skills/ai-metadata/Compatibility.md',
-        );
+        const compatibilityPath = path.join(GITHUB_ROOT, 'skills/ai-metadata/Compatibility.md');
         const compatibilityContent = fs.readFileSync(compatibilityPath, 'utf-8');
 
         assert.ok(
