@@ -600,9 +600,10 @@ function formatConfigWarningMessage(warning: {
 }): string {
     const trimmedMessage = warning.message.trim();
     const code = warning.code !== undefined ? String(warning.code).trim() : '';
-    const prefixedMessage = !code || trimmedMessage.startsWith(`[${code}]`)
-        ? trimmedMessage
-        : `[${code}] ${trimmedMessage}`;
+    const prefixedMessage =
+        !code || trimmedMessage.startsWith(`[${code}]`)
+            ? trimmedMessage
+            : `[${code}] ${trimmedMessage}`;
 
     if (!warning.file) {
         return prefixedMessage;
@@ -1984,7 +1985,10 @@ function getObjectPropertyValueNode(
     return undefined;
 }
 
-function getObjectPropertyString(node: jsonc.Node | undefined, propertyName: string): string | undefined {
+function getObjectPropertyString(
+    node: jsonc.Node | undefined,
+    propertyName: string,
+): string | undefined {
     const valueNode = getObjectPropertyValueNode(node, propertyName);
     return valueNode?.type === 'string' ? String(valueNode.value) : undefined;
 }
@@ -2070,8 +2074,9 @@ function findConfiguredLayerLocation(
                 }
 
                 if (
-                    normalizeConfiguredLayerPath(getObjectPropertyString(capabilityNode, 'path') ?? '') ===
-                    normalizedLayerPath
+                    normalizeConfiguredLayerPath(
+                        getObjectPropertyString(capabilityNode, 'path') ?? '',
+                    ) === normalizedLayerPath
                 ) {
                     return toLocation(getObjectPropertyValueNode(capabilityNode, 'path'));
                 }
@@ -2085,7 +2090,8 @@ function findConfiguredLayerLocation(
             for (const layerNode of layersNode.children ?? []) {
                 if (
                     layerNode.type === 'string' &&
-                    normalizeConfiguredLayerPath(String(layerNode.value ?? '')) === normalizedLayerPath
+                    normalizeConfiguredLayerPath(String(layerNode.value ?? '')) ===
+                        normalizedLayerPath
                 ) {
                     return toLocation(layerNode);
                 }
@@ -4160,9 +4166,10 @@ export function collectCapabilityPluginMaintenanceWarningMessages(options: {
     const messages: string[] = [];
 
     for (const failure of options.failures) {
-        const location = (path.isAbsolute(failure.layerPath)
-            ? failure.layerPath
-            : path.join(options.repoRoot, failure.layerPath)
+        const location = (
+            path.isAbsolute(failure.layerPath)
+                ? failure.layerPath
+                : path.join(options.repoRoot, failure.layerPath)
         ).replace(/\\/g, '/');
         messages.push(
             `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message} [${location}]`,
@@ -4186,11 +4193,12 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         ownerName?: string;
     },
 ): Promise<CapabilityPluginMaintenanceResult> {
-    const layerPaths = (options.capabilityDirectoryPaths && options.capabilityDirectoryPaths.length > 0
-        ? options.capabilityDirectoryPaths.map((capabilityDirectoryPath) =>
-              toRepoRelativeLayerPath(repoRoot, capabilityDirectoryPath),
-          )
-        : discoverLayersInRepo(repoRoot, options.excludePatterns)
+    const layerPaths = (
+        options.capabilityDirectoryPaths && options.capabilityDirectoryPaths.length > 0
+            ? options.capabilityDirectoryPaths.map((capabilityDirectoryPath) =>
+                  toRepoRelativeLayerPath(repoRoot, capabilityDirectoryPath),
+              )
+            : discoverLayersInRepo(repoRoot, options.excludePatterns)
     ).sort((left, right) => left.localeCompare(right));
 
     const changedResults: Array<
