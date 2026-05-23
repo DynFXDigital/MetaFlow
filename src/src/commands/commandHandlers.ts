@@ -3743,6 +3743,19 @@ export function mergeCapabilityWarningMessages(
     return changed;
 }
 
+export function collectCapabilityPluginMaintenanceWarningMessages(result: {
+    failures: Array<{ layerPath: string; message: string }>;
+    warnings: CapabilityWarning[];
+}): string[] {
+    return [
+        ...result.failures.map(
+            (failure) =>
+                `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
+        ),
+        ...result.warnings.map((warning) => formatCapabilityWarningMessage(warning)),
+    ];
+}
+
 export function buildMaintainedCapabilityPluginManifestJson(options: {
     capabilityName: string;
     capabilityDescription?: string;
@@ -7425,6 +7438,14 @@ export function registerCommands(
                     }
                     for (const warning of result.warnings) {
                         logWarn(formatCapabilityWarningMessage(warning));
+                    }
+
+                    const warningsChanged = mergeCapabilityWarningMessages(
+                        state.capabilityWarnings,
+                        collectCapabilityPluginMaintenanceWarningMessages(result),
+                    );
+                    if (warningsChanged) {
+                        state.onDidChange.fire();
                     }
                 }
 

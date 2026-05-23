@@ -4,7 +4,9 @@ import * as vscode from 'vscode';
 import { resolvePathFromWorkspace } from '@metaflow/engine';
 import {
     ExtensionState,
+    collectCapabilityPluginMaintenanceWarningMessages,
     maintainAllCapabilityPluginMetadataInRepo,
+    mergeCapabilityWarningMessages,
 } from './commands/commandHandlers';
 import { ensureMultiRepoConfig } from './commands/commandHelpers';
 import {
@@ -117,6 +119,14 @@ export function createCapabilityPluginMetadataScheduler(
             }
             for (const warning of result.warnings) {
                 logWarn(`MetaFlow: Auto-maintain warning for ${target.repoId}: ${warning.message}`);
+            }
+
+            const warningsChanged = mergeCapabilityWarningMessages(
+                state.capabilityWarnings,
+                collectCapabilityPluginMaintenanceWarningMessages(result),
+            );
+            if (warningsChanged) {
+                state.onDidChange.fire();
             }
         }
 

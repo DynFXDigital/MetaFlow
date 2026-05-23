@@ -87,6 +87,32 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.deepStrictEqual(warnings, ['Existing warning', 'New warning', 'Trimmed warning']);
     });
 
+    test('collectCapabilityPluginMaintenanceWarningMessages formats failures and catalog warnings', () => {
+        const { collectCapabilityPluginMaintenanceWarningMessages } = loadCommandHandlers();
+
+        const messages = collectCapabilityPluginMaintenanceWarningMessages({
+            failures: [
+                {
+                    layerPath: 'capabilities/demo/.agents',
+                    message: 'CAPABILITY.md was not found.',
+                },
+            ],
+            warnings: [
+                {
+                    code: 'CAPABILITY_AGENT_PLUGIN_MANIFEST_DUPLICATE',
+                    message: 'Duplicate agent-plugin plugin name "demo".',
+                    filePath: 'C:/repo/capabilities/demo/plugin.json',
+                    severity: 'error',
+                },
+            ],
+        });
+
+        assert.deepStrictEqual(messages, [
+            'MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found.',
+            '[CAPABILITY_AGENT_PLUGIN_MANIFEST_DUPLICATE] Duplicate agent-plugin plugin name "demo". [C:/repo/capabilities/demo/plugin.json]',
+        ]);
+    });
+
     test('ensureCapabilityManifestAgentPluginEnabled adds agentPlugin to existing frontmatter', () => {
         const { ensureCapabilityManifestAgentPluginEnabled } = loadCommandHandlers();
         const source = [
