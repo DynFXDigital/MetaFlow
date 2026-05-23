@@ -3,6 +3,7 @@
 Last reviewed: 2026-05-22
 
 ## Instruction files
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Claude Code loads project and parent-directory `CLAUDE.md` files at session start and loads nested subdirectory `CLAUDE.md` files on demand.
@@ -13,6 +14,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - Managed policy `CLAUDE.md` cannot be excluded via `claudeMdExcludes`.
 
 ## Rules
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Rules in `.claude/rules/` without `paths` frontmatter load unconditionally.
@@ -20,6 +22,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - User-level rules under `~/.claude/rules/` apply before project rules.
 
 ## Skills
+
 Source: https://code.claude.com/docs/en/skills.md
 
 - Project skills live under `.claude/skills/`.
@@ -28,6 +31,7 @@ Source: https://code.claude.com/docs/en/skills.md
 - Custom commands in `.claude/commands/` still work, but current docs position skills as the preferred authoring surface.
 
 ## Agents
+
 Source: https://code.claude.com/docs/en/sub-agents.md
 
 - Claude Code custom agents are Markdown files with YAML frontmatter in `.claude/agents/`.
@@ -36,6 +40,7 @@ Source: https://code.claude.com/docs/en/sub-agents.md
 - Built-in Explore and Plan agents skip `CLAUDE.md` and git-status startup context that other agents receive.
 
 ## Settings and hooks
+
 Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/hooks-guide.md
 
 - Claude Code settings merge across managed, project, local, and user scopes.
@@ -45,6 +50,7 @@ Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/do
 - Prompt and agent hook types are documented, but agent hooks remain experimental and command hooks are still the safer default for production policy.
 
 ## MCP and auto memory
+
 Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en/memory.md
 
 - Shared project MCP configuration lives in `.mcp.json`.
@@ -56,6 +62,7 @@ Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en
 Last reviewed: 2026-03-28
 
 ## Instruction files
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Claude Code loads project and parent-directory `CLAUDE.md` files at session start and loads nested subdirectory `CLAUDE.md` files on demand.
@@ -65,6 +72,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - Managed policy `CLAUDE.md` cannot be excluded via `claudeMdExcludes`.
 
 ## Rules
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Rules in `.claude/rules/` without `paths` frontmatter load unconditionally.
@@ -72,6 +80,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - User-level rules under `~/.claude/rules/` apply before project rules.
 
 ## Skills
+
 Source: https://code.claude.com/docs/en/skills.md
 
 - Project skills live under `.claude/skills/`.
@@ -79,12 +88,14 @@ Source: https://code.claude.com/docs/en/skills.md
 - Claude Code skills support `paths:` activation and shell preprocessing, unlike the currently documented Codex skill model.
 
 ## Agents
+
 Source: https://code.claude.com/docs/en/sub-agents.md
 
 - Claude Code custom agents are Markdown files with YAML frontmatter in `.claude/agents/`.
 - Agents support tool allowlists and denylists, permission modes, skill preloading, MCP scoping, persistent memory, and worktree isolation.
 
 ## Settings and hooks
+
 Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/hooks-guide.md
 
 - Claude Code settings merge across managed, project, local, and user scopes.
@@ -93,6 +104,7 @@ Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/do
 - Hooks can also be scoped through skill and agent frontmatter.
 
 ## MCP and auto memory
+
 Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en/memory.md
 
 - Shared project MCP configuration lives in `.mcp.json`.

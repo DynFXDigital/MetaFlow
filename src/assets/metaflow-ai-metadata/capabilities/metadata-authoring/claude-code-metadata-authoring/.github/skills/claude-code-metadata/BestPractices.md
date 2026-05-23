@@ -3,6 +3,7 @@
 Last reviewed: 2026-05-22
 
 ## Instruction files (`CLAUDE.md` and imports)
+
 Sources: https://code.claude.com/docs/en/memory.md, https://code.claude.com/docs/en/settings.md
 
 - Use repository-root `CLAUDE.md` or `.claude/CLAUDE.md` as the primary Claude Code instruction entry point.
@@ -14,6 +15,7 @@ Sources: https://code.claude.com/docs/en/memory.md, https://code.claude.com/docs
 - Use `claudeMdExcludes` in settings when a monorepo needs to suppress irrelevant instruction files.
 
 ## Rules (`.claude/rules/`)
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Use rules for constraints, conventions, and domain knowledge rather than multi-step procedures.
@@ -22,6 +24,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - Translate Copilot-style path-specific instructions into rules when Claude-native conditional loading is the goal.
 
 ## Skills (`.claude/skills/`)
+
 Source: https://code.claude.com/docs/en/skills.md
 
 - Use skills for reusable workflows, templates, and references that should not live in `CLAUDE.md` or rules.
@@ -41,6 +44,7 @@ Source: https://code.claude.com/docs/en/skills.md
 - Update supporting references and prompts in the same change when template names move.
 
 ## Agents (`.claude/agents/`)
+
 Source: https://code.claude.com/docs/en/sub-agents.md
 
 - Keep agents narrow, tool-constrained, and specific about when they should be used.
@@ -50,6 +54,7 @@ Source: https://code.claude.com/docs/en/sub-agents.md
 - Avoid `bypassPermissions` unless the risk is explicit and justified.
 
 ## Settings and hooks (`.claude/settings*.json`)
+
 Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/hooks-guide.md
 
 - Use `.claude/settings.json` for team-shared permissions, hooks, environment variables, and default behavior.
@@ -60,6 +65,7 @@ Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/do
 - Keep hooks deterministic, auditable, and bounded in scope.
 
 ## MCP and memory
+
 Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en/memory.md
 
 - Use `.mcp.json` for shared Claude Code MCP server configuration and environment-variable indirection for secrets.
@@ -70,6 +76,7 @@ Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en
 Last reviewed: 2026-03-28
 
 ## Instruction files (`CLAUDE.md` and imports)
+
 Sources: https://code.claude.com/docs/en/memory.md, https://code.claude.com/docs/en/settings.md
 
 - Use repository-root `CLAUDE.md` or `.claude/CLAUDE.md` as the primary Claude Code instruction entry point.
@@ -79,6 +86,7 @@ Sources: https://code.claude.com/docs/en/memory.md, https://code.claude.com/docs
 - Use `claudeMdExcludes` in settings when a monorepo needs to suppress irrelevant instruction files.
 
 ## Rules (`.claude/rules/`)
+
 Source: https://code.claude.com/docs/en/memory.md
 
 - Use rules for constraints, conventions, and domain knowledge rather than multi-step procedures.
@@ -87,6 +95,7 @@ Source: https://code.claude.com/docs/en/memory.md
 - Translate Copilot-style path-specific instructions into rules when Claude-native conditional loading is the goal.
 
 ## Skills (`.claude/skills/`)
+
 Source: https://code.claude.com/docs/en/skills.md
 
 - Use skills for reusable workflows, templates, and references that should not live in `CLAUDE.md` or rules.
@@ -104,6 +113,7 @@ Source: https://code.claude.com/docs/en/skills.md
 - Update supporting references and prompts in the same change when template names move.
 
 ## Agents (`.claude/agents/`)
+
 Source: https://code.claude.com/docs/en/sub-agents.md
 
 - Keep agents narrow, tool-constrained, and specific about when they should be used.
@@ -112,6 +122,7 @@ Source: https://code.claude.com/docs/en/sub-agents.md
 - Avoid `bypassPermissions` unless the risk is explicit and justified.
 
 ## Settings and hooks (`.claude/settings*.json`)
+
 Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/docs/en/hooks.md, https://code.claude.com/docs/en/hooks-guide.md
 
 - Use `.claude/settings.json` for team-shared permissions, hooks, environment variables, and default behavior.
@@ -121,6 +132,7 @@ Sources: https://code.claude.com/docs/en/settings.md, https://code.claude.com/do
 - Keep hooks deterministic, auditable, and bounded in scope.
 
 ## MCP and memory
+
 Sources: https://code.claude.com/docs/en/mcp.md, https://code.claude.com/docs/en/memory.md
 
 - Use `.mcp.json` for shared Claude Code MCP server configuration and environment-variable indirection for secrets.

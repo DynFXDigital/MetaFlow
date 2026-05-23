@@ -62,9 +62,10 @@ Claude Code-native metadata quality, structure, compatibility, and promotion rea
 - Compose with `model-role-guidance` when agent, skill, or settings authoring needs source-backed role-to-model defaults and override guidance.
 - Compose with `reflection` when durable memory captures or planning retrospectives should become Claude Code metadata improvements.
 - Compose with `devtools` for shared shell, validation, and temp-artifact handling conventions.---
-name: Claude Code Metadata Authoring
-description: Standards and workflows support authoring, reviewing, and maintaining Claude Code metadata constructs.
-license: SEE-LICENSE-IN-REPO
+  name: Claude Code Metadata Authoring
+  description: Standards and workflows support authoring, reviewing, and maintaining Claude Code metadata constructs.
+  license: SEE-LICENSE-IN-REPO
+
 ---
 
 # Capability: Claude Code Metadata Authoring
