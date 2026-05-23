@@ -35,6 +35,8 @@ type ConfigDiagnosticsModule = {
             message: string;
             code?: string | number;
             severity?: 'error' | 'warning' | 'warn';
+            startLine?: number;
+            startColumn?: number;
         }>,
     ) => void;
     publishGovernanceDiagnostics: (
@@ -305,6 +307,8 @@ suite('Config Diagnostics', () => {
                 code: 'LAYER_PATH_MISSING',
                 message:
                     '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                startLine: 12,
+                startColumn: 8,
             },
         ]);
 
@@ -318,7 +322,7 @@ suite('Config Diagnostics', () => {
             (call.diagnostics[0] as { code?: string | number }).code,
             'LAYER_PATH_MISSING',
         );
-        assert.deepStrictEqual(call.diagnostics[0].range.start, { line: 0, character: 0 });
+        assert.deepStrictEqual(call.diagnostics[0].range.start, { line: 12, character: 8 });
     });
 
     test('publishConfigWarningDiagnostics clears config warning diagnostics when warnings are resolved', () => {

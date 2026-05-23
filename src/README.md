@@ -141,11 +141,11 @@ The Capabilities view uses hierarchical mode by default. When the view is in tre
 - Unchecking a folder disables every descendant capability under that path prefix.
 - A folder checkbox is shown as checked only when every descendant capability is enabled.
 - Mixed and fully disabled branches both render as unchecked, with the tooltip and description showing the enabled ratio for mixed branches.
-- Concrete capability rows and artifact-type rows keep their existing checkbox behavior.
+- Concrete capability rows remain checkbox-driven; artifact-type rows are browse-only.
 
 Artifact-type rows such as `instructions`, `prompts`, `agents`, and `skills` can also expand when the selected layer contains metadata under that class.
 
-- Artifact-type rows stay toggleable at the class level.
+- Artifact-type rows do not expose enablement checkboxes; capability activation is atomic.
 - Nested folders and files under an artifact type are browse-only and do not expose checkboxes.
 - Browse rows prefer frontmatter or manifest display names when available.
 - Browse tooltips retain the canonical artifact path and description so friendly labels do not hide the internal identifier.

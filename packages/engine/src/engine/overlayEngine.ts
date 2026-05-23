@@ -434,6 +434,9 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             if (getEntryKind(entry, fullPath) !== 'directory') {
                 continue;
             }
+            if (entry.name.startsWith('.') && entry.name !== '.github') {
+                continue;
+            }
             if (entry.name === '.git' || entry.name === 'node_modules') {
                 continue;
             }

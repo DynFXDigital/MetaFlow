@@ -135,6 +135,47 @@ suite('Diagnostics Integration', () => {
         );
     });
 
+    test('metaflow_diagnostics language model tool is discoverable and returns snapshot payload', async function () {
+        this.timeout(15000);
+
+        await vscode.commands.executeCommand('metaflow.refresh');
+
+        const tool = vscode.lm.tools.find((candidate) => candidate.name === 'metaflow_diagnostics');
+        assert.ok(tool, 'Expected metaflow_diagnostics to be registered in vscode.lm.tools');
+        assert.ok(
+            tool.tags.includes('diagnostics'),
+            'Expected diagnostics tag to help agents select the tool',
+        );
+
+        const result = await vscode.lm.invokeTool(
+            'metaflow_diagnostics',
+            {
+                toolInvocationToken: undefined,
+                input: { refresh: false },
+            },
+            new vscode.CancellationTokenSource().token,
+        );
+
+        const jsonPart = result.content.find(
+            (part): part is vscode.LanguageModelDataPart =>
+                part instanceof vscode.LanguageModelDataPart &&
+                part.mimeType === 'application/json',
+        );
+        assert.ok(jsonPart, 'Expected tool result to include a JSON data part');
+
+        const snapshot = JSON.parse(Buffer.from(jsonPart.data).toString('utf-8')) as {
+            capabilityWarnings: unknown;
+            configDiagnostics: unknown;
+            governance: unknown;
+            warnings: unknown;
+        };
+
+        assert.ok(Array.isArray(snapshot.capabilityWarnings));
+        assert.ok(Array.isArray(snapshot.configDiagnostics));
+        assert.ok(snapshot.governance && typeof snapshot.governance === 'object');
+        assert.ok(Array.isArray(snapshot.warnings));
+    });
+
     // Trace: TC-0332
     test('getDiagnosticsSnapshot parity — snapshot configDiagnostics matches Problems panel for invalid config', async function () {
         this.timeout(15000);
@@ -406,6 +447,67 @@ suite('Diagnostics Integration', () => {
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             fs.rmSync(repoRoot, { recursive: true, force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('metaflow_diagnostics tool text part includes warning details, not only counts', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const warningConfig = JSON.stringify(
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [{ path: 'standards/missing-capability', enabled: true }],
+                    },
+                ],
+                profiles: {
+                    default: {
+                        displayName: 'Default',
+                        enable: ['**/*'],
+                    },
+                },
+                activeProfile: 'default',
+            },
+            null,
+            2,
+        );
+
+        try {
+            fs.writeFileSync(configPath, warningConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const result = await vscode.lm.invokeTool(
+                'metaflow_diagnostics',
+                {
+                    toolInvocationToken: undefined,
+                    input: { refresh: false },
+                },
+                new vscode.CancellationTokenSource().token,
+            );
+
+            const textPart = result.content.find(
+                (part): part is vscode.LanguageModelTextPart =>
+                    part instanceof vscode.LanguageModelTextPart,
+            );
+            assert.ok(textPart, 'Expected tool result to include a text part');
+            assert.ok(
+                textPart.value.includes('Warnings:'),
+                'Expected warnings header in text part',
+            );
+            assert.ok(
+                textPart.value.includes('primary/standards/missing-capability'),
+                `Expected warning details in text part, got: ${textPart.value}`,
+            );
+            assert.ok(
+                textPart.value.includes('Remediation:'),
+                'Expected remediation guidance in text part',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });

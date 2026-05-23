@@ -1505,7 +1505,7 @@ suite('Command Execution', function () {
                     rules: '.github/instructions',
                     metaflow: {
                         pluginHosts: ['github-copilot'],
-                        minimumMetaflowVersion: '^0.1.0',
+                        minimumMetaflowVersion: '^0.1.0-preview.0',
                     },
                 },
                 null,
@@ -2321,6 +2321,8 @@ suite('Command Execution', function () {
         try {
             const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
                 sourcePath,
+                sourceLine: 0,
+                sourceColumn: 8,
                 warningMessage,
             })) as string | undefined;
 
@@ -2334,6 +2336,8 @@ suite('Command Execution', function () {
                 path.normalize(sourcePath),
                 'openWarningSource should open the exact warning source file',
             );
+            assert.strictEqual(vscode.window.activeTextEditor!.selection.active.line, 0);
+            assert.strictEqual(vscode.window.activeTextEditor!.selection.active.character, 8);
 
             const copied = (await vscode.commands.executeCommand('metaflow.copyWarningMessage', {
                 warningMessage,
@@ -2344,6 +2348,51 @@ suite('Command Execution', function () {
         } finally {
             removeDirectoryRecursive(warningRoot);
             await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openWarningSource reveals backing warning directories in Explorer', async function () {
+        this.timeout(15000);
+
+        const warningRoot = path.join(workspaceRoot, '.tmp-warning-source-directory');
+        const sourcePath = path.join(warningRoot, 'capabilities', 'sample');
+
+        removeDirectoryRecursive(warningRoot);
+        fs.mkdirSync(sourcePath, { recursive: true });
+
+        const originalExecuteCommand = vscode.commands.executeCommand;
+        const calls: Array<{ command: string; args: unknown[] }> = [];
+        (vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }).executeCommand =
+            (async (command: string, ...args: unknown[]) => {
+                calls.push({ command, args });
+                if (command === 'revealInExplorer') {
+                    return;
+                }
+
+                return originalExecuteCommand(command as never, ...(args as []));
+            }) as typeof vscode.commands.executeCommand;
+
+        try {
+            const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
+                sourcePath,
+                sourceKind: 'directory',
+                warningMessage: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING] Missing capability manifest [${sourcePath.replace(/\\/g, '/')}]`,
+            })) as string | undefined;
+
+            assert.strictEqual(openedPath, sourcePath);
+            assert.ok(
+                calls.some(
+                    (call) =>
+                        call.command === 'revealInExplorer' &&
+                        call.args[0] instanceof vscode.Uri &&
+                        path.normalize((call.args[0] as vscode.Uri).fsPath) === path.normalize(sourcePath),
+                ),
+                'openWarningSource should reveal the exact warning directory in Explorer',
+            );
+        } finally {
+            (vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }).executeCommand =
+                originalExecuteCommand;
+            removeDirectoryRecursive(warningRoot);
         }
     });
 
@@ -3222,101 +3271,6 @@ suite('Command Execution', function () {
             );
         } finally {
             fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
-            fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh');
-        }
-    });
-
-    test('toggleLayerArtifactType persists excludedTypes updates', async function () {
-        this.timeout(15000);
-
-        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
-        const originalConfig = fs.readFileSync(configPath, 'utf-8');
-
-        const multiRepoConfig = {
-            metadataRepos: [{ id: 'ai-metadata', localPath: '.ai/ai-metadata', enabled: true }],
-            layerSources: [{ repoId: 'ai-metadata', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
-            profiles: {
-                default: {
-                    enable: ['**/*'],
-                    disable: [],
-                },
-            },
-            activeProfile: 'default',
-            injection: {
-                instructions: 'settings',
-                prompts: 'settings',
-                skills: 'settings',
-                agents: 'settings',
-                hooks: 'settings',
-            },
-        };
-
-        try {
-            fs.writeFileSync(configPath, JSON.stringify(multiRepoConfig, null, 2), 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh');
-
-            await vscode.commands.executeCommand(
-                'metaflow.toggleLayerArtifactType',
-                { layerIndex: 0, artifactType: 'instructions' },
-                vscode.TreeItemCheckboxState.Unchecked,
-            );
-
-            const afterExclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ excludedTypes?: string[] }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            excludedTypes?: string[];
-                        }>;
-                    }
-                >;
-            };
-
-            assert.ok(
-                afterExclude.metadataRepos?.[0]?.capabilities?.length,
-                'Config should contain persisted capabilities',
-            );
-            assert.ok(
-                afterExclude.profiles?.default?.layerOverrides
-                    ?.find((override) => override.path === '.')
-                    ?.excludedTypes?.includes('instructions'),
-                'instructions should be persisted in the active profile override when unchecked',
-            );
-
-            await vscode.commands.executeCommand(
-                'metaflow.toggleLayerArtifactType',
-                { layerIndex: 0, artifactType: 'instructions' },
-                vscode.TreeItemCheckboxState.Checked,
-            );
-
-            const afterInclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ excludedTypes?: string[] }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            excludedTypes?: string[];
-                        }>;
-                    }
-                >;
-            };
-
-            assert.ok(
-                !afterInclude.profiles?.default?.layerOverrides
-                    ?.find((override) => override.path === '.')
-                    ?.excludedTypes?.includes('instructions'),
-                'instructions should be removed from the active profile override when checked',
-            );
-        } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
@@ -5825,6 +5779,56 @@ suite('Command Execution', function () {
             assert.ok(
                 warningMessages.some((message) => message.includes('not git-backed or not found')),
                 'pullRepository should warn when a non-git or unknown repo is requested',
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('pushRepository warns when requested repo is not git-backed', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const gitBackedConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify(gitBackedConfig, null, 2), 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const warningMessages: string[] = [];
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                warningMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.pushRepository', {
+                repoId: 'missing-repo-id',
+            });
+            assert.ok(
+                warningMessages.some((message) => message.includes('not git-backed or not found')),
+                'pushRepository should warn when a non-git or unknown repo is requested',
             );
         } finally {
             windowAny.showWarningMessage = originalWarning;

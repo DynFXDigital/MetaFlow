@@ -367,7 +367,7 @@ describe('Engine gaps: configLoader', () => {
         assert.ok(errors.some((e) => e.message.includes('capabilities')));
     });
 
-    it('validateConfig reports error for invalid excludedTypes in layerSources', () => {
+    it('validateConfig reports error for unsupported excludedTypes in layerSources', () => {
         const errors = validateConfig({
             metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
             layerSources: [
@@ -375,10 +375,10 @@ describe('Engine gaps: configLoader', () => {
                     repoId: 'r1',
                     path: 'core',
                     excludedTypes: [1 as unknown as string],
-                },
+                } as unknown as { repoId: string; path: string },
             ],
         } as MetaFlowConfig);
-        assert.ok(errors.some((e) => e.message.includes('excludedTypes')));
+        assert.ok(errors.some((e) => e.message.includes('unsupported "excludedTypes"')));
     });
 
     it('validateConfig reports error for invalid capability fileNamingStrategy', () => {

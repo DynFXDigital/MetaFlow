@@ -110,6 +110,95 @@ suite('Command handler configured source warnings', () => {
         }
     });
 
+    test('enabled missing layer path still produces a general configured-source warning', () => {
+        const { collectConfiguredSourceWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-enabled-general-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            const warnings = collectConfiguredSourceWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: true },
+                    ],
+                } as never,
+                workspaceRoot,
+                [] as never,
+            );
+
+            assert.deepStrictEqual(warnings, [
+                '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+            ]);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('disabled missing layer path does not produce a general configured-source warning', () => {
+        const { collectConfiguredSourceWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-disabled-general-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            const warnings = collectConfiguredSourceWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: false },
+                    ],
+                } as never,
+                workspaceRoot,
+                [] as never,
+            );
+
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('profile-projected disabled missing layer path does not produce a general configured-source warning', () => {
+        const { collectConfiguredSourceWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-profile-disabled-layer-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            const warnings = collectConfiguredSourceWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/ghost', enabled: false },
+                    ],
+                    activeProfile: 'default',
+                    profiles: {
+                        default: {
+                            layerOverrides: [
+                                {
+                                    repoId: 'primary',
+                                    path: 'capabilities/ghost',
+                                    enabled: false,
+                                },
+                            ],
+                        },
+                    },
+                } as never,
+                workspaceRoot,
+                [] as never,
+            );
+
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('existing enabled layer path does not produce a diagnostic warning payload', () => {
         const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-found-layer-'));

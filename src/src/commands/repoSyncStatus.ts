@@ -34,6 +34,11 @@ export interface PullRepoResult {
     message: string;
 }
 
+export interface PushRepoResult {
+    ok: boolean;
+    message: string;
+}
+
 function trimOutput(value: string): string {
     return value.trim();
 }
@@ -216,6 +221,35 @@ export function mapPullFailureMessage(rawError: string): string {
     return rawError;
 }
 
+export function mapPushFailureMessage(rawError: string): string {
+    const lowered = rawError.toLowerCase();
+    if (
+        lowered.includes('has no upstream branch') ||
+        lowered.includes('no upstream branch') ||
+        lowered.includes('no tracking information')
+    ) {
+        return 'No upstream tracking branch is configured. Set upstream first, then retry push.';
+    }
+    if (
+        lowered.includes('non-fast-forward') ||
+        lowered.includes('fetch first') ||
+        lowered.includes('remote contains work that you do not have locally')
+    ) {
+        return 'Push was rejected because the remote has newer commits. Pull and reconcile first, then retry.';
+    }
+    if (lowered.includes('not a git repository')) {
+        return 'Repository path is not a git repository.';
+    }
+    if (
+        lowered.includes('could not read from remote repository') ||
+        lowered.includes('authentication failed') ||
+        lowered.includes('permission denied')
+    ) {
+        return 'Unable to push to the remote repository. Verify network, permissions, and authentication, then retry.';
+    }
+    return rawError;
+}
+
 export async function pullRepositoryFastForward(
     repoRoot: string,
     runner: GitCommandRunner = runGitCommand,
@@ -233,6 +267,27 @@ export async function pullRepositoryFastForward(
         return {
             ok: false,
             message: mapPullFailureMessage(normalized),
+        };
+    }
+}
+
+export async function pushRepository(
+    repoRoot: string,
+    runner: GitCommandRunner = runGitCommand,
+): Promise<PushRepoResult> {
+    try {
+        const result = await runner(repoRoot, ['push']);
+        const output = trimOutput(`${result.stdout}\n${result.stderr}`);
+        const message = output.length > 0 ? output : 'Push completed.';
+        return {
+            ok: true,
+            message,
+        };
+    } catch (err: unknown) {
+        const normalized = normalizeGitError(err);
+        return {
+            ok: false,
+            message: mapPushFailureMessage(normalized),
         };
     }
 }

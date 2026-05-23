@@ -3,7 +3,7 @@ import * as path from 'path';
 import {
     applyProfile,
     EffectiveFile,
-    ExcludableArtifactType,
+    ArtifactType,
     getArtifactType,
     MetaFlowConfig,
     parseFrontmatter,
@@ -11,7 +11,7 @@ import {
 } from '@metaflow/engine';
 import { BUILT_IN_CAPABILITY_REPO_ID, BuiltInCapabilityRuntimeState } from './builtInCapability';
 
-export type SummaryArtifactType = ExcludableArtifactType;
+export type SummaryArtifactType = Exclude<ArtifactType, 'other'>;
 
 export const SUMMARY_ARTIFACT_ORDER: SummaryArtifactType[] = [
     'instructions',

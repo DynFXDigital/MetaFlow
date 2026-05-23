@@ -70,7 +70,6 @@ const EXPECTED_COMMANDS = [
     'metaflow.switchProfile',
     'metaflow.toggleFilesViewMode',
     'metaflow.toggleLayer',
-    'metaflow.toggleLayerArtifactType',
     'metaflow.toggleLayerBranch',
     'metaflow.toggleLayersViewMode',
     'metaflow.toggleRepoSource',

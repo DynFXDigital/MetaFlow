@@ -36,6 +36,8 @@ import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
 import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
+import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
+import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -228,8 +230,28 @@ export function activate(context: vscode.ExtensionContext): void {
     // Register commands (wires engine + synchronization pipeline)
     registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
 
+    registerDiagnosticsTool(
+        context,
+        () => buildDiagnosticsSnapshot(state, diagnosticCollection),
+        async () => {
+            if (
+                state.capabilityPluginMetadataDirtyVersion ===
+                state.capabilityPluginMetadataSettledVersion
+            ) {
+                return;
+            }
+
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                skipAutoApply: true,
+                skipRepoSync: true,
+                skipSettingsInjection: true,
+                preferStateConfig: true,
+            });
+        },
+    );
+
     // Register TreeView providers
-    const configTreeViewProvider = new ConfigTreeViewProvider(state);
+    const configTreeViewProvider = new ConfigTreeViewProvider(state, diagnosticCollection);
     const profilesTreeViewProvider = new ProfilesTreeViewProvider(state);
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
@@ -458,18 +480,6 @@ export function activate(context: vscode.ExtensionContext): void {
                         repoId,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
-                    continue;
-                }
-
-                if (
-                    typeof contextValue === 'string' &&
-                    contextValue.startsWith('layerArtifactType:')
-                ) {
-                    await vscode.commands.executeCommand(
-                        'metaflow.toggleLayerArtifactType',
-                        item,
-                        checkboxState,
-                    );
                     continue;
                 }
 

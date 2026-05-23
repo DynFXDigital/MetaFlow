@@ -63,6 +63,69 @@ suite('bundled metadata assets', () => {
         }
     });
 
+    test('bundled metadata-authoring capabilities include plugin manifests and Codex-native assets', () => {
+        const capabilityRoot = path.join(ASSET_ROOT, 'capabilities/metadata-authoring');
+        const capabilityNames = [
+            'github-copilot-metadata-authoring',
+            'claude-code-metadata-authoring',
+            'codex-metadata-authoring',
+        ];
+
+        for (const capabilityName of capabilityNames) {
+            const root = path.join(capabilityRoot, capabilityName);
+            const capabilityPath = path.join(root, 'CAPABILITY.md');
+            const pluginPath = path.join(root, 'plugin.json');
+
+            assert.ok(fs.existsSync(capabilityPath), `Expected bundled capability contract: ${capabilityName}`);
+            assert.ok(fs.existsSync(pluginPath), `Expected bundled plugin manifest: ${capabilityName}`);
+
+            const capabilityContent = fs.readFileSync(capabilityPath, 'utf-8');
+            assert.ok(
+                capabilityContent.includes('agentPlugin: true'),
+                `Expected bundled capability to declare agentPlugin: true: ${capabilityName}`,
+            );
+        }
+
+        const codexRoot = path.join(capabilityRoot, 'codex-metadata-authoring');
+        const codexNativePaths = [
+            '.codex/config.toml',
+            '.codex/agents/codex-metadata-authoring-steward.toml',
+            '.agents/skills/codex-metadata/SKILL.md',
+            '.agents/skills/codex-metadata/BestPractices.md',
+            '.agents/skills/codex-metadata/Compatibility.md',
+            '.agents/skills/codex-metadata/References.md',
+            '.agents/skills/codex-metadata/ReflectionReinforcement.md',
+        ];
+
+        for (const relativePath of codexNativePaths) {
+            const absolutePath = path.join(codexRoot, relativePath);
+            assert.ok(fs.existsSync(absolutePath), `Expected bundled Codex-native asset: ${relativePath}`);
+        }
+    });
+
+    test('bundled metadata-authoring capability files avoid stale DFX self-paths', () => {
+        const capabilityRoot = path.join(ASSET_ROOT, 'capabilities/metadata-authoring');
+        const staleSelfPath = 'capabilities/agentic-development/metadata-authoring';
+
+        const visit = (dir: string): void => {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    visit(fullPath);
+                    continue;
+                }
+
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                assert.ok(
+                    !content.includes(staleSelfPath),
+                    `Bundled metadata-authoring asset should not reference stale DFX self-path: ${path.relative(ASSET_ROOT, fullPath)}`,
+                );
+            }
+        };
+
+        visit(capabilityRoot);
+    });
+
     test('bundled .github artifacts classify into the correct artifact buckets', () => {
         const artifactFiles: string[] = [];
         const visit = (dir: string): void => {

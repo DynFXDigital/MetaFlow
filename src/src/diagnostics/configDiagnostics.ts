@@ -22,6 +22,23 @@ export interface SupplementalConfigDiagnostic {
     message: string;
     code?: string | number;
     severity?: 'error' | 'warning' | 'warn';
+    startLine?: number;
+    startColumn?: number;
+}
+
+export function formatDiagnosticLocation(
+    file: string,
+    startLine?: number,
+    startColumn?: number,
+): string {
+    const normalizedFile = file.replace(/\\/g, '/');
+    if (typeof startLine !== 'number') {
+        return normalizedFile;
+    }
+
+    const line = startLine + 1;
+    const column = (startColumn ?? 0) + 1;
+    return `${normalizedFile}#L${line}C${column}`;
 }
 
 /**
@@ -81,8 +98,10 @@ export function publishConfigWarningDiagnostics(
     }
 
     const diagnostics: vscode.Diagnostic[] = warnings.map((warning) => {
+        const line = warning.startLine ?? 0;
+        const col = warning.startColumn ?? 0;
         const diagnostic = new vscode.Diagnostic(
-            new vscode.Range(0, 0, 0, 1),
+            new vscode.Range(line, col, line, col + 1),
             warning.message,
             mapSeverity(warning.severity ?? 'warning'),
         );

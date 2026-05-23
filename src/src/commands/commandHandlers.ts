@@ -38,11 +38,9 @@ import {
     buildCapabilityPluginMarketplaceManifest,
     resolvePathFromWorkspace,
     applyFilters,
-    applyExcludedTypeFilters,
     applyProfile,
     classifyFiles,
     EffectiveFile,
-    ExcludableArtifactType,
     apply,
     clean,
     preview,
@@ -54,13 +52,14 @@ import {
     toAuthoredConfig,
 } from '@metaflow/engine';
 import {
+    formatDiagnosticLocation,
     publishConfigDiagnostics,
     publishConfigWarningDiagnostics,
     publishGovernanceComplianceDiagnostics,
     publishGovernanceDiagnostics,
     clearDiagnostics,
-    getDiagnosticsSnapshot,
 } from '../diagnostics/configDiagnostics';
+import { buildDiagnosticsSnapshot } from '../diagnostics/diagnosticsSnapshot';
 import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
@@ -97,6 +96,7 @@ import { ensureMetaFlowAiMetadataCache, scaffoldMetaFlowAiMetadata } from './sta
 import {
     checkRepoSyncStatus,
     pullRepositoryFastForward,
+    pushRepository,
     RepoSyncStatus,
     runGitCommand,
 } from './repoSyncStatus';
@@ -508,6 +508,9 @@ export interface ExtensionState {
     governanceContractErrors: ConfigError[];
     governanceCompliance?: GovernanceComplianceResult;
     capabilityWarnings: string[];
+    configWarnings: string[];
+    capabilityPluginMetadataDirtyVersion: number;
+    capabilityPluginMetadataSettledVersion: number;
     capabilityDiagnosticFilePaths: string[];
     agentPluginCatalog: CapabilityPluginCatalogEntry[];
     localGitRepoIds: Set<string>;
@@ -536,6 +539,9 @@ export function createState(): ExtensionState {
         governanceContractErrors: [],
         governanceCompliance: undefined,
         capabilityWarnings: [],
+        configWarnings: [],
+        capabilityPluginMetadataDirtyVersion: 0,
+        capabilityPluginMetadataSettledVersion: 0,
         capabilityDiagnosticFilePaths: [],
         agentPluginCatalog: [],
         localGitRepoIds: new Set<string>(),
@@ -564,19 +570,24 @@ function cloneConfigError(error: ConfigError): ConfigError {
     };
 }
 
-function cloneGovernanceComplianceResult(
-    result: GovernanceComplianceResult | undefined,
-): GovernanceComplianceResult | undefined {
-    if (!result) {
-        return undefined;
+function formatConfigWarningMessage(warning: {
+    message: string;
+    code?: string | number;
+    file?: string;
+    startLine?: number;
+    startColumn?: number;
+}): string {
+    const trimmedMessage = warning.message.trim();
+    const code = warning.code !== undefined ? String(warning.code).trim() : '';
+    const prefixedMessage = !code || trimmedMessage.startsWith(`[${code}]`)
+        ? trimmedMessage
+        : `[${code}] ${trimmedMessage}`;
+
+    if (!warning.file) {
+        return prefixedMessage;
     }
 
-    return {
-        ...result,
-        allowedProfiles: [...result.allowedProfiles],
-        lockedProfiles: [...result.lockedProfiles],
-        violations: result.violations.map((violation) => ({ ...violation })),
-    };
+    return `${prefixedMessage} [${formatDiagnosticLocation(warning.file, warning.startLine, warning.startColumn)}]`;
 }
 
 function cloneBuiltInCapabilityRuntimeState(
@@ -1450,9 +1461,6 @@ function resolveCapabilityInjectionTarget(
         capability = {
             path: layerSource.path,
             ...(layerSource.enabled !== undefined ? { enabled: layerSource.enabled } : {}),
-            ...(layerSource.excludedTypes !== undefined
-                ? { excludedTypes: [...layerSource.excludedTypes] }
-                : {}),
         };
         repo.capabilities.push(capability);
     }
@@ -1504,12 +1512,6 @@ function syncLayerSourceToCapabilityConfig(
         capability.enabled = layerSource.enabled;
     }
 
-    if (layerSource.excludedTypes === undefined) {
-        delete capability.excludedTypes;
-    } else {
-        capability.excludedTypes = [...layerSource.excludedTypes];
-    }
-
     if (layerSource.injection === undefined) {
         delete capability.injection;
     } else {
@@ -1539,7 +1541,6 @@ function applyLayerMutationToActiveProfile(
     layerPath: string,
     mutation: {
         enabled?: boolean;
-        excludedTypes?: ExcludableArtifactType[];
     },
 ): { scopedToProfile: boolean; profileId?: string } {
     const target = getScopedLayerMutationProfile(config);
@@ -1896,6 +1897,9 @@ function formatLayerPathWarning(
 export interface ConfiguredSourceDiagnosticWarning {
     message: string;
     code: string;
+    file?: string;
+    startLine?: number;
+    startColumn?: number;
 }
 
 const DIAGNOSTIC_ELIGIBLE_CONFIGURED_SOURCE_WARNING_CODES = new Set([
@@ -1913,6 +1917,11 @@ function addConfiguredSourceDiagnosticWarning(
     diagnostics: ConfiguredSourceDiagnosticWarning[],
     seenMessages: Set<string>,
     message: string,
+    location?: {
+        file: string;
+        startLine: number;
+        startColumn: number;
+    },
 ): void {
     const code = extractWarningCode(message);
     if (!code || !DIAGNOSTIC_ELIGIBLE_CONFIGURED_SOURCE_WARNING_CODES.has(code)) {
@@ -1924,12 +1933,152 @@ function addConfiguredSourceDiagnosticWarning(
     }
 
     seenMessages.add(message);
-    diagnostics.push({ message, code });
+    diagnostics.push({ message, code, ...location });
+}
+
+function getLineColumn(text: string, offset: number): { line: number; column: number } {
+    const lines = text.slice(0, offset).split(/\r?\n/);
+    return {
+        line: lines.length - 1,
+        column: lines[lines.length - 1]?.length ?? 0,
+    };
+}
+
+function getObjectPropertyValueNode(
+    node: jsonc.Node | undefined,
+    propertyName: string,
+): jsonc.Node | undefined {
+    if (!node || node.type !== 'object') {
+        return undefined;
+    }
+
+    for (const propertyNode of node.children ?? []) {
+        const keyNode = propertyNode.children?.[0];
+        const valueNode = propertyNode.children?.[1];
+        if (keyNode?.value === propertyName) {
+            return valueNode;
+        }
+    }
+
+    return undefined;
+}
+
+function getObjectPropertyString(node: jsonc.Node | undefined, propertyName: string): string | undefined {
+    const valueNode = getObjectPropertyValueNode(node, propertyName);
+    return valueNode?.type === 'string' ? String(valueNode.value) : undefined;
+}
+
+function isConfigEntryEnabled(node: jsonc.Node | undefined): boolean {
+    return getObjectPropertyValueNode(node, 'enabled')?.value !== false;
+}
+
+function normalizeConfiguredLayerPath(layerPath: string): string {
+    return layerPath.replace(/\\/g, '/');
+}
+
+function findConfiguredLayerLocation(
+    configPath: string | undefined,
+    repoId: string,
+    layerPath: string,
+): { file: string; startLine: number; startColumn: number } | undefined {
+    if (!configPath) {
+        return undefined;
+    }
+
+    let text: string;
+    try {
+        text = fs.readFileSync(configPath, 'utf-8');
+    } catch {
+        return undefined;
+    }
+
+    const root = jsonc.parseTree(text);
+    if (!root) {
+        return undefined;
+    }
+
+    const normalizedLayerPath = normalizeConfiguredLayerPath(layerPath);
+    const toLocation = (node: jsonc.Node | undefined) => {
+        if (!node) {
+            return undefined;
+        }
+        const position = getLineColumn(text, node.offset);
+        return {
+            file: configPath,
+            startLine: position.line,
+            startColumn: position.column,
+        };
+    };
+
+    const layerSourcesNode = jsonc.findNodeAtLocation(root, ['layerSources']);
+    if (layerSourcesNode?.type === 'array') {
+        for (const sourceNode of layerSourcesNode.children ?? []) {
+            if (sourceNode.type !== 'object' || !isConfigEntryEnabled(sourceNode)) {
+                continue;
+            }
+
+            if (
+                getObjectPropertyString(sourceNode, 'repoId') === repoId &&
+                normalizeConfiguredLayerPath(getObjectPropertyString(sourceNode, 'path') ?? '') ===
+                    normalizedLayerPath
+            ) {
+                return toLocation(getObjectPropertyValueNode(sourceNode, 'path'));
+            }
+        }
+    }
+
+    const metadataReposNode = jsonc.findNodeAtLocation(root, ['metadataRepos']);
+    if (metadataReposNode?.type === 'array') {
+        for (const repoNode of metadataReposNode.children ?? []) {
+            if (
+                repoNode.type !== 'object' ||
+                !isConfigEntryEnabled(repoNode) ||
+                getObjectPropertyString(repoNode, 'id') !== repoId
+            ) {
+                continue;
+            }
+
+            const capabilitiesNode = getObjectPropertyValueNode(repoNode, 'capabilities');
+            if (capabilitiesNode?.type !== 'array') {
+                continue;
+            }
+
+            for (const capabilityNode of capabilitiesNode.children ?? []) {
+                if (capabilityNode.type !== 'object' || !isConfigEntryEnabled(capabilityNode)) {
+                    continue;
+                }
+
+                if (
+                    normalizeConfiguredLayerPath(getObjectPropertyString(capabilityNode, 'path') ?? '') ===
+                    normalizedLayerPath
+                ) {
+                    return toLocation(getObjectPropertyValueNode(capabilityNode, 'path'));
+                }
+            }
+        }
+    }
+
+    if (repoId === 'primary') {
+        const layersNode = jsonc.findNodeAtLocation(root, ['layers']);
+        if (layersNode?.type === 'array') {
+            for (const layerNode of layersNode.children ?? []) {
+                if (
+                    layerNode.type === 'string' &&
+                    normalizeConfiguredLayerPath(String(layerNode.value ?? '')) === normalizedLayerPath
+                ) {
+                    return toLocation(layerNode);
+                }
+            }
+        }
+    }
+
+    return undefined;
 }
 
 export function collectEnabledConfiguredSourceDiagnosticWarnings(
     config: MetaFlowConfig,
     workspaceRoot: string,
+    configPath?: string,
 ): ConfiguredSourceDiagnosticWarning[] {
     const diagnostics: ConfiguredSourceDiagnosticWarning[] = [];
     const seenMessages = new Set<string>();
@@ -1956,6 +2105,7 @@ export function collectEnabledConfiguredSourceDiagnosticWarnings(
                 diagnostics,
                 seenMessages,
                 formatLayerPathWarning(repoId, layerPath, layerAccessibility),
+                findConfiguredLayerLocation(configPath, repoId, layerPath),
             );
         }
     };
@@ -2052,6 +2202,10 @@ export function collectConfiguredSourceWarnings(
         const layerPathsByRepoId = new Map<string, string[]>();
 
         for (const source of config.layerSources) {
+            if (source.enabled === false) {
+                continue;
+            }
+
             const existing = layerPathsByRepoId.get(source.repoId) ?? [];
             existing.push(source.path);
             layerPathsByRepoId.set(source.repoId, existing);
@@ -2688,7 +2842,6 @@ function resolveOverlay(
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
-    files = applyExcludedTypeFilters(files, config.layerSources);
 
     const baseProfileFiles = [...files];
     files = applyProfile(files, profile);
@@ -3649,7 +3802,7 @@ function buildCapabilityPluginManifestStarterTemplate(
             rules: '.github/instructions',
             metaflow: {
                 pluginHosts: ['github-copilot'],
-                minimumMetaflowVersion: '^0.1.0',
+                minimumMetaflowVersion: '^0.1.0-preview.0',
             },
         },
         null,
@@ -3741,22 +3894,6 @@ export function mergeCapabilityWarningMessages(
     }
 
     return changed;
-}
-
-export function collectCapabilityPluginMaintenanceWarningMessages(result: {
-    repoRoot?: string;
-    failures: Array<{ layerPath: string; message: string }>;
-    warnings: CapabilityWarning[];
-}): string[] {
-    return [
-        ...result.failures.map((failure) => {
-            const location = result.repoRoot
-                ? ` [${path.join(result.repoRoot, failure.layerPath).replace(/\\/g, '/')}]`
-                : '';
-            return `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}${location}`;
-        }),
-        ...result.warnings.map((warning) => formatCapabilityWarningMessage(warning)),
-    ];
 }
 
 export function buildMaintainedCapabilityPluginManifestJson(options: {
@@ -3919,7 +4056,6 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
         repoId: string;
         marketplaceName?: string;
         ownerName?: string;
-        excludePatterns?: string[];
     },
 ): Promise<{
     marketplacePath: string;
@@ -3927,7 +4063,7 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     pluginCount: number;
     warnings: CapabilityWarning[];
 }> {
-    const layerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort((left, right) =>
+    const layerPaths = discoverLayersInRepo(repoRoot).sort((left, right) =>
         left.localeCompare(right),
     );
     const layers = layerPaths.map((layerPath) => {
@@ -3968,17 +4104,12 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     };
 }
 
-export async function maintainAllCapabilityPluginMetadataInRepo(
-    repoRoot: string,
-    options: {
-        repoId: string;
-        marketplaceName?: string;
-        ownerName?: string;
-        excludePatterns?: string[];
-        capabilityDirectoryPaths?: string[];
-        onProgress?: (progress: { layerPath: string; index: number; total: number }) => void;
-    },
-): Promise<{
+export interface CapabilityPluginMaintenanceFailure {
+    layerPath: string;
+    message: string;
+}
+
+export interface CapabilityPluginMaintenanceResult {
     repoId: string;
     repoRoot: string;
     scannedCount: number;
@@ -3986,31 +4117,60 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
     unchangedCount: number;
     failureCount: number;
     changedCapabilities: string[];
-    failures: Array<{ layerPath: string; message: string }>;
+    failures: CapabilityPluginMaintenanceFailure[];
     marketplacePath: string;
     marketplaceChanged: boolean;
     marketplacePluginCount: number;
     warnings: CapabilityWarning[];
-}> {
-    const discoveredLayerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort(
-        (left, right) => left.localeCompare(right),
-    );
-    const layerPathByCapabilityDirectory = new Map(
-        discoveredLayerPaths.map((layerPath) => [
-            path.resolve(repoRoot, layerPath === '.' ? '' : layerPath),
-            layerPath,
-        ]),
-    );
+}
 
-    const candidateCapabilityDirectories = options.capabilityDirectoryPaths
-        ? Array.from(
-              new Set(options.capabilityDirectoryPaths.map((candidate) => path.resolve(candidate))),
+function toRepoRelativeLayerPath(repoRoot: string, capabilityDirectoryPath: string): string {
+    const absolutePath = path.isAbsolute(capabilityDirectoryPath)
+        ? capabilityDirectoryPath
+        : path.join(repoRoot, capabilityDirectoryPath);
+    return path.relative(repoRoot, absolutePath).replace(/\\/g, '/');
+}
+
+export function collectCapabilityPluginMaintenanceWarningMessages(options: {
+    repoRoot: string;
+    failures: CapabilityPluginMaintenanceFailure[];
+    warnings: CapabilityWarning[];
+}): string[] {
+    const messages: string[] = [];
+
+    for (const failure of options.failures) {
+        const location = (path.isAbsolute(failure.layerPath)
+            ? failure.layerPath
+            : path.join(options.repoRoot, failure.layerPath)
+        ).replace(/\\/g, '/');
+        messages.push(
+            `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message} [${location}]`,
+        );
+    }
+
+    for (const warning of options.warnings) {
+        messages.push(formatCapabilityWarningMessage(warning));
+    }
+
+    return messages;
+}
+
+export async function maintainAllCapabilityPluginMetadataInRepo(
+    repoRoot: string,
+    options: {
+        repoId: string;
+        excludePatterns?: string[];
+        capabilityDirectoryPaths?: string[];
+        marketplaceName?: string;
+        ownerName?: string;
+    },
+): Promise<CapabilityPluginMaintenanceResult> {
+    const layerPaths = (options.capabilityDirectoryPaths && options.capabilityDirectoryPaths.length > 0
+        ? options.capabilityDirectoryPaths.map((capabilityDirectoryPath) =>
+              toRepoRelativeLayerPath(repoRoot, capabilityDirectoryPath),
           )
-              .filter((candidate) => layerPathByCapabilityDirectory.has(candidate))
-              .sort((left, right) => left.localeCompare(right))
-        : Array.from(layerPathByCapabilityDirectory.keys()).sort((left, right) =>
-              left.localeCompare(right),
-          );
+        : discoverLayersInRepo(repoRoot, options.excludePatterns)
+    ).sort((left, right) => left.localeCompare(right));
 
     const changedResults: Array<
         Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
@@ -4018,21 +4178,13 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
     const unchangedResults: Array<
         Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
     > = [];
-    const failures: Array<{ layerPath: string; message: string }> = [];
+    const failures: CapabilityPluginMaintenanceFailure[] = [];
 
-    for (let index = 0; index < candidateCapabilityDirectories.length; index += 1) {
-        const capabilityDirectoryPath = candidateCapabilityDirectories[index];
-        const layerPath =
-            layerPathByCapabilityDirectory.get(capabilityDirectoryPath) ?? capabilityDirectoryPath;
-        options.onProgress?.({
-            layerPath,
-            index,
-            total: candidateCapabilityDirectories.length,
-        });
-
+    for (const layerPath of layerPaths) {
         try {
-            const result =
-                await maintainCapabilityPluginMetadataInDirectory(capabilityDirectoryPath);
+            const result = await maintainCapabilityPluginMetadataInDirectory(
+                path.join(repoRoot, layerPath),
+            );
             if (result.manifestChanged || result.pluginJsonChanged) {
                 changedResults.push(result);
             } else {
@@ -4046,26 +4198,25 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         }
     }
 
-    const marketplace = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
+    const marketplaceResult = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
         repoId: options.repoId,
         marketplaceName: options.marketplaceName,
         ownerName: options.ownerName,
-        excludePatterns: options.excludePatterns,
     });
 
     return {
         repoId: options.repoId,
         repoRoot,
-        scannedCount: candidateCapabilityDirectories.length,
+        scannedCount: layerPaths.length,
         changedCount: changedResults.length,
         unchangedCount: unchangedResults.length,
         failureCount: failures.length,
         changedCapabilities: changedResults.map((result) => result.capabilityDirectoryPath),
         failures,
-        marketplacePath: marketplace.marketplacePath,
-        marketplaceChanged: marketplace.changed,
-        marketplacePluginCount: marketplace.pluginCount,
-        warnings: marketplace.warnings,
+        marketplacePath: marketplaceResult.marketplacePath,
+        marketplaceChanged: marketplaceResult.changed,
+        marketplacePluginCount: marketplaceResult.pluginCount,
+        warnings: marketplaceResult.warnings,
     };
 }
 
@@ -4604,6 +4755,8 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
+            const pendingCapabilityPluginMetadataDirtyVersion =
+                state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
             updateStatusBar('loading');
             state.isLoading = true;
@@ -4647,17 +4800,23 @@ export function registerCommands(
                     state.governanceContractErrors = [];
                     state.governanceCompliance = undefined;
                     state.capabilityWarnings = [];
+                    state.configWarnings = result.errors.map(formatConfigWarningMessage);
                     state.capabilityDiagnosticFilePaths = [];
                     state.agentPluginCatalog = [];
                     state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     invalidateRepoSyncStatus(state);
+                    state.capabilityPluginMetadataSettledVersion = Math.max(
+                        state.capabilityPluginMetadataSettledVersion,
+                        pendingCapabilityPluginMetadataDirtyVersion,
+                    );
                     state.isLoading = false;
                     state.onDidChange.fire();
                     return;
                 }
 
                 clearDiagnostics(diagnosticCollection);
+                state.configWarnings = [];
                 state.capabilityDiagnosticFilePaths = [];
                 const governanceResult = loadGovernanceContract(ws.uri.fsPath);
                 publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
@@ -4788,6 +4947,7 @@ export function registerCommands(
                         collectEnabledConfiguredSourceDiagnosticWarnings(
                             activeProfileConfig,
                             ws.uri.fsPath,
+                            result.configPath,
                         );
                     for (const warning of configuredSourceDiagnosticWarnings) {
                         if (!state.capabilityWarnings.includes(warning.message)) {
@@ -4799,6 +4959,9 @@ export function registerCommands(
                         diagnosticCollection,
                         result.configPath,
                         configuredSourceDiagnosticWarnings,
+                    );
+                    state.configWarnings = configuredSourceDiagnosticWarnings.map(
+                        formatConfigWarningMessage,
                     );
                     state.capabilityDiagnosticFilePaths = replaceCapabilityWarningDiagnostics(
                         diagnosticCollection,
@@ -4835,6 +4998,7 @@ export function registerCommands(
                     state.effectiveFiles = [];
                     state.capabilityByLayer = {};
                     state.capabilityWarnings = [];
+                    state.configWarnings = [];
                     state.localGitRepoIds = new Set<string>();
                     state.treeSummaryCache = undefined;
                     updateStatusBar('error');
@@ -4850,6 +5014,10 @@ export function registerCommands(
                         });
                 }
 
+                state.capabilityPluginMetadataSettledVersion = Math.max(
+                    state.capabilityPluginMetadataSettledVersion,
+                    pendingCapabilityPluginMetadataDirtyVersion,
+                );
                 state.isLoading = false;
                 state.onDidChange.fire();
 
@@ -5880,94 +6048,6 @@ export function registerCommands(
         }),
     );
 
-    // ── metaflow.toggleLayerArtifactType ───────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand(
-            'metaflow.toggleLayerArtifactType',
-            async (item?: unknown, newState?: unknown) => {
-                const ws = getWorkspace();
-                if (!ws || !state.config) {
-                    vscode.window.showWarningMessage('MetaFlow: No config loaded.');
-                    return;
-                }
-
-                const layerIndex =
-                    typeof (item as { layerIndex?: unknown })?.layerIndex === 'number'
-                        ? (item as { layerIndex: number }).layerIndex
-                        : undefined;
-                const artifactType =
-                    typeof (item as { artifactType?: unknown })?.artifactType === 'string'
-                        ? ((item as { artifactType: string })
-                              .artifactType as ExcludableArtifactType)
-                        : undefined;
-
-                if (typeof layerIndex !== 'number' || !artifactType) {
-                    logWarn('toggleLayerArtifactType: missing layerIndex or artifactType.');
-                    return;
-                }
-
-                const projectedConfig = projectConfigForProfile(state.config);
-                const { layerSources } = ensureMultiRepoConfig(projectedConfig);
-
-                if (!layerSources[layerIndex]) {
-                    logWarn(`toggleLayerArtifactType: layer index ${layerIndex} not found.`);
-                    return;
-                }
-
-                const isExcluded = newState === vscode.TreeItemCheckboxState.Unchecked;
-                const layerSource = layerSources[layerIndex];
-                const current = layerSource.excludedTypes ?? [];
-                const nextExcludedTypes = isExcluded
-                    ? current.includes(artifactType)
-                        ? [...current]
-                        : [...current, artifactType]
-                    : current.filter((t) => t !== artifactType);
-
-                const scopedMutation = applyLayerMutationToActiveProfile(
-                    state.config,
-                    layerSource.repoId,
-                    layerSource.path,
-                    { excludedTypes: nextExcludedTypes },
-                );
-
-                if (!scopedMutation.scopedToProfile) {
-                    const runtime = ensureMultiRepoConfig(state.config);
-                    const runtimeLayerSource = runtime.layerSources[layerIndex];
-                    if (!runtimeLayerSource) {
-                        logWarn(
-                            `toggleLayerArtifactType: runtime layer index ${layerIndex} not found.`,
-                        );
-                        return;
-                    }
-
-                    runtimeLayerSource.excludedTypes =
-                        nextExcludedTypes.length > 0 ? nextExcludedTypes : undefined;
-                    syncLayerSourceToCapabilityConfig(state.config, runtimeLayerSource);
-
-                    const capabilityTarget = resolveCapabilityInjectionTarget(
-                        state.config,
-                        state.repoMetadataById ?? {},
-                        item,
-                    );
-                    if (capabilityTarget) {
-                        capabilityTarget.capability.excludedTypes = runtimeLayerSource.excludedTypes
-                            ? [...runtimeLayerSource.excludedTypes]
-                            : undefined;
-                    }
-                }
-
-                if (state.configPath) {
-                    await persistConfig(state.configPath, state.config, state);
-                }
-
-                logInfo(
-                    `Layer ${layerSource.repoId}/${layerSource.path}: ${artifactType} ${isExcluded ? 'excluded' : 'included'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
-                );
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
-            },
-        ),
-    );
-
     // ── metaflow.configureCapabilityInjection ─────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand(
@@ -6819,6 +6899,76 @@ export function registerCommands(
         }),
     );
 
+    // ── metaflow.pushRepository ──────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.pushRepository', async (arg?: unknown) => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
+                return;
+            }
+
+            const gitRepos = resolveGitBackedRepoSources(state.config, ws.uri.fsPath);
+            if (gitRepos.length === 0) {
+                const message = 'MetaFlow: No git-backed repository sources are configured.';
+                logWarn(message);
+                vscode.window.showInformationMessage(message);
+                return;
+            }
+
+            const repoId = extractRepoId(arg);
+            let target: ResolvedRepoSource | undefined;
+            if (repoId) {
+                target = gitRepos.find((repo) => repo.repoId === repoId);
+                if (!target) {
+                    const message = `MetaFlow: Repository "${repoId}" is not git-backed or not found.`;
+                    logWarn(message);
+                    vscode.window.showWarningMessage(message);
+                    return;
+                }
+            } else {
+                target = await pickGitBackedRepo(
+                    gitRepos,
+                    'MetaFlow: Push Repository',
+                    'Select git-backed repository to push',
+                );
+                if (!target) {
+                    return;
+                }
+            }
+
+            const pushResult = await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `MetaFlow: Pushing changes for ${target.repoId}...`,
+                },
+                async () => pushRepository(target.localPath),
+            );
+
+            if (!pushResult.ok) {
+                const failureMessage = `MetaFlow: Push failed for ${target.repoId}. ${pushResult.message}`;
+                logWarn(failureMessage);
+                state.repoSyncByRepoId[target.repoId] = {
+                    state: 'unknown',
+                    lastCheckedAt: new Date().toISOString(),
+                    error: pushResult.message,
+                };
+                state.onDidChange.fire();
+                vscode.window.showWarningMessage(failureMessage);
+                return;
+            }
+
+            logInfo(`MetaFlow: Push complete for ${target.repoId}. ${pushResult.message}`);
+
+            await vscode.commands.executeCommand('metaflow.checkRepoUpdates', {
+                repoId: target.repoId,
+                silent: true,
+            });
+
+            vscode.window.showInformationMessage(`MetaFlow: Pushed changes for ${target.repoId}.`);
+        }),
+    );
+
     // ── metaflow.addRepoSource ─────────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.addRepoSource', async () => {
@@ -6987,6 +7137,7 @@ export function registerCommands(
                 state.capabilityByLayer = {};
                 state.repoMetadataById = {};
                 state.capabilityWarnings = [];
+                state.configWarnings = [];
                 state.capabilityDiagnosticFilePaths = [];
                 state.agentPluginCatalog = [];
                 state.treeSummaryCache = undefined;
@@ -7407,45 +7558,68 @@ export function registerCommands(
                     return;
                 }
 
-                const result = await vscode.window.withProgress(
+                const changedResults: Array<
+                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
+                > = [];
+                const unchangedResults: Array<
+                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
+                > = [];
+                const failures: Array<{ layerPath: string; message: string }> = [];
+
+                await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
                         title: 'MetaFlow: Maintaining capability plugin metadata',
                         cancellable: false,
                     },
-                    async (progress) =>
-                        maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
-                            repoId,
-                            excludePatterns: repo.discover?.exclude,
-                            onProgress: ({ layerPath, index, total }) => {
-                                progress.report({
-                                    message: `${index + 1}/${total}: ${layerPath}`,
-                                    increment: total > 0 ? 100 / total : 100,
+                    async (progress) => {
+                        for (let index = 0; index < layerPaths.length; index += 1) {
+                            const layerPath = layerPaths[index];
+                            progress.report({
+                                message: `${index + 1}/${layerPaths.length}: ${layerPath}`,
+                                increment: 100 / layerPaths.length,
+                            });
+
+                            try {
+                                const result = await maintainCapabilityPluginMetadataInDirectory(
+                                    path.join(repoRoot, layerPath),
+                                );
+                                if (result.manifestChanged || result.pluginJsonChanged) {
+                                    changedResults.push(result);
+                                } else {
+                                    unchangedResults.push(result);
+                                }
+                            } catch (error: unknown) {
+                                failures.push({
+                                    layerPath,
+                                    message: error instanceof Error ? error.message : String(error),
                                 });
-                            },
-                        }),
+                            }
+                        }
+                    },
                 );
 
-                if (result.changedCount > 0 || result.marketplaceChanged) {
+                if (changedResults.length > 0) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipRepoSync: true,
                     });
                 }
 
-                if (result.failures.length > 0 || result.warnings.length > 0) {
+                if (failures.length > 0) {
                     showOutputChannel();
-                    for (const failure of result.failures) {
+                    for (const failure of failures) {
                         logWarn(
                             `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
                         );
                     }
-                    for (const warning of result.warnings) {
-                        logWarn(formatCapabilityWarningMessage(warning));
-                    }
 
                     const warningsChanged = mergeCapabilityWarningMessages(
                         state.capabilityWarnings,
-                        collectCapabilityPluginMaintenanceWarningMessages(result),
+                        collectCapabilityPluginMaintenanceWarningMessages({
+                            repoRoot,
+                            failures,
+                            warnings: [],
+                        }),
                     );
                     if (warningsChanged) {
                         state.onDidChange.fire();
@@ -7453,17 +7627,27 @@ export function registerCommands(
                 }
 
                 const summary =
-                    `MetaFlow: Checked ${result.scannedCount} capability director${result.scannedCount === 1 ? 'y' : 'ies'} in ${repoId}. ` +
-                    `${result.changedCount} changed, ${result.unchangedCount} already up to date, ${result.failureCount} failed, ` +
-                    `marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'} (${result.marketplacePluginCount} plugins).`;
+                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
 
-                if (result.failureCount > 0 || result.warnings.length > 0) {
+                if (failures.length > 0) {
                     vscode.window.showWarningMessage(summary);
                 } else {
                     vscode.window.showInformationMessage(summary);
                 }
 
-                return result;
+                return {
+                    repoId,
+                    repoRoot,
+                    scannedCount: layerPaths.length,
+                    changedCount: changedResults.length,
+                    unchangedCount: unchangedResults.length,
+                    failureCount: failures.length,
+                    changedCapabilities: changedResults.map(
+                        (result) => result.capabilityDirectoryPath,
+                    ),
+                    failures,
+                };
             },
         ),
     );
@@ -7760,6 +7944,18 @@ export function registerCommands(
                     : typeof (arg as { sourcePath?: unknown } | undefined)?.sourcePath === 'string'
                       ? ((arg as { sourcePath: string }).sourcePath as string)
                       : undefined;
+            const sourceKind =
+                typeof (arg as { sourceKind?: unknown } | undefined)?.sourceKind === 'string'
+                    ? ((arg as { sourceKind: string }).sourceKind as 'file' | 'directory')
+                    : undefined;
+            const sourceLine =
+                typeof (arg as { sourceLine?: unknown } | undefined)?.sourceLine === 'number'
+                    ? ((arg as { sourceLine: number }).sourceLine as number)
+                    : undefined;
+            const sourceColumn =
+                typeof (arg as { sourceColumn?: unknown } | undefined)?.sourceColumn === 'number'
+                    ? ((arg as { sourceColumn: number }).sourceColumn as number)
+                    : undefined;
 
             if (!sourcePath) {
                 vscode.window.showWarningMessage(
@@ -7769,14 +7965,29 @@ export function registerCommands(
             }
 
             try {
-                if (fs.existsSync(sourcePath) && fs.statSync(sourcePath).isDirectory()) {
-                    await vscode.commands.executeCommand(
-                        'revealInExplorer',
-                        vscode.Uri.file(sourcePath),
-                    );
-                } else {
-                    const document = await vscode.workspace.openTextDocument(sourcePath);
-                    await vscode.window.showTextDocument(document, { preview: false });
+                if (sourceKind === 'directory') {
+                    const uri = vscode.Uri.file(sourcePath);
+                    await vscode.commands.executeCommand('revealInExplorer', uri);
+                    return sourcePath;
+                }
+
+                const document = await vscode.workspace.openTextDocument(sourcePath);
+                const editor = await vscode.window.showTextDocument(document, {
+                    preview: false,
+                    selection:
+                        typeof sourceLine === 'number'
+                            ? new vscode.Range(
+                                  sourceLine,
+                                  sourceColumn ?? 0,
+                                  sourceLine,
+                                  sourceColumn ?? 0,
+                              )
+                            : undefined,
+                });
+                if (typeof sourceLine === 'number') {
+                    const position = new vscode.Position(sourceLine, sourceColumn ?? 0);
+                    editor.selection = new vscode.Selection(position, position);
+                    editor.revealRange(new vscode.Range(position, position));
                 }
                 return sourcePath;
             } catch (error: unknown) {
@@ -7814,15 +8025,7 @@ export function registerCommands(
     // ── metaflow.getDiagnosticsSnapshot ────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.getDiagnosticsSnapshot', () => {
-            return {
-                capabilityWarnings: [...state.capabilityWarnings],
-                configDiagnostics: getDiagnosticsSnapshot(diagnosticCollection),
-                governance: {
-                    contractPath: state.governanceContractPath,
-                    validationErrors: state.governanceContractErrors.map(cloneConfigError),
-                    compliance: cloneGovernanceComplianceResult(state.governanceCompliance),
-                },
-            };
+            return buildDiagnosticsSnapshot(state, diagnosticCollection);
         }),
     );
 

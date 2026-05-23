@@ -1,6 +1,5 @@
 import {
     CapabilitySource,
-    ExcludableArtifactType,
     FilterConfig,
     HooksConfig,
     InjectionConfig,
@@ -32,13 +31,6 @@ function cloneJson<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
 }
 
-const EXCLUDED_TYPE_ORDER: readonly ExcludableArtifactType[] = [
-    'instructions',
-    'prompts',
-    'agents',
-    'skills',
-];
-
 const INJECTION_KEY_ORDER: readonly (keyof InjectionConfig)[] = [
     'instructions',
     'prompts',
@@ -61,21 +53,6 @@ function compareLayerPaths(left: string, right: string): number {
     }
 
     return left.localeCompare(right);
-}
-
-function sortExcludedTypes(
-    excludedTypes: ExcludableArtifactType[] | undefined,
-): ExcludableArtifactType[] | undefined {
-    if (excludedTypes === undefined) {
-        return undefined;
-    }
-
-    const rank = new Map(EXCLUDED_TYPE_ORDER.map((value, index) => [value, index]));
-    return [...excludedTypes].sort(
-        (left, right) =>
-            (rank.get(left) ?? Number.MAX_SAFE_INTEGER) -
-            (rank.get(right) ?? Number.MAX_SAFE_INTEGER),
-    );
 }
 
 function orderInjectionConfig(config: InjectionConfig | undefined): InjectionConfig | undefined {
@@ -123,9 +100,6 @@ function orderProfileLayerOverride(override: ProfileLayerOverride): ProfileLayer
         repoId: override.repoId,
         path: normalizeInputPath(override.path),
         ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-        ...(override.excludedTypes !== undefined
-            ? { excludedTypes: sortExcludedTypes(override.excludedTypes) }
-            : {}),
     };
 }
 
@@ -170,9 +144,6 @@ function cloneCapabilitySource(source: CapabilitySource): CapabilitySource {
     return {
         path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
-        ...(source.excludedTypes !== undefined
-            ? { excludedTypes: sortExcludedTypes(source.excludedTypes) }
-            : {}),
         ...(source.injection !== undefined
             ? { injection: orderInjectionConfig(source.injection) }
             : {}),
@@ -187,9 +158,6 @@ function cloneLayerSource(source: LayerSource): LayerSource {
         repoId: source.repoId,
         path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
-        ...(source.excludedTypes !== undefined
-            ? { excludedTypes: sortExcludedTypes(source.excludedTypes) }
-            : {}),
         ...(source.injection !== undefined
             ? { injection: orderInjectionConfig(source.injection) }
             : {}),
@@ -227,9 +195,6 @@ function layerSourceToCapabilitySource(source: LayerSource): CapabilitySource {
     return {
         path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
-        ...(source.excludedTypes !== undefined
-            ? { excludedTypes: cloneJson(source.excludedTypes) }
-            : {}),
         ...(source.injection !== undefined ? { injection: cloneJson(source.injection) } : {}),
         ...(source.fileNamingStrategy !== undefined
             ? { fileNamingStrategy: source.fileNamingStrategy }
@@ -242,9 +207,6 @@ function capabilitySourceToLayerSource(repoId: string, source: CapabilitySource)
         repoId,
         path: normalizeLayerPath(source.path),
         ...(source.enabled !== undefined ? { enabled: source.enabled } : {}),
-        ...(source.excludedTypes !== undefined
-            ? { excludedTypes: cloneJson(source.excludedTypes) }
-            : {}),
         ...(source.injection !== undefined ? { injection: cloneJson(source.injection) } : {}),
         ...(source.fileNamingStrategy !== undefined
             ? { fileNamingStrategy: source.fileNamingStrategy }
@@ -266,11 +228,6 @@ function mergeCapabilitySource(
             ? { enabled: fallback.enabled }
             : capability.enabled !== undefined
               ? { enabled: capability.enabled }
-              : {}),
-        ...(fallback.excludedTypes !== undefined
-            ? { excludedTypes: cloneJson(fallback.excludedTypes) }
-            : capability.excludedTypes !== undefined
-              ? { excludedTypes: cloneJson(capability.excludedTypes) }
               : {}),
         ...(fallback.injection !== undefined
             ? { injection: cloneJson(fallback.injection) }
@@ -305,11 +262,6 @@ function mergeLayerSource(base: LayerSource, override: LayerSource): LayerSource
             ? { enabled: override.enabled }
             : base.enabled !== undefined
               ? { enabled: base.enabled }
-              : {}),
-        ...(override.excludedTypes !== undefined
-            ? { excludedTypes: cloneJson(override.excludedTypes) }
-            : base.excludedTypes !== undefined
-              ? { excludedTypes: cloneJson(base.excludedTypes) }
               : {}),
         ...(override.injection !== undefined
             ? { injection: cloneJson(override.injection) }

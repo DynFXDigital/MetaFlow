@@ -162,6 +162,7 @@ export function createCapabilityPluginMetadataScheduler(
     const markDirty = (repo: WatchedRepo, uri: vscode.Uri): void => {
         const changedPath = uri.fsPath;
         const capabilityDirectoryPath = findNearestCapabilityDirectory(repo.repoRoot, changedPath);
+        state.capabilityPluginMetadataDirtyVersion += 1;
         core.markDirty({
             repoId: repo.repoId,
             repoRoot: repo.repoRoot,

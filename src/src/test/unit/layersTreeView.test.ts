@@ -2,7 +2,9 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { ExcludableArtifactType } from '@metaflow/engine';
+import { ArtifactType } from '@metaflow/engine';
+
+type TestArtifactType = Exclude<ArtifactType, 'other'>;
 
 // ── Minimal vscode mock ────────────────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ type MockLayerTreeItem = {
     contextValue?: string;
     layerIndex?: number;
     repoId?: string;
-    artifactType?: ExcludableArtifactType;
+    artifactType?: TestArtifactType;
     id?: string;
     checkboxState?: number;
     description?: string | boolean;
@@ -143,7 +145,6 @@ function loadLayersTreeView(): LayersTreeViewModule {
 function makeMultiRepoConfig(
     extraLayerSourceProps?: Partial<{
         enabled: boolean;
-        excludedTypes: ExcludableArtifactType[];
         injection: Partial<
             Record<
                 'instructions' | 'prompts' | 'agents' | 'skills',
@@ -384,16 +385,13 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-03: excluded type renders Unchecked, non-excluded renders Checked', () => {
+    test('LTV-AT-03: artifact type rows are browse-only without checkboxes', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['prompts'] });
-        // prompts is excluded → not in effectiveFiles; other types are present
-        const files = [
-            makeEffectiveFile('instructions/a.md'),
-            makeEffectiveFile('agents/c.md'),
-            makeEffectiveFile('skills/d.md'),
-        ];
-        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES),
+            () => 'tree',
+        );
 
         const repoItem = provider.getChildren()[0];
         const layerItem = provider.getChildren(repoItem)[0];
@@ -404,13 +402,11 @@ suite('LayersTreeView – artifact-type children', () => {
 
         assert.ok(promptsItem, 'prompts item should exist');
         assert.ok(instructionsItem, 'instructions item should exist');
-
-        // TreeItemCheckboxState.Unchecked = 0, Checked = 1
-        assert.strictEqual(promptsItem?.checkboxState, 0, 'prompts should be Unchecked (excluded)');
+        assert.strictEqual(promptsItem?.checkboxState, undefined);
         assert.strictEqual(
             instructionsItem?.checkboxState,
-            1,
-            'instructions should be Checked (not excluded)',
+            undefined,
+            'instructions should be browse-only with no checkbox',
         );
     });
 
@@ -541,16 +537,13 @@ suite('LayersTreeView – artifact-type children', () => {
         }
     });
 
-    test('LTV-AT-06: artifact type description includes injection mode and exclusion state', () => {
+    test('LTV-AT-06: artifact type description includes injection mode', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['agents'] });
-        // agents is excluded → not in effectiveFiles; other types present
-        const files = [
-            makeEffectiveFile('instructions/a.md'),
-            makeEffectiveFile('prompts/b.md'),
-            makeEffectiveFile('skills/d.md'),
-        ];
-        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES),
+            () => 'tree',
+        );
 
         const repoItem = provider.getChildren()[0];
         const layerItem = provider.getChildren(repoItem)[0];
@@ -559,19 +552,17 @@ suite('LayersTreeView – artifact-type children', () => {
         const agentsItem = artifactChildren.find((c) => String(c.label) === 'agents');
         const skillsItem = artifactChildren.find((c) => String(c.label) === 'skills');
 
-        assert.strictEqual(agentsItem?.description, '(0, plugin, excluded)');
-        assert.strictEqual(skillsItem?.description, '(0, plugin)');
+        assert.strictEqual(agentsItem?.description, '(1/1, plugin)');
+        assert.strictEqual(skillsItem?.description, '(1/1, plugin)');
     });
 
-    test('LTV-AT-06b: artifact type tooltip explains inclusion, exclusion, and injection state', () => {
+    test('LTV-AT-06b: artifact type tooltip explains capability and injection state', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['agents'] });
-        const files = [
-            makeEffectiveFile('instructions/a.md'),
-            makeEffectiveFile('prompts/b.md'),
-            makeEffectiveFile('skills/d.md'),
-        ];
-        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
+        const config = makeMultiRepoConfig();
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES),
+            () => 'tree',
+        );
 
         const repoItem = provider.getChildren()[0];
         const layerItem = provider.getChildren(repoItem)[0];
@@ -583,25 +574,23 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(
             extractTooltipText(agentsItem?.tooltip),
             joinTooltip('**Artifact Type**: agents', [
-                'Status: excluded from this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
         assert.strictEqual(
             extractTooltipText(instructionsItem?.tooltip),
             joinTooltip('**Artifact Type**: instructions', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
     });
@@ -779,13 +768,12 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(
             extractTooltipText(instructionsItem?.tooltip),
             joinTooltip('**Artifact Type**: instructions', [
-                'Status: included in this layer',
+                'Status: available in this capability',
                 'Capability status: enabled',
                 'Repository status: disabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
                 'Layer: `.`',
-                'Toggle the checkbox to change whether this artifact type participates in the layer.',
             ]),
         );
     });
@@ -802,7 +790,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(layers.length > 0);
 
         const layerItem = layers[0];
-        // No known-type files and no excludedTypes → not collapsible
+        // No known-type files or available metadata records → not collapsible
         assert.strictEqual(
             layerItem.collapsibleState,
             0,
@@ -1021,7 +1009,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(labels, ['instructions', 'skills']);
     });
 
-    test('LTV-AT-11: mixed layer/folder node shows descendant layers and artifact toggles', () => {
+    test('LTV-AT-11: mixed layer/folder node shows descendant layers and artifact browse rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
@@ -1175,22 +1163,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-13: parent LayerItem description shows excluded count when some types excluded', () => {
-        const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['prompts', 'agents'] });
-        const files = [makeEffectiveFile('instructions/a.md'), makeEffectiveFile('skills/d.md')];
-        const provider = new LayersTreeViewProvider(makeState(config, files), () => 'tree');
-
-        const repoItem = provider.getChildren()[0];
-        const layerItem = provider.getChildren(repoItem)[0];
-
-        assert.ok(
-            String(layerItem.description).includes('2 excluded'),
-            `expected description to mention excluded count, got: ${layerItem.description}`,
-        );
-    });
-
-    test('LTV-AT-14: parent LayerItem description omits excluded count when no types excluded', () => {
+    test('LTV-AT-14: parent LayerItem description does not mention artifact exclusions', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = makeMultiRepoConfig();
         const provider = new LayersTreeViewProvider(
@@ -1207,9 +1180,9 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-15: excluded artifact nodes stay toggleable and become expandable when available descendants exist', () => {
+    test('LTV-AT-15: artifact nodes remain browse-only and become expandable when available descendants exist', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['skills'] });
+        const config = makeMultiRepoConfig();
         const skillRoot = createTempDir('metaflow-layer-skill-');
         const skillFolder = path.join(skillRoot, '.github', 'skills', 'review-skill');
         fs.mkdirSync(skillFolder, { recursive: true });
@@ -1266,13 +1239,13 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(skillsItem, 'skills node should exist');
         assert.strictEqual(
             skillsItem?.checkboxState,
-            0,
-            'excluded artifact node should remain toggleable',
+            undefined,
+            'artifact node should be browse-only',
         );
         assert.strictEqual(
             skillsItem?.collapsibleState,
             1,
-            'excluded artifact node should expand when browse descendants exist',
+            'artifact node should expand when browse descendants exist',
         );
 
         const skillFolders = provider.getChildren(skillsItem);
@@ -1305,7 +1278,7 @@ suite('LayersTreeView – artifact-type children', () => {
 
     test('LTV-PM-04: browseable descendant nodes keep artifact and folder parents', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig({ excludedTypes: ['skills'] });
+        const config = makeMultiRepoConfig();
         const skillRoot = createTempDir('metaflow-layer-parent-skill-');
         const skillFolder = path.join(skillRoot, '.github', 'skills', 'review-skill');
         fs.mkdirSync(skillFolder, { recursive: true });
@@ -2184,7 +2157,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-SEA-01: tree mode expands one capability-folder depth per click and stops before artifact toggles', () => {
+    test('LTV-SEA-01: tree mode expands one capability-folder depth per click and stops before artifact rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],

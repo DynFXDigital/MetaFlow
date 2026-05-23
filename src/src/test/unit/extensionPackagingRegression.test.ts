@@ -196,6 +196,12 @@ suite('Extension Packaging Regression Guards', () => {
             (entry) => entry.command === 'metaflow.pullRepository',
         );
         assert.ok(pullCommand, 'Expected metaflow.pullRepository command contribution');
+
+        const pushCommand = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.pushRepository',
+        );
+        assert.ok(pushCommand, 'Expected metaflow.pushRepository command contribution');
+        assert.strictEqual(pushCommand?.icon, '$(repo-push)');
     });
 
     test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
@@ -278,7 +284,7 @@ suite('Extension Packaging Regression Guards', () => {
                 (entry) =>
                     entry.command === 'metaflow.maintainAllCapabilityPluginMetadata' &&
                     entry.when ===
-                        'view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind)',
+                        'view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead)',
             ),
             'Expected Maintain All Capability Plugin Metadata in the AI Metadata repo context menu',
         );

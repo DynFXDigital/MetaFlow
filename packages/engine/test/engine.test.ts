@@ -203,7 +203,6 @@ describe('Engine package: config loading', () => {
                         {
                             path: 'company/core',
                             enabled: false,
-                            excludedTypes: ['instructions'],
                         },
                     ],
                 },
@@ -221,7 +220,6 @@ describe('Engine package: config loading', () => {
             {
                 path: 'company/core',
                 enabled: true,
-                excludedTypes: ['instructions'],
             },
         ]);
     });
@@ -1232,6 +1230,54 @@ describe('Engine: overlay multi-repo resolution', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.ok(discovered.includes('company/core'));
+    });
+
+    it('does not discover nested hidden metadata folders as standalone layers', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const capabilityRoot = path.join(
+            repoRoot,
+            'capabilities',
+            'agentic-development',
+            'metadata-authoring',
+            'codex-metadata-authoring',
+        );
+
+        fs.mkdirSync(path.join(capabilityRoot, '.github', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(capabilityRoot, '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(capabilityRoot, '.codex', 'agents'), { recursive: true });
+        fs.writeFileSync(path.join(capabilityRoot, 'CAPABILITY.md'), '# Capability');
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.github', 'instructions', 'codex.instructions.md'),
+            '# Codex',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            '# Skill',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.codex', 'agents', 'codex-metadata-authoring-steward.toml'),
+            'name = "steward"',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+
+        assert.ok(
+            discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring',
+            ),
+        );
+        assert.ok(
+            !discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/.agents',
+            ),
+        );
+        assert.ok(
+            !discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/.codex',
+            ),
+        );
     });
 
     it('skips runtime discovery when resolve option disables discovery', () => {

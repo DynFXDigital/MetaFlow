@@ -81,7 +81,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
                     capabilities: [
                         {
                             path: 'cap-a',
-                            excludedTypes: ['skills', 'instructions', 'agents'],
                             injection: {
                                 hooks: 'synchronize',
                                 prompts: 'settings',
@@ -100,7 +99,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
                         {
                             path: 'cap-a',
                             repoId: 'r1',
-                            excludedTypes: ['skills', 'instructions'],
                             enabled: false,
                         },
                     ],
@@ -143,11 +141,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '      "capabilities": [',
             '        {',
             '          "path": "cap-a",',
-            '          "excludedTypes": [',
-            '            "instructions",',
-            '            "agents",',
-            '            "skills"',
-            '          ],',
             '          "injection": {',
             '            "instructions": "settings",',
             '            "prompts": "settings",',
@@ -168,11 +161,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '        {',
             '          "repoId": "r1",',
             '          "path": "cap-a",',
-            '          "enabled": false,',
-            '          "excludedTypes": [',
-            '            "instructions",',
-            '            "skills"',
-            '          ]',
+            '          "enabled": false',
             '        }',
             '      ]',
             '    },',
@@ -292,7 +281,7 @@ describe('configNormalization: canonicalizeAuthoredConfig', () => {
                 { repoId: 'repo-a', path: 'beta\\.github', enabled: true },
                 { repoId: 'orphan-a', path: 'team' },
                 { repoId: 'repo-b', path: 'alpha/core' },
-                { repoId: 'repo-a', path: 'beta/.github', excludedTypes: ['skills'] },
+                { repoId: 'repo-a', path: 'beta/.github' },
             ],
             layers: ['team/deeper', '.github', 'team', 'team\\.github', 'team/deeper'],
         });
@@ -300,7 +289,7 @@ describe('configNormalization: canonicalizeAuthoredConfig', () => {
         assert.deepStrictEqual(canonical.layerSources, [
             { repoId: 'repo-b', path: '.' },
             { repoId: 'repo-b', path: 'alpha/core' },
-            { repoId: 'repo-a', path: 'beta', enabled: true, excludedTypes: ['skills'] },
+            { repoId: 'repo-a', path: 'beta', enabled: true },
             { repoId: 'repo-a', path: 'beta/core', enabled: false },
             { repoId: 'orphan-a', path: 'team' },
             { repoId: 'orphan-z', path: 'team/z' },
@@ -418,7 +407,7 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
         assert.strictEqual(capB!.enabled, true);
     });
 
-    it('creates capability from layerSource with excludedTypes when not in capabilities', () => {
+    it('creates capability from layerSource when not in capabilities', () => {
         const config: MetaFlowConfig = {
             metadataRepos: [
                 {
@@ -432,7 +421,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
                     repoId: 'r1',
                     path: 'cap-x',
                     enabled: false,
-                    excludedTypes: ['skills'],
                 },
             ],
         };
@@ -441,10 +429,9 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
         const capX = caps?.find((c) => c.path === 'cap-x');
         assert.ok(capX);
         assert.strictEqual(capX!.enabled, false);
-        assert.deepStrictEqual(capX!.excludedTypes, ['skills']);
     });
 
-    it('preserves existing capability enabled and excludedTypes when matching layerSource omits them', () => {
+    it('preserves existing capability enabled when matching layerSource omits it', () => {
         const config: MetaFlowConfig = {
             metadataRepos: [
                 {
@@ -454,7 +441,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
                         {
                             path: 'team/core',
                             enabled: false,
-                            excludedTypes: ['instructions'],
                         },
                     ],
                 },
@@ -472,7 +458,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
             {
                 path: 'team/core',
                 enabled: false,
-                excludedTypes: ['instructions'],
             },
         ]);
     });

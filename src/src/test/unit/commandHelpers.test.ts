@@ -123,7 +123,7 @@ suite('Command Helpers', () => {
                     enabled: true,
                     capabilities: [
                         { path: 'company', enabled: true },
-                        { path: 'team', enabled: false, excludedTypes: ['agents'] },
+                        { path: 'team', enabled: false },
                     ],
                 },
             ],
@@ -201,7 +201,6 @@ suite('Command Helpers', () => {
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     enabled: false,
-                    excludedTypes: ['agents' as const],
                 },
             ],
         };
@@ -212,10 +211,6 @@ suite('Command Helpers', () => {
         assert.notStrictEqual(cloned.disable, original.disable);
         assert.notStrictEqual(cloned.layerOverrides, original.layerOverrides);
         assert.notStrictEqual(cloned.layerOverrides?.[0], original.layerOverrides?.[0]);
-        assert.notStrictEqual(
-            cloned.layerOverrides?.[0]?.excludedTypes,
-            original.layerOverrides?.[0]?.excludedTypes,
-        );
     });
 
     test('cloneProfileConfig handles partially defined profile fields', () => {
@@ -508,7 +503,7 @@ suite('Command Helpers', () => {
                     enabled: true,
                     capabilities: [
                         { path: 'company/core', enabled: true },
-                        { path: 'standards/sdlc', enabled: true, excludedTypes: ['agents'] },
+                        { path: 'standards/sdlc', enabled: true },
                     ],
                 },
             ],
@@ -518,7 +513,6 @@ suite('Command Helpers', () => {
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     enabled: true,
-                    excludedTypes: ['agents'],
                 },
             ],
             profiles: {
@@ -530,7 +524,6 @@ suite('Command Helpers', () => {
                             repoId: 'primary',
                             path: 'standards/sdlc',
                             enabled: false,
-                            excludedTypes: [],
                         },
                     ],
                 },
@@ -545,17 +538,9 @@ suite('Command Helpers', () => {
             projected.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.enabled,
             false,
         );
-        assert.deepStrictEqual(
-            projected.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.excludedTypes,
-            [],
-        );
         assert.strictEqual(
             config.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.enabled,
             true,
-        );
-        assert.deepStrictEqual(
-            config.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.excludedTypes,
-            ['agents'],
         );
         assert.strictEqual(
             projected.metadataRepos?.[0]?.capabilities?.find(

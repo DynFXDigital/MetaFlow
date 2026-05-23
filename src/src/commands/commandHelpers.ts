@@ -1,12 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@metaflow/engine';
-import type {
-    ExcludableArtifactType,
-    MetaFlowConfig,
-    ProfileConfig,
-    ProfileLayerOverride,
-} from '@metaflow/engine';
+import type { MetaFlowConfig, ProfileConfig, ProfileLayerOverride } from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
@@ -88,9 +83,6 @@ export function ensureMultiRepoConfig(config: MetaFlowConfig): {
                 repoId: repo.id,
                 path: capability.path,
                 ...(capability.enabled !== undefined ? { enabled: capability.enabled } : {}),
-                ...(capability.excludedTypes !== undefined
-                    ? { excludedTypes: [...capability.excludedTypes] }
-                    : {}),
             })),
         );
 
@@ -238,9 +230,6 @@ function cloneProfileLayerOverride(override: ProfileLayerOverride): ProfileLayer
         repoId: override.repoId,
         path: normalizeLayerPath(override.path),
         ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-        ...(override.excludedTypes !== undefined
-            ? { excludedTypes: [...override.excludedTypes] }
-            : {}),
     };
 }
 
@@ -261,7 +250,6 @@ export function updateProfileLayerOverride(
     layerPath: string,
     mutation: {
         enabled?: boolean;
-        excludedTypes?: ExcludableArtifactType[];
     },
 ): ProfileLayerOverride {
     const normalizedPath = normalizeLayerPath(layerPath);
@@ -275,13 +263,7 @@ export function updateProfileLayerOverride(
         repoId,
         path: normalizedPath,
         ...(current?.enabled !== undefined ? { enabled: current.enabled } : {}),
-        ...(current?.excludedTypes !== undefined
-            ? { excludedTypes: [...current.excludedTypes] }
-            : {}),
         ...(mutation.enabled !== undefined ? { enabled: mutation.enabled } : {}),
-        ...(mutation.excludedTypes !== undefined
-            ? { excludedTypes: [...mutation.excludedTypes] }
-            : {}),
     };
 
     if (existingIndex >= 0) {
@@ -319,9 +301,6 @@ export function projectConfigForProfile(
             if (!override) {
                 return {
                     ...capability,
-                    ...(capability.excludedTypes !== undefined
-                        ? { excludedTypes: [...capability.excludedTypes] }
-                        : {}),
                     ...(capability.injection !== undefined
                         ? { injection: { ...capability.injection } }
                         : {}),
@@ -331,11 +310,6 @@ export function projectConfigForProfile(
             return {
                 ...capability,
                 ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-                ...(override.excludedTypes !== undefined
-                    ? { excludedTypes: [...override.excludedTypes] }
-                    : capability.excludedTypes !== undefined
-                      ? { excludedTypes: [...capability.excludedTypes] }
-                      : {}),
                 ...(capability.injection !== undefined
                     ? { injection: { ...capability.injection } }
                     : {}),
@@ -352,9 +326,6 @@ export function projectConfigForProfile(
         if (!override) {
             return {
                 ...layerSource,
-                ...(layerSource.excludedTypes !== undefined
-                    ? { excludedTypes: [...layerSource.excludedTypes] }
-                    : {}),
                 ...(layerSource.injection !== undefined
                     ? { injection: { ...layerSource.injection } }
                     : {}),
@@ -364,11 +335,6 @@ export function projectConfigForProfile(
         return {
             ...layerSource,
             ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-            ...(override.excludedTypes !== undefined
-                ? { excludedTypes: [...override.excludedTypes] }
-                : layerSource.excludedTypes !== undefined
-                  ? { excludedTypes: [...layerSource.excludedTypes] }
-                  : {}),
             ...(layerSource.injection !== undefined
                 ? { injection: { ...layerSource.injection } }
                 : {}),

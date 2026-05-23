@@ -47,21 +47,12 @@ export interface RepoDiscoveryConfig {
 
 // ── Layer configuration ────────────────────────────────────────────
 
-/**
- * Artifact-type bucket that can be toggled per layer source.
- * Distinct from the full `ArtifactType` (which includes `'other'`) defined in
- * the engine utility; `'other'` cannot be explicitly excluded.
- */
-export type ExcludableArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills';
-
 /** A public capability entry grouped under a metadata repository. */
 export interface CapabilitySource {
     /** Path within the repo (e.g., `company/core`). */
     path: string;
     /** Whether this capability is enabled (default: true). */
     enabled?: boolean;
-    /** Artifact-type directories to exclude for this capability. */
-    excludedTypes?: ExcludableArtifactType[];
     /** Capability-scoped injection mode overrides (overrides repo and top-level). */
     injection?: InjectionConfig;
     /** Capability-scoped synchronized output naming override (overrides repo and top-level). */
@@ -76,12 +67,6 @@ export interface LayerSource {
     path: string;
     /** Whether this layer is enabled (default: true). */
     enabled?: boolean;
-    /**
-     * Artifact-type directories to exclude for this layer source.
-     * UI-managed; distinct from `filters.exclude` (which is hand-authored).
-     * Absent or empty → all types are included (default behaviour unchanged).
-     */
-    excludedTypes?: ExcludableArtifactType[];
     /** Layer-scoped injection mode overrides (flattened from capability injection during normalization). */
     injection?: InjectionConfig;
     /** Layer-scoped synchronized output naming override (flattened from capability/repo config during normalization). */
@@ -120,8 +105,6 @@ export interface ProfileLayerOverride {
     path: string;
     /** Whether this layer is enabled while the profile is active. */
     enabled?: boolean;
-    /** Profile-local artifact exclusions for this layer. Empty array means none excluded. */
-    excludedTypes?: ExcludableArtifactType[];
 }
 
 // ── Injection modes ────────────────────────────────────────────────

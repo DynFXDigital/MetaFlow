@@ -888,8 +888,8 @@ suite('TreeView Providers', () => {
 
         assert.strictEqual(
             instructionsItem?.checkboxState,
-            vscode.TreeItemCheckboxState.Checked,
-            'Artifact node should remain toggleable',
+            undefined,
+            'Artifact node should be browse-only',
         );
         assert.strictEqual(
             instructionsItem?.collapsibleState,

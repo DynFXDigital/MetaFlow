@@ -9,7 +9,7 @@
 
 ### Changed
 
-- Folder rows in the Capabilities tree now expose deterministic mixed-branch status in descriptions and tooltips while leaving leaf capability and artifact-type toggles unchanged.
+- Folder rows in the Capabilities tree now expose deterministic mixed-branch status in descriptions and tooltips while artifact-type rows remain browse-only.
 - Tree view layout state now persists in `.metaflow/state.json` instead of VS Code settings, with tree mode as the default for Capabilities and flat mode as the default for Effective Files.
 
 ## 0.1.0

@@ -1,5 +1,8 @@
 import * as assert from 'assert';
 import {
+    mapPushFailureMessage,
+    pushRepository,
+    type GitCommandRunner,
     classifyAheadBehind,
     parseAheadBehindCounts,
     checkRepoSyncStatus,
@@ -163,6 +166,43 @@ suite('repoSyncStatus helpers', () => {
         // unrecognized error falls back to the raw message
         const raw = 'some unfamiliar git error xyz';
         assert.strictEqual(mapPullFailureMessage(raw), raw);
+    });
+
+    test('pushRepository returns command output on success', async () => {
+        const runner: GitCommandRunner = async () => ({
+            stdout: 'Everything up-to-date\n',
+            stderr: '',
+        });
+
+        const result = await pushRepository('C:/repo', runner);
+
+        assert.deepStrictEqual(result, {
+            ok: true,
+            message: 'Everything up-to-date',
+        });
+    });
+
+    test('pushRepository normalizes missing upstream failures', async () => {
+        const runner: GitCommandRunner = async () => {
+            throw new Error(
+                'fatal: The current branch feature/test has no upstream branch.\nTo push the current branch and set the remote as upstream, use\n\n    git push --set-upstream origin feature/test\n',
+            );
+        };
+
+        const result = await pushRepository('C:/repo', runner);
+
+        assert.deepStrictEqual(result, {
+            ok: false,
+            message:
+                'No upstream tracking branch is configured. Set upstream first, then retry push.',
+        });
+    });
+
+    test('mapPushFailureMessage explains non-fast-forward rejection', () => {
+        assert.strictEqual(
+            mapPushFailureMessage('! [rejected] main -> main (non-fast-forward)'),
+            'Push was rejected because the remote has newer commits. Pull and reconcile first, then retry.',
+        );
     });
 
     test('checkRepoSyncStatus returns unknown when fetch or rev-list throws', async () => {

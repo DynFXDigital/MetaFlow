@@ -37,7 +37,7 @@ MetaFlow adds four views to the Activity Bar:
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **AI Metadata**     | Review metadata sources, warnings, rescans, and repository update actions.                                                                                |
 | **Profiles**        | Switch the active profile for the current workspace.                                                                                                      |
-| **Capabilities**    | Enable or disable capabilities, toggle whole folder branches in tree mode, browse underlying artifact directories and files, and open capability details. |
+| **Capabilities**    | Enable or disable whole capabilities, toggle whole folder branches in tree mode, browse underlying artifact directories and files, and open capability details. |
 | **Effective Files** | Inspect the resolved files, where they came from, and whether they are settings-backed or synchronized.                                                   |
 
 ## Get Started
@@ -58,7 +58,7 @@ From there, the normal workflow is:
 | Task                        | Where to do it                                                                                                                      |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **Switch profile**          | Use the **Profiles** view.                                                                                                          |
-| **Toggle a capability**     | Check or uncheck it in the **Capabilities** view. In tree mode, folder rows also toggle every descendant capability in that branch. |
+| **Toggle a capability**     | Check or uncheck it in the **Capabilities** view. In tree mode, folder rows also toggle every descendant capability in that branch. Capabilities are atomic: artifact folders inside a capability are browse-only, not partial enablement switches. |
 | **Browse capabilities**     | Expand capability branches and artifact rows to inspect nested folders and files with friendly names and tooltips.                  |
 | **Inspect a capability**    | Open the capability details view from a capability row.                                                                             |
 | **Review effective output** | Browse **Effective Files** to see resolved files, sources, and realization mode.                                                    |
@@ -70,7 +70,7 @@ Tree layout preferences are local workspace state, not VS Code settings. MetaFlo
 
 In the **Capabilities** tree, folder checkboxes use a deterministic branch rule: checked means every descendant capability is enabled; unchecked means the branch is either partially enabled or fully disabled. Checking the folder enables the whole branch, and unchecking it disables the whole branch.
 
-Artifact rows inside a capability stay toggleable at the class level, but they also expand when metadata exists under that class. Their nested folders and files are browse-only, prefer user-facing names from metadata when available, and show tooltips with the canonical path plus description.
+Artifact rows inside a capability expand when metadata exists under that class. The rows and their nested folders/files are browse-only, prefer user-facing names from metadata when available, and show tooltips with the canonical path plus description.
 
 ## Shared Metadata Workflows
 

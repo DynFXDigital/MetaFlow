@@ -74,6 +74,7 @@ type ConfigTreeViewModule = {
         isLoading?: boolean;
         config?: unknown;
         capabilityWarnings: string[];
+        configWarnings: string[];
         localGitRepoIds?: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById?: Record<string, { name?: string; description?: string }>;
@@ -88,6 +89,19 @@ type ConfigTreeViewModule = {
             sourceDisplayName: string;
         };
         onDidChange: { event: (_l: unknown) => { dispose: () => void } };
+    }, diagnosticCollection?: {
+        forEach: (
+            callback: (
+                uri: { fsPath: string },
+                diagnostics: Array<{
+                    message: string;
+                    severity: number;
+                    range: { start: { line: number; character: number } };
+                    source?: string;
+                    code?: string | number;
+                }>,
+            ) => void,
+        ) => void;
     }) => {
         getChildren(element?: MockConfigTreeItem): MockConfigTreeItem[];
         getTreeItem(element: MockConfigTreeItem): MockConfigTreeItem;
@@ -125,6 +139,7 @@ function makeState(
         isLoading: boolean;
         config: unknown;
         capabilityWarnings: string[];
+        configWarnings: string[];
         localGitRepoIds: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById: Record<string, { name?: string; description?: string }>;
@@ -164,6 +179,7 @@ function makeState(
         isLoading: false,
         config: undefined,
         capabilityWarnings: [],
+        configWarnings: [],
         localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         repoMetadataById: {},
@@ -308,7 +324,11 @@ suite('ConfigTreeView', () => {
 
         assert.ok(builtInItem, 'expected built-in repo item');
         assert.strictEqual(String(builtInItem?.label), 'MetaFlow');
-        assert.strictEqual(builtInItem?.checkboxState, 1, 'built-in repo should expose a checked checkbox');
+        assert.strictEqual(
+            builtInItem?.checkboxState,
+            1,
+            'built-in repo should expose a checked checkbox',
+        );
         assert.strictEqual(
             extractTooltipText(builtInItem?.tooltip),
             joinTooltip(
@@ -375,7 +395,11 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(section.section, 'repositories');
         assert.strictEqual(String(builtInItem.label), 'MetaFlow: AI Metadata Overlay');
         assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
-        assert.strictEqual(builtInItem.checkboxState, 0, 'disabled built-in repo should expose an unchecked checkbox');
+        assert.strictEqual(
+            builtInItem.checkboxState,
+            0,
+            'disabled built-in repo should expose an unchecked checkbox',
+        );
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
         assert.deepStrictEqual(provider.getChildren(builtInItem), []);
     });
@@ -453,6 +477,91 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(warningItems[0].command, undefined);
     });
 
+    test('CTV-07d: diagnostics-only warnings render even when config failed to load', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(makeState(), {
+            forEach(callback): void {
+                callback(
+                    { fsPath: '/workspace/.metaflow/config.jsonc' },
+                    [
+                        {
+                            message: 'Enabled capability path is missing.',
+                            severity: 1,
+                            range: { start: { line: 0, character: 0 } },
+                            source: 'MetaFlow',
+                            code: 'LAYER_PATH_MISSING',
+                        },
+                    ],
+                );
+            },
+        });
+
+        const [warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.strictEqual(warningsSection.section, 'warnings');
+        assert.strictEqual(String(warningItem.label), 'Enabled capability path is missing.');
+        assert.strictEqual(
+            warningItem.description,
+            '[LAYER_PATH_MISSING] /workspace/.metaflow/config.jsonc#L1C1',
+        );
+        assert.strictEqual(
+            extractTooltipText(warningItem.tooltip),
+            '**Warning**\n\nCode: `LAYER_PATH_MISSING`  \nEnabled capability path is missing.  \nLocation: `/workspace/.metaflow/config.jsonc#L1C1`',
+        );
+        assert.strictEqual(warningItem.command, undefined);
+    });
+
+    test('CTV-07e: state-backed config warnings render without diagnostics collection', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                configWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                ],
+            }),
+        );
+
+        const [, warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.ok(
+            String(warningItem.label).startsWith(
+                'Configured layer "primary/capabilities/ghost" does not exist or is not currently',
+            ),
+        );
+        assert.ok(extractTooltipText(warningItem.tooltip).includes('currently mounted.'));
+        assert.strictEqual(warningItem.description, '[LAYER_PATH_MISSING]');
+    });
+
+    test('CTV-07f: config warning locations win over duplicate raw capability warnings', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                capabilityWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                ],
+                configWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted. [/workspace/.metaflow/config.jsonc#L13C9]',
+                ],
+            }),
+        );
+
+        const [, warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.strictEqual(
+            warningItem.description,
+            '[LAYER_PATH_MISSING] /workspace/.metaflow/config.jsonc#L13C9',
+        );
+        assert.strictEqual(String(warningItem.label).includes('Configured layer'), true);
+    });
+
     test('CTV-07b: long structured warnings render a compact row with full tooltip details', () => {
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-warning-item-'));
         const sourcePath = path.join(
@@ -508,6 +617,7 @@ suite('ConfigTreeView', () => {
                 arguments: [
                     {
                         sourcePath,
+                        sourceKind: 'file',
                         warningMessage: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]`,
                     },
                 ],
@@ -548,15 +658,20 @@ suite('ConfigTreeView', () => {
                 arguments: [
                     {
                         sourcePath: capabilityDir,
+                        sourceKind: 'directory',
                         warningMessage: `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]`,
                     },
                 ],
             });
             assert.ok(
                 extractTooltipText(warningItem.tooltip).includes(
-                    'Action: Click to open the warning source location.',
+                    'Action: Click to reveal the warning source location in Explorer.',
                 ),
             );
+            assert.deepStrictEqual(warningItem.accessibilityInformation, {
+                label: `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]. Reveals source location in Explorer.`,
+                role: 'listitem',
+            });
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -742,7 +857,7 @@ suite('ConfigTreeView', () => {
                 },
                 {
                     label: 'ahead',
-                    contextValue: 'configRepoSourceGit',
+                    contextValue: 'configRepoSourceGitAhead',
                     description: 'ahead [git] (0/0, 3 ahead)',
                     icon: 'arrow-up',
                 },
@@ -851,7 +966,8 @@ suite('ConfigTreeView', () => {
                     violations: [
                         {
                             id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
-                            message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                            message:
+                                'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
                             repoId: 'primary',
                             path: 'standards/sdlc',
                         },

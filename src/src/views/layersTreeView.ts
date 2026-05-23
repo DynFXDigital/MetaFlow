@@ -8,8 +8,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import {
+    ArtifactType,
     discoverLayersInRepo,
-    ExcludableArtifactType,
     EffectiveFile,
     getArtifactType,
     loadRepoManifestForRoot,
@@ -51,7 +51,9 @@ import {
 } from '../governanceSignals';
 import type { ExpandAllStrategy, StagedExpandPlan } from './stagedTreeExpand';
 
-const KNOWN_ARTIFACT_TYPES = new Set<ExcludableArtifactType>([
+type CapabilityArtifactType = Exclude<ArtifactType, 'other'>;
+
+const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'instructions',
     'prompts',
     'agents',
@@ -206,8 +208,8 @@ function getPathAfterArtifactType(relativePath: string): string {
         githubIndex === -1
             ? parts
             : [...parts.slice(0, githubIndex), ...parts.slice(githubIndex + 1)];
-    const typeIndex = displayParts.findIndex((part): part is ExcludableArtifactType =>
-        KNOWN_ARTIFACT_TYPES.has(part as ExcludableArtifactType),
+    const typeIndex = displayParts.findIndex((part): part is CapabilityArtifactType =>
+        KNOWN_ARTIFACT_TYPES.has(part as CapabilityArtifactType),
     );
 
     if (typeIndex === -1) {
@@ -246,7 +248,7 @@ interface ArtifactInjectionState {
 }
 
 const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
-    ExcludableArtifactType,
+    CapabilityArtifactType,
     'settings' | 'synchronize' | 'plugin'
 > = {
     instructions: 'plugin',
@@ -276,7 +278,7 @@ function formatInjectionSource(source: ArtifactInjectionSource): string {
 function resolveArtifactInjectionState(
     config: ExtensionState['config'],
     layerIndex: number,
-    artifactType: ExcludableArtifactType,
+    artifactType: CapabilityArtifactType,
 ): ArtifactInjectionState {
     const layerSource = config?.layerSources?.[layerIndex];
     if (config?.metadataRepos && layerSource) {
@@ -387,7 +389,7 @@ function buildLayerTreeItemId(
     mode: LayersViewMode,
     repoId: string | undefined,
     layerPath: string,
-    artifactType?: ExcludableArtifactType,
+    artifactType?: CapabilityArtifactType,
 ): string {
     const normalizedRepoId = repoId?.trim() || 'primary';
     const normalizedLayerPath = layerPath.trim() || '.';
@@ -481,7 +483,6 @@ class LayerItem extends vscode.TreeItem {
             path?: string;
             layerPath?: string;
             showPathInDescription?: boolean;
-            excludedCount?: number;
             capabilityName?: string;
             capabilityId?: string;
             capabilityDescription?: string;
@@ -532,17 +533,12 @@ class LayerItem extends vscode.TreeItem {
             if (options?.showRepoLabelInDescription !== false) {
                 qualifiers.push(repoDisplayLabel);
             }
-            if ((options?.excludedCount ?? 0) > 0) {
-                qualifiers.push(`${options!.excludedCount} excluded`);
-            }
             if (options.repoDisabled) {
                 qualifiers.push('repo disabled');
             }
         } else if (options?.toggleable === false && typeof layerIndex === 'number') {
             qualifiers.push('single-repo');
             qualifiers.push('fixed order');
-        } else if ((options?.excludedCount ?? 0) > 0) {
-            qualifiers.push(`${options!.excludedCount} excluded`);
         }
         if (options?.branchToggleSummary?.status === 'partially-enabled') {
             qualifiers.push(
@@ -585,9 +581,6 @@ class LayerItem extends vscode.TreeItem {
         }
         if (options?.layerPath) {
             contextLines.push(`Layer: \`${options.layerPath}\``);
-        }
-        if ((options?.excludedCount ?? 0) > 0) {
-            contextLines.push(`Excluded types: ${options!.excludedCount}`);
         }
         if (options?.branchToggleSummary) {
             contextLines.push(`Branch state: ${formatBranchStatus(options.branchToggleSummary)}`);
@@ -668,14 +661,14 @@ class LayerItem extends vscode.TreeItem {
     }
 }
 
-const ARTIFACT_TYPE_ORDER: ExcludableArtifactType[] = [
+const ARTIFACT_TYPE_ORDER: CapabilityArtifactType[] = [
     'instructions',
     'prompts',
     'agents',
     'skills',
 ];
 
-function buildArtifactTypeContextValue(artifactType: ExcludableArtifactType): string {
+function buildArtifactTypeContextValue(artifactType: CapabilityArtifactType): string {
     return `layerArtifactType:${artifactType}`;
 }
 
@@ -693,10 +686,9 @@ function formatArtifactTypeCountLabel(counts: ArtifactSummaryCounts | undefined)
 
 class ArtifactTypeLayerItem extends vscode.TreeItem {
     constructor(
-        public readonly artifactType: ExcludableArtifactType,
+        public readonly artifactType: CapabilityArtifactType,
         public readonly layerIndex: number,
         public readonly repoId: string | undefined,
-        excluded: boolean,
         injection: ArtifactInjectionState,
         options?: {
             repoLabel?: string;
@@ -721,23 +713,19 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
             artifactType,
         );
         this.contextValue = buildArtifactTypeContextValue(artifactType);
-        this.checkboxState = excluded
-            ? vscode.TreeItemCheckboxState.Unchecked
-            : vscode.TreeItemCheckboxState.Checked;
         this.iconPath = new vscode.ThemeIcon('folder');
         const countLabel = formatArtifactTypeCountLabel(options?.counts);
         const qualifiers = [
             injection.mode,
             ...(options?.repoEnabled === false ? ['repo disabled'] : []),
             ...(options?.layerEnabled === false ? ['capability disabled'] : []),
-            ...(excluded ? ['excluded'] : []),
         ];
         this.description =
             countLabel !== undefined
                 ? `(${countLabel}, ${qualifiers.join(', ')})`
                 : `(${qualifiers.join(', ')})`;
         const detailLines = [
-            `Status: ${excluded ? 'excluded from this layer' : 'included in this layer'}`,
+            'Status: available in this capability',
             `Capability status: ${options?.layerEnabled === false ? 'disabled' : 'enabled'}`,
             `Repository status: ${options?.repoEnabled === false ? 'disabled' : 'enabled'}`,
             `Injection: ${injection.mode} (${formatInjectionSource(injection.source)})`,
@@ -751,10 +739,6 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
             detailLines.push(`Layer: \`${options.layerPath}\``);
         }
 
-        detailLines.push(
-            'Toggle the checkbox to change whether this artifact type participates in the layer.',
-        );
-
         this.tooltip = buildMarkdownTooltip(`**Artifact Type**: ${artifactType}`, detailLines);
     }
 }
@@ -762,7 +746,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
 class ArtifactBrowseFolderItem extends vscode.TreeItem {
     constructor(
         label: string,
-        public readonly artifactType: ExcludableArtifactType,
+        public readonly artifactType: CapabilityArtifactType,
         public readonly layerIndex: number,
         public readonly repoId: string | undefined,
         public readonly layerPath: string,
@@ -792,7 +776,7 @@ class ArtifactBrowseFolderItem extends vscode.TreeItem {
 class ArtifactBrowseFileItem extends vscode.TreeItem {
     constructor(
         label: string,
-        public readonly artifactType: ExcludableArtifactType,
+        public readonly artifactType: CapabilityArtifactType,
         public readonly layerIndex: number,
         public readonly repoId: string | undefined,
         public readonly layerPath: string,
@@ -1011,7 +995,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     private getBrowseFolderMetadata(
-        artifactType: ExcludableArtifactType,
+        artifactType: CapabilityArtifactType,
         folderPath: string | undefined,
         fallbackSlug: string,
     ): BrowseFolderMetadata {
@@ -1044,7 +1028,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private getLayerBrowseRecords(
         layerIndex: number,
-        artifactType: ExcludableArtifactType,
+        artifactType: CapabilityArtifactType,
         repoId?: string,
     ): BrowseRecord[] {
         const config = this.state.config;
@@ -1123,7 +1107,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private getBrowseChildren(
         layerIndex: number,
-        artifactType: ExcludableArtifactType,
+        artifactType: CapabilityArtifactType,
         prefix: string,
         repoId?: string,
     ): Array<ArtifactBrowseFolderItem | ArtifactBrowseFileItem> {
@@ -1482,11 +1466,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return [];
     }
 
-    private getExcludedCount(layerIndex: number): number {
-        const ls = this.getProjectedConfig()?.layerSources?.[layerIndex];
-        return ls?.excludedTypes?.length ?? 0;
-    }
-
     private getLayerAvailability(
         layerIndex: number,
         repoId?: string,
@@ -1749,10 +1728,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         path: node.path,
                         layerPath: node.path,
                         showPathInDescription: false,
-                        excludedCount:
-                            typeof matchingEntry?.layerIndex === 'number'
-                                ? this.getExcludedCount(matchingEntry.layerIndex)
-                                : undefined,
                         capabilityName: matchingEntry?.capability?.name,
                         capabilityId: matchingEntry?.capability?.id,
                         capabilityDescription: matchingEntry?.capability?.description,
@@ -1812,10 +1787,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     path: '(root)',
                     layerPath: '.',
                     showPathInDescription: false,
-                    excludedCount:
-                        typeof rootEntry.layerIndex === 'number'
-                            ? this.getExcludedCount(rootEntry.layerIndex)
-                            : undefined,
                     capabilityName: rootEntry.capability?.name,
                     capabilityId: rootEntry.capability?.id,
                     capabilityDescription: rootEntry.capability?.description,
@@ -1842,10 +1813,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     /**
-     * Computes the set of artifact types that are available for browsing or toggling
+     * Computes the set of artifact types that are available for browsing
      * for a given layer source. Returns an empty set only for unknown layers.
      */
-    private getActiveTypesForLayer(layerIndex: number): Set<ExcludableArtifactType> {
+    private getActiveTypesForLayer(layerIndex: number): Set<CapabilityArtifactType> {
         const config = this.getProjectedConfig();
         if (!config) {
             return new Set();
@@ -1866,12 +1837,12 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             : singleLayerPath!;
         const normalizedLayerId = this.normalizeLayerId(layerId);
 
-        const result = new Set<ExcludableArtifactType>();
+        const result = new Set<CapabilityArtifactType>();
         for (const file of this.state.effectiveFiles as EffectiveFile[]) {
             if (this.normalizeLayerId(file.sourceLayer) === normalizedLayerId) {
                 const type = getArtifactType(file.relativePath);
                 if (type !== 'other') {
-                    result.add(type as ExcludableArtifactType);
+                    result.add(type as CapabilityArtifactType);
                 }
             }
         }
@@ -1882,9 +1853,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             ) {
                 result.add(record.artifactType);
             }
-        }
-        for (const t of layerSource?.excludedTypes ?? []) {
-            result.add(t);
         }
         return result;
     }
@@ -1899,7 +1867,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         if (!config) {
             return [];
         }
-
         const layerSource = config.layerSources?.[layerIndex];
         const singleLayerPath = config.layers?.[layerIndex];
         if (!layerSource && typeof singleLayerPath !== 'string') {
@@ -1911,7 +1878,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return [];
         }
         const availability = this.getLayerAvailability(layerIndex, repoId);
-        const excludedTypes = layerSource?.excludedTypes ?? [];
         const repoMetadata = this.getRepoMetadataById();
         const repoLabel = layerSource
             ? (() => {
@@ -1949,7 +1915,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         type,
                         layerIndex,
                         layerSource?.repoId ?? repoId,
-                        excludedTypes.includes(type),
                         resolveArtifactInjectionState(config, layerIndex, type),
                         {
                             repoLabel,
@@ -1998,7 +1963,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         path: entry.normalizedPath || '(root)',
                         layerPath: entry.normalizedPath || '.',
                         showPathInDescription: true,
-                        excludedCount: this.getExcludedCount(entry.layerIndex),
                         capabilityName: entry.capability?.name,
                         capabilityId: entry.capability?.id,
                         capabilityDescription: entry.capability?.description,
@@ -2055,7 +2019,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 : entries.filter((entry) => entry.repoId === undefined);
 
             // A node can be both a concrete layer (has layerIndex) and a folder with child layers.
-            // In that case, expose both descendants and artifact-type toggles.
+            // In that case, expose both descendants and artifact-type browse rows.
             const folderChildren = this.getTreeChildrenForPrefix(
                 repoEntries,
                 parentPath,

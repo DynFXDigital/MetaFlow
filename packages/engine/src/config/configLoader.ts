@@ -203,16 +203,10 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
 
                         const candidate = capability as {
                             path?: unknown;
-                            excludedTypes?: unknown;
                             fileNamingStrategy?: unknown;
                         };
                         return (
                             typeof candidate.path !== 'string' ||
-                            (candidate.excludedTypes !== undefined &&
-                                (!Array.isArray(candidate.excludedTypes) ||
-                                    candidate.excludedTypes.some(
-                                        (item) => typeof item !== 'string',
-                                    ))) ||
                             (candidate.fileNamingStrategy !== undefined &&
                                 candidate.fileNamingStrategy !== 'prefixed' &&
                                 candidate.fileNamingStrategy !== 'original-unless-conflict')
@@ -222,6 +216,20 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 errors.push({
                     message: `"metadataRepos" entry "${repo.id}" has invalid "capabilities" entries.`,
                 });
+            }
+
+            for (const capability of repo.capabilities ?? []) {
+                if (
+                    typeof capability === 'object' &&
+                    capability !== null &&
+                    !Array.isArray(capability) &&
+                    Object.prototype.hasOwnProperty.call(capability, 'excludedTypes')
+                ) {
+                    errors.push({
+                        message:
+                            `"metadataRepos" entry "${repo.id}" capability "${(capability as { path?: unknown }).path ?? '<unknown>'}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
+                    });
+                }
             }
 
             if (
@@ -272,13 +280,10 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 if (!ls.path) {
                     errors.push({ message: 'Each "layerSources" entry must have a "path".' });
                 }
-                if (
-                    ls.excludedTypes !== undefined &&
-                    (!Array.isArray(ls.excludedTypes) ||
-                        ls.excludedTypes.some((item) => typeof item !== 'string'))
-                ) {
+                if (Object.prototype.hasOwnProperty.call(ls, 'excludedTypes')) {
                     errors.push({
-                        message: `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "excludedTypes".`,
+                        message:
+                            `"layerSources" entry "${ls.repoId}/${ls.path}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
                     });
                 }
                 if (
