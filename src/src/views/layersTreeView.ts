@@ -679,6 +679,18 @@ function buildArtifactTypeContextValue(artifactType: ExcludableArtifactType): st
     return `layerArtifactType:${artifactType}`;
 }
 
+function formatArtifactTypeCountLabel(counts: ArtifactSummaryCounts | undefined): string | undefined {
+    if (!counts) {
+        return undefined;
+    }
+
+    if (counts.active > 0 || counts.available > 0) {
+        return `${counts.active}/${counts.available}`;
+    }
+
+    return String(counts.available);
+}
+
 class ArtifactTypeLayerItem extends vscode.TreeItem {
     constructor(
         public readonly artifactType: ExcludableArtifactType,
@@ -713,8 +725,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
             ? vscode.TreeItemCheckboxState.Unchecked
             : vscode.TreeItemCheckboxState.Checked;
         this.iconPath = new vscode.ThemeIcon('folder');
-        const countLabel =
-            options?.counts !== undefined ? String(options.counts.available) : undefined;
+        const countLabel = formatArtifactTypeCountLabel(options?.counts);
         const qualifiers = [
             injection.mode,
             ...(options?.repoEnabled === false ? ['repo disabled'] : []),
@@ -1847,8 +1858,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return new Set();
         }
 
+        const layerRepoId = layerSource?.repoId ?? 'primary';
+        const layerPath = layerSource?.path ?? singleLayerPath ?? '.';
+        const normalizedLayerPath = normalizeRelativePath(layerPath);
         const layerId = layerSource
-            ? `${layerSource.repoId}/${layerSource.path}`
+            ? `${layerRepoId}/${layerPath}`
             : singleLayerPath!;
         const normalizedLayerId = this.normalizeLayerId(layerId);
 
@@ -1859,6 +1873,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 if (type !== 'other') {
                     result.add(type as ExcludableArtifactType);
                 }
+            }
+        }
+        for (const record of this.state.treeSummaryCache?.availableRecords ?? []) {
+            if (
+                record.repoId === layerRepoId &&
+                pathStartsWith(record.repoRelativePath, normalizedLayerPath)
+            ) {
+                result.add(record.artifactType);
             }
         }
         for (const t of layerSource?.excludedTypes ?? []) {

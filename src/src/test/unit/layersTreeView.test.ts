@@ -1437,6 +1437,101 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-COUNT-01: shadowed artifact types remain browseable with active/available counts', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'base' },
+                { repoId: 'repo1', path: 'override' },
+            ],
+        };
+        const treeSummaryCache = {
+            ...makeEmptyTreeSummaryCache(),
+            availableRecords: [
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath: 'base/.github/instructions/shared.instructions.md',
+                    displayPath: 'base/instructions/shared.instructions.md',
+                    artifactPath: 'shared.instructions.md',
+                    absolutePath: '/repo1/base/.github/instructions/shared.instructions.md',
+                },
+                {
+                    repoId: 'repo1',
+                    artifactType: 'prompts',
+                    repoRelativePath: 'base/.github/prompts/base.prompt.md',
+                    displayPath: 'base/prompts/base.prompt.md',
+                    artifactPath: 'base.prompt.md',
+                    absolutePath: '/repo1/base/.github/prompts/base.prompt.md',
+                },
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath: 'override/.github/instructions/shared.instructions.md',
+                    displayPath: 'override/instructions/shared.instructions.md',
+                    artifactPath: 'shared.instructions.md',
+                    absolutePath: '/repo1/override/.github/instructions/shared.instructions.md',
+                },
+            ],
+            currentActiveRecords: [
+                {
+                    repoId: 'repo1',
+                    artifactType: 'prompts',
+                    repoRelativePath: 'base/.github/prompts/base.prompt.md',
+                    displayPath: 'base/prompts/base.prompt.md',
+                    artifactPath: 'base.prompt.md',
+                    absolutePath: '/repo1/base/.github/prompts/base.prompt.md',
+                },
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath: 'override/.github/instructions/shared.instructions.md',
+                    displayPath: 'override/instructions/shared.instructions.md',
+                    artifactPath: 'shared.instructions.md',
+                    absolutePath: '/repo1/override/.github/instructions/shared.instructions.md',
+                },
+            ],
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                config,
+                [
+                    makeEffectiveFile('prompts/base.prompt.md', 'repo1', 'base'),
+                    makeEffectiveFile('instructions/shared.instructions.md', 'repo1', 'override'),
+                ],
+                {},
+                undefined,
+                {},
+                treeSummaryCache,
+            ),
+            () => 'tree',
+        );
+
+        const [repoItem] = provider.getChildren();
+        assert.strictEqual(String(repoItem.description), '(2/3)');
+
+        const baseLayer = provider
+            .getChildren(repoItem)
+            .find((child) => String(child.label) === 'base');
+        assert.ok(baseLayer, 'expected base layer to render from available inventory');
+        assert.strictEqual(String(baseLayer?.description), '(1/2)');
+
+        const artifactChildren = provider.getChildren(baseLayer!);
+        assert.deepStrictEqual(
+            artifactChildren.map((child) => String(child.label)),
+            ['instructions', 'prompts'],
+        );
+
+        const instructionsItem = artifactChildren.find(
+            (child) => String(child.label) === 'instructions',
+        );
+        const promptsItem = artifactChildren.find((child) => String(child.label) === 'prompts');
+
+        assert.strictEqual(String(instructionsItem?.description), '(0/1, plugin)');
+        assert.strictEqual(String(promptsItem?.description), '(1/1, settings)');
+    });
+
     test('LTV-CAP-01: layer tooltip includes capability metadata when available', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = makeMultiRepoConfig();
