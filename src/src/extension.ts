@@ -191,9 +191,11 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
         // Fall back to the current sidebar focus when the generated focus command is unavailable.
     }
 
-    await prepareTreeViewFilter(treeView, provider);
-
     await vscode.commands.executeCommand('list.find');
+
+    void prepareTreeViewFilter(treeView, provider).catch((error: unknown) => {
+        logWarn(`MetaFlow: Tree search preload failed: ${String(error)}`);
+    });
 }
 
 // ── Activation ─────────────────────────────────────────────────────
