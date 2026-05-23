@@ -101,7 +101,7 @@ function resolveWarningSourcePath(location: string | undefined): string | undefi
 
     for (const candidate of candidates) {
         try {
-            if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+            if (fs.existsSync(candidate)) {
                 return candidate;
             }
         } catch {
@@ -121,9 +121,12 @@ function buildWarningPresentation(message: string): {
 } {
     const normalized = normalizeWarningMessage(message);
     const structuredMatch = normalized.match(/^\[([^\]]+)\]\s+(.+?)(?:\s+\[([^\]]+)\])?$/);
+    const plainLocationMatch = structuredMatch
+        ? undefined
+        : normalized.match(/^(.+?)\s+\[([^\]]+)\]$/);
     const code = structuredMatch?.[1]?.trim();
-    const details = structuredMatch?.[2]?.trim() ?? normalized;
-    const location = structuredMatch?.[3]?.trim();
+    const details = structuredMatch?.[2]?.trim() ?? plainLocationMatch?.[1]?.trim() ?? normalized;
+    const location = structuredMatch?.[3]?.trim() ?? plainLocationMatch?.[2]?.trim();
     const sourcePath = resolveWarningSourcePath(location);
     const label = truncateWarningText(details, WARNING_LABEL_MAX_LENGTH);
     const description = [
@@ -141,7 +144,7 @@ function buildWarningPresentation(message: string): {
         tooltipLines.push(`Location: \`${location}\``);
     }
     if (sourcePath) {
-        tooltipLines.push('Action: Click to open the warning source file.');
+        tooltipLines.push('Action: Click to open the warning source location.');
     }
 
     return {

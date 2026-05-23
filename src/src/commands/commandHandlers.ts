@@ -3744,14 +3744,17 @@ export function mergeCapabilityWarningMessages(
 }
 
 export function collectCapabilityPluginMaintenanceWarningMessages(result: {
+    repoRoot?: string;
     failures: Array<{ layerPath: string; message: string }>;
     warnings: CapabilityWarning[];
 }): string[] {
     return [
-        ...result.failures.map(
-            (failure) =>
-                `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
-        ),
+        ...result.failures.map((failure) => {
+            const location = result.repoRoot
+                ? ` [${path.join(result.repoRoot, failure.layerPath).replace(/\\/g, '/')}]`
+                : '';
+            return `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}${location}`;
+        }),
         ...result.warnings.map((warning) => formatCapabilityWarningMessage(warning)),
     ];
 }
@@ -7760,14 +7763,21 @@ export function registerCommands(
 
             if (!sourcePath) {
                 vscode.window.showWarningMessage(
-                    'MetaFlow: No warning source file is available for this item.',
+                    'MetaFlow: No warning source location is available for this item.',
                 );
                 return;
             }
 
             try {
-                const document = await vscode.workspace.openTextDocument(sourcePath);
-                await vscode.window.showTextDocument(document, { preview: false });
+                if (fs.existsSync(sourcePath) && fs.statSync(sourcePath).isDirectory()) {
+                    await vscode.commands.executeCommand(
+                        'revealInExplorer',
+                        vscode.Uri.file(sourcePath),
+                    );
+                } else {
+                    const document = await vscode.workspace.openTextDocument(sourcePath);
+                    await vscode.window.showTextDocument(document, { preview: false });
+                }
                 return sourcePath;
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);

@@ -499,7 +499,7 @@ suite('ConfigTreeView', () => {
                     'Code: `CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID`',
                     'Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1',
                     `Location: \`${normalizedSourcePath}\``,
-                    'Action: Click to open the warning source file.',
+                    'Action: Click to open the warning source location.',
                 ]),
             );
             assert.deepStrictEqual(warningItem.command, {
@@ -516,6 +516,47 @@ suite('ConfigTreeView', () => {
                 label: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]. Opens source file.`,
                 role: 'listitem',
             });
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('CTV-07c: maintenance failure warnings reveal existing capability directories', () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-warning-dir-'));
+        const capabilityDir = path.join(tempRoot, 'capabilities', 'demo', '.agents');
+        fs.mkdirSync(capabilityDir, { recursive: true });
+
+        try {
+            const normalizedCapabilityDir = capabilityDir.replace(/\\/g, '/');
+            const { ConfigTreeViewProvider } = loadConfigTreeView();
+            const provider = new ConfigTreeViewProvider(
+                makeState({
+                    config: {},
+                    capabilityWarnings: [
+                        `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]`,
+                    ],
+                }),
+            );
+
+            const [, warningsSection] = provider.getChildren();
+            const [warningItem] = provider.getChildren(warningsSection);
+
+            assert.strictEqual(warningItem.contextValue, 'configWarningSource');
+            assert.deepStrictEqual(warningItem.command, {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath: capabilityDir,
+                        warningMessage: `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]`,
+                    },
+                ],
+            });
+            assert.ok(
+                extractTooltipText(warningItem.tooltip).includes(
+                    'Action: Click to open the warning source location.',
+                ),
+            );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }

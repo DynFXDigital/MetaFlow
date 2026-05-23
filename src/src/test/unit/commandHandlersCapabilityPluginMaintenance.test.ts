@@ -89,8 +89,13 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
     test('collectCapabilityPluginMaintenanceWarningMessages formats failures and catalog warnings', () => {
         const { collectCapabilityPluginMaintenanceWarningMessages } = loadCommandHandlers();
+        const repoRoot = path.join(os.tmpdir(), 'metaflow-maintenance-warning-root');
+        const expectedLocation = path
+            .join(repoRoot, 'capabilities/demo/.agents')
+            .replace(/\\/g, '/');
 
         const messages = collectCapabilityPluginMaintenanceWarningMessages({
+            repoRoot,
             failures: [
                 {
                     layerPath: 'capabilities/demo/.agents',
@@ -108,7 +113,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         });
 
         assert.deepStrictEqual(messages, [
-            'MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found.',
+            `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${expectedLocation}]`,
             '[CAPABILITY_AGENT_PLUGIN_MANIFEST_DUPLICATE] Duplicate agent-plugin plugin name "demo". [C:/repo/capabilities/demo/plugin.json]',
         ]);
     });
