@@ -1,131 +1,120 @@
 # Releasing MetaFlow
 
-## Versioning and tags
+## Version lane model
 
-- Stable releases use tags: `vX.Y.Z`
-- Pre-releases use suffixes: `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`, or `vX.Y.Z-preview.N`
+VS Code Marketplace does not support semver prerelease suffixes (`1.2.3-beta.1` style).
+Use even/odd minor versions instead:
 
-For early-stage development (pre-`1.0.0`), prefer `0.x` tags and pre-releases such as `v0.2.0-beta.1`.
-During `v0.x`, treat non-trivial behavior changes as preview semantics changes and call them out clearly in release notes.
+| Lane | Minor | Example |
+|------|-------|---------|
+| Stable | Even | `0.2.0`, `0.2.1`, `0.4.0` |
+| Prerelease | Odd | `0.3.0`, `0.3.1` |
 
-## Bumping versions
+The `--pre-release` flag on `vsce package` and `vsce publish` marks the extension as prerelease
+in the Marketplace UI. The version number alone is not enough.
 
-Canonical versioning is now automated with Changesets.
+## Normal release cycle
 
-### In feature PRs
+### 1. Add a changeset (in your feature branch)
 
-From repository root:
+```powershell
+npm run changeset
+```
 
-- `npm run changeset`
+Choose bump type: `patch` for fixes, `minor` for features, `major` for breaking changes.
+Commit the generated `.changeset/*.md` file with your changes.
 
-Add a changeset whenever a PR should affect release versioning.
+### 2. Merge to main
 
-### On `main`
+When your feature branch PR merges, the **Version Packages** workflow
+(`.github/workflows/version-packages.yml`) automatically opens a PR titled
+`chore(release): version packages`.
 
-Workflow `.github/workflows/version-packages.yml` automatically opens/updates a
-`chore(release): version packages` PR when pending changesets exist.
+Review and merge that PR. It bumps `src/package.json`, `packages/engine/package.json`,
+and `packages/cli/package.json` in lockstep, and updates `CHANGELOG.md`.
 
-Merging that PR applies synchronized version bumps to:
+### 3. Publish
 
-- `src/package.json`
-- `packages/engine/package.json`
-- `packages/cli/package.json`
+Once the version PR is merged and `main` is green, go to:
 
-and updates changelog entries.
+**Actions → Release Extension → Run workflow**
 
-### Create release
+Inputs:
 
-After merging the version PR, tag the merge commit with `vX.Y.Z` to trigger release packaging.
+| Input | Value |
+|-------|-------|
+| `channel` | `stable` (even minor) or `prerelease` (odd minor) |
 
-## Release paths
+The workflow:
+1. Runs the full gate (quick + integration)
+2. Packages the VSIX with the appropriate channel flag
+3. Waits for manual approval via the GitHub Environment (`production` or `prerelease`)
+4. Publishes to VS Code Marketplace and Open VSX
+5. Creates the git tag `vX.Y.Z`
+6. Creates the GitHub Release with the VSIX attached
 
-- **Tag push (`v*`)**: automatic package + GitHub Release with VSIX asset.
-- **Manual dispatch**: run the same release flow by specifying a tag-like ref (`vX.Y.Z`).
+The tag is created **after** publish succeeds, so a failed gate never leaves a dangling tag.
 
-## Preconditions
+## Package scripts
 
-- CI checks must be green.
-- Release packaging should start from a clean checkout with `npm ci`.
-- Dependency and lockfile diffs should be reviewed for new packages, lifecycle scripts, and unexpected transitive additions before tagging.
-- Push permission to create tags and releases.
+All run from `src/` (or `npm -C src run <script>` from the workspace root):
+
+```powershell
+npm run typecheck        # type-check without emitting
+npm run package:stable   # build stable VSIX → src/artifacts/
+npm run package:pre      # build prerelease VSIX → src/artifacts/
+```
+
+## Prerelease vs stable packaging
+
+| Script | vsce flag | Marketplace lane |
+|--------|-----------|-----------------|
+| `package:stable` | (none) | Stable |
+| `package:pre` | `--pre-release` | Prerelease |
+
+Users opt into the prerelease lane through the extension install UI in VS Code.
+Both channels share the same extension identity (`dynfxdigital.metaflow-ai`).
+
+## Required setup
+
+### GitHub Environments
+
+Create two environments in repository Settings → Environments:
+
+| Environment name | Used for |
+|-----------------|----------|
+| `production` | Stable channel releases |
+| `prerelease` | Prerelease channel releases |
+
+Add required reviewers to each environment for a manual approval gate before publish.
+
+### Secrets
+
+| Secret | Source |
+|--------|--------|
+| `VSCE_PAT` | Azure DevOps personal access token, `Marketplace (Manage)` scope |
+| `OVSX_PAT` | Open VSX token from `https://open-vsx.org/user-settings/tokens` |
+
+Keep secrets only in GitHub Actions secrets. Never commit tokens or paste them in issues/PRs.
+Rotate immediately if exposure is suspected.
+
+### Publisher membership
+
+The account that owns `VSCE_PAT` must be a member of the `dynfxdigital` publisher.
+A valid token without publisher membership is not sufficient.
+
+## Hotfix
+
+1. Create a `release/vX.Y.Z` branch from the last stable tag.
+2. Apply the minimal fix. Run the gate.
+3. Merge back to the release branch and trigger the publish workflow from that branch.
+4. Cherry-pick the fix to `main`.
 
 ## Dependency and artifact hardening
 
-- Prefer the GitHub Actions release workflow as the default publish path; it keeps install, package, and publish steps on the reviewed CI path.
-- Use workspace-pinned tools from the committed lockfile for package and publish steps; avoid bare latest-tag package execution for normal releases.
-- Before publish, verify the VSIX contents and dependency graph are the reviewed ones, not a fresh install-time surprise.
-- If an install or packaging step shows unexpected network access, unexpected packages, or new lifecycle scripts, stop the release and treat the environment as potentially compromised until secrets are rotated and the environment is rebuilt from clean state.
-
-## Publishing to marketplaces
-
-Marketplace publish is optional and handled by `.github/workflows/release.yml`.
-
-- Trigger: **Actions → Release Extension → Run workflow**
-- Inputs:
-    - `ref`: release tag (example: `v0.1.0`)
-    - `publish_to_marketplaces`: set to `true`
-
-Required setup:
-
-1. Configure repository secrets:
-    - `VSCE_PAT`
-    - `OVSX_PAT`
-2. Create a GitHub Environment named `marketplace-publish`.
-3. Add required reviewers on that environment for manual approval before publish.
-
-Token sources:
-
-- `VSCE_PAT` is an Azure DevOps / Visual Studio Marketplace Personal Access Token with `Marketplace (Manage)` scope.
-- `OVSX_PAT` is an Open VSX access token from `https://open-vsx.org/user-settings/tokens`.
-
-Publisher permissions:
-
-- The account used to create `VSCE_PAT` must already have permission to publish under the existing Marketplace publisher (`dynfxdigital`).
-- A valid token without publisher membership is not sufficient; publish will fail with an access-denied error for publishing new extensions to the existing publisher.
-
-Extension identity constraints:
-
-- The VS Code Marketplace requires the extension `name` in `src/package.json` to be globally unique.
-- Publisher scope alone does not avoid collisions. If Marketplace reports that the extension already exists, choose a new unique `name` and repackage before publishing.
-- The current Marketplace extension ID is `dynfxdigital.metaflow-ai`.
-
-Token handling policy:
-
-- Keep `VSCE_PAT` and `OVSX_PAT` only in GitHub Actions secrets.
-- Never commit tokens, place them in tracked `.env` files, or paste them into issues/PRs.
-- Rotate tokens immediately if exposure is suspected.
-
-Packaging and publish path:
-
-- Publish the already-built VSIX rather than running a plain `vsce publish` from `src/`.
-- This repository's extension package depends on a local workspace package (`@metaflow/engine` via `file:../packages/engine`), so a plain `vsce publish` can try to package parent-workspace content.
-- Use the checked-in package script to create the VSIX:
-
-```powershell
-npm -C src run package
-```
-
-- In exceptional local fallback cases only, publish that VSIX explicitly with the workspace-pinned CLI after the same release verification used in CI:
-
-```powershell
-$pat = $env:VSCE_PAT
-if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','User') }
-if (-not $pat) { $pat = [Environment]::GetEnvironmentVariable('VSCE_PAT','Machine') }
-npm exec --workspace src vsce -- publish --packagePath .\src\metaflow-ai-0.2.0.vsix -p $pat
-```
-
-- The GitHub workflow already follows this `--packagePath` pattern for marketplace publishing.
-
-Recommended flow:
-
-1. Push release tag (`vX.Y.Z`) to create GitHub Release + VSIX asset.
-2. (Optional) Run **Release Extension** manually for that same tag with `publish_to_marketplaces=true` after approval.
-3. If CLI publishing is blocked by publisher permissions, use the Marketplace management UI to upload the generated VSIX as a fallback while publisher membership is being corrected.
-
-## Rollback and hotfix
-
-1. Create a hotfix branch from last stable release.
-2. Apply minimal fix and run required tests.
-3. Tag with next patch version (or pre-release suffix if validating).
-4. Publish via standard release workflow.
-5. Document rollback/hotfix details in release notes.
+- Publish the built VSIX (`--packagePath`), not a fresh `vsce publish` from source.
+- This extension depends on a local workspace package (`@metaflow/engine` via `file:../packages/engine`);
+  a plain `vsce publish` can bundle unexpected workspace content.
+- Before each release, verify VSIX contents and dependency graph.
+- If a packaging step shows unexpected network access or new lifecycle scripts, stop the
+  release, treat the environment as potentially compromised, and rotate secrets before rebuilding.
