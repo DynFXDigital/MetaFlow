@@ -10,6 +10,7 @@ import {
     TreeItem,
     Workbench,
     InputBox,
+    Notification,
 } from 'vscode-extension-tester';
 
 export const STARTUP_TIMEOUT = 90_000;
@@ -158,4 +159,71 @@ export async function dismissActiveInput(): Promise<void> {
     } catch {
         // no input open — that's fine
     }
+}
+
+// ── Notification helpers ──────────────────────────────────────────────────────
+
+/**
+ * Polls until a notification whose message includes `fragment` appears.
+ * Returns the notification, or undefined if none appeared within the timeout.
+ */
+export async function waitForNotification(
+    workbench: Workbench,
+    fragment: string,
+    timeoutMs = INTERACTION_TIMEOUT,
+): Promise<Notification | undefined> {
+    let found: Notification | undefined;
+    try {
+        await waitFor(async () => {
+            const notes = await workbench.getNotifications();
+            for (const n of notes) {
+                const msg = await n.getMessage().catch(() => '');
+                if (msg.toLowerCase().includes(fragment.toLowerCase())) {
+                    found = n;
+                    return true;
+                }
+            }
+            return false;
+        }, timeoutMs);
+    } catch {
+        // timed out — found stays undefined
+    }
+    return found;
+}
+
+/**
+ * Dismisses all currently visible notifications, ignoring errors.
+ */
+export async function dismissAllNotifications(workbench: Workbench): Promise<void> {
+    try {
+        const notes = await workbench.getNotifications();
+        for (const n of notes) {
+            await n.dismiss().catch(() => {
+                /* ignore */
+            });
+        }
+    } catch {
+        // ignore
+    }
+}
+
+/**
+ * Returns true if any currently visible notification message includes `fragment`.
+ */
+export async function hasNotification(
+    workbench: Workbench,
+    fragment: string,
+): Promise<boolean> {
+    try {
+        const notes = await workbench.getNotifications();
+        for (const n of notes) {
+            const msg = await n.getMessage().catch(() => '');
+            if (msg.toLowerCase().includes(fragment.toLowerCase())) {
+                return true;
+            }
+        }
+    } catch {
+        // ignore
+    }
+    return false;
 }
