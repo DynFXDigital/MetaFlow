@@ -15,7 +15,7 @@
     "clean": "rimraf out",
     "pretest": "npm run build",
     "test": "mocha \"out/test/**/*.test.js\" --timeout 10000",
-    "test:coverage": "c8 --reporter=text --reporter=lcov --include=out/src/** mocha \"out/test/**/*.test.js\" --timeout 10000"
+    "test:coverage": "npm run build && node ../../scripts/coverage.mjs --tests \"out/test/**/*.test.js\" --include \"out/src/**\""
   },
   "dependencies": {
     "@metaflow/engine": "file:../engine",

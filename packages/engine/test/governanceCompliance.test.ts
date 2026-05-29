@@ -157,4 +157,109 @@ describe('governanceCompliance', () => {
         assert.strictEqual(defaultResult.status, 'compliant');
         assert.deepStrictEqual(defaultResult.violations, []);
     });
+
+    it('distinguishes repo-missing, capability-missing, and active observed states', () => {
+        const result = evaluateGovernanceCompliance(
+            {
+                severity: 'error',
+                requiredCapabilities: [
+                    { repoId: 'primary', path: 'cap/active' },
+                    { repoId: 'ghost', path: 'cap/x' },
+                    { repoId: 'primary', path: 'cap/missing' },
+                ],
+                defaultOnCapabilities: [{ repoId: 'primary', path: 'cap/active' }],
+            },
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/primary',
+                        enabled: true,
+                        capabilities: [{ path: 'cap/active', enabled: true }],
+                    },
+                ],
+                layerSources: [{ repoId: 'primary', path: 'cap/active', enabled: true }],
+            },
+        );
+
+        const byId = new Map(result.violations.map((v) => [v.id, v]));
+        // cap/active resolves to active for both required and default-on -> no violation.
+        assert.ok(!byId.has('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/active'));
+        assert.ok(!byId.has('GOVERNANCE_DEFAULT_ON_CAPABILITY_DISABLED::primary::cap/active'));
+        assert.strictEqual(
+            byId.get('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::ghost::cap/x')?.observedState,
+            'repo-missing',
+        );
+        assert.strictEqual(
+            byId.get('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/missing')?.observedState,
+            'capability-missing',
+        );
+        assert.ok(
+            byId
+                .get('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::ghost::cap/x')
+                ?.message.includes('the metadata repository is not configured'),
+        );
+        assert.ok(
+            byId
+                .get('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/missing')
+                ?.message.includes('the capability is not projected'),
+        );
+    });
+
+    it('derives capability state from metadataRepos when no layerSources are present', () => {
+        const result = evaluateGovernanceCompliance(
+            {
+                severity: 'warn',
+                requiredCapabilities: [
+                    { repoId: 'primary', path: 'cap/on' },
+                    { repoId: 'primary', path: 'cap/off' },
+                ],
+            },
+            {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/primary',
+                        enabled: true,
+                        capabilities: [
+                            { path: 'cap/on', enabled: true },
+                            { path: 'cap/off', enabled: false },
+                        ],
+                    },
+                ],
+            },
+        );
+
+        assert.strictEqual(result.status, 'non-compliant');
+        assert.deepStrictEqual(
+            result.violations.map((v) => v.id),
+            ['GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/off'],
+        );
+        assert.strictEqual(result.violations[0].observedState, 'capability-disabled');
+    });
+
+    it('derives capability state from legacy metadataRepo + layers config', () => {
+        const result = evaluateGovernanceCompliance(
+            {
+                severity: 'warn',
+                requiredCapabilities: [
+                    { repoId: 'primary', path: 'cap/legacy' },
+                    { repoId: 'primary', path: 'cap/absent' },
+                ],
+            },
+            {
+                metadataRepo: { localPath: '.ai/legacy' },
+                layers: ['cap/legacy'],
+            },
+        );
+
+        assert.strictEqual(result.status, 'non-compliant');
+        const byId = new Map(result.violations.map((v) => [v.id, v]));
+        // cap/legacy is enabled via legacy layers -> active -> no violation.
+        assert.ok(!byId.has('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/legacy'));
+        assert.strictEqual(
+            byId.get('GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::cap/absent')?.observedState,
+            'capability-missing',
+        );
+    });
 });

@@ -3,6 +3,7 @@ import {
     parseCapabilityManifestContent,
     capabilityManifestConstants,
     loadCapabilityManifestForLayer,
+    type CapabilityMetadata,
 } from '../src/index';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -383,5 +384,133 @@ describe('capabilityManifest parser', () => {
         } finally {
             fs.rmSync(tmpDir, { recursive: true, force: true });
         }
+    });
+
+    function loadWithPluginJson(pluginJsonRaw: string): CapabilityMetadata | undefined {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Capability Name',
+                    'description: Capability Description',
+                    'agentPlugin: true',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(path.join(tmpDir, 'plugin.json'), pluginJsonRaw, 'utf-8');
+            return loadCapabilityManifestForLayer(tmpDir, 'capability-id');
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    }
+
+    function hasCode(loaded: CapabilityMetadata | undefined, code: string): boolean {
+        return Boolean(loaded?.warnings.some((warning) => warning.code === code));
+    }
+
+    it('emits an error when plugin.json is not a top-level object', () => {
+        const loaded = loadWithPluginJson('["not", "an", "object"]');
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_OBJECT_REQUIRED'));
+    });
+
+    it('emits an error when plugin.json name is missing', () => {
+        const loaded = loadWithPluginJson(JSON.stringify({ version: '1.0.0' }));
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_REQUIRED'));
+    });
+
+    it('emits an error when plugin.json name is not kebab-case', () => {
+        const loaded = loadWithPluginJson(JSON.stringify({ name: 'Not Kebab', version: '1.0.0' }));
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_INVALID'));
+    });
+
+    it('emits an error when plugin.json version is missing', () => {
+        const loaded = loadWithPluginJson(JSON.stringify({ name: 'good-name' }));
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_REQUIRED'));
+    });
+
+    it('emits an error when plugin.json version is not semver', () => {
+        const loaded = loadWithPluginJson(JSON.stringify({ name: 'good-name', version: 'v-one' }));
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_INVALID'));
+    });
+
+    it('warns when plugin.json keywords is not an array', () => {
+        const loaded = loadWithPluginJson(
+            JSON.stringify({ name: 'good-name', version: '1.0.0', keywords: 'oops' }),
+        );
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_KEYWORDS_INVALID'));
+    });
+
+    it('emits an error when plugin.json metaflow is not an object', () => {
+        const loaded = loadWithPluginJson(
+            JSON.stringify({ name: 'good-name', version: '1.0.0', metaflow: 'oops' }),
+        );
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_METAFLOW_INVALID'));
+    });
+
+    it('emits an error when metaflow.pluginHosts is not an array of strings', () => {
+        const loaded = loadWithPluginJson(
+            JSON.stringify({
+                name: 'good-name',
+                version: '1.0.0',
+                metaflow: { pluginHosts: 'github-copilot' },
+            }),
+        );
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_INVALID'));
+    });
+
+    it('emits an error when metaflow.minimumMetaflowVersion is not a recognizable range', () => {
+        const loaded = loadWithPluginJson(
+            JSON.stringify({
+                name: 'good-name',
+                version: '1.0.0',
+                metaflow: { pluginHosts: ['github-copilot'], minimumMetaflowVersion: 'not-a-range' },
+            }),
+        );
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'));
+    });
+
+    it('emits an error when metaflow.minimumMetaflowVersion is not a string', () => {
+        const loaded = loadWithPluginJson(
+            JSON.stringify({
+                name: 'good-name',
+                version: '1.0.0',
+                metaflow: { pluginHosts: ['github-copilot'], minimumMetaflowVersion: 14 },
+            }),
+        );
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'));
+    });
+
+    it('recommends declaring pluginHosts when none are present', () => {
+        const loaded = loadWithPluginJson(JSON.stringify({ name: 'good-name', version: '1.0.0' }));
+        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED'));
+    });
+
+    it('emits a read error when plugin.json cannot be read as a file', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'CAPABILITY.md'),
+                ['---', 'name: Cap', 'description: Desc', 'agentPlugin: true', '---'].join('\n'),
+                'utf-8',
+            );
+            // Make plugin.json a directory so readFileSync throws (EISDIR).
+            fs.mkdirSync(path.join(tmpDir, 'plugin.json'));
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'capability-id');
+            assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_READ_ERROR'));
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('emits an error when CAPABILITY.md agentPlugin is not a boolean', () => {
+        const parsed = parseCapabilityManifestContent(
+            ['---', 'name: Cap', 'description: Desc', 'agentPlugin: maybe', '---'].join('\n'),
+            'cap',
+            '/tmp/CAPABILITY.md',
+        );
+        assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_AGENT_PLUGIN_INVALID'));
     });
 });

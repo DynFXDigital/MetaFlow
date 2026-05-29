@@ -32,6 +32,7 @@ import {
     apply,
     // settingsInjector
     computeSettingsEntries,
+    computePluginRootPaths,
 } from '../src/index';
 import type { EffectiveFile, MetaFlowConfig, ManagedState } from '../src/index';
 
@@ -399,6 +400,57 @@ describe('Engine gaps: configLoader', () => {
         } as MetaFlowConfig);
         assert.ok(errors.some((e) => e.message.includes('capabilities')));
     });
+
+    it('validateConfig reports error for invalid metadataRepos fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+                },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some(
+                (e) =>
+                    e.message.includes('"r1"') && e.message.includes('invalid "fileNamingStrategy"'),
+            ),
+        );
+    });
+
+    it('validateConfig reports error for invalid layerSources fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
+            layerSources: [
+                {
+                    repoId: 'r1',
+                    path: 'core',
+                    fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+                },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some(
+                (e) =>
+                    e.message.includes('r1/core') &&
+                    e.message.includes('invalid "fileNamingStrategy"'),
+            ),
+        );
+    });
+
+    it('validateConfig reports error for invalid top-level fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepo: { localPath: '.ai/metadata' },
+            layers: ['core'],
+            fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some((e) =>
+                e.message.includes('"fileNamingStrategy" must be either'),
+            ),
+        );
+    });
 });
 
 // ── synchronizer ──────────────────────────────────────────────────
@@ -479,5 +531,68 @@ describe('Engine gaps: settingsInjector absolute hooks', () => {
         const entries = computeSettingsEntries([], tmpDir, config);
         const hookLocations = entries.find((e) => e.key === 'chat.hookFilesLocations');
         assert.ok(hookLocations, 'should have hook file locations');
+    });
+});
+
+describe('Engine gaps: settingsInjector plugin roots', () => {
+    const workspaceRoot = path.resolve('/ws');
+
+    function pluginFile(relativePath: string, sourcePath: string): EffectiveFile {
+        return {
+            relativePath,
+            sourcePath,
+            sourceLayer: 'core',
+            classification: 'plugin',
+        };
+    }
+
+    it('computePluginRootPaths resolves the capability root above .github', () => {
+        const file = pluginFile(
+            '.github/instructions/coding.md',
+            path.join(workspaceRoot, 'repo', 'cap', '.github', 'instructions', 'coding.md'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
+
+    it('computePluginRootPaths resolves a root when path has no .github segment', () => {
+        const file = pluginFile(
+            'instructions/coding.md',
+            path.join(workspaceRoot, 'repo', 'cap', 'instructions', 'coding.md'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
+
+    it('computePluginRootPaths ignores non-plugin files', () => {
+        const settingsFile: EffectiveFile = {
+            relativePath: '.github/instructions/x.md',
+            sourcePath: path.join(workspaceRoot, 'repo', '.github', 'instructions', 'x.md'),
+            sourceLayer: 'core',
+            classification: 'settings',
+        };
+        assert.deepStrictEqual(computePluginRootPaths([settingsFile]), []);
+    });
+
+    it('computePluginRootPaths skips files whose relative path is empty', () => {
+        const file = pluginFile('', path.join(workspaceRoot, 'repo'));
+        assert.deepStrictEqual(computePluginRootPaths([file]), []);
+    });
+
+    it('computePluginRootPaths skips files that are only .github', () => {
+        const file = pluginFile('.github', path.join(workspaceRoot, 'repo', '.github'));
+        assert.deepStrictEqual(computePluginRootPaths([file]), []);
+    });
+
+    it('computeSettingsEntries emits chat.pluginLocations for plugin-classified files', () => {
+        const file = pluginFile(
+            '.github/instructions/coding.md',
+            path.join(workspaceRoot, 'cap', '.github', 'instructions', 'coding.md'),
+        );
+        const config: MetaFlowConfig = { metadataRepo: { localPath: 'repo' }, layers: ['core'] };
+        const entries = computeSettingsEntries([file], workspaceRoot, config);
+        const pluginEntry = entries.find((e) => e.key === 'chat.pluginLocations');
+        assert.ok(pluginEntry, 'should emit chat.pluginLocations');
+        assert.deepStrictEqual(pluginEntry?.value, { cap: true });
     });
 });

@@ -75,10 +75,19 @@ function createMockVscode() {
         }
     }
 
+    const registeredTools: Array<{ name: string; tool: unknown }> = [];
+
     return {
         LanguageModelToolResult,
         LanguageModelTextPart,
         LanguageModelDataPart,
+        registeredTools,
+        lm: {
+            registerTool(name: string, tool: unknown) {
+                registeredTools.push({ name, tool });
+                return { dispose() {} };
+            },
+        },
     };
 }
 
@@ -129,5 +138,75 @@ suite('Diagnostics Tool', () => {
         await tool.invoke({ input: {} } as never, undefined as never);
 
         assert.deepStrictEqual(order, ['snapshot']);
+    });
+
+    test('formats warning lines and remediation hints in the tool text', async () => {
+        const mockVscode = createMockVscode();
+        const module = loadDiagnosticsToolWithMock(mockVscode);
+        const tool = module.createDiagnosticsTool(() => ({
+            capabilityWarnings: [],
+            configDiagnostics: [],
+            governance: { validationErrors: [] },
+            warnings: [
+                {
+                    category: 'config',
+                    message: 'Missing capability',
+                    remediationHint: 'Enable the capability',
+                },
+                {
+                    category: 'governance',
+                    message: 'Profile not allowed',
+                },
+            ],
+        }));
+
+        const result = (await tool.invoke(
+            { input: {} } as never,
+            undefined as never,
+        )) as ToolResultMock;
+
+        const textPart = result.content[1] as TextPartMock;
+        assert.ok(textPart.value.includes('2 warning(s)'));
+        assert.ok(textPart.value.includes('Warnings:'));
+        assert.ok(textPart.value.includes('Missing capability'));
+        assert.ok(textPart.value.includes('Remediation: Enable the capability'));
+        assert.ok(textPart.value.includes('Profile not allowed'));
+    });
+
+    test('prepareInvocation reports a reading message', () => {
+        const mockVscode = createMockVscode();
+        const module = loadDiagnosticsToolWithMock(mockVscode);
+        const tool = module.createDiagnosticsTool(() => ({
+            capabilityWarnings: [],
+            configDiagnostics: [],
+            governance: { validationErrors: [] },
+            warnings: [],
+        }));
+
+        const prepared = tool.prepareInvocation?.(
+            { input: {} } as never,
+            undefined as never,
+        ) as { invocationMessage: string };
+
+        assert.strictEqual(prepared.invocationMessage, 'Reading MetaFlow diagnostics');
+    });
+
+    test('registerDiagnosticsTool registers the tool and tracks the disposable', () => {
+        const mockVscode = createMockVscode();
+        const module = loadDiagnosticsToolWithMock(mockVscode);
+        const subscriptions: unknown[] = [];
+
+        module.registerDiagnosticsTool({ subscriptions } as never, () => ({
+            capabilityWarnings: [],
+            configDiagnostics: [],
+            governance: { validationErrors: [] },
+            warnings: [],
+        }));
+
+        const registered = (mockVscode as { registeredTools: Array<{ name: string }> })
+            .registeredTools;
+        assert.strictEqual(registered.length, 1);
+        assert.strictEqual(registered[0].name, module.METAFLOW_DIAGNOSTICS_TOOL_NAME);
+        assert.strictEqual(subscriptions.length, 1);
     });
 });

@@ -163,4 +163,64 @@ describe('pluginCatalog', () => {
             ),
         );
     });
+
+    it('skips layers that do not opt in or lack a plugin name/version', () => {
+        const noCapability: LayerContent = { layerId: 'a', repoId: 'repo', files: [] };
+        const notPlugin = makeLayer('repo/x/notplugin', 'repo', 'np');
+        notPlugin.capability!.agentPlugin = false;
+        const noManifestName = makeLayer('repo/x/noname', 'repo', '');
+        noManifestName.capability!.agentPluginManifest!.name = '';
+
+        const result = buildAgentPluginCatalog([noCapability, notPlugin, noManifestName]);
+        assert.deepStrictEqual(result.entries, []);
+        assert.deepStrictEqual(result.warnings, []);
+    });
+
+    it('warns when a catalog entry lives outside the repository root', () => {
+        const result = buildCapabilityPluginMarketplaceManifest(
+            [
+                {
+                    pluginName: 'outside-plugin',
+                    version: '1.0.0',
+                    displayName: 'Outside Plugin',
+                    capabilityId: 'outside',
+                    layerId: 'other/outside',
+                    repoId: 'other',
+                    manifestPath: '/elsewhere/outside/CAPABILITY.md',
+                    pluginJsonPath: '/elsewhere/outside/plugin.json',
+                    pluginHosts: ['github-copilot'],
+                },
+            ],
+            { repoRoot: '/workspace/repo', marketplaceName: 'Example Repo' },
+        );
+
+        assert.deepStrictEqual(result.manifest.plugins, []);
+        assert.strictEqual(result.warnings.length, 1);
+        assert.strictEqual(
+            result.warnings[0].code,
+            'CAPABILITY_AGENT_PLUGIN_MARKETPLACE_MANIFEST_OUTSIDE_REPO',
+        );
+    });
+
+    it('emits "./" source for a plugin manifest at the repository root', () => {
+        const result = buildCapabilityPluginMarketplaceManifest(
+            [
+                {
+                    pluginName: 'root-plugin',
+                    version: '1.0.0',
+                    displayName: 'Root Plugin',
+                    capabilityId: 'root',
+                    layerId: 'repo/root',
+                    repoId: 'repo',
+                    manifestPath: '/workspace/repo/CAPABILITY.md',
+                    pluginJsonPath: '/workspace/repo/plugin.json',
+                    pluginHosts: ['github-copilot'],
+                },
+            ],
+            { repoRoot: '/workspace/repo', marketplaceName: 'Example Repo' },
+        );
+
+        assert.deepStrictEqual(result.warnings, []);
+        assert.strictEqual(result.manifest.plugins[0]?.source, './');
+    });
 });
