@@ -75,6 +75,12 @@ function configWith(opts: { coreEnabled?: boolean; sdlcEnabled?: boolean }): str
             },
             activeProfile: 'default',
             compatibilityVersion: 2,
+            injection: {
+                instructions: 'settings',
+                agents:        'settings',
+                skills:        'settings',
+                prompts:       'settings',
+            },
         },
         null,
         2,
@@ -88,14 +94,10 @@ suite('Settings Injection Output', function () {
 
     let sideBar: SideBarView;
     let originalConfig: string;
-    let originalSettings: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
-        originalConfig   = fs.readFileSync(CONFIG_PATH, 'utf-8');
-        originalSettings = fs.existsSync(SETTINGS_PATH)
-            ? fs.readFileSync(SETTINGS_PATH, 'utf-8')
-            : '{}';
+        originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
 
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');

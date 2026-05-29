@@ -25,6 +25,7 @@ import { SideBarView, Workbench } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
     WAIT_TIMEOUT,
+    INTERACTION_TIMEOUT,
     sleep,
     openMetaFlowSidebar,
     getSection,
@@ -33,6 +34,7 @@ import {
     sectionContainsText,
     waitFor,
     hasNotification,
+    waitForNotification,
     dismissAllNotifications,
     dismissActiveInput,
 } from './helpers/metaflowGuiHelpers';
@@ -127,20 +129,27 @@ suite('Extension Error and Warning States', function () {
         );
     });
 
-    test('Extension produces no error notification for invalid config (errors are silent/diagnostic)', async function () {
+    test('Refresh with invalid config shows a warning notification, not an error notification', async function () {
         this.timeout(WAIT_TIMEOUT + 15_000);
 
-        // MetaFlow surfaces config errors as VS Code diagnostics (Problems panel),
-        // not as pop-up error notifications. Verify no error notification appears.
+        // MetaFlow surfaces config parse errors as a VS Code warning notification
+        // ("Found config file, but it is invalid. Check Problems for details.") and
+        // as VS Code diagnostics in the Problems panel — but NOT as a pop-up error.
         fs.writeFileSync(CONFIG_PATH, '{ this: is not valid json', 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Refresh');
+        const workbench = new Workbench();
+        await workbench.executeCommand('MetaFlow: Refresh');
         await sleep(3_000);
 
-        const workbench = new Workbench();
-        const hasErrorNotif = await hasNotification(workbench, 'error');
+        const warningNotif = await waitForNotification(workbench, 'invalid', WAIT_TIMEOUT);
+        assert.ok(
+            warningNotif,
+            'Expected a warning notification containing "invalid" after Refresh with malformed config',
+        );
+
+        const hasErrorNotif = await hasNotification(workbench, 'MetaFlow: error');
         assert.ok(
             !hasErrorNotif,
-            'Expected MetaFlow to surface config errors as diagnostics, not as error notifications',
+            'Expected a warning notification, not an error notification, for malformed config',
         );
     });
 
@@ -307,6 +316,83 @@ suite('Extension Error and Warning States', function () {
         const filesSection = await getSection(sideBar, 'Effective Files');
         assert.ok(capSection,   'Capabilities section missing after empty metadataRepos config');
         assert.ok(filesSection, 'Effective Files section missing after empty metadataRepos config');
+    });
+
+    // ── Profile not found ─────────────────────────────────────────────────────
+
+    test('Config with activeProfile that does not exist in profiles still loads without crash', async function () {
+        this.timeout(WAIT_TIMEOUT + 15_000);
+
+        // Bug fix: previously the extension silently returned ALL files when activeProfile
+        // referenced a non-existent profile. Now it emits a capability warning.
+        const missingProfileConfig = JSON.stringify(
+            {
+                metadataRepos: [{
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    capabilities: [
+                        { path: 'standards/sdlc', enabled: true },
+                    ],
+                }],
+                profiles: { default: { enable: ['**/*'] } },
+                activeProfile: 'nonexistent-profile',
+                compatibilityVersion: 2,
+            },
+            null,
+            2,
+        );
+
+        fs.writeFileSync(CONFIG_PATH, missingProfileConfig, 'utf-8');
+        await new Workbench().executeCommand('MetaFlow: Refresh');
+        await sleep(3_000);
+
+        // Extension must not crash — sidebar sections should still be accessible
+        const capSection = await getSection(sideBar, 'Capabilities');
+        assert.ok(capSection, 'Capabilities section missing after referencing non-existent activeProfile');
+
+        // Effective Files should still be populated (falls back to all-files, plus emits warning)
+        const filesSection = await getSection(sideBar, 'Effective Files');
+        await expandSection(filesSection);
+        await sleep(1_000);
+        assert.ok(
+            await sectionContainsText(filesSection, 'testing'),
+            'Expected sdlc files to appear even when activeProfile is not found (fallback to all-files)',
+        );
+    });
+
+    // ── Clean with nothing to do ──────────────────────────────────────────────
+
+    test('Clean shows "Nothing to clean" information message when there is nothing to remove', async function () {
+        this.timeout(WAIT_TIMEOUT + INTERACTION_TIMEOUT + 15_000);
+
+        // Ensure we are in a clean state: run Clean to remove any previously injected settings,
+        // then verify Clean a second time shows the no-op message instead of the confirmation dialog.
+        const workbench = new Workbench();
+
+        // First Clean: confirm if prompted, so subsequent state is empty
+        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
+        const firstNotif = await waitForNotification(workbench, 'Remove all synchronized files', INTERACTION_TIMEOUT);
+        if (firstNotif) {
+            await firstNotif.takeAction('Remove');
+            await sleep(2_000);
+        }
+        await dismissAllNotifications(workbench);
+        await sleep(500);
+
+        // Second Clean: now there's nothing to clean — should show "Nothing to clean"
+        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
+        const nothingToClean = await waitForNotification(workbench, 'Nothing to clean', INTERACTION_TIMEOUT);
+        assert.ok(
+            nothingToClean,
+            'Expected "Nothing to clean" info message when Clean is run with no managed state',
+        );
+
+        // Must NOT show the confirmation dialog
+        const removeDialog = await waitForNotification(workbench, 'Remove all synchronized files', 2_000);
+        assert.ok(
+            !removeDialog,
+            'Expected no "Remove all synchronized files?" dialog when there is nothing to clean',
+        );
     });
 
     // ── Recovery ─────────────────────────────────────────────────────────────

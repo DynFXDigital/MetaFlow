@@ -2849,6 +2849,18 @@ function resolveOverlay(
 
     const profileName = config.activeProfile;
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
+
+    if (profileName && !profile) {
+        const message = `[ACTIVE_PROFILE_NOT_FOUND] Active profile "${profileName}" is not defined in config.profiles — all capabilities will be surfaced without profile filtering.`;
+        if (!seenCapabilityWarningMessages.has(message)) {
+            seenCapabilityWarningMessages.add(message);
+            capabilityWarnings.push(message);
+            if (emitLogs) {
+                logWarn(message);
+            }
+        }
+    }
+
     for (const conflict of detectSurfacedFileConflicts(layers, {
         filters: config.filters,
         layerSources: config.layerSources,
@@ -5244,6 +5256,19 @@ export function registerCommands(
         vscode.commands.registerCommand('metaflow.clean', async () => {
             const ws = getWorkspace();
             if (!ws) {
+                return;
+            }
+
+            // Skip the confirmation dialog when there is nothing to clean.
+            const syncedFilesCount = Object.keys(loadManagedState(ws.uri.fsPath).files).length;
+            const managedSettingsState = readManagedSettingsState(context);
+            const hasManagedSettings =
+                Object.values(managedSettingsState.managedEntries ?? {}).some(
+                    (entries) => Object.keys(entries).length > 0,
+                ) || (managedSettingsState.managedPluginUris?.length ?? 0) > 0;
+
+            if (syncedFilesCount === 0 && !hasManagedSettings) {
+                vscode.window.showInformationMessage('MetaFlow: Nothing to clean.');
                 return;
             }
 
