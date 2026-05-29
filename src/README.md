@@ -99,6 +99,8 @@ Supported injection modes are:
 
 `plugin` mode is now the default for `instructions`, `skills`, and `agents`. `prompts` still need `settings` or `synchronize`, and `hooks` still need `settings`, because the current Copilot plugin loader path does not consume those MetaFlow artifact directories directly.
 
+> **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses *desired* state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
+
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
 After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.

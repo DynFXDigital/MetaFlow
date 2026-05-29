@@ -55,6 +55,32 @@ function loadCommandHandlers(): typeof import('../../commands/commandHandlers') 
     }
 }
 
+function loadCommandHelpers(): typeof import('../../commands/commandHelpers') {
+    const moduleInternals = require('module') as {
+        _load: (request: string, parent: NodeModule | null, isMain: boolean) => unknown;
+    };
+    const originalLoad = moduleInternals._load;
+    moduleInternals._load = function patchedLoad(
+        request: string,
+        parent: NodeModule | null,
+        isMain: boolean,
+    ): unknown {
+        if (request === 'vscode') {
+            return mockVscode;
+        }
+        return originalLoad.call(this, request, parent, isMain);
+    };
+
+    const targetPath = require.resolve('../../commands/commandHelpers');
+    delete require.cache[targetPath];
+
+    try {
+        return require(targetPath) as typeof import('../../commands/commandHelpers');
+    } finally {
+        moduleInternals._load = originalLoad;
+    }
+}
+
 suite('Command handler configured source warnings', () => {
     test('enabled missing layer path produces a diagnostic warning payload', () => {
         const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
@@ -193,6 +219,52 @@ suite('Command handler configured source warnings', () => {
                 [] as never,
             );
 
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('profile layerOverride disabling an authored-enabled source suppresses its missing-path warning end to end', () => {
+        const { collectConfiguredSourceWarnings } = loadCommandHandlers();
+        const { projectConfigForProfile } = loadCommandHelpers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-projection-chain-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            fs.mkdirSync(repoRoot, { recursive: true });
+
+            // Source is authored ENABLED; only the active profile disables it via layerOverride.
+            const authoredConfig = {
+                metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                layerSources: [{ repoId: 'primary', path: 'capabilities/ghost', enabled: true }],
+                activeProfile: 'default',
+                profiles: {
+                    default: {
+                        layerOverrides: [
+                            { repoId: 'primary', path: 'capabilities/ghost', enabled: false },
+                        ],
+                    },
+                },
+            } as never;
+
+            // Without projection, the enabled authored source still warns (guards the assertion).
+            const unprojected = collectConfiguredSourceWarnings(
+                authoredConfig,
+                workspaceRoot,
+                [] as never,
+            );
+            assert.deepStrictEqual(unprojected, [
+                '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+            ]);
+
+            // After profile projection flips enabled to false, the warning is suppressed.
+            const projected = projectConfigForProfile(authoredConfig);
+            const warnings = collectConfiguredSourceWarnings(
+                projected,
+                workspaceRoot,
+                [] as never,
+            );
             assert.deepStrictEqual(warnings, []);
         } finally {
             fs.rmSync(workspaceRoot, { recursive: true, force: true });
