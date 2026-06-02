@@ -300,11 +300,13 @@
       {
         "command": "metaflow.selectAllLayers",
         "title": "Select All",
+        "category": "MetaFlow",
         "icon": "$(check-all)"
       },
       {
         "command": "metaflow.deselectAllLayers",
         "title": "Deselect All",
+        "category": "MetaFlow",
         "icon": "$(close-all)"
       },
       {
@@ -719,10 +721,10 @@
           "order": 4,
           "title": "Injection Modes",
           "default": {
-            "instructions": "settings",
+            "instructions": "plugin",
             "prompts": "settings",
-            "skills": "settings",
-            "agents": "settings",
+            "skills": "plugin",
+            "agents": "plugin",
             "hooks": "settings"
           },
           "description": "Injection mode by artifact type (Item = artifact type, Value = mode)",
@@ -732,9 +734,10 @@
               "type": "string",
               "enum": [
                 "settings",
-                "synchronize"
+                "synchronize",
+                "plugin"
               ],
-              "default": "settings",
+              "default": "plugin",
               "description": "Injection mode for instructions artifacts"
             },
             "prompts": {
@@ -750,18 +753,20 @@
               "type": "string",
               "enum": [
                 "settings",
-                "synchronize"
+                "synchronize",
+                "plugin"
               ],
-              "default": "settings",
+              "default": "plugin",
               "description": "Injection mode for skills artifacts"
             },
             "agents": {
               "type": "string",
               "enum": [
                 "settings",
-                "synchronize"
+                "synchronize",
+                "plugin"
               ],
-              "default": "settings",
+              "default": "plugin",
               "description": "Injection mode for agents artifacts"
             },
             "hooks": {

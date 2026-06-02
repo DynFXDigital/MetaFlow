@@ -9,6 +9,8 @@ type ExtensionPackageJson = {
     contributes?: {
         commands?: Array<{
             command: string;
+            title?: string;
+            category?: string;
             icon?: string;
         }>;
         menus?: {
@@ -406,6 +408,67 @@ suite('Extension Packaging Regression Guards', () => {
 
         assert.ok(rowRemoveEntry, 'Expected remove command in built-in repo row context menu');
         assert.strictEqual(rowRemoveEntry?.group, 'inline@3');
+    });
+
+    test('bulk layer commands are palette-discoverable under the MetaFlow namespace', () => {
+        // Regression guard: selectAllLayers / deselectAllLayers previously had a
+        // bare title ("Select All") with no category, so they were NOT invokable
+        // as "MetaFlow: Select All" from the command palette — only from tree
+        // context menus. A category (or a "MetaFlow:"-prefixed title) is required
+        // for palette discoverability under the product namespace.
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const commands = packageJson.contributes?.commands ?? [];
+        for (const id of ['metaflow.selectAllLayers', 'metaflow.deselectAllLayers']) {
+            const entry = commands.find((c) => c.command === id);
+            assert.ok(entry, `Expected ${id} command contribution`);
+            const paletteDiscoverable =
+                entry?.category === 'MetaFlow' || (entry?.title ?? '').startsWith('MetaFlow:');
+            assert.ok(
+                paletteDiscoverable,
+                `Expected ${id} to be palette-discoverable as "MetaFlow: …" ` +
+                    `(needs category "MetaFlow" or a "MetaFlow:"-prefixed title), ` +
+                    `got category=${entry?.category} title=${entry?.title}`,
+            );
+        }
+    });
+
+    test('commands surfaced in context menus keep a clean (un-prefixed) title', () => {
+        // Complements the palette-discoverability guard: context-menu commands
+        // must read cleanly (e.g. "Select All"), so the MetaFlow namespace must
+        // come from `category`, never a "MetaFlow:"-prefixed title.
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const commands = packageJson.contributes?.commands ?? [];
+        for (const id of ['metaflow.selectAllLayers', 'metaflow.deselectAllLayers']) {
+            const entry = commands.find((c) => c.command === id);
+            assert.ok(entry, `Expected ${id} command contribution`);
+            assert.ok(
+                !(entry?.title ?? '').startsWith('MetaFlow:'),
+                `Expected ${id} to keep a clean title for context menus, got "${entry?.title}"`,
+            );
+            assert.strictEqual(
+                entry?.category,
+                'MetaFlow',
+                `Expected ${id} to namespace via category, not a prefixed title`,
+            );
+        }
+
+        const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
+        assert.ok(
+            contextMenuEntries.some((e) => e.command === 'metaflow.selectAllLayers'),
+            'Expected Select All to remain available in the Capabilities item context menu',
+        );
+        assert.ok(
+            contextMenuEntries.some((e) => e.command === 'metaflow.deselectAllLayers'),
+            'Expected Deselect All to remain available in the Capabilities item context menu',
+        );
     });
 
     test('Capabilities view title actions use the same ordering as Effective Files view', () => {
