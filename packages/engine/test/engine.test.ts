@@ -1080,6 +1080,28 @@ describe('Engine: profile engine advanced', () => {
         const result = applyProfile(files, {} as ProfileConfig);
         assert.strictEqual(result.length, 1);
     });
+
+    it('profile with an explicit empty enable list ([]) enables nothing', () => {
+        const files: EffectiveFile[] = [
+            {
+                relativePath: 'skills/a.md',
+                sourcePath: '/x',
+                sourceLayer: 'l',
+                classification: 'synchronized',
+            },
+            {
+                relativePath: 'instructions/c.md',
+                sourcePath: '/x',
+                sourceLayer: 'l',
+                classification: 'settings',
+            },
+        ];
+
+        // `enable: []` is an active (match-nothing) allowlist, distinct from an
+        // absent enable key which means "no filter / all pass".
+        const result = applyProfile(files, { enable: [] });
+        assert.strictEqual(result.length, 0);
+    });
 });
 
 describe('Engine: overlay multi-repo resolution', () => {
@@ -1564,7 +1586,10 @@ describe('Engine: config validation', () => {
         assert.ok(result.errors.length > 0);
     });
 
-    it('validates active profile must exist in profiles', () => {
+    it('treats an activeProfile missing from profiles as non-fatal (loads OK)', () => {
+        // A profile typo must not reject the whole config: the overlay layer falls
+        // back to surfacing all files and emits an ACTIVE_PROFILE_NOT_FOUND warning,
+        // so config loading itself succeeds.
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
             configPath,
@@ -1578,8 +1603,10 @@ describe('Engine: config validation', () => {
         );
 
         const result = loadConfigFromPath(configPath);
-        assert.strictEqual(result.ok, false);
-        assert.ok(result.errors.some((e) => e.message.includes('not found in "profiles"')));
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.activeProfile, 'nonexistent');
+        }
     });
 
     it('validates config must have at least one repo mode', () => {

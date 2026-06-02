@@ -27,8 +27,12 @@ export function applyProfile(
         return files;
     }
 
-    const hasEnable = profile.enable && profile.enable.length > 0;
-    const hasDisable = profile.disable && profile.disable.length > 0;
+    // A *defined* enable list is an active allowlist, even when empty: `enable: []`
+    // means "enable nothing" (match-nothing), not "no filter". Only an absent
+    // enable key falls through to all-pass. This keeps an empty-profile switch
+    // (enable: []) observably clearing the effective set.
+    const hasEnable = profile.enable !== undefined;
+    const hasDisable = profile.disable !== undefined && profile.disable.length > 0;
 
     if (!hasEnable && !hasDisable) {
         return files;

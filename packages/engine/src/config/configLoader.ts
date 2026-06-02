@@ -311,14 +311,10 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
         });
     }
 
-    // Active profile must exist in profiles if set
-    if (config.activeProfile && config.profiles) {
-        if (!(config.activeProfile in config.profiles)) {
-            errors.push({
-                message: `Active profile "${config.activeProfile}" not found in "profiles".`,
-            });
-        }
-    }
+    // An activeProfile that does not exist in "profiles" is intentionally NOT a
+    // fatal config error: the overlay layer surfaces all files without profile
+    // filtering and emits an ACTIVE_PROFILE_NOT_FOUND warning instead, so a profile
+    // typo degrades gracefully rather than nuking all metadata delivery.
 
     return errors;
 }

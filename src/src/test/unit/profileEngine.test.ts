@@ -29,6 +29,19 @@ suite('profileEngine', () => {
         assert.strictEqual(result.length, allFiles.length);
     });
 
+    test('defined-but-empty enable list ([]) enables nothing', () => {
+        // A *present* enable key is an allowlist even when empty: `enable: []`
+        // must clear the effective set, unlike an absent enable key (all-pass).
+        // This is the contract the "empty profile" UI switch relies on.
+        const result = applyProfile(allFiles, { enable: [] });
+        assert.strictEqual(result.length, 0);
+    });
+
+    test('empty enable list with a disable still enables nothing', () => {
+        const result = applyProfile(allFiles, { enable: [], disable: ['agents/**'] });
+        assert.strictEqual(result.length, 0);
+    });
+
     test('baseline profile with enable all', () => {
         const result = applyProfile(allFiles, { enable: ['**/*'] });
         assert.strictEqual(result.length, allFiles.length);

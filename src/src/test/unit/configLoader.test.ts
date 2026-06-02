@@ -259,15 +259,17 @@ suite('Config Loader', () => {
             assert.ok(errors.some((e) => e.message.includes('"missing"')));
         });
 
-        test('activeProfile referencing non-existent profile produces error', () => {
+        test('activeProfile referencing non-existent profile is non-fatal', () => {
+            // A missing activeProfile degrades gracefully: the overlay surfaces all
+            // files unfiltered and emits an ACTIVE_PROFILE_NOT_FOUND warning, so a
+            // profile typo must not be a fatal config error.
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: '.ai/metadata' },
                 layers: ['company/core'],
                 profiles: { baseline: {} },
                 activeProfile: 'unknown',
             };
-            const errors = validateConfig(config);
-            assert.ok(errors.some((e) => e.message.includes('"unknown"')));
+            assert.deepStrictEqual(validateConfig(config), []);
         });
 
         test('activeProfile matching existing profile is valid', () => {
