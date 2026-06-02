@@ -1,0 +1,14 @@
+{
+  "name": "primary",
+  "owner": {
+    "name": "ai-metadata"
+  },
+  "plugins": [
+    {
+      "name": "sdlc",
+      "source": "./standards/sdlc",
+      "description": "SDLC traceability metadata includes instructions, skills, and agent guidance.",
+      "version": "0.1.0"
+    }
+  ]
+}

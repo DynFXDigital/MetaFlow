@@ -26,6 +26,7 @@ import {
     waitFor,
     dismissAllNotifications,
     dismissActiveInput,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const filesSection = await getSection(sideBar, 'Effective Files');

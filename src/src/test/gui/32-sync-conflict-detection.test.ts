@@ -33,6 +33,7 @@ import {
     waitFor,
     waitForNotification,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -85,7 +86,10 @@ function syncConfigWithStrategy(strategy: 'prefixed' | 'original-unless-conflict
             compatibilityVersion: 2,
             fileNamingStrategy: strategy,
             injection: {
-                instructions: 'synchronized',
+                // NOTE: the config injection *mode* value is 'synchronize'; 'synchronized'
+                // is the internal classification and is invalid as a mode (silently falls
+                // through to the plugin default, so no files sync to .github).
+                instructions: 'synchronize',
                 agents:        'settings',
                 skills:        'settings',
                 prompts:       'settings',
@@ -106,6 +110,7 @@ suite('Sync Conflict Detection', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         _sideBar = await openMetaFlowSidebar();
         const section = await getSection(_sideBar, 'Capabilities');

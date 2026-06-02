@@ -873,7 +873,10 @@
     "package:pre": "vsce package --pre-release --no-dependencies --out artifacts/",
     "pretest:gui": "npm run compile && npm run bundle:dev && npm run package:gui",
     "test:gui": "extest setup-and-run 'out/test/gui/**/*.test.js' -s .vscode-test/gui -f test-workspace --vsix metaflow-test.vsix",
-    "test:gui:xvfb": "xvfb-run -a npm run test:gui"
+    "test:gui:xvfb": "xvfb-run -a npm run test:gui",
+    "pretest:gui:batched": "npm run compile && npm run bundle:dev && npm run package:gui",
+    "test:gui:batched": "node ./scripts/run-gui-batched.mjs",
+    "test:gui:batched:xvfb": "xvfb-run -a npm run test:gui:batched"
   },
   "dependencies": {
     "@metaflow/engine": "file:../packages/engine",

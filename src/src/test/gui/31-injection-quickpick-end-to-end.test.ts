@@ -27,6 +27,7 @@ import {
     waitFor,
     dismissActiveInput,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ suite('Configure Global Injection Defaults — End-to-End Quick Pick', function 
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         _sideBar = await openMetaFlowSidebar();
         const section = await getSection(_sideBar, 'Capabilities');

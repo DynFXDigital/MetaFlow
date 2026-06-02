@@ -24,6 +24,7 @@ import {
     dismissAllNotifications,
     waitForNotification,
     INTERACTION_TIMEOUT,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -93,11 +94,10 @@ suite('Settings Injection Output', function () {
     this.timeout(STARTUP_TIMEOUT);
 
     let sideBar: SideBarView;
-    let originalConfig: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
-        originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        restoreGoldenConfig(CONFIG_PATH);
 
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
@@ -111,8 +111,23 @@ suite('Settings Injection Output', function () {
     });
 
     afterEach(async function () {
-        // Restore config, then Apply to bring settings back to the original state.
-        fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
+        // Re-establish the settings-mode baseline (NOT the golden config). The golden
+        // config has no injection block, so it applies in the product's default plugin
+        // mode — which removes the per-type chat.*FilesLocations keys that this suite's
+        // read-only tests depend on. Pinning configWith({}) keeps the settings baseline
+        // alive between tests; the after() hook restores golden for the next suite.
+        fs.writeFileSync(CONFIG_PATH, configWith({}), 'utf-8');
+        await sleep(1_000);
+        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await sleep(3_000);
+        await dismissAllNotifications(new Workbench());
+    });
+
+    after(async function () {
+        this.timeout(STARTUP_TIMEOUT);
+        // Restore the pristine golden config and clear injected settings so the next
+        // suite starts from a clean, uncontaminated baseline.
+        restoreGoldenConfig(CONFIG_PATH);
         await sleep(1_000);
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await sleep(3_000);

@@ -3,6 +3,8 @@
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
     ActivityBar,
     SideBarView,
@@ -11,11 +13,110 @@ import {
     Workbench,
     InputBox,
     Notification,
+    EditorView,
+    VSBrowser,
+    By,
+    Key,
 } from 'vscode-extension-tester';
+
+const WELCOME_OVERLAY_SELECTOR = '.onboarding-a-overlay, .welcomeOverlay, .getting-started';
 
 export const STARTUP_TIMEOUT = 90_000;
 export const WAIT_TIMEOUT = 30_000;
 export const INTERACTION_TIMEOUT = 15_000;
+
+// ── Golden config (cross-suite contamination guard) ────────────────────────────
+
+/**
+ * Authoritative pristine workspace config, kept as an immutable sibling file
+ * `config.golden.jsonc` next to the live `config.jsonc`.
+ *
+ * Suites must seed their restore baseline from this golden copy rather than
+ * snapshotting the live file in `before()`. A live snapshot trusts the previous
+ * suite to have cleaned up; when a prior afterEach throws it leaves config.jsonc
+ * dirty, the next suite captures that dirty state as its "original", and the
+ * contamination chains across the whole run. Reading the golden file removes
+ * that trust dependency.
+ */
+function goldenPathFor(configPath: string): string {
+    return path.join(path.dirname(configPath), 'config.golden.jsonc');
+}
+
+/** Derives the workspace `.vscode/settings.json` path from the live config path. */
+function settingsPathFor(configPath: string): string {
+    // config lives at <workspace>/.metaflow/config.jsonc
+    const workspaceRoot = path.dirname(path.dirname(configPath));
+    return path.join(workspaceRoot, '.vscode', 'settings.json');
+}
+
+/**
+ * Derives the ExTester sandbox **user** settings path from the live config path.
+ *
+ * `chat.pluginLocations` is the one injected key MetaFlow writes to USER scope
+ * (`ConfigurationTarget.Global`) — VS Code's Copilot plugin discovery only honors
+ * it there, not at workspace scope (see `resolveSettingsEntryTarget`). The GUI
+ * runner stores user settings at `<srcRoot>/.vscode-test/gui/settings/User/settings.json`,
+ * where `<srcRoot>` is the parent of the test workspace.
+ */
+export function userSettingsPathFor(configPath: string): string {
+    const workspaceRoot = path.dirname(path.dirname(configPath));
+    const srcRoot = path.dirname(workspaceRoot);
+    return path.join(srcRoot, '.vscode-test', 'gui', 'settings', 'User', 'settings.json');
+}
+
+/** Deletes every `chat.*` key from a single settings JSON file. Non-`chat.` keys are preserved. */
+function clearChatKeysInFile(settingsPath: string): void {
+    let settings: Record<string, unknown>;
+    try {
+        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as Record<string, unknown>;
+    } catch {
+        return; // missing or unparseable — nothing to clear
+    }
+    let changed = false;
+    for (const key of Object.keys(settings)) {
+        if (key.startsWith('chat.')) {
+            delete settings[key];
+            changed = true;
+        }
+    }
+    if (changed) {
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4), 'utf-8');
+    }
+}
+
+/** Returns the immutable pristine config contents for the given live config path. */
+export function readGoldenConfig(configPath: string): string {
+    return fs.readFileSync(goldenPathFor(configPath), 'utf-8');
+}
+
+/**
+ * Removes MetaFlow's injected `chat.*` keys from BOTH the workspace and the
+ * sandbox user settings files.
+ *
+ * Apply does not prune orphaned settings keys when an artifact's classification
+ * changes (e.g. a prior suite ran in `settings` mode and left
+ * `chat.instructionsFilesLocations` behind). Those stale keys survive into the
+ * next suite and break assertions like "default classification does NOT write
+ * chat.instructionsFilesLocations". The same contamination applies to
+ * `chat.pluginLocations`, which lives in user scope. Clearing both files
+ * restores the pristine (no-injection) settings baseline so each suite's Apply
+ * output is observed in isolation. Non-`chat.` keys are preserved.
+ */
+export function clearInjectedSettings(configPath: string): void {
+    clearChatKeysInFile(settingsPathFor(configPath));
+    clearChatKeysInFile(userSettingsPathFor(configPath));
+}
+
+/**
+ * Resets the workspace MetaFlow output state to pristine: restores the live
+ * config from the immutable golden copy and clears injected `chat.*` settings
+ * keys. Suites call this in `before()` so they never trust the previous suite's
+ * cleanup — see the golden-config note above and [[clearInjectedSettings]].
+ */
+export function restoreGoldenConfig(configPath: string): void {
+    fs.writeFileSync(configPath, readGoldenConfig(configPath), 'utf-8');
+    clearInjectedSettings(configPath);
+}
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -48,13 +149,159 @@ export async function waitFor(
 // ── Sidebar helpers ───────────────────────────────────────────────────────────
 
 /**
+ * Dismisses the "Welcome to Visual Studio Code" walkthrough that VS Code opens
+ * on a fresh test profile. On recent builds it renders as a modal overlay
+ * (`role=dialog aria-modal=true`, class `onboarding-a-overlay`), NOT as an
+ * editor — so `closeAllEditors()` alone does not remove it, and its modal
+ * backdrop intercepts activity-bar clicks. We escalate: close editors, press
+ * Escape, then force-remove the overlay node from the DOM as a last resort.
+ * Idempotent and best-effort: a no-op when nothing is open.
+ */
+export async function dismissWelcomeOverlay(): Promise<void> {
+    try {
+        await new EditorView().closeAllEditors();
+    } catch {
+        // No editors open (or already dismissed) — safe to ignore.
+    }
+
+    const driver = VSBrowser.instance.driver;
+
+    // Press Escape if a welcome overlay is present.
+    try {
+        const present = await driver.findElements(By.css(WELCOME_OVERLAY_SELECTOR));
+        if (present.length > 0) {
+            await driver.actions().sendKeys(Key.ESCAPE).perform();
+            await sleep(400);
+        }
+    } catch {
+        // ignore — overlay query/escape is best-effort
+    }
+
+    // If it's still there, rip it out of the DOM so it can't intercept clicks.
+    try {
+        const stillPresent = await driver.findElements(By.css(WELCOME_OVERLAY_SELECTOR));
+        if (stillPresent.length > 0) {
+            await driver.executeScript(
+                `document.querySelectorAll(${JSON.stringify(WELCOME_OVERLAY_SELECTOR)})` +
+                    `.forEach((el) => el.remove());`,
+            );
+            await sleep(200);
+        }
+    } catch {
+        // ignore — DOM removal is best-effort
+    }
+}
+
+/**
+ * Dismisses any open modal dialog (`.monaco-dialog-box`, custom dialog style).
+ *
+ * A single stray modal — e.g. VS Code's "Command 'Git: Toggle Git Blame Editor
+ * Decoration' resulted in an error … command not found" box — sits on top of
+ * the whole window and intercepts every subsequent click, which cascades into
+ * "element not visible" timeouts across all later suites in a long run. We press
+ * Escape (non-destructive: dismisses an error/OK dialog without confirming any
+ * action), then force-remove the node as a last resort. Best-effort no-op when
+ * no dialog is present.
+ */
+export async function dismissModalDialogs(): Promise<void> {
+    const driver = VSBrowser.instance.driver;
+    // `.monaco-dialog-modal-block` is the full-window backdrop that intercepts
+    // every click; `.monaco-dialog-box` is the dialog content nested inside it.
+    // Match (and, as a last resort, remove) both — removing only the box leaves
+    // the dimmed backdrop in place, which keeps blocking subsequent tree clicks.
+    const SELECTOR = '.monaco-dialog-modal-block, .monaco-dialog-box';
+    try {
+        const present = await driver.findElements(By.css(SELECTOR));
+        if (present.length > 0) {
+            await driver.actions().sendKeys(Key.ESCAPE).perform();
+            await sleep(300);
+        }
+    } catch {
+        // best-effort — query/escape may race with the dialog closing
+    }
+    try {
+        const stillPresent = await driver.findElements(By.css(SELECTOR));
+        if (stillPresent.length > 0) {
+            await driver.executeScript(
+                `document.querySelectorAll(${JSON.stringify(SELECTOR)})` +
+                    `.forEach((el) => el.remove());`,
+            );
+            await sleep(200);
+        }
+    } catch {
+        // best-effort — DOM removal is a last resort
+    }
+}
+
+/**
+ * Dismisses a stray quick-input widget (Command Palette / InputBox / quick pick)
+ * or open context menu left behind by an interaction test.
+ *
+ * These are the dominant cross-suite cascade source in a long run: a Filter test
+ * that opens an InputBox but errors before cancelling, or a context-menu test
+ * that leaves `.monaco-menu` open, parks a focused widget on top of the window.
+ * Every later `executeCommand` then opens the palette *behind* it (or the menu
+ * intercepts clicks), producing "Waiting until element is visible" timeouts and
+ * stale `.monaco-menu` NoSuchElementErrors across all subsequent suites. Escape
+ * is non-destructive — it cancels an input/menu without confirming any action.
+ * Sent twice to collapse a nested quick pick. Best-effort no-op when nothing is
+ * open.
+ */
+export async function dismissTransientChrome(): Promise<void> {
+    const driver = VSBrowser.instance.driver;
+    // `.quick-input-widget` backs the palette, InputBox and quick pick; the
+    // context menu renders inside `.context-view` / `.monaco-menu`.
+    const SELECTOR = '.quick-input-widget, .monaco-menu, .context-view';
+    try {
+        const present = await driver.findElements(By.css(SELECTOR));
+        if (present.length > 0) {
+            await driver.actions().sendKeys(Key.ESCAPE).perform();
+            await sleep(150);
+            await driver.actions().sendKeys(Key.ESCAPE).perform();
+            await sleep(150);
+        }
+    } catch {
+        // best-effort — query/escape may race with the widget closing
+    }
+}
+
+/**
+ * Clears transient UI that accumulates over a long ExTester run and would block
+ * later interactions: modal dialogs, stray quick-input/context menus, then
+ * notification toasts, then the welcome overlay. Safe to call repeatedly;
+ * intended for an afterEach root hook and at the start of each suite's sidebar
+ * open.
+ */
+export async function dismissBlockingUi(): Promise<void> {
+    await dismissModalDialogs();
+    await dismissTransientChrome();
+    try {
+        await dismissAllNotifications(new Workbench());
+    } catch {
+        // best-effort
+    }
+    await dismissWelcomeOverlay();
+}
+
+/**
  * Opens the MetaFlow activity bar icon and returns the SideBarView.
+ * Retries once after re-dismissing the welcome overlay if the first click is
+ * intercepted by a modal backdrop.
  */
 export async function openMetaFlowSidebar(): Promise<SideBarView> {
+    await dismissModalDialogs();
+    await dismissWelcomeOverlay();
     const activityBar = new ActivityBar();
     const control = await activityBar.getViewControl('MetaFlow');
     assert.ok(control, 'MetaFlow activity bar entry not found');
-    return control.openView() as Promise<SideBarView>;
+    try {
+        return (await control.openView()) as SideBarView;
+    } catch {
+        // A modal backdrop likely intercepted the click — dismiss and retry once.
+        await dismissWelcomeOverlay();
+        await sleep(300);
+        return (await control.openView()) as SideBarView;
+    }
 }
 
 /**
@@ -88,6 +335,36 @@ export async function getVisibleItemTexts(section: ViewSection): Promise<string[
 }
 
 /**
+ * Recursively expands every collapsible item in a section so nested children
+ * are rendered. In the default tree view mode the Capabilities tree groups
+ * capabilities under path-segment folders (e.g. `standards` → leaf `sdlc`),
+ * so leaves are only present in the DOM once their parent group is expanded.
+ * This makes the full capability set findable by `findItemByText` /
+ * `sectionContainsText`. Idempotent (already-expanded items are skipped, so
+ * repeat calls are cheap) and best-effort per item.
+ */
+export async function expandAllItems(section: ViewSection, maxPasses = 8): Promise<void> {
+    for (let pass = 0; pass < maxPasses; pass++) {
+        const items = await section.getVisibleItems();
+        let expandedAny = false;
+        for (const item of items) {
+            const treeItem = item as TreeItem;
+            try {
+                if ((await treeItem.isExpandable()) && !(await treeItem.isExpanded())) {
+                    await treeItem.expand();
+                    expandedAny = true;
+                }
+            } catch {
+                // item went stale or refused to expand — keep going
+            }
+        }
+        if (!expandedAny) {
+            return;
+        }
+    }
+}
+
+/**
  * Waits until a section is expanded and shows real content (no "Loading..." items).
  */
 export async function waitForSectionReady(
@@ -102,6 +379,8 @@ export async function waitForSectionReady(
             texts.every((t) => t.length > 0 && !t.includes('Loading'))
         );
     }, timeoutMs);
+    // Reveal nested children (tree-mode capability groups) so all leaves are findable.
+    await expandAllItems(section);
 }
 
 /**
@@ -114,6 +393,7 @@ export async function findItemByText(
 ): Promise<TreeItem> {
     let found: TreeItem | undefined;
     await waitFor(async () => {
+        await expandAllItems(section);
         const items = await section.getVisibleItems();
         for (const item of items) {
             const text = await (item as TreeItem).getText().catch(() => '');
@@ -135,6 +415,7 @@ export async function sectionContainsText(
     section: ViewSection,
     textFragment: string,
 ): Promise<boolean> {
+    await expandAllItems(section);
     const texts = await getVisibleItemTexts(section);
     return texts.some((t) => t.toLowerCase().includes(textFragment.toLowerCase()));
 }

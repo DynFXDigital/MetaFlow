@@ -34,6 +34,7 @@ import {
     sectionContainsText,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -107,12 +108,15 @@ function multiRepoConfig(opts: {
                     ],
                 },
                 {
+                    // Distinct localPath from primary: two enabled repos resolving to
+                    // the SAME localPath is a deliberate fatal config error
+                    // ("resolve to the same localPath. Disable or remove one source"),
+                    // so a real multi-repo overlay needs separate metadata roots.
                     id: 'secondary',
-                    localPath: '.ai/ai-metadata',
+                    localPath: '.ai/secondary-metadata',
                     enabled: secondaryEnabled,
                     capabilities: [
-                        { path: 'company/core',   enabled: true  },
-                        { path: 'standards/sdlc', enabled: false },
+                        { path: 'company/core', enabled: true },
                     ],
                 },
             ],
@@ -143,6 +147,7 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Effective Files');
@@ -316,66 +321,69 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
         assert.ok(aiMetaSection, 'AI Metadata section missing after applying multi-repo config');
     });
 
-    test('Multi-repo config: AI Metadata tree shows both repo source ids', async function () {
+    test('Multi-repo config: AI Metadata tree shows both repo sources', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, multiRepoConfig({}), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
+        // Repo sources are labelled by the localPath basename when the config sets
+        // no explicit name and the repo has no manifest: primary → 'ai-metadata',
+        // secondary → 'secondary-metadata' (chosen so neither label is a substring
+        // of the other, keeping the assertions unambiguous).
         const aiMetaSection = await getSection(sideBar, 'AI Metadata');
         await waitFor(async () => {
             await expandSection(aiMetaSection);
             return (
-                (await sectionContainsText(aiMetaSection, 'primary')) &&
-                (await sectionContainsText(aiMetaSection, 'secondary'))
+                (await sectionContainsText(aiMetaSection, 'ai-metadata')) &&
+                (await sectionContainsText(aiMetaSection, 'secondary-metadata'))
             );
         }, WAIT_TIMEOUT);
 
         assert.ok(
-            await sectionContainsText(aiMetaSection, 'primary'),
-            'AI Metadata should show the primary repo source',
+            await sectionContainsText(aiMetaSection, 'ai-metadata'),
+            'AI Metadata should show the primary repo source (ai-metadata)',
         );
         assert.ok(
-            await sectionContainsText(aiMetaSection, 'secondary'),
-            'AI Metadata should show the secondary repo source',
+            await sectionContainsText(aiMetaSection, 'secondary-metadata'),
+            'AI Metadata should show the secondary repo source (secondary-metadata)',
         );
     });
 
     test('Multi-repo config: disabling one repo removes its capabilities from Effective Files', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        // Phase 1: both repos enabled — testing.md (from primary/sdlc) AND coding.md (from secondary/core) visible
+        // The Effective Files tree is virtualized and may scroll leaves out of the
+        // rendered DOM, so we assert the merged overlay via the injected settings
+        // paths: testing.md → standards/sdlc (primary), coding.md → company/core
+        // (secondary). Both repos point at the same local metadata dir but enable
+        // disjoint capabilities, so the merged effective set contains both.
+
+        // Phase 1: both repos enabled — sdlc (primary) AND core (secondary) surfaced
         fs.writeFileSync(CONFIG_PATH, multiRepoConfig({}), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return (
-                (await sectionContainsText(filesSection, 'testing')) &&
-                (await sectionContainsText(filesSection, 'coding'))
-            );
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => (
+            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
+            settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
+        ), WAIT_TIMEOUT);
 
-        // Phase 2: disable secondary — coding.md should disappear, testing.md should remain
+        // Phase 2: disable secondary — core paths should disappear, sdlc should remain
         fs.writeFileSync(CONFIG_PATH, multiRepoConfig({ secondaryEnabled: false }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return (
-                (await sectionContainsText(filesSection, 'testing')) &&
-                !(await sectionContainsText(filesSection, 'coding'))
-            );
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => (
+            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
+            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
+        ), WAIT_TIMEOUT);
 
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
-            'testing.md (from primary repo) should still be visible when only secondary is disabled',
+            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
+            'sdlc paths (from primary repo) should remain when only secondary is disabled',
         );
         assert.ok(
-            !(await sectionContainsText(filesSection, 'coding')),
-            'coding.md (from secondary repo) should be removed after disabling secondary repo',
+            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core'),
+            'core paths (from secondary repo) should be removed after disabling secondary repo',
         );
     });
 });

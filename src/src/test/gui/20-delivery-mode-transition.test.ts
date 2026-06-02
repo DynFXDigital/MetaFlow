@@ -33,6 +33,9 @@ import {
     waitForSectionReady,
     waitFor,
     dismissAllNotifications,
+    waitForNotification,
+    INTERACTION_TIMEOUT,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -88,7 +91,10 @@ function walkDir(dir: string): string[] {
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
-type InstructionMode = 'settings' | 'synchronized' | 'plugin';
+// NOTE: the config injection *mode* value is 'synchronize' (see InjectionMode in
+// configSchema.ts). The resulting internal *classification* is 'synchronized'. Authoring
+// 'synchronized' as the mode is invalid and silently falls through to the plugin default.
+type InstructionMode = 'settings' | 'synchronize' | 'plugin';
 
 function configWith(opts: {
     instructionMode: InstructionMode;
@@ -134,6 +140,7 @@ suite('Delivery Mode Transitions', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         _sideBar = await openMetaFlowSidebar();
         const section = await getSection(_sideBar, 'Capabilities');
@@ -167,7 +174,7 @@ suite('Delivery Mode Transitions', function () {
         );
 
         // Switch to synchronized mode
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
         // Synchronized mode should write instructions into .github/
@@ -194,7 +201,7 @@ suite('Delivery Mode Transitions', function () {
         );
 
         // Switch to synchronized mode
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
         await waitFor(
@@ -214,7 +221,7 @@ suite('Delivery Mode Transitions', function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // Step 1: apply in synchronized mode
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await waitFor(
             async () => anyGithubFileMatchesFragment('sdlc'),
@@ -240,7 +247,7 @@ suite('Delivery Mode Transitions', function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // Step 1: apply in synchronized mode
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await waitFor(
             async () => anyGithubFileMatchesFragment('sdlc'),
@@ -300,7 +307,7 @@ suite('Delivery Mode Transitions', function () {
     test('Applying synchronized mode twice is idempotent (no duplicate .github/ files)', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await waitFor(
             async () => anyGithubFileMatchesFragment('sdlc'),
@@ -328,21 +335,32 @@ suite('Delivery Mode Transitions', function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         // Apply in synchronized mode to create .github/ files
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await waitFor(
             async () => anyGithubFileMatchesFragment('sdlc'),
             WAIT_TIMEOUT,
         );
 
-        // Run Clean and confirm
+        // Writing CONFIG_PATH above triggers the config watcher, which emits a
+        // delayed auto-apply notification. Let it (and the Apply toast) settle,
+        // then clear all notifications — otherwise a stray toast stacks above the
+        // Clean confirmation and intercepts the Remove button click.
         const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
         await sleep(2_000);
-
-        // Dismiss any confirmation notification
         await dismissAllNotifications(workbench);
-        await sleep(500);
+
+        // Run Clean and confirm the removal (the confirmation must be *actioned*,
+        // not merely dismissed, or the files are left in place).
+        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
+        const notification = await waitForNotification(
+            workbench,
+            'Remove all synchronized files',
+            INTERACTION_TIMEOUT,
+        );
+        if (notification) {
+            await notification.takeAction('Remove');
+        }
 
         await waitFor(
             async () => !anyGithubFileMatchesFragment('sdlc'),
@@ -360,7 +378,7 @@ suite('Delivery Mode Transitions', function () {
     test('Synchronized mode writes files with MetaFlow provenance header', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await waitFor(
             async () => anyGithubFileMatchesFragment('sdlc'),
@@ -384,7 +402,7 @@ suite('Delivery Mode Transitions', function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         // Apply in synchronized mode (no settings writes for instructions)
-        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronized' }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ instructionMode: 'synchronize' }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await sleep(4_000);
 

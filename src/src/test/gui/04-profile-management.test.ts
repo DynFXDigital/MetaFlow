@@ -18,10 +18,11 @@ import {
     getSection,
     waitForSectionReady,
     getVisibleItemTexts,
-    findItemByText,
     sectionContainsText,
     waitFor,
+    waitForNotification,
     dismissActiveInput,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 const CONFIG_PATH = path.resolve(__dirname, '../../../test-workspace/.metaflow/config.jsonc');
@@ -34,6 +35,7 @@ suite('Profile Management', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Profiles');
@@ -119,19 +121,14 @@ suite('Profile Management', function () {
         this.timeout(60_000);
         const workbench = new Workbench();
 
-        // Step 1: invoke Create Profile
+        // Create Profile prompts only for a name (a single input box).
         await workbench.executeCommand('MetaFlow: Create Profile');
 
-        // Step 2: select source profile (quick pick)
-        const sourceInput = await InputBox.create(INTERACTION_TIMEOUT);
-        await sourceInput.selectQuickPick('default');
-
-        // Step 3: type new profile name (input box)
         const nameInput = await InputBox.create(INTERACTION_TIMEOUT);
         await nameInput.setText('gui-test-profile');
         await nameInput.confirm();
 
-        // Step 4: verify new profile appears in the Profiles tree
+        // Verify new profile appears in the Profiles tree
         const section = await getSection(sideBar, 'Profiles');
         await waitFor(async () => sectionContainsText(section, 'gui-test-profile'), WAIT_TIMEOUT);
         const hasNew = await sectionContainsText(section, 'gui-test-profile');
@@ -144,8 +141,6 @@ suite('Profile Management', function () {
 
         // First create a profile so we have something to delete
         await workbench.executeCommand('MetaFlow: Create Profile');
-        const srcInput = await InputBox.create(INTERACTION_TIMEOUT);
-        await srcInput.selectQuickPick('default');
         const nameInput = await InputBox.create(INTERACTION_TIMEOUT);
         await nameInput.setText('to-delete-profile');
         await nameInput.confirm();
@@ -153,15 +148,15 @@ suite('Profile Management', function () {
         const section = await getSection(sideBar, 'Profiles');
         await waitFor(async () => sectionContainsText(section, 'to-delete-profile'), WAIT_TIMEOUT);
 
-        // Delete via context menu on the profile item
-        const profileItem = await findItemByText(section, 'to-delete-profile', INTERACTION_TIMEOUT);
-        const ctxMenu = await profileItem.openContextMenu();
-        await ctxMenu.select('MetaFlow: Delete Profile');
+        // Delete via the command palette; it shows a quick pick of deletable profiles.
+        await workbench.executeCommand('MetaFlow: Delete Profile');
+        const pick = await InputBox.create(INTERACTION_TIMEOUT);
+        await pick.selectQuickPick('to-delete-profile');
 
-        // Confirm deletion in the quick pick that appears
-        const confirmInput = await InputBox.create(INTERACTION_TIMEOUT);
-        // Select the "Delete" or equivalent confirmation option
-        await confirmInput.selectQuickPick('Delete');
+        // Confirm deletion in the warning notification (Delete / Cancel buttons).
+        const confirm = await waitForNotification(workbench, 'Delete profile');
+        assert.ok(confirm, 'Delete confirmation notification did not appear');
+        await confirm.takeAction('Delete');
 
         // Verify it's gone
         await waitFor(async () => {

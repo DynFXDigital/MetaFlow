@@ -1,0 +1,19 @@
+{
+  "name": "sdlc",
+  "version": "0.1.0",
+  "description": "SDLC traceability metadata includes instructions, skills, and agent guidance.",
+  "agents": ".github/agents",
+  "skills": ".github/skills",
+  "rules": ".github/instructions",
+  "keywords": [
+    "metaflow",
+    "agent-plugin",
+    "capability"
+  ],
+  "metaflow": {
+    "pluginHosts": [
+      "github-copilot"
+    ],
+    "minimumMetaflowVersion": "^0.1.0"
+  }
+}

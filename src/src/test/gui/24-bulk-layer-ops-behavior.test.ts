@@ -7,7 +7,10 @@
  * state afterwards.
  *
  * Both commands operate on the entire capability set when no item arg is
- * provided. They modify capability `enabled` fields under metadataRepos[].
+ * provided. Because the fixture has an active profile, the commands persist
+ * enablement as profile-scoped `layerOverrides` rather than mutating the base
+ * `enabled` fields under metadataRepos[]; these tests assert the *effective*
+ * enablement (base merged with the active profile's overrides).
  */
 
 import * as assert from 'assert';
@@ -25,6 +28,7 @@ import {
     sectionContainsText,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -48,6 +52,41 @@ function readCapabilities(): CapabilityEntry[] {
     const repos = cfg['metadataRepos'] as Array<{ capabilities?: CapabilityEntry[] }> | undefined;
     if (!repos || repos.length === 0) { return []; }
     return repos[0].capabilities ?? [];
+}
+
+interface LayerOverride {
+    repoId?: string;
+    path?: string;
+    enabled?: boolean;
+}
+
+const normalizeCapPath = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '');
+
+/** Layer overrides recorded on the currently active profile, if any. */
+function readActiveProfileOverrides(): LayerOverride[] {
+    const cfg = readConfig();
+    const activeProfile = cfg['activeProfile'] as string | undefined;
+    const profiles = cfg['profiles'] as
+        | Record<string, { layerOverrides?: LayerOverride[] }>
+        | undefined;
+    if (!activeProfile || !profiles?.[activeProfile]) { return []; }
+    return profiles[activeProfile].layerOverrides ?? [];
+}
+
+/**
+ * Effective enablement for each base capability: the active profile's
+ * layerOverride wins when present, otherwise the base `enabled` flag. This
+ * mirrors how the extension resolves enablement when a profile is active, so
+ * bulk Select/Deselect (which write profile overrides) are observable here.
+ */
+function readEffectiveCapabilities(): CapabilityEntry[] {
+    const overrides = readActiveProfileOverrides();
+    return readCapabilities().map((cap) => {
+        const override = overrides.find(
+            (o) => o.path !== undefined && normalizeCapPath(o.path) === normalizeCapPath(cap.path),
+        );
+        return { path: cap.path, enabled: override?.enabled ?? cap.enabled };
+    });
 }
 
 function configWith(opts: { coreEnabled?: boolean; sdlcEnabled?: boolean }): string {
@@ -84,6 +123,7 @@ suite('Bulk Layer Operations — Behavior', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
@@ -115,11 +155,11 @@ suite('Bulk Layer Operations — Behavior', function () {
         await new Workbench().executeCommand('MetaFlow: Deselect All');
 
         await waitFor(async () => {
-            const caps = readCapabilities();
+            const caps = readEffectiveCapabilities();
             return caps.length > 0 && caps.every(c => c.enabled === false);
         }, WAIT_TIMEOUT);
 
-        const after = readCapabilities();
+        const after = readEffectiveCapabilities();
         assert.ok(after.length >= 2, 'Capabilities array should still have all entries after Deselect All');
         for (const cap of after) {
             assert.strictEqual(
@@ -178,11 +218,11 @@ suite('Bulk Layer Operations — Behavior', function () {
         await new Workbench().executeCommand('MetaFlow: Select All');
 
         await waitFor(async () => {
-            const caps = readCapabilities();
+            const caps = readEffectiveCapabilities();
             return caps.length > 0 && caps.every(c => c.enabled === true);
         }, WAIT_TIMEOUT);
 
-        const after = readCapabilities();
+        const after = readEffectiveCapabilities();
         assert.ok(after.length >= 2, 'Capabilities array should be preserved');
         for (const cap of after) {
             assert.strictEqual(
@@ -240,17 +280,17 @@ suite('Bulk Layer Operations — Behavior', function () {
 
         await workbench.executeCommand('MetaFlow: Deselect All');
         await waitFor(async () => {
-            const caps = readCapabilities();
+            const caps = readEffectiveCapabilities();
             return caps.length > 0 && caps.every(c => c.enabled === false);
         }, WAIT_TIMEOUT);
 
         await workbench.executeCommand('MetaFlow: Select All');
         await waitFor(async () => {
-            const caps = readCapabilities();
+            const caps = readEffectiveCapabilities();
             return caps.length > 0 && caps.every(c => c.enabled === true);
         }, WAIT_TIMEOUT);
 
-        const final = readCapabilities();
+        const final = readEffectiveCapabilities();
         for (const cap of final) {
             assert.strictEqual(
                 cap.enabled,

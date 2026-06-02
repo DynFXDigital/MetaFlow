@@ -28,6 +28,7 @@ import {
     waitForNotification,
     hasNotification,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -69,7 +70,9 @@ function syncConfig(): string {
             activeProfile: 'default',
             compatibilityVersion: 2,
             injection: {
-                instructions: 'synchronized',
+                // 'synchronize' is the injection *mode*; 'synchronized' is the internal
+                // classification and is invalid as a mode (falls through to plugin default).
+                instructions: 'synchronize',
                 agents:        'settings',
                 skills:        'settings',
                 prompts:       'settings',
@@ -120,6 +123,7 @@ suite('Apply Notifications and View-State Persistence', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         try {
             originalState = fs.readFileSync(STATE_PATH, 'utf-8');

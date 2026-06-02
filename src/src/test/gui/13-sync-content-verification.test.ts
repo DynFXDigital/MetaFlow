@@ -24,6 +24,7 @@ import {
     waitForSectionReady,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ suite('Synchronized Output Content Verification', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
@@ -276,9 +278,14 @@ suite('Synchronized Output Content Verification', function () {
 
         for (const fp of findMetaFlowSyncedFiles(GITHUB_DIR)) {
             const content = fs.readFileSync(fp, 'utf-8');
+            // The synchronizer writes the provenance marker as a FOOTER (bottom of
+            // file), not a header — this avoids breaking YAML frontmatter on agent
+            // files that must start with `---`. The engine contract is "file
+            // contains the marker" (engine.test.ts uses .includes), so assert
+            // presence, not position.
             assert.ok(
-                content.startsWith(PROVENANCE_MARKER),
-                `Expected provenance header at top of ${path.basename(fp)}`,
+                content.includes(PROVENANCE_MARKER),
+                `Expected provenance marker in ${path.basename(fp)}`,
             );
         }
     });
@@ -314,11 +321,15 @@ suite('Synchronized Output Content Verification', function () {
         const filesBeforeCount = findMetaFlowSyncedFiles(GITHUB_DIR).length;
         assert.ok(filesBeforeCount > 0, 'Precondition: synced files should exist');
 
-        // Switch back to settings mode and Apply — synchronizer should remove its managed files
+        // Switch back to settings mode and Apply — synchronizer should remove its managed files.
+        // Apply uses the in-memory effectiveFiles, which only reflect the new config once the
+        // config-change watcher has fired; give it the same settle window the other tests use,
+        // then poll for removal rather than asserting on a fixed sleep.
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
-        await sleep(1_500);
+        await sleep(2_000);
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await sleep(4_000);
+
+        await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length === 0, WAIT_TIMEOUT);
 
         const filesAfterCount = findMetaFlowSyncedFiles(GITHUB_DIR).length;
         assert.strictEqual(filesAfterCount, 0, 'Expected all synced files to be removed after switching to settings mode');

@@ -35,23 +35,40 @@ import {
     waitForSectionReady,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
+    userSettingsPathFor,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
-const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
-const GITHUB_DIR     = path.join(WORKSPACE_ROOT, '.github');
+const WORKSPACE_ROOT     = path.resolve(__dirname, '../../../test-workspace');
+const CONFIG_PATH        = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const SETTINGS_PATH      = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
+const USER_SETTINGS_PATH = userSettingsPathFor(CONFIG_PATH);
+const GITHUB_DIR         = path.join(WORKSPACE_ROOT, '.github');
 
 // ── File helpers ──────────────────────────────────────────────────────────────
 
-function readSettings(): Record<string, unknown> {
+function readSettingsFile(filePath: string): Record<string, unknown> {
     try {
-        return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
     } catch {
         return {};
     }
+}
+
+/**
+ * Merged view of injected settings across both scopes. MetaFlow writes
+ * `chat.pluginLocations` to USER scope (it's the only key VS Code's Copilot
+ * plugin discovery honors there) and every other `chat.*` key to WORKSPACE
+ * scope. Reading only the workspace file would never observe pluginLocations.
+ * Workspace wins on the (non-existent in practice) key overlap.
+ */
+function readSettings(): Record<string, unknown> {
+    return {
+        ...readSettingsFile(USER_SETTINGS_PATH),
+        ...readSettingsFile(SETTINGS_PATH),
+    };
 }
 
 function settingsContainsPath(key: string, fragment: string): boolean {
@@ -135,6 +152,7 @@ suite('Plugin Classification and Prompts Settings Injection', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         _sideBar = await openMetaFlowSidebar();
         const section = await getSection(_sideBar, 'Capabilities');

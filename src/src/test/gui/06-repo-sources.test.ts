@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SideBarView, Workbench, InputBox } from 'vscode-extension-tester';
+import { SideBarView, Workbench, InputBox, ViewSection, TreeItem } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
     WAIT_TIMEOUT,
@@ -19,8 +19,35 @@ import {
     waitForSectionReady,
     getVisibleItemTexts,
     sectionContainsText,
+    findItemByText,
     dismissActiveInput,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
+
+/**
+ * Locates the repo SOURCE node in the AI Metadata tree. The first visible row is
+ * the "Repositories" group header (contextValue `configRepoSection`), which has
+ * no context-menu contributions — right-clicking it yields no menu. The repo
+ * source is a child of that header, labelled with the localPath basename
+ * (`ai-metadata`) or, as a fallback, the repo id (`primary`).
+ */
+async function findRepoSourceItem(section: ViewSection): Promise<TreeItem | undefined> {
+    for (const fragment of ['ai-metadata', 'primary']) {
+        const item = await findItemByText(section, fragment, 5_000).catch(() => undefined);
+        if (item) {
+            return item;
+        }
+    }
+    // Fallback: first visible row that is not a group header.
+    const items = await section.getVisibleItems();
+    for (const item of items) {
+        const text = await (item as TreeItem).getText().catch(() => '');
+        if (text && !/^repositories\b/i.test(text) && !/^warnings\b/i.test(text)) {
+            return item as TreeItem;
+        }
+    }
+    return undefined;
+}
 
 const CONFIG_PATH = path.resolve(__dirname, '../../../test-workspace/.metaflow/config.jsonc');
 
@@ -32,6 +59,7 @@ suite('Repo Source Management', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'AI Metadata');
@@ -62,11 +90,11 @@ suite('Repo Source Management', function () {
         const section = await getSection(sideBar, 'AI Metadata');
         await waitForSectionReady(section, WAIT_TIMEOUT);
 
-        const items = await section.getVisibleItems();
-        assert.ok(items.length > 0, 'No items in AI Metadata section to right-click');
+        const repoItem = await findRepoSourceItem(section);
+        assert.ok(repoItem, 'No repo source item found in AI Metadata tree');
 
-        // Open context menu on the first item that looks like a repo source
-        const ctxMenu = await items[0].openContextMenu();
+        // Open context menu on the repo source node (not the group header).
+        const ctxMenu = await repoItem.openContextMenu();
         assert.ok(ctxMenu, 'Context menu did not open on repo source item');
 
         // Dismiss without selecting
@@ -97,10 +125,10 @@ suite('Repo Source Management', function () {
         const section = await getSection(sideBar, 'AI Metadata');
         await waitForSectionReady(section, WAIT_TIMEOUT);
 
-        const items = await section.getVisibleItems();
-        assert.ok(items.length > 0, 'No repo source items to rescan');
+        const repoItem = await findRepoSourceItem(section);
+        assert.ok(repoItem, 'No repo source item found to rescan');
 
-        const ctxMenu = await items[0].openContextMenu();
+        const ctxMenu = await repoItem.openContextMenu();
         // Look for a Rescan option in the context menu
         const hasRescan = await ctxMenu.hasItem('MetaFlow: Rescan Repository').catch(() => false);
 

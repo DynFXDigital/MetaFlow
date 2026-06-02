@@ -37,12 +37,26 @@ import {
     waitForNotification,
     dismissAllNotifications,
     dismissActiveInput,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
+
+function settingsContainsPath(key: string, fragment: string): boolean {
+    let settings: Record<string, unknown>;
+    try {
+        settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
+    } catch {
+        return false;
+    }
+    const value = settings[key] as Record<string, boolean> | undefined;
+    if (!value || typeof value !== 'object') { return false; }
+    return Object.keys(value).some((p) => p.replace(/\\/g, '/').includes(fragment));
+}
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
@@ -80,6 +94,7 @@ suite('Extension Error and Warning States', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Effective Files');
@@ -337,6 +352,10 @@ suite('Extension Error and Warning States', function () {
                 profiles: { default: { enable: ['**/*'] } },
                 activeProfile: 'nonexistent-profile',
                 compatibilityVersion: 2,
+                // Force settings delivery so the fallback produces an observable
+                // signal in .vscode/settings.json (instructions default to plugin
+                // delivery, which would not surface here).
+                injection: { instructions: 'settings' },
             },
             null,
             2,
@@ -350,13 +369,17 @@ suite('Extension Error and Warning States', function () {
         const capSection = await getSection(sideBar, 'Capabilities');
         assert.ok(capSection, 'Capabilities section missing after referencing non-existent activeProfile');
 
-        // Effective Files should still be populated (falls back to all-files, plus emits warning)
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await expandSection(filesSection);
-        await sleep(1_000);
+        // Effective Files should still be populated (falls back to all-files, plus
+        // emits an ACTIVE_PROFILE_NOT_FOUND warning). The injected settings paths are
+        // the deterministic fallback signal — the Effective Files tree is virtualized
+        // and may scroll leaves out of the rendered DOM, so we assert on settings.
+        await waitFor(
+            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
+            WAIT_TIMEOUT,
+        );
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
-            'Expected sdlc files to appear even when activeProfile is not found (fallback to all-files)',
+            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
+            'Expected sdlc instruction paths surfaced even when activeProfile is not found (fallback to all-files)',
         );
     });
 

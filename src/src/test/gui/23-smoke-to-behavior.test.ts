@@ -36,6 +36,7 @@ import {
     waitForSectionReady,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ suite('Smoke-To-Behavior Upgrades', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         try {
             originalState = fs.readFileSync(STATE_PATH, 'utf-8');

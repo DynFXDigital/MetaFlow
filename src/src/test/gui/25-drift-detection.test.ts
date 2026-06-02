@@ -20,12 +20,15 @@ import { SideBarView, Workbench } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
     WAIT_TIMEOUT,
+    INTERACTION_TIMEOUT,
     sleep,
     openMetaFlowSidebar,
     getSection,
     waitForSectionReady,
     waitFor,
+    waitForNotification,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -81,7 +84,9 @@ function syncConfig(): string {
             activeProfile: 'default',
             compatibilityVersion: 2,
             injection: {
-                instructions: 'synchronized',
+                // 'synchronize' is the injection *mode*; 'synchronized' is the internal
+                // classification and is invalid as a mode (falls through to plugin default).
+                instructions: 'synchronize',
                 agents:        'settings',
                 skills:        'settings',
                 prompts:       'settings',
@@ -102,6 +107,7 @@ suite('Drift Detection in Synchronized Mode', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         _sideBar = await openMetaFlowSidebar();
         const section = await getSection(_sideBar, 'Capabilities');
@@ -109,6 +115,18 @@ suite('Drift Detection in Synchronized Mode', function () {
     });
 
     afterEach(async function () {
+        // Drifted files are intentionally preserved by Clean/Apply (the safety
+        // guarantee under test). Manually sweep any sentinel-bearing files first
+        // so they don't leak into the next test or suite — once removed, the
+        // Apply removal pass clears their now-'missing' tracked state.
+        for (const f of walkDir(GITHUB_DIR)) {
+            try {
+                if (fs.readFileSync(f, 'utf-8').includes(DRIFT_MARKER)) {
+                    fs.unlinkSync(f);
+                }
+            } catch { /* ignore */ }
+        }
+
         // Restore config, Clean, and Apply to remove any sync files
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
         await sleep(1_000);
@@ -244,9 +262,9 @@ suite('Drift Detection in Synchronized Mode', function () {
         );
     });
 
-    // ── Clean removes a drifted file as well ─────────────────────────────────
+    // ── Clean preserves a drifted file (does not destroy user edits) ─────────
 
-    test('Clean removes drifted files along with non-drifted ones', async function () {
+    test('Clean preserves a drifted file rather than deleting user edits', async function () {
         this.timeout(WAIT_TIMEOUT + 45_000);
 
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
@@ -262,26 +280,38 @@ suite('Drift Detection in Synchronized Mode', function () {
         // Drift it
         fs.writeFileSync(syncedFile, `${DRIFT_MARKER}\nuser-edited\n`, 'utf-8');
 
-        // Clean
+        // Clean — actually confirm the 'Remove' action (dismissing it would abort
+        // the command and prove nothing). The engine's clean() then runs and, by
+        // design, SKIPS drifted files to protect manual edits.
         const workbench = new Workbench();
         await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        await waitFor(
-            async () => !fs.existsSync(syncedFile),
-            WAIT_TIMEOUT,
+        const notif = await waitForNotification(
+            workbench,
+            'Remove all synchronized files',
+            INTERACTION_TIMEOUT,
         );
+        if (notif) {
+            await notif.takeAction('Remove');
+            await sleep(2_500);
+        }
+        await dismissAllNotifications(workbench);
+        await sleep(1_500);
 
+        // The drifted file must survive Clean — its user edit is preserved.
         assert.ok(
-            !fs.existsSync(syncedFile),
-            'Clean should remove a drifted file as part of its sweep',
+            fs.existsSync(syncedFile),
+            'Clean must NOT delete a drifted file (user edits are protected)',
+        );
+        const afterContent = fs.readFileSync(syncedFile, 'utf-8');
+        assert.ok(
+            afterContent.includes(DRIFT_MARKER),
+            `Drifted file content should be preserved through Clean. Content:\n${afterContent.slice(0, 400)}`,
         );
     });
 
-    // ── Apply after Clean re-writes original (drift state is cleared) ───────
+    // ── Manual deletion clears drift; Apply then restores original content ───
 
-    test('Apply after Clean re-writes the original content (drift state cleared)', async function () {
+    test('After manually removing a drifted file, Apply restores the original content', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 30_000);
 
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
@@ -298,11 +328,11 @@ suite('Drift Detection in Synchronized Mode', function () {
         // Drift it
         fs.writeFileSync(syncedFile, `${DRIFT_MARKER}\nuser-edited\n`, 'utf-8');
 
-        // Clean (clears managed state)
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-        await waitFor(async () => !fs.existsSync(syncedFile), WAIT_TIMEOUT);
+        // Clean cannot clear a drifted file (it is preserved by design), so the
+        // genuine reset path is a manual delete — that drops drift status to
+        // 'missing', which Apply is then free to recreate from source.
+        fs.unlinkSync(syncedFile);
+        assert.ok(!fs.existsSync(syncedFile), 'Precondition: drifted file removed');
 
         // Re-Apply — file is back, original content (no drift marker)
         await workbench.executeCommand('MetaFlow: Apply Overlay');
@@ -314,7 +344,7 @@ suite('Drift Detection in Synchronized Mode', function () {
         const finalContent = fs.readFileSync(syncedFile, 'utf-8');
         assert.ok(
             !finalContent.includes(DRIFT_MARKER),
-            'After Clean + Apply, the synced file should no longer contain the drifted user edit',
+            'After manual delete + Apply, the synced file should hold original source content, not the drifted edit',
         );
     });
 });

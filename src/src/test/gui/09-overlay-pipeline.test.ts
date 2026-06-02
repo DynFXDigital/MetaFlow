@@ -25,6 +25,7 @@ import {
     dismissAllNotifications,
     hasNotification,
     dismissActiveInput,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 const CONFIG_PATH = path.resolve(
@@ -40,6 +41,7 @@ suite('Overlay Pipeline (Preview, Apply, Clean)', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');

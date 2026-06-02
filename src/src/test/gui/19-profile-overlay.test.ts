@@ -28,6 +28,7 @@ import {
     sectionContainsText,
     waitFor,
     dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ suite('Profile-Based Overlay Filtering', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Effective Files');
@@ -373,7 +375,7 @@ suite('Profile-Based Overlay Filtering', function () {
         assert.ok(capSection, 'Capabilities section must remain accessible when activeProfile is invalid');
     });
 
-    test('Profile with non-existent activeProfile falls back to all files in Effective Files', async function () {
+    test('Profile with non-existent activeProfile falls back to surfacing all files', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
@@ -384,16 +386,19 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        // With unknown profile, extension should fall back to surfacing all files
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT);
+        // With an unknown activeProfile, the engine emits an ACTIVE_PROFILE_NOT_FOUND
+        // warning and surfaces all files without profile filtering. The injected
+        // settings paths are the deterministic signal for that fallback — the
+        // Effective Files tree is virtualized and may scroll its leaves out of the
+        // rendered DOM, so we assert on settings rather than tree text.
+        await waitFor(
+            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
+            WAIT_TIMEOUT,
+        );
 
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
-            'Expected sdlc files visible as fallback when activeProfile does not exist',
+            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
+            'Expected sdlc instruction paths surfaced as fallback when activeProfile does not exist',
         );
     });
 });

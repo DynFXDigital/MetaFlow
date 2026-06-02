@@ -31,6 +31,8 @@ import {
     waitForNotification,
     dismissAllNotifications,
     dismissActiveInput,
+    dismissModalDialogs,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
 const CONFIG_PATH = path.resolve(
@@ -46,6 +48,7 @@ async function assertCommandRegistered(
     try {
         await workbench.executeCommand(commandId);
         await sleep(300);
+        await dismissModalDialogs();
         await dismissActiveInput();
         await dismissAllNotifications(workbench);
     } catch (err) {
@@ -66,6 +69,7 @@ suite('Git Integration and Promote Commands', function () {
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
@@ -73,6 +77,10 @@ suite('Git Integration and Promote Commands', function () {
     });
 
     afterEach(async () => {
+        // Promote/git/initConfig commands can leave a modal dialog (.monaco-dialog-box)
+        // open; dismissActiveInput only handles quick-inputs, so a stray modal would
+        // intercept clicks in the next test. Clear modals explicitly first.
+        await dismissModalDialogs();
         await dismissActiveInput();
         await dismissAllNotifications(new Workbench());
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
