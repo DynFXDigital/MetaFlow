@@ -4859,18 +4859,23 @@ export function registerCommands(
                           }
                         : loadConfig(ws.uri.fsPath);
                 if (!result.ok) {
+                    // A genuinely missing config (no configPath) is the first-run
+                    // state, not an error: the config tree's welcome view surfaces an
+                    // "Initialize Configuration" action. That welcome view only renders
+                    // when the tree is empty, so the missing case must not emit a
+                    // warning toast or a tree warning — otherwise the warning row
+                    // suppresses the Initialize action. Invalid configs (configPath set)
+                    // keep their warning surfaces.
+                    const configMissing = !result.configPath;
                     logError(`Config errors: ${result.errors.map((e) => e.message).join('; ')}`);
                     publishConfigDiagnostics(diagnosticCollection, result);
                     await clearManagedWorkspaceSettings(ws, context);
-                    if (result.configPath) {
+                    if (configMissing) {
+                        logWarn('MetaFlow: No .metaflow/config.jsonc found at workspace root.');
+                    } else {
                         vscode.window.showWarningMessage(
                             'MetaFlow: Found config file, but it is invalid. Check Problems for details.',
                         );
-                    } else {
-                        const message =
-                            'MetaFlow: No .metaflow/config.jsonc found at workspace root.';
-                        logWarn(message);
-                        vscode.window.showWarningMessage(message);
                     }
                     updateStatusBar('error');
                     state.config = undefined;
@@ -4885,7 +4890,9 @@ export function registerCommands(
                     state.governanceContractErrors = [];
                     state.governanceCompliance = undefined;
                     state.capabilityWarnings = [];
-                    state.configWarnings = result.errors.map(formatConfigWarningMessage);
+                    state.configWarnings = configMissing
+                        ? []
+                        : result.errors.map(formatConfigWarningMessage);
                     state.capabilityDiagnosticFilePaths = [];
                     state.agentPluginCatalog = [];
                     state.localGitRepoIds = new Set<string>();

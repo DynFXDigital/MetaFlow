@@ -168,6 +168,56 @@ suite('Extension Error and Warning States', function () {
         );
     });
 
+    // ── Missing config (first-run) ────────────────────────────────────────────
+
+    test('Missing config offers initialization via the view welcome content, not a warning', async function () {
+        this.timeout(WAIT_TIMEOUT + 20_000);
+
+        // A genuinely missing config is the first-run state, not an error: the
+        // AI Metadata view must surface an "Initialize Configuration" welcome
+        // action rather than a "No .metaflow/config.jsonc found" warning. The
+        // welcome view only renders when the config tree is empty, so surfacing
+        // the missing state as a warning row (or toast) would suppress the
+        // Initialize action — exactly the regression this guards.
+        fs.rmSync(CONFIG_PATH, { force: true });
+        const workbench = new Workbench();
+        await workbench.executeCommand('MetaFlow: Refresh');
+        await sleep(3_000);
+
+        const configSection = await getSection(sideBar, 'AI Metadata');
+        await expandSection(configSection);
+
+        await waitFor(async () => {
+            const welcome = await configSection.findWelcomeContent();
+            if (!welcome) {
+                return false;
+            }
+            const textSections = await welcome.getTextSections();
+            return textSections.some((t) => t.includes('No MetaFlow configuration found'));
+        }, WAIT_TIMEOUT);
+
+        const welcome = await configSection.findWelcomeContent();
+        assert.ok(
+            welcome,
+            'Expected welcome content in the AI Metadata view when config is missing',
+        );
+        const buttons = await welcome.getButtons();
+        const buttonTitles = await Promise.all(
+            buttons.map((b) => b.getTitle().catch(() => '')),
+        );
+        assert.ok(
+            buttonTitles.some((title) => title.includes('Initialize Configuration')),
+            `Expected an "Initialize Configuration" welcome button, got: [${buttonTitles.join(', ')}]`,
+        );
+
+        // The missing-config case must NOT raise the legacy warning toast.
+        const warned = await hasNotification(workbench, 'No .metaflow');
+        assert.ok(
+            !warned,
+            'A missing config should not raise a "No .metaflow" warning notification',
+        );
+    });
+
     // ── All capabilities disabled ─────────────────────────────────────────────
 
     test('Refresh with all capabilities disabled empties Effective Files', async function () {
