@@ -21,7 +21,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SideBarView, Workbench } from 'vscode-extension-tester';
+import { NotificationType, SideBarView, Workbench } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
     WAIT_TIMEOUT,
@@ -44,19 +44,6 @@ import {
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
-
-function settingsContainsPath(key: string, fragment: string): boolean {
-    let settings: Record<string, unknown>;
-    try {
-        settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return false;
-    }
-    const value = settings[key] as Record<string, boolean> | undefined;
-    if (!value || typeof value !== 'object') { return false; }
-    return Object.keys(value).some((p) => p.replace(/\\/g, '/').includes(fragment));
-}
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
@@ -127,17 +114,23 @@ suite('Extension Error and Warning States', function () {
     });
 
     test('Refresh with malformed config does not produce normal capability items', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 15_000);
 
         fs.writeFileSync(CONFIG_PATH, '{ this: is not valid json', 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
-        await sleep(3_000);
+
+        // The Effective Files tree is virtualized and tears down asynchronously
+        // after a malformed-config refresh; poll until the prior content clears
+        // rather than asserting once after a fixed sleep (which races the
+        // teardown under host load). Use a doubled wait budget — under host load
+        // the refresh+teardown occasionally exceeds the default 30s poll window.
+        await waitFor(async () => {
+            const section = await getSection(sideBar, 'Effective Files');
+            await expandSection(section);
+            return !(await sectionContainsText(section, 'testing'));
+        }, WAIT_TIMEOUT * 2);
 
         const filesSection = await getSection(sideBar, 'Effective Files');
-        await expandSection(filesSection);
-        await sleep(1_000);
-
-        // With an unparseable config, Effective Files should be empty
         assert.ok(
             !(await sectionContainsText(filesSection, 'testing')),
             'Effective Files should not show testing.md while config is malformed',
@@ -153,19 +146,44 @@ suite('Extension Error and Warning States', function () {
         fs.writeFileSync(CONFIG_PATH, '{ this: is not valid json', 'utf-8');
         const workbench = new Workbench();
         await workbench.executeCommand('MetaFlow: Refresh');
-        await sleep(3_000);
+        await sleep(1_500);
 
-        const warningNotif = await waitForNotification(workbench, 'invalid', WAIT_TIMEOUT);
-        assert.ok(
-            warningNotif,
-            'Expected a warning notification containing "invalid" after Refresh with malformed config',
-        );
+        // Warning toasts auto-hide after a few seconds, and Workbench.getNotifications()
+        // only reads the (now-gone) toast overlay. Open the notifications center and read
+        // its persisted list directly — that is what survives the toast lifetime and is
+        // the source of this test's prior flakiness.
+        const center = await workbench.openNotificationsCenter();
 
-        const hasErrorNotif = await hasNotification(workbench, 'MetaFlow: error');
-        assert.ok(
-            !hasErrorNotif,
-            'Expected a warning notification, not an error notification, for malformed config',
-        );
+        try {
+            let warningText: string | undefined;
+            await waitFor(async () => {
+                const notes = await center.getNotifications(NotificationType.Any);
+                for (const n of notes) {
+                    const msg = await n.getMessage().catch(() => '');
+                    if (msg.toLowerCase().includes('invalid')) {
+                        warningText = msg;
+                        return true;
+                    }
+                }
+                return false;
+            }, WAIT_TIMEOUT);
+            assert.ok(
+                warningText,
+                'Expected a warning notification containing "invalid" after Refresh with malformed config',
+            );
+
+            const errorNotes = await center.getNotifications(NotificationType.Error);
+            const metaflowError = await Promise.all(
+                errorNotes.map((n) => n.getMessage().catch(() => '')),
+            );
+            assert.ok(
+                !metaflowError.some((m) => m.toLowerCase().includes('metaflow')),
+                'Expected a warning notification, not an error notification, for malformed config',
+            );
+        } finally {
+            // Close the notifications center so it does not leak into subsequent tests.
+            await center.close().catch(() => undefined);
+        }
     });
 
     // ── Missing config (first-run) ────────────────────────────────────────────
@@ -386,7 +404,7 @@ suite('Extension Error and Warning States', function () {
     // ── Profile not found ─────────────────────────────────────────────────────
 
     test('Config with activeProfile that does not exist in profiles still loads without crash', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 15_000);
 
         // Bug fix: previously the extension silently returned ALL files when activeProfile
         // referenced a non-existent profile. Now it emits a capability warning.
@@ -419,17 +437,20 @@ suite('Extension Error and Warning States', function () {
         const capSection = await getSection(sideBar, 'Capabilities');
         assert.ok(capSection, 'Capabilities section missing after referencing non-existent activeProfile');
 
-        // Effective Files should still be populated (falls back to all-files, plus
-        // emits an ACTIVE_PROFILE_NOT_FOUND warning). The injected settings paths are
-        // the deterministic fallback signal — the Effective Files tree is virtualized
-        // and may scroll leaves out of the rendered DOM, so we assert on settings.
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
+        // A non-existent activeProfile is non-fatal: the overlay falls back to
+        // surfacing ALL files (no profile filtering) and emits an
+        // ACTIVE_PROFILE_NOT_FOUND warning. Assert on the Effective Files tree —
+        // testing.md from standards/sdlc must still appear under the fallback.
+        // (The doubled wait budget absorbs host-load spikes on the virtualized tree.)
+        await waitFor(async () => {
+            const filesSection = await getSection(sideBar, 'Effective Files');
+            await expandSection(filesSection);
+            return sectionContainsText(filesSection, 'testing');
+        }, WAIT_TIMEOUT * 2);
+        const filesSection = await getSection(sideBar, 'Effective Files');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc instruction paths surfaced even when activeProfile is not found (fallback to all-files)',
+            await sectionContainsText(filesSection, 'testing'),
+            'Expected testing.md surfaced even when activeProfile is not found (fallback to all-files)',
         );
     });
 
