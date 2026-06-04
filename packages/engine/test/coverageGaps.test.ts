@@ -532,6 +532,69 @@ describe('Engine gaps: settingsInjector absolute hooks', () => {
         const hookLocations = entries.find((e) => e.key === 'chat.hookFilesLocations');
         assert.ok(hookLocations, 'should have hook file locations');
     });
+
+    it('computeSettingsEntries keeps a workspace-relative hook path relative (no drive letter)', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+            hooks: { preApply: 'scripts/pre-apply.sh' },
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        const hookEntry = entries.find((e) => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookEntry, 'should emit chat.hookFilesLocations');
+
+        const value = hookEntry!.value as Record<string, boolean>;
+        const keys = Object.keys(value).map((p) => p.replace(/\\/g, '/'));
+        assert.ok(keys.length > 0, 'hook locations should not be empty');
+        for (const k of keys) {
+            assert.ok(
+                !k.includes(':'),
+                `hook location must be workspace-relative (no drive letter), got: ${k}`,
+            );
+        }
+        assert.ok(
+            keys.some((k) => k.includes('scripts/pre-apply.sh')),
+            'should contain the workspace-relative pre-apply path',
+        );
+        for (const v of Object.values(value)) {
+            assert.strictEqual(v, true, 'hook location values must be boolean true');
+        }
+    });
+
+    it('computeSettingsEntries includes both preApply and postApply hook paths', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+            hooks: { preApply: 'scripts/pre-apply.sh', postApply: 'scripts/post-apply.sh' },
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        const hookEntry = entries.find((e) => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookEntry, 'should emit chat.hookFilesLocations');
+
+        const keys = Object.keys(hookEntry!.value as Record<string, boolean>).map((p) =>
+            p.replace(/\\/g, '/'),
+        );
+        assert.ok(
+            keys.some((k) => k.includes('scripts/pre-apply.sh')),
+            'should contain the preApply path',
+        );
+        assert.ok(
+            keys.some((k) => k.includes('scripts/post-apply.sh')),
+            'should contain the postApply path',
+        );
+    });
+
+    it('computeSettingsEntries omits chat.hookFilesLocations when no hooks are configured', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        assert.ok(
+            !entries.find((e) => e.key === 'chat.hookFilesLocations'),
+            'chat.hookFilesLocations should be absent when config has no hooks block',
+        );
+    });
 });
 
 describe('Engine gaps: settingsInjector plugin roots', () => {
