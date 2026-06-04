@@ -1,0 +1,99 @@
+import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
+
+const COMMAND_HANDLERS_PATH = path.resolve(__dirname, '../../../src/commands/commandHandlers.ts');
+
+function readCommandHandlersSource(): string {
+    return fs.readFileSync(COMMAND_HANDLERS_PATH, 'utf-8');
+}
+
+function sourceSlice(source: string, start: string, end: string): string {
+    const startIndex = source.indexOf(start);
+    assert.ok(startIndex >= 0, `Expected to find source marker: ${start}`);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    assert.ok(endIndex > startIndex, `Expected to find source marker after ${start}: ${end}`);
+    return source.slice(startIndex, endIndex);
+}
+
+suite('Command handler config update consent', () => {
+    test('refresh asks before persisting automatic config updates', () => {
+        const source = readCommandHandlersSource();
+        const refreshUpdateBlock = sourceSlice(
+            source,
+            'const shouldPersistConfig = await confirmConfigUpdate(',
+            'state.config = result.config;',
+        );
+
+        assert.match(
+            refreshUpdateBlock,
+            /if \(shouldPersistConfig\) \{\s+await persistConfig\(result\.configPath, result\.config, state\);/m,
+        );
+        assert.ok(
+            !/await persistConfig\(result\.configPath, result\.config, state\);[\s\S]*const shouldPersistConfig/.test(
+                refreshUpdateBlock,
+            ),
+            'Refresh must not write config before the update prompt resolves.',
+        );
+
+        const confirmHelper = sourceSlice(
+            source,
+            'async function confirmConfigUpdate(',
+            'interface BuiltInCapabilityStateRepair',
+        );
+        assert.match(confirmHelper, /'Open Config'/);
+        assert.match(confirmHelper, /'Later'/);
+    });
+
+    test('declining capability repair preserves the previous identity snapshot', () => {
+        const source = readCommandHandlersSource();
+        const refreshUpdateBlock = sourceSlice(
+            source,
+            'let shouldAdvanceCapabilityIdentitySnapshot = true;',
+            'const gitRepos = resolveGitBackedRepoSources',
+        );
+
+        assert.match(refreshUpdateBlock, /if \(pendingRepairCount > 0\) \{\s+shouldAdvanceCapabilityIdentitySnapshot = false;/m);
+        assert.match(
+            source,
+            /if \(shouldAdvanceCapabilityIdentitySnapshot\) \{\s+saveCapabilityIdentitySnapshot\(projectedConfig, ws\.uri\.fsPath\);/m,
+        );
+    });
+
+    test('built-in capability state repair is prompted separately from config writes', () => {
+        const source = readCommandHandlersSource();
+        const builtInRepairBlock = sourceSlice(
+            source,
+            'const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(',
+            'const gitRepos = resolveGitBackedRepoSources',
+        );
+
+        assert.match(
+            builtInRepairBlock,
+            /const shouldUpdateBuiltInState = await confirmBuiltInCapabilityStateUpdate\(/,
+        );
+        assert.match(
+            builtInRepairBlock,
+            /if \(shouldUpdateBuiltInState\) \{\s+state\.builtInCapability = await writeBuiltInCapabilityWorkspaceState\(/m,
+        );
+        assert.match(
+            builtInRepairBlock,
+            /shouldAdvanceCapabilityIdentitySnapshot = false;/,
+        );
+    });
+
+    test('capability repair preview does not mutate loaded config before consent', () => {
+        const source = readCommandHandlersSource();
+        const previewHelper = sourceSlice(
+            source,
+            'function previewCapabilityIdentityDriftRepair(',
+            'function applyCapabilityIdentityDriftRepair(',
+        );
+
+        assert.match(
+            previewHelper,
+            /const repairResult = applyCapabilityReferenceRepairs\(cloneConfig\(config\), resolutions\);/,
+        );
+        assert.doesNotMatch(previewHelper, /saveManagedState\(/);
+    });
+});
