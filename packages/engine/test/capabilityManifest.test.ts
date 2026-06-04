@@ -1,8 +1,9 @@
 import * as assert from 'assert';
 import {
-    parseCapabilityManifestContent,
     capabilityManifestConstants,
+    collectDuplicateCapabilityUidWarnings,
     loadCapabilityManifestForLayer,
+    parseCapabilityManifestContent,
     type CapabilityMetadata,
 } from '../src/index';
 import * as fs from 'fs';
@@ -36,6 +37,110 @@ describe('capabilityManifest parser', () => {
         assert.strictEqual(parsed.experimental, true);
         assert.ok(parsed.body?.includes('## Mission'));
         assert.deepStrictEqual(parsed.warnings, []);
+    });
+
+    it('parses immutable uid and migration aliases', () => {
+        const content = [
+            '---',
+            'uid: 123e4567-e89b-42d3-a456-426614174000',
+            'previousIds: [planning, project-planning]',
+            'previousPaths: capabilities/planning, capabilities/project/planning',
+            'name: Planning',
+            'description: Planning guidance.',
+            '---',
+        ].join('\n');
+
+        const parsed = parseCapabilityManifestContent(content, 'planning', '/tmp/CAPABILITY.md');
+
+        assert.strictEqual(parsed.uid, '123e4567-e89b-42d3-a456-426614174000');
+        assert.deepStrictEqual(parsed.previousIds, ['planning', 'project-planning']);
+        assert.deepStrictEqual(parsed.previousPaths, [
+            'capabilities/planning',
+            'capabilities/project/planning',
+        ]);
+        assert.deepStrictEqual(parsed.warnings, []);
+    });
+
+    it('keeps missing uid backward-compatible', () => {
+        const content = ['---', 'name: Legacy Capability', 'description: Desc', '---'].join('\n');
+
+        const parsed = parseCapabilityManifestContent(
+            content,
+            'legacy-capability',
+            '/tmp/CAPABILITY.md',
+        );
+
+        assert.strictEqual(parsed.uid, undefined);
+        assert.ok(!parsed.warnings.some((w) => w.code === 'CAPABILITY_UID_INVALID'));
+    });
+
+    it('warns on invalid uid syntax', () => {
+        const content = [
+            '---',
+            'uid: not-a-guid',
+            'name: My Capability',
+            'description: Desc',
+            '---',
+        ].join('\n');
+
+        const parsed = parseCapabilityManifestContent(
+            content,
+            'my-capability',
+            '/tmp/CAPABILITY.md',
+        );
+
+        assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_UID_INVALID'));
+    });
+
+    it('warns on empty alias lists', () => {
+        const content = [
+            '---',
+            'previousIds: []',
+            'previousPaths: []',
+            'name: My Capability',
+            'description: Desc',
+            '---',
+        ].join('\n');
+
+        const parsed = parseCapabilityManifestContent(
+            content,
+            'my-capability',
+            '/tmp/CAPABILITY.md',
+        );
+
+        assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_PREVIOUS_IDS_INVALID'));
+        assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_PREVIOUS_PATHS_INVALID'));
+    });
+
+    it('emits duplicate uid warnings for capability sets', () => {
+        const first = parseCapabilityManifestContent(
+            [
+                '---',
+                'uid: 123e4567-e89b-42d3-a456-426614174000',
+                'name: First',
+                'description: Desc',
+                '---',
+            ].join('\n'),
+            'first',
+            '/repo/first/CAPABILITY.md',
+        );
+        const second = parseCapabilityManifestContent(
+            [
+                '---',
+                'uid: 123e4567-e89b-42d3-a456-426614174000',
+                'name: Second',
+                'description: Desc',
+                '---',
+            ].join('\n'),
+            'second',
+            '/repo/second/CAPABILITY.md',
+        );
+
+        const warnings = collectDuplicateCapabilityUidWarnings([first, second]);
+
+        assert.strictEqual(warnings.length, 2);
+        assert.ok(warnings.every((w) => w.code === 'CAPABILITY_UID_DUPLICATE'));
+        assert.ok(warnings.every((w) => w.severity === 'error'));
     });
 
     it('warns on invalid experimental syntax', () => {

@@ -1,4 +1,5 @@
 ---
+uid: ccf8bd0b-f27b-4f96-8916-8dcdacd63f3c
 name: Codex Metadata Authoring
 description: Standards and workflows support authoring, reviewing, and maintaining OpenAI Codex metadata constructs.
 license: SEE-LICENSE-IN-REPO

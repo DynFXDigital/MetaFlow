@@ -1,4 +1,5 @@
 ---
+uid: 3cdc581b-1bf9-481a-84d8-f75926e673e8
 name: GitHub Copilot Metadata Authoring
 description: GitHub Copilot metadata standards, prompts, and skills support portable AI metadata artifacts and promotion workflows.
 license: SEE-LICENSE-IN-REPO

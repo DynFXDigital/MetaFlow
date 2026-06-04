@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type {
     ApplyResult,
     CapabilityPluginCatalogEntry,
@@ -3843,6 +3843,7 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
     const normalizedName = capabilityName.trim() || 'Capability Name';
     return [
         '---',
+        `uid: ${randomUUID()}`,
         `name: ${normalizedName}`,
         'description: Describe what this capability offers in one direct declarative sentence.',
         'license: SEE-LICENSE-IN-REPO',

@@ -38,6 +38,7 @@ export {
     computeSettingsKeysToRemove,
 } from './settingsInjector';
 export {
+    collectDuplicateCapabilityUidWarnings,
     parseCapabilityManifestContent,
     loadCapabilityManifestForLayer,
     capabilityManifestConstants,
