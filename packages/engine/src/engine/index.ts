@@ -1,6 +1,7 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
 export type { ResolveLayersOptions } from './overlayEngine';
 export {
+    applyCapabilityReferenceRepairs,
     buildCapabilityIdentityIndexFromConfig,
     capabilityIdentityIndexToManagedState,
     collectCapabilityIdentityIndexWarnings,
@@ -13,6 +14,8 @@ export type {
     CapabilityIdentityIndexEntry,
     CapabilityReferenceResolution,
     CapabilityReferenceResolutionKind,
+    CapabilityReferenceRepair,
+    CapabilityReferenceRepairResult,
     ConfiguredCapabilityReference,
 } from './capabilityIdentity';
 export {

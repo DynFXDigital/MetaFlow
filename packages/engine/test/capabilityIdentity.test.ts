@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    applyCapabilityReferenceRepairs,
     buildCapabilityIdentityIndexFromConfig,
     capabilityIdentityIndexToManagedState,
     collectCapabilityIdentityIndexWarnings,
@@ -245,5 +246,144 @@ describe('capability identity index', () => {
             })[0].kind,
             'no-match',
         );
+    });
+
+    it('repairs deterministic stale capability paths in authored repo config', () => {
+        const repoRoot = path.join(workspaceRoot, 'repo');
+        writeCapability(repoRoot, 'capabilities/project-management/planning', {
+            uid: '123e4567-e89b-42d3-a456-426614174000',
+            name: 'Planning',
+            description: 'Planning guidance.',
+        });
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: 'repo',
+                    capabilities: [{ path: 'capabilities/planning', enabled: true }],
+                },
+            ],
+        };
+        const current = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+        const lastKnown: CapabilityIdentityIndex = {
+            generatedAt: '2026-06-03T00:00:00.000Z',
+            entries: [
+                {
+                    repoId: 'primary',
+                    path: 'capabilities/planning',
+                    id: 'planning',
+                    uid: '123e4567-e89b-42d3-a456-426614174000',
+                },
+            ],
+        };
+
+        const repairResult = applyCapabilityReferenceRepairs(
+            config,
+            reconcileConfiguredCapabilityReferences(config, workspaceRoot, current, lastKnown),
+        );
+
+        assert.deepStrictEqual(repairResult.repaired, [
+            {
+                source: 'metadataRepos.capabilities',
+                repoId: 'primary',
+                oldPath: 'capabilities/planning',
+                newPath: 'capabilities/project-management/planning',
+                kind: 'uid-match',
+                matchReason: 'uid',
+            },
+        ]);
+        assert.strictEqual(
+            config.metadataRepos?.[0].capabilities?.[0].path,
+            'capabilities/project-management/planning',
+        );
+    });
+
+    it('repairs deterministic stale profile override paths', () => {
+        const repoRoot = path.join(workspaceRoot, 'repo');
+        writeCapability(repoRoot, 'capabilities/project-management/planning', {
+            uid: '123e4567-e89b-42d3-a456-426614174000',
+            name: 'Planning',
+            description: 'Planning guidance.',
+            previousPaths: '[capabilities/planning]',
+        });
+        const config: MetaFlowConfig = {
+            metadataRepos: [{ id: 'primary', localPath: 'repo' }],
+            profiles: {
+                default: {
+                    layerOverrides: [
+                        {
+                            repoId: 'primary',
+                            path: 'capabilities/planning',
+                            enabled: true,
+                        },
+                    ],
+                },
+            },
+        };
+        const current = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+
+        const repairResult = applyCapabilityReferenceRepairs(
+            config,
+            reconcileConfiguredCapabilityReferences(config, workspaceRoot, current),
+        );
+
+        assert.deepStrictEqual(repairResult.repaired, [
+            {
+                source: 'profiles.layerOverrides',
+                repoId: 'primary',
+                oldPath: 'capabilities/planning',
+                newPath: 'capabilities/project-management/planning',
+                kind: 'alias-match',
+                matchReason: 'previousPath',
+                profileId: 'default',
+            },
+        ]);
+        assert.strictEqual(
+            config.profiles?.default.layerOverrides?.[0].path,
+            'capabilities/project-management/planning',
+        );
+    });
+
+    it('does not repair ambiguous stale capability paths', () => {
+        const repoRoot = path.join(workspaceRoot, 'repo');
+        writeCapability(repoRoot, 'capabilities/one', {
+            uid: '123e4567-e89b-42d3-a456-426614174000',
+            name: 'One',
+            description: 'First guidance.',
+        });
+        writeCapability(repoRoot, 'capabilities/two', {
+            uid: '123e4567-e89b-42d3-a456-426614174000',
+            name: 'Two',
+            description: 'Second guidance.',
+        });
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: 'repo',
+                    capabilities: [{ path: 'capabilities/old', enabled: true }],
+                },
+            ],
+        };
+        const current = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+        const lastKnown: CapabilityIdentityIndex = {
+            generatedAt: '2026-06-03T00:00:00.000Z',
+            entries: [
+                {
+                    repoId: 'primary',
+                    path: 'capabilities/old',
+                    id: 'old',
+                    uid: '123e4567-e89b-42d3-a456-426614174000',
+                },
+            ],
+        };
+
+        const repairResult = applyCapabilityReferenceRepairs(
+            config,
+            reconcileConfiguredCapabilityReferences(config, workspaceRoot, current, lastKnown),
+        );
+
+        assert.deepStrictEqual(repairResult.repaired, []);
+        assert.strictEqual(config.metadataRepos?.[0].capabilities?.[0].path, 'capabilities/old');
     });
 });

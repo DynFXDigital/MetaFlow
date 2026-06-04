@@ -67,6 +67,20 @@ export interface CapabilityReferenceResolution {
     previousEntry?: CapabilityIdentityIndexEntry;
 }
 
+export interface CapabilityReferenceRepair {
+    source: ConfiguredCapabilityReference['source'];
+    repoId: string;
+    oldPath: string;
+    newPath: string;
+    kind: 'uid-match' | 'alias-match';
+    matchReason: 'uid' | 'previousPath' | 'previousId';
+    profileId?: string;
+}
+
+export interface CapabilityReferenceRepairResult {
+    repaired: CapabilityReferenceRepair[];
+}
+
 function deriveCapabilityId(layerPath: string, repoRoot: string): string {
     const normalized = layerPath.replace(/\\/g, '/').replace(/\/+$/, '');
     if (normalized === '' || normalized === '.') {
@@ -498,4 +512,122 @@ export function reconcileConfiguredCapabilityReferences(
     }
 
     return resolutions;
+}
+
+function shouldRepairResolution(
+    resolution: CapabilityReferenceResolution,
+): resolution is CapabilityReferenceResolution & {
+    kind: 'uid-match' | 'alias-match';
+    candidates: [CapabilityIdentityIndexEntry];
+    matchReason: 'uid' | 'previousPath' | 'previousId';
+} {
+    return (
+        (resolution.kind === 'uid-match' || resolution.kind === 'alias-match') &&
+        resolution.candidates.length === 1 &&
+        resolution.matchReason !== undefined
+    );
+}
+
+function repairRecordPath(
+    record: { path: string },
+    reference: ConfiguredCapabilityReference,
+    newPath: string,
+): boolean {
+    if (normalizeLayerPath(record.path) !== reference.path) {
+        return false;
+    }
+
+    record.path = newPath;
+    return true;
+}
+
+function pushRepair(
+    repaired: CapabilityReferenceRepair[],
+    resolution: CapabilityReferenceResolution & {
+        kind: 'uid-match' | 'alias-match';
+        matchReason: 'uid' | 'previousPath' | 'previousId';
+    },
+    newPath: string,
+): void {
+    repaired.push({
+        source: resolution.reference.source,
+        repoId: resolution.reference.repoId,
+        oldPath: resolution.reference.path,
+        newPath,
+        kind: resolution.kind,
+        matchReason: resolution.matchReason,
+        ...(resolution.reference.profileId
+            ? { profileId: resolution.reference.profileId }
+            : {}),
+    });
+}
+
+export function applyCapabilityReferenceRepairs(
+    config: MetaFlowConfig,
+    resolutions: CapabilityReferenceResolution[],
+): CapabilityReferenceRepairResult {
+    const repaired: CapabilityReferenceRepair[] = [];
+
+    for (const resolution of resolutions) {
+        if (!shouldRepairResolution(resolution)) {
+            continue;
+        }
+
+        const newPath = resolution.candidates[0].path;
+        if (newPath === resolution.reference.path) {
+            continue;
+        }
+
+        if (resolution.reference.source === 'metadataRepos.capabilities') {
+            const repo = config.metadataRepos?.find(
+                (candidate) => candidate.id === resolution.reference.repoId,
+            );
+            const capability = repo?.capabilities?.find((candidate) =>
+                repairRecordPath(candidate, resolution.reference, newPath),
+            );
+            if (capability) {
+                pushRepair(repaired, resolution, newPath);
+            }
+            continue;
+        }
+
+        if (resolution.reference.source === 'layerSources') {
+            const layerSource = config.layerSources?.find(
+                (candidate) =>
+                    candidate.repoId === resolution.reference.repoId &&
+                    repairRecordPath(candidate, resolution.reference, newPath),
+            );
+            if (layerSource) {
+                pushRepair(repaired, resolution, newPath);
+            }
+            continue;
+        }
+
+        if (resolution.reference.source === 'layers') {
+            const layerIndex = config.layers?.findIndex(
+                (candidate) => normalizeLayerPath(candidate) === resolution.reference.path,
+            );
+            if (layerIndex !== undefined && layerIndex >= 0 && config.layers) {
+                config.layers[layerIndex] = newPath;
+                pushRepair(repaired, resolution, newPath);
+            }
+            continue;
+        }
+
+        const profileId = resolution.reference.profileId;
+        if (!profileId) {
+            continue;
+        }
+
+        const override = config.profiles?.[profileId]?.layerOverrides?.find(
+            (candidate) =>
+                candidate.repoId === resolution.reference.repoId &&
+                repairRecordPath(candidate, resolution.reference, newPath),
+        );
+        if (override) {
+            pushRepair(repaired, resolution, newPath);
+        }
+    }
+
+    return { repaired };
 }

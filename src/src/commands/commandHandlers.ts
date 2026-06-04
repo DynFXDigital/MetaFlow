@@ -48,7 +48,13 @@ import {
     computeSettingsEntries,
     computeSettingsKeysToRemove,
     checkAllDrift,
+    applyCapabilityReferenceRepairs,
+    buildCapabilityIdentityIndexFromConfig,
+    capabilityIdentityIndexToManagedState,
     loadManagedState,
+    managedStateToCapabilityIdentityIndex,
+    reconcileConfiguredCapabilityReferences,
+    saveManagedState,
     toAuthoredConfig,
 } from '@metaflow/engine';
 import {
@@ -3045,6 +3051,31 @@ async function persistConfig(
     }
 }
 
+function repairCapabilityIdentityDrift(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ReturnType<typeof applyCapabilityReferenceRepairs> {
+    const managedState = loadManagedState(workspaceRoot);
+    const lastKnownIndex = managedStateToCapabilityIdentityIndex(
+        managedState.capabilityIdentity,
+    );
+    const currentIndex = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+    const resolutions = reconcileConfiguredCapabilityReferences(
+        config,
+        workspaceRoot,
+        currentIndex,
+        lastKnownIndex,
+    );
+    const repairResult = applyCapabilityReferenceRepairs(config, resolutions);
+    const nextIndex =
+        repairResult.repaired.length > 0
+            ? buildCapabilityIdentityIndexFromConfig(config, workspaceRoot)
+            : currentIndex;
+    managedState.capabilityIdentity = capabilityIdentityIndexToManagedState(nextIndex);
+    saveManagedState(workspaceRoot, managedState);
+    return repairResult;
+}
+
 function loadLatestConfigForMutation(
     workspaceRoot: string,
     state: ExtensionState,
@@ -4930,8 +4961,23 @@ export function registerCommands(
                     refreshOptions.forceDiscoveryRepoId,
                     { enableDiscovery: true },
                 );
+                let capabilityRepairResult: ReturnType<
+                    typeof applyCapabilityReferenceRepairs
+                > = { repaired: [] };
+                try {
+                    capabilityRepairResult = repairCapabilityIdentityDrift(
+                        result.config,
+                        ws.uri.fsPath,
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    logWarn(`Capability identity drift repair skipped: ${message}`);
+                }
                 if (
-                    (result.migrated || configNormalized || discoveryResult.totalAdded > 0) &&
+                    (result.migrated ||
+                        configNormalized ||
+                        discoveryResult.totalAdded > 0 ||
+                        capabilityRepairResult.repaired.length > 0) &&
                     result.configPath
                 ) {
                     await persistConfig(result.configPath, result.config, state);
@@ -4955,6 +5001,15 @@ export function registerCommands(
                                 : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
                         logInfo(
                             `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
+                        );
+                    }
+                    for (const repair of capabilityRepairResult.repaired) {
+                        const scope =
+                            repair.source === 'profiles.layerOverrides' && repair.profileId
+                                ? `${repair.repoId}/${repair.oldPath} in profile ${repair.profileId}`
+                                : `${repair.repoId}/${repair.oldPath}`;
+                        logInfo(
+                            `Repaired capability reference ${scope} -> ${repair.newPath} (${repair.matchReason}).`,
                         );
                     }
                 }
