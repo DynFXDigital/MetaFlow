@@ -3073,11 +3073,6 @@ function previewCapabilityIdentityDriftRepair(
     );
     const repairResult = applyCapabilityReferenceRepairs(cloneConfig(config), resolutions);
 
-    if (repairResult.repaired.length === 0) {
-        managedState.capabilityIdentity = capabilityIdentityIndexToManagedState(currentIndex);
-        saveManagedState(workspaceRoot, managedState);
-    }
-
     return { managedState, repairResult };
 }
 
@@ -3123,6 +3118,104 @@ async function confirmConfigUpdate(
     }
 
     return selection === 'Update Config';
+}
+
+interface BuiltInCapabilityStateRepair {
+    oldPath: string;
+    newPath: string;
+    enabled: boolean;
+    matchReason: string;
+}
+
+interface BuiltInCapabilityStateRepairPreview {
+    repairs: BuiltInCapabilityStateRepair[];
+    layerStates: Record<string, boolean>;
+}
+
+function previewBuiltInCapabilityStateDriftRepair(
+    builtInState: BuiltInCapabilityRuntimeState,
+    workspaceRoot: string,
+    lastKnownConfig: MetaFlowConfig,
+): BuiltInCapabilityStateRepairPreview {
+    if (!builtInState.sourceRoot || !builtInState.layerStates) {
+        return { repairs: [], layerStates: {} };
+    }
+
+    const staleLayerStates = sanitizeBuiltInLayerStates(builtInState.layerStates);
+    const staleLayerPaths = Object.keys(staleLayerStates);
+    if (staleLayerPaths.length === 0) {
+        return { repairs: [], layerStates: staleLayerStates };
+    }
+
+    const managedState = loadManagedState(workspaceRoot);
+    const lastKnownIndex = managedStateToCapabilityIdentityIndex(
+        managedState.capabilityIdentity,
+    );
+    const currentIndex = buildCapabilityIdentityIndexFromConfig(lastKnownConfig, workspaceRoot);
+    const staleReferenceConfig: MetaFlowConfig = {
+        metadataRepos: [
+            {
+                id: BUILT_IN_CAPABILITY_REPO_ID,
+                localPath: builtInState.sourceRoot,
+            },
+        ],
+        layerSources: staleLayerPaths.map((layerPath) => ({
+            repoId: BUILT_IN_CAPABILITY_REPO_ID,
+            path: layerPath,
+            enabled: staleLayerStates[layerPath],
+        })),
+    };
+    const resolutions = reconcileConfiguredCapabilityReferences(
+        staleReferenceConfig,
+        workspaceRoot,
+        currentIndex,
+        lastKnownIndex,
+    );
+    const repairConfig = cloneConfig(staleReferenceConfig);
+    const repairResult = applyCapabilityReferenceRepairs(repairConfig, resolutions);
+    const nextLayerStates = { ...staleLayerStates };
+    const repairs: BuiltInCapabilityStateRepair[] = [];
+
+    for (const repair of repairResult.repaired) {
+        const enabled = staleLayerStates[repair.oldPath];
+        if (enabled === undefined || repair.oldPath === repair.newPath) {
+            continue;
+        }
+
+        delete nextLayerStates[repair.oldPath];
+        nextLayerStates[repair.newPath] = enabled;
+        repairs.push({
+            oldPath: repair.oldPath,
+            newPath: repair.newPath,
+            enabled,
+            matchReason: repair.matchReason,
+        });
+    }
+
+    return { repairs, layerStates: nextLayerStates };
+}
+
+async function confirmBuiltInCapabilityStateUpdate(
+    repairs: BuiltInCapabilityStateRepair[],
+): Promise<boolean> {
+    const detail = repairs
+        .map((repair) => `- ${repair.oldPath} -> ${repair.newPath} (${repair.matchReason})`)
+        .join('\n');
+    const selection = await vscode.window.showWarningMessage(
+        'MetaFlow found built-in capability selections that point to moved bundled metadata. Update those selections now?',
+        { modal: true, detail },
+        'Update Selections',
+        'Later',
+    );
+
+    return selection === 'Update Selections';
+}
+
+function saveCapabilityIdentitySnapshot(config: MetaFlowConfig, workspaceRoot: string): void {
+    const managedState = loadManagedState(workspaceRoot);
+    const currentIndex = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+    managedState.capabilityIdentity = capabilityIdentityIndexToManagedState(currentIndex);
+    saveManagedState(workspaceRoot, managedState);
 }
 
 function loadLatestConfigForMutation(
@@ -5020,6 +5113,7 @@ export function registerCommands(
                     const message = err instanceof Error ? err.message : String(err);
                     logWarn(`Capability identity drift repair skipped: ${message}`);
                 }
+                let shouldAdvanceCapabilityIdentitySnapshot = true;
                 if (
                     (result.migrated ||
                         configNormalized ||
@@ -5070,6 +5164,9 @@ export function registerCommands(
                         logInfo(
                             'Skipped writing pending .metaflow/config.jsonc updates after user selection.',
                         );
+                        if (pendingRepairCount > 0) {
+                            shouldAdvanceCapabilityIdentitySnapshot = false;
+                        }
                     }
 
                     if (shouldPersistConfig && result.migrated) {
@@ -5128,6 +5225,38 @@ export function registerCommands(
                     );
                 }
 
+                const projectedConfigForBuiltInRepair = withBuiltInCapabilityProjected(
+                    result.config,
+                    state.builtInCapability,
+                );
+                const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(
+                    state.builtInCapability,
+                    ws.uri.fsPath,
+                    projectedConfigForBuiltInRepair,
+                );
+                if (builtInRepairPreview.repairs.length > 0) {
+                    const shouldUpdateBuiltInState = await confirmBuiltInCapabilityStateUpdate(
+                        builtInRepairPreview.repairs,
+                    );
+                    if (shouldUpdateBuiltInState) {
+                        state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                            context,
+                            state.builtInCapability,
+                            { layerStates: builtInRepairPreview.layerStates },
+                        );
+                        for (const repair of builtInRepairPreview.repairs) {
+                            logInfo(
+                                `Repaired built-in capability selection ${repair.oldPath} -> ${repair.newPath} (${repair.matchReason}).`,
+                            );
+                        }
+                    } else {
+                        logInfo(
+                            'Skipped writing pending built-in capability selection updates after user selection.',
+                        );
+                        shouldAdvanceCapabilityIdentitySnapshot = false;
+                    }
+                }
+
                 const gitRepos = resolveGitBackedRepoSources(result.config, ws.uri.fsPath);
                 state.localGitRepoIds = await discoverLocalGitRepoIds(result.config, ws.uri.fsPath);
                 if (refreshOptions.skipRepoSync === true) {
@@ -5150,6 +5279,9 @@ export function registerCommands(
                         result.config,
                         state.builtInCapability,
                     );
+                    if (shouldAdvanceCapabilityIdentitySnapshot) {
+                        saveCapabilityIdentitySnapshot(projectedConfig, ws.uri.fsPath);
+                    }
                     const activeProfileProjectedConfig = projectConfigForProfile(projectedConfig);
                     if (governanceResult.ok) {
                         state.governanceCompliance = evaluateGovernanceCompliance(
