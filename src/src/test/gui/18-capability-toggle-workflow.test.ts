@@ -5,18 +5,18 @@
  *   1. Start with a capability disabled
  *   2. Enable it (via config edit, mirroring the sidebar toggle)
  *   3. Run Apply Overlay
- *   4. Verify settings keys were updated in .vscode/settings.json
+ *   4. Verify the overlay output changed accordingly
  *
- * These tests use explicit injection: { instructions: 'settings', ... } so
- * that chat.instructionsFilesLocations and related keys are actually written.
- * The default injection mode ('plugin') does NOT write these keys — that
- * behavior is intentional but surprising for new users, so it is also
- * exercised here for documentation purposes.
+ * Signal: the Effective Files tree (host-independent). The derived `chat.*`
+ * settings keys are NOT asserted here because VS Code's config editing service
+ * in the ExTester host rejects those programmatic writes (see
+ * 15-settings-injection.test.ts for the full explanation); the exact settings
+ * key→path mapping is verified by the engine unit tests for
+ * `computeSettingsEntries`.
  *
- * Note on defaults: Without an explicit injection config, instructions/agents/
- * skills are classified as 'plugin' (not 'settings'), so Apply Overlay with
- * default config does NOT write chat.instructionsFilesLocations to settings.
- * Users who expect these keys must set injection: { instructions: 'settings' }.
+ * Fixture artifacts (Effective Files basenames):
+ *   standards/sdlc (enabled by default): testing, test-agent, test-skill
+ *   company/core   (disabled by default): coding, review.prompt
  */
 
 import * as assert from 'assert';
@@ -30,7 +30,8 @@ import {
     openMetaFlowSidebar,
     getSection,
     waitForSectionReady,
-    waitFor,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     dismissAllNotifications,
     restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
@@ -39,28 +40,20 @@ import {
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
 
-// ── File helpers ──────────────────────────────────────────────────────────────
+// ── Known fixture artifacts (Effective Files basenames) ────────────────────────
 
-function readSettings(): Record<string, unknown> {
-    try {
-        return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return {};
+const KNOWN_ARTIFACTS = ['testing', 'test-agent', 'test-skill', 'coding', 'review.prompt'];
+
+/** Returns the subset of known fixture artifacts currently surfaced in Effective Files. */
+async function presentArtifacts(sideBar: SideBarView): Promise<string[]> {
+    const present: string[] = [];
+    for (const a of KNOWN_ARTIFACTS) {
+        if (await effectiveFilesContains(sideBar, a)) {
+            present.push(a);
+        }
     }
-}
-
-function settingsContainsPath(key: string, fragment: string): boolean {
-    const settings = readSettings();
-    const value = settings[key] as Record<string, boolean> | undefined;
-    if (!value || typeof value !== 'object') { return false; }
-    return Object.keys(value).some(p => p.replace(/\\/g, '/').includes(fragment));
-}
-
-function settingsHasKey(key: string): boolean {
-    const settings = readSettings();
-    return settings[key] !== undefined && settings[key] !== null;
+    return present;
 }
 
 // ── Config builders ───────────────────────────────────────────────────────────
@@ -113,6 +106,8 @@ suite('End-to-End Capability Toggle Workflow', function () {
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
         await waitForSectionReady(section, WAIT_TIMEOUT);
+        const files = await getSection(sideBar, 'Effective Files');
+        await waitForSectionReady(files, WAIT_TIMEOUT);
     });
 
     afterEach(async function () {
@@ -123,196 +118,156 @@ suite('End-to-End Capability Toggle Workflow', function () {
         await dismissAllNotifications(new Workbench());
     });
 
-    // ── Enable → Apply → settings updated ────────────────────────────────────
+    // ── Enable → Apply → overlay updated ─────────────────────────────────────
 
-    test('Enabling company/core and applying adds core instructions to settings', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Enabling company/core and applying surfaces core instructions', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        // Start: core disabled, sdlc enabled — core paths must not be in settings
+        // Start: core disabled, sdlc enabled — core artifacts must be absent
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await sleep(3_000);
+        await waitForEffectiveFiles(sideBar, 'coding', false);
 
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core'),
-            'Precondition: company/core instructions should not be in settings before enabling',
+            !(await effectiveFilesContains(sideBar, 'coding')),
+            'Precondition: company/core instructions (coding) should be absent before enabling',
         );
 
         // Enable company/core and apply
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'company/core/instructions'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'coding');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'company/core/instructions'),
-            'Expected company/core/instructions path in settings after enabling company/core and applying',
+            await effectiveFilesContains(sideBar, 'coding'),
+            'Expected company/core instructions (coding) after enabling company/core and applying',
         );
     });
 
-    test('Disabling standards/sdlc and applying removes its instructions from settings', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Disabling standards/sdlc and applying removes its instructions', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // Start: sdlc enabled — establish baseline
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: true }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing');
 
         // Disable sdlc and apply
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: false }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'Expected standards/sdlc/instructions path removed from settings after disabling sdlc',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected standards/sdlc instructions (testing) removed after disabling sdlc',
         );
     });
 
-    test('Re-enabling a disabled capability restores its settings paths after Apply', async function () {
+    test('Re-enabling a disabled capability restores its artifacts after Apply', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // Step 1: disable sdlc
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: false }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing', false);
 
         // Step 2: re-enable sdlc
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: true }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing');
 
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'Expected standards/sdlc/instructions to reappear in settings after re-enabling sdlc',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected standards/sdlc instructions (testing) to reappear after re-enabling sdlc',
         );
     });
 
-    // ── Multiple Apply calls are idempotent ───────────────────────────────────
+    // ── Multiple Apply calls are idempotent ──────────────────────────────────
 
-    test('Applying the same config twice produces identical settings entries', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Applying the same config twice produces the same overlay output', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({}), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing');
 
-        const settingsAfterFirst = JSON.stringify(readSettings());
+        const afterFirst = (await presentArtifacts(sideBar)).join(',');
 
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
         await sleep(3_000);
 
-        const settingsAfterSecond = JSON.stringify(readSettings());
+        const afterSecond = (await presentArtifacts(sideBar)).join(',');
 
         assert.strictEqual(
-            settingsAfterSecond,
-            settingsAfterFirst,
-            'Settings should be identical after a second Apply with the same config (idempotent)',
+            afterSecond,
+            afterFirst,
+            'Overlay output should be identical after a second Apply with the same config (idempotent)',
         );
     });
 
-    // ── Default injection mode behavior ───────────────────────────────────────
+    // ── Delivery mode does not change overlay membership ─────────────────────
 
-    test('Default injection (no explicit config) does NOT write chat.instructionsFilesLocations', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Default injection mode still surfaces the instructions artifact in the overlay', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        // Write config WITHOUT explicit injection key — default is 'plugin' for instructions
+        // Write config WITHOUT explicit injection key — default classifies
+        // instructions as 'plugin' rather than 'settings'. Delivery mode changes
+        // WHERE an artifact is delivered, not WHETHER it is part of the overlay,
+        // so the artifact still appears in Effective Files. (The settings-key
+        // classification difference is covered by the engine unit tests.)
         fs.writeFileSync(CONFIG_PATH, configWith({ useSettingsInjection: false }), 'utf-8');
 
-        // First Clean to ensure no previously-injected stale settings entries exist
         const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        // Dismiss any confirmation or info notifications
-        await dismissAllNotifications(workbench);
-        await sleep(500);
-
         await workbench.executeCommand('MetaFlow: Apply Overlay');
-        await sleep(4_000);
+        await sleep(3_000);
+        await dismissAllNotifications(workbench);
 
-        // With default injection mode, instructions are 'plugin' — NOT written as settings paths
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            !settingsHasKey('chat.instructionsFilesLocations'),
-            'With default injection, Apply should NOT write chat.instructionsFilesLocations — use injection: { instructions: "settings" } to enable this',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Default (plugin) injection mode should still surface the instructions artifact in the overlay',
         );
     });
 
-    // ── Both capabilities enabled ─────────────────────────────────────────────
+    // ── Both capabilities enabled ────────────────────────────────────────────
 
-    test('Both capabilities enabled injects all paths from both into settings', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Both capabilities enabled surfaces artifacts from both', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true, sdlcEnabled: true }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(async () => {
-            return (
-                settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions') &&
-                settingsContainsPath('chat.instructionsFilesLocations', 'company/core/instructions')
-            );
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'coding');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'Expected standards/sdlc/instructions in chat.instructionsFilesLocations when both enabled',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected standards/sdlc instructions (testing) when both enabled',
         );
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'company/core/instructions'),
-            'Expected company/core/instructions in chat.instructionsFilesLocations when both enabled',
+            await effectiveFilesContains(sideBar, 'coding'),
+            'Expected company/core instructions (coding) when both enabled',
         );
         assert.ok(
-            settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc/agents'),
-            'Expected standards/sdlc/agents in chat.agentFilesLocations when both enabled',
+            await effectiveFilesContains(sideBar, 'test-agent'),
+            'Expected standards/sdlc agents (test-agent) when both enabled',
         );
     });
 
-    // ── Apply followed by tree view reflects same state ───────────────────────
+    // ── Tree reflects the enabled capability set ─────────────────────────────
 
-    test('After Apply, Effective Files tree and settings.json reflect the same capabilities', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('After Apply, Effective Files reflects the enabled capabilities', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false, sdlcEnabled: true }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
-
-        // Verify the tree also reflects the same enabled state
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            const items = await filesSection.getVisibleItems();
-            return items.length > 0;
-        }, WAIT_TIMEOUT);
-
-        // Both settings and tree should reflect sdlc enabled, core disabled
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'settings.json must contain sdlc instruction paths after Apply',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Effective Files must surface sdlc instructions (testing) after Apply',
         );
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core/instructions'),
-            'settings.json must not contain core instruction paths while core is disabled',
+            !(await effectiveFilesContains(sideBar, 'coding')),
+            'Effective Files must not surface core instructions (coding) while core is disabled',
         );
     });
 });

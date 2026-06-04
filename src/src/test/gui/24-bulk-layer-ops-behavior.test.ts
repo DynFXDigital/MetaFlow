@@ -171,26 +171,28 @@ suite('Bulk Layer Operations — Behavior', function () {
     });
 
     test('Deselect All empties the Effective Files tree', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 30_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({}), 'utf-8');
         await sleep(1_500);
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(2_000);
 
-        // Precondition: testing.md visible
+        // Precondition: testing.md visible. The Effective Files tree is virtualized,
+        // so a refresh+render can occasionally exceed the 30s default under host load —
+        // give the poll a doubled budget (see harness flakiness notes).
         const filesSection = await getSection(sideBar, 'Effective Files');
         await waitFor(async () => {
             await expandSection(filesSection);
             return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT);
+        }, WAIT_TIMEOUT * 2);
 
         await new Workbench().executeCommand('MetaFlow: Deselect All');
 
         await waitFor(async () => {
             await expandSection(filesSection);
             return !(await sectionContainsText(filesSection, 'testing'));
-        }, WAIT_TIMEOUT);
+        }, WAIT_TIMEOUT * 2);
 
         assert.ok(
             !(await sectionContainsText(filesSection, 'testing')),

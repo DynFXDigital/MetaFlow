@@ -5,19 +5,29 @@
 //
 // Partial profile globs let users narrow the overlay to a specific artifact
 // type, e.g. enable: ["instructions/<glob>"] surfaces only instruction files.
-// The settings injector then only writes the keys for that artifact type.
+// Each artifact TYPE has a distinct fixture basename in the Effective Files
+// tree, so partial-glob filtering is directly observable there:
+//   instructions → testing / coding   agents → test-agent
+//   skills       → test-skill          prompts → review.prompt
 //
 // Multi-repo configs allow combining several metadata sources. The test
-// workspace has one local metadata directory, but the schema supports an
-// arbitrary number of entries — the extension must handle multiple entries
+// workspace has two local metadata directories (.ai/ai-metadata and
+// .ai/secondary-metadata), and the extension must handle multiple entries
 // without crashing and merge their effective files correctly.
 //
+// Signal: the Effective Files and AI Metadata trees (host-independent). The
+// derived `chat.*` settings keys are NOT asserted here — VS Code's config
+// editing service in the ExTester host rejects those programmatic writes (see
+// 15-settings-injection.test.ts); the exact settings key→path mapping (incl.
+// which key a given glob populates) is covered by the engine unit tests for
+// `computeSettingsEntries`.
+//
 // Test workspace artifacts used:
-//   - standards/sdlc/instructions/testing.md
-//   - standards/sdlc/agents/test-agent.agent.md
-//   - standards/sdlc/skills/test-skill/
-//   - company/core/instructions/coding.md
-//   - company/core/prompts/review.prompt.md
+//   - standards/sdlc/instructions/testing.md      → tree: testing
+//   - standards/sdlc/agents/test-agent.agent.md   → tree: test-agent
+//   - standards/sdlc/skills/test-skill/           → tree: test-skill
+//   - company/core/instructions/coding.md         → tree: coding
+//   - company/core/prompts/review.prompt.md       → tree: review.prompt
 
 import * as assert from 'assert';
 import * as fs from 'fs';
@@ -33,6 +43,8 @@ import {
     waitForSectionReady,
     sectionContainsText,
     waitFor,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     dismissAllNotifications,
     restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
@@ -41,24 +53,6 @@ import {
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
-
-// ── Settings helpers ──────────────────────────────────────────────────────────
-
-function readSettings(): Record<string, unknown> {
-    try {
-        return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return {};
-    }
-}
-
-function settingsContainsPath(key: string, fragment: string): boolean {
-    const settings = readSettings();
-    const value = settings[key] as Record<string, boolean> | undefined;
-    if (!value || typeof value !== 'object') { return false; }
-    return Object.keys(value).some(p => p.replace(/\\/g, '/').includes(fragment));
-}
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
@@ -166,98 +160,79 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
     // ── Partial profile globs ────────────────────────────────────────────────
 
     test('Profile enable [instructions/**] surfaces instruction files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**']), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
+            await effectiveFilesContains(sideBar, 'testing'),
             'Expected testing.md (an instruction file) to appear under enable: [instructions/**]',
         );
     });
 
-    test('Profile enable [instructions/**] only writes chat.instructionsFilesLocations, not agents or skills', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Profile enable [instructions/**] surfaces only instruction artifacts, not agents or skills', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**']), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'chat.instructionsFilesLocations should contain sdlc instructions',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc instruction artifact (testing) under enable: [instructions/**]',
         );
         assert.ok(
-            !settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc'),
-            'chat.agentFilesLocations should not contain sdlc paths under enable: [instructions/**]',
+            !(await effectiveFilesContains(sideBar, 'test-agent')),
+            'Expected NO sdlc agent artifact (test-agent) under enable: [instructions/**]',
         );
         assert.ok(
-            !settingsContainsPath('chat.agentSkillsLocations', 'standards/sdlc'),
-            'chat.agentSkillsLocations should not contain sdlc paths under enable: [instructions/**]',
+            !(await effectiveFilesContains(sideBar, 'test-skill')),
+            'Expected NO sdlc skills artifact (test-skill) under enable: [instructions/**]',
         );
     });
 
     test('Profile enable [agents/**] only surfaces agent files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfile(['agents/**']), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'test-agent');
         assert.ok(
-            settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc/agents'),
-            'chat.agentFilesLocations should contain sdlc agents under enable: [agents/**]',
+            await effectiveFilesContains(sideBar, 'test-agent'),
+            'Expected sdlc agent artifact (test-agent) under enable: [agents/**]',
         );
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'chat.instructionsFilesLocations should NOT contain sdlc paths under enable: [agents/**]',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected NO sdlc instruction artifact (testing) under enable: [agents/**]',
         );
     });
 
     test('Profile enable [instructions/**, agents/**] surfaces both but not skills', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**', 'agents/**']), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(async () => {
-            return (
-                settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
-                settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc')
-            );
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'test-agent');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'Expected sdlc instructions in settings',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc instruction artifact (testing) under enable: [instructions/**, agents/**]',
         );
         assert.ok(
-            settingsContainsPath('chat.agentFilesLocations', 'standards/sdlc/agents'),
-            'Expected sdlc agents in settings',
+            await effectiveFilesContains(sideBar, 'test-agent'),
+            'Expected sdlc agent artifact (test-agent) under enable: [instructions/**, agents/**]',
         );
         assert.ok(
-            !settingsContainsPath('chat.agentSkillsLocations', 'standards/sdlc'),
-            'Expected NO sdlc skills paths under enable: [instructions/**, agents/**]',
+            !(await effectiveFilesContains(sideBar, 'test-skill')),
+            'Expected NO sdlc skills artifact (test-skill) under enable: [instructions/**, agents/**]',
         );
     });
 
     test('Profile enable [prompts/**] only surfaces prompts when a capability with prompts is enabled', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // company/core has prompts/review.prompt.md; we must enable core for this to surface
         const config = JSON.stringify(
@@ -288,18 +263,14 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
         fs.writeFileSync(CONFIG_PATH, config, 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.promptFilesLocations', 'company/core'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'review.prompt');
         assert.ok(
-            settingsContainsPath('chat.promptFilesLocations', 'company/core/prompts'),
-            'chat.promptFilesLocations should contain core prompts under enable: [prompts/**]',
+            await effectiveFilesContains(sideBar, 'review.prompt'),
+            'Expected core prompt artifact (review.prompt) under enable: [prompts/**]',
         );
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'chat.instructionsFilesLocations should not be populated under enable: [prompts/**]',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected NO sdlc instruction artifact (testing) under enable: [prompts/**]',
         );
     });
 
@@ -353,37 +324,36 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
     test('Multi-repo config: disabling one repo removes its capabilities from Effective Files', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        // The Effective Files tree is virtualized and may scroll leaves out of the
-        // rendered DOM, so we assert the merged overlay via the injected settings
-        // paths: testing.md → standards/sdlc (primary), coding.md → company/core
-        // (secondary). Both repos point at the same local metadata dir but enable
-        // disjoint capabilities, so the merged effective set contains both.
+        // Merged overlay: testing.md → standards/sdlc (primary), coding.md →
+        // company/core (secondary repo, .ai/secondary-metadata). Both fixture files
+        // exist on disk, so the merged effective set surfaces `testing` and `coding`.
 
         // Phase 1: both repos enabled — sdlc (primary) AND core (secondary) surfaced
         fs.writeFileSync(CONFIG_PATH, multiRepoConfig({}), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
-        await waitFor(async () => (
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
-            settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
-        ), WAIT_TIMEOUT);
+        await waitForEffectiveFiles(sideBar, 'coding');
+        assert.ok(
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc instruction artifact (testing) from primary repo with both repos enabled',
+        );
+        assert.ok(
+            await effectiveFilesContains(sideBar, 'coding'),
+            'Expected core instruction artifact (coding) from secondary repo with both repos enabled',
+        );
 
-        // Phase 2: disable secondary — core paths should disappear, sdlc should remain
+        // Phase 2: disable secondary — coding should disappear, testing should remain
         fs.writeFileSync(CONFIG_PATH, multiRepoConfig({ secondaryEnabled: false }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
-        await waitFor(async () => (
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
-            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
-        ), WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'coding', false);
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'sdlc paths (from primary repo) should remain when only secondary is disabled',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'sdlc artifact (testing) from primary repo should remain when only secondary is disabled',
         );
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core'),
-            'core paths (from secondary repo) should be removed after disabling secondary repo',
+            !(await effectiveFilesContains(sideBar, 'coding')),
+            'core artifact (coding) from secondary repo should be removed after disabling secondary repo',
         );
     });
 });

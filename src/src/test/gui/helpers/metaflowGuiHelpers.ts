@@ -291,8 +291,14 @@ export async function dismissBlockingUi(): Promise<void> {
 export async function openMetaFlowSidebar(): Promise<SideBarView> {
     await dismissModalDialogs();
     await dismissWelcomeOverlay();
-    const activityBar = new ActivityBar();
-    const control = await activityBar.getViewControl('MetaFlow');
+    // On a cold-start host the extension's activity-bar entry only appears once
+    // activation finishes. Poll for it (up to STARTUP_TIMEOUT) so the first
+    // suite in a batch waits for activation instead of asserting on an empty bar.
+    let control: Awaited<ReturnType<ActivityBar['getViewControl']>> | undefined;
+    await waitFor(async () => {
+        control = await new ActivityBar().getViewControl('MetaFlow');
+        return Boolean(control);
+    }, STARTUP_TIMEOUT);
     assert.ok(control, 'MetaFlow activity bar entry not found');
     try {
         return (await control.openView()) as SideBarView;
@@ -418,6 +424,48 @@ export async function sectionContainsText(
     await expandAllItems(section);
     const texts = await getVisibleItemTexts(section);
     return texts.some((t) => t.toLowerCase().includes(textFragment.toLowerCase()));
+}
+
+// ── Effective Files (overlay output) helpers ──────────────────────────────────
+
+/**
+ * Host-independent check for overlay output. The Effective Files tree reflects
+ * the resolved overlay (which artifacts a given config surfaces) regardless of
+ * whether VS Code persisted the derived `chat.*` settings keys — those settings
+ * writes are rejected by the ExTester host's config editing service, so reading
+ * `.vscode/settings.json` is not a usable signal here. The exact settings
+ * key→path mapping is verified host-independently by the engine unit tests
+ * (`computeSettingsEntries`); these GUI checks verify the end-to-end behavior
+ * that a capability/profile change is reflected in the overlay output.
+ *
+ * Re-fetches and re-expands the section each call so it tolerates the
+ * virtualized tree dropping leaves out of the rendered DOM.
+ */
+export async function effectiveFilesContains(
+    sideBar: SideBarView,
+    fileFragment: string,
+): Promise<boolean> {
+    const section = await getSection(sideBar, 'Effective Files');
+    await expandSection(section);
+    return sectionContainsText(section, fileFragment);
+}
+
+/**
+ * Polls until the Effective Files tree contains (or, when `present` is false, no
+ * longer contains) `fileFragment`. Defaults to a doubled wait budget because a
+ * refresh+render of the virtualized tree under host load occasionally exceeds
+ * the 30s default (see harness notes). Throws if the condition is never met.
+ */
+export async function waitForEffectiveFiles(
+    sideBar: SideBarView,
+    fileFragment: string,
+    present = true,
+    timeoutMs = WAIT_TIMEOUT * 2,
+): Promise<void> {
+    await waitFor(
+        async () => (await effectiveFilesContains(sideBar, fileFragment)) === present,
+        timeoutMs,
+    );
 }
 
 // ── Command helpers ───────────────────────────────────────────────────────────

@@ -97,6 +97,20 @@ function syncConfig(): string {
     );
 }
 
+// ── Delivery helper ───────────────────────────────────────────────────────────
+
+// The GUI host runs with metaflow.autoApply:false, so MetaFlow: Refresh recomputes
+// effectiveFiles from disk but does NOT deliver, and a bare Apply right after a
+// config write acts on stale in-memory state (the config watcher suppresses rapid
+// writes during an in-flight Apply). Deliver deterministically: Refresh (recompute
+// from disk) THEN an explicit Apply against that fresh classification.
+async function reapplyFromDisk(): Promise<void> {
+    await sleep(1_000);
+    await new Workbench().executeCommand('MetaFlow: Refresh');
+    await sleep(1_500);
+    await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 suite('Drift Detection in Synchronized Mode', function () {
@@ -146,7 +160,7 @@ suite('Drift Detection in Synchronized Mode', function () {
 
         // Step 1: apply in sync mode so testing.md is written into .github/
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitFor(
             async () => findFirstSdlcInstructionFile() !== undefined,
             WAIT_TIMEOUT,
@@ -181,7 +195,7 @@ suite('Drift Detection in Synchronized Mode', function () {
             '"enabled": true',
         );
         fs.writeFileSync(CONFIG_PATH, configWithBoth, 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(
             async () => {
@@ -268,7 +282,7 @@ suite('Drift Detection in Synchronized Mode', function () {
         this.timeout(WAIT_TIMEOUT + 45_000);
 
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitFor(
             async () => findFirstSdlcInstructionFile() !== undefined,
             WAIT_TIMEOUT,
@@ -282,18 +296,33 @@ suite('Drift Detection in Synchronized Mode', function () {
 
         // Clean — actually confirm the 'Remove' action (dismissing it would abort
         // the command and prove nothing). The engine's clean() then runs and, by
-        // design, SKIPS drifted files to protect manual edits.
+        // design, SKIPS drifted files to protect manual edits. A late auto-apply
+        // toast can stack over the confirmation and intercept the Remove click, so
+        // clear strays and re-issue Clean to get a fresh confirmation on retry.
         const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        const notif = await waitForNotification(
-            workbench,
-            'Remove all synchronized files',
-            INTERACTION_TIMEOUT,
-        );
-        if (notif) {
-            await notif.takeAction('Remove');
-            await sleep(2_500);
+        await sleep(3_000);
+        await dismissAllNotifications(workbench);
+        for (let attempt = 0; attempt < 3; attempt++) {
+            await dismissAllNotifications(workbench);
+            await sleep(500);
+            await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
+            const notif = await waitForNotification(
+                workbench,
+                'Remove all synchronized files',
+                INTERACTION_TIMEOUT,
+            );
+            if (!notif) {
+                break;
+            }
+            try {
+                await sleep(500);
+                await notif.takeAction('Remove');
+                break;
+            } catch {
+                // A stray toast intercepted the click — clear and retry.
+            }
         }
+        await sleep(2_500);
         await dismissAllNotifications(workbench);
         await sleep(1_500);
 
@@ -316,7 +345,7 @@ suite('Drift Detection in Synchronized Mode', function () {
 
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
         const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitFor(
             async () => findFirstSdlcInstructionFile() !== undefined,
             WAIT_TIMEOUT,

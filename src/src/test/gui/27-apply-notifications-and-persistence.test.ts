@@ -112,6 +112,20 @@ function settingsOnlyConfig(): string {
     );
 }
 
+// ── Delivery helper ───────────────────────────────────────────────────────────
+
+// The GUI host runs with metaflow.autoApply:false, so MetaFlow: Refresh recomputes
+// effectiveFiles from disk but does NOT deliver, and a bare Apply right after a
+// config write acts on stale in-memory state (the config watcher suppresses rapid
+// writes during an in-flight Apply). Deliver deterministically: Refresh (recompute
+// from disk) THEN an explicit Apply against that fresh classification.
+async function reapplyFromDisk(): Promise<void> {
+    await sleep(1_000);
+    await new Workbench().executeCommand('MetaFlow: Refresh');
+    await sleep(1_500);
+    await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+}
+
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 suite('Apply Notifications and View-State Persistence', function () {
@@ -162,7 +176,7 @@ suite('Apply Notifications and View-State Persistence', function () {
         await dismissAllNotifications(workbench);
 
         fs.writeFileSync(CONFIG_PATH, syncConfig(), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         // The success notification format is "MetaFlow: Applied N files."
         const notification = await waitForNotification(workbench, 'Applied', INTERACTION_TIMEOUT);
@@ -181,7 +195,7 @@ suite('Apply Notifications and View-State Persistence', function () {
         await dismissAllNotifications(workbench);
 
         fs.writeFileSync(CONFIG_PATH, settingsOnlyConfig(), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         // Give the apply a chance to settle but only briefly — we want to
         // confirm the success toast does NOT appear, so a short wait suffices.
         await sleep(4_000);
@@ -257,17 +271,33 @@ suite('Apply Notifications and View-State Persistence', function () {
         }, WAIT_TIMEOUT);
         const afterToggle = readViewMode('layersViewMode');
 
-        // Clean (may prompt for confirmation; either confirm or accept no-op)
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        const notif = await waitForNotification(
-            workbench,
-            'Remove all synchronized files',
-            INTERACTION_TIMEOUT,
-        );
-        if (notif) {
-            await notif.takeAction('Remove');
-            await sleep(2_500);
+        // Clean (may prompt for confirmation; either confirm or accept no-op). A
+        // late auto-apply toast can stack over the confirmation and intercept the
+        // Remove click, so clear strays and re-issue Clean to get a fresh
+        // confirmation on retry.
+        await sleep(3_000);
+        await dismissAllNotifications(workbench);
+        for (let attempt = 0; attempt < 3; attempt++) {
+            await dismissAllNotifications(workbench);
+            await sleep(500);
+            await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
+            const notif = await waitForNotification(
+                workbench,
+                'Remove all synchronized files',
+                INTERACTION_TIMEOUT,
+            );
+            if (!notif) {
+                break;
+            }
+            try {
+                await sleep(500);
+                await notif.takeAction('Remove');
+                break;
+            } catch {
+                // A stray toast intercepted the click — clear and retry.
+            }
         }
+        await sleep(2_500);
         await dismissAllNotifications(workbench);
         await sleep(1_500);
 

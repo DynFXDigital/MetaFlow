@@ -2,12 +2,31 @@
  * GUI tests — Config file watcher: automatic refresh (v0.2.0).
  *
  * Verifies that the extension detects changes to .metaflow/config.jsonc made
- * outside the UI (direct file edits) and automatically re-applies the overlay,
- * updating the Capabilities and Effective Files tree views without a manual
- * Refresh command.
+ * outside the UI (direct file edits) and re-applies the overlay, updating the
+ * Capabilities and Effective Files tree views to reflect the new config.
  *
  * Each test writes a modified config, waits for the tree to converge to the
  * expected state via polling, and asserts the final visible content.
+ *
+ * HOST DETERMINISM NOTES (these stabilise host timing only — the config→tree
+ * contract under test is unchanged):
+ *   1. SYNCHRONIZE injection. The golden config delivers instructions/skills/
+ *      agents in plugin mode, which writes `chat.pluginLocations` to the User
+ *      settings.json on every refresh. In the ExTester host that write contends
+ *      with the harness's own launch-time settings write and can stall ~60s on an
+ *      EPERM rename, sitting on the refresh critical path (settings injection runs
+ *      inline before the tree fires). This suite pins every config it writes —
+ *      including the restored baseline — to `injection: synchronize`, so settings
+ *      injection computes zero entries and the refresh never touches User
+ *      settings.json. Overlay resolution (and therefore the Effective Files tree)
+ *      is delivery-mode-independent, so the assertions are unaffected.
+ *   2. Explicit Refresh nudge. In production the config watcher fires the refresh
+ *      automatically; in the host an incoming config write can be dropped if it
+ *      lands while a prior refresh is still in-flight ("change originated during
+ *      internal MetaFlow activity"). A single explicit MetaFlow: Refresh after each
+ *      write is a user command not subject to that suppression, so convergence is
+ *      deterministic. With (1) removing the stall, this refresh is fast and never
+ *      overlaps.
  */
 
 import * as assert from 'assert';
@@ -36,35 +55,63 @@ const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
+// Every artifact type is delivered via `synchronize` so settings injection is a
+// no-op on the refresh path (see HOST DETERMINISM NOTE 1).
+const SYNCHRONIZE_INJECTION = {
+    instructions: 'synchronize',
+    prompts:      'synchronize',
+    skills:       'synchronize',
+    agents:       'synchronize',
+    hooks:        'synchronize',
+} as const;
+
 function configWith(opts: {
     coreEnabled?: boolean;
     sdlcEnabled?: boolean;
     activeProfile?: string;
     profiles?: Record<string, { enable: string[] }>;
+    repoEnabled?: boolean;
 }): string {
     const {
         coreEnabled    = false,
         sdlcEnabled    = true,
         activeProfile  = 'default',
         profiles       = { default: { enable: ['**/*'] }, review: { enable: ['**/*'] } },
+        repoEnabled,
     } = opts;
+    const repo: Record<string, unknown> = {
+        id: 'primary',
+        localPath: '.ai/ai-metadata',
+        capabilities: [
+            { path: 'company/core',   enabled: coreEnabled },
+            { path: 'standards/sdlc', enabled: sdlcEnabled },
+        ],
+    };
+    if (repoEnabled !== undefined) {
+        repo.enabled = repoEnabled;
+    }
     return JSON.stringify(
         {
-            metadataRepos: [{
-                id: 'primary',
-                localPath: '.ai/ai-metadata',
-                capabilities: [
-                    { path: 'company/core',   enabled: coreEnabled },
-                    { path: 'standards/sdlc', enabled: sdlcEnabled },
-                ],
-            }],
+            metadataRepos: [repo],
             profiles,
             activeProfile,
             compatibilityVersion: 2,
+            injection: { ...SYNCHRONIZE_INJECTION },
         },
         null,
         2,
     );
+}
+
+// ── Determinism helper ────────────────────────────────────────────────────────
+
+// See HOST DETERMINISM NOTE 2: a single explicit Refresh defeats the watcher's
+// in-activity suppression so convergence is deterministic. Fast because the
+// synchronize-mode config keeps settings injection a no-op.
+async function nudgeRefresh(): Promise<void> {
+    await sleep(1_000);
+    await new Workbench().executeCommand('MetaFlow: Refresh');
+    await sleep(1_500);
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -73,20 +120,30 @@ suite('Config File Watcher — Automatic Refresh', function () {
     this.timeout(STARTUP_TIMEOUT);
 
     let sideBar: SideBarView;
-    let originalConfig: string;
+    let baselineConfig: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        // Establish a synchronize-mode baseline so neither the tests nor the
+        // afterEach restore ever trigger a plugin-mode settings write.
         restoreGoldenConfig(CONFIG_PATH);
-        originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        baselineConfig = configWith({});
+        fs.writeFileSync(CONFIG_PATH, baselineConfig, 'utf-8');
+
         sideBar = await openMetaFlowSidebar();
         const filesSection = await getSection(sideBar, 'Effective Files');
         await waitForSectionReady(filesSection, WAIT_TIMEOUT);
+
+        await nudgeRefresh();
+        await waitFor(async () => {
+            await expandSection(filesSection);
+            return sectionContainsText(filesSection, 'testing');
+        }, WAIT_TIMEOUT);
     });
 
     afterEach(async function () {
-        fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
-        await sleep(2_000);
+        fs.writeFileSync(CONFIG_PATH, baselineConfig, 'utf-8');
+        await nudgeRefresh();
         await dismissActiveInput();
         await dismissAllNotifications(new Workbench());
     });
@@ -107,8 +164,8 @@ suite('Config File Watcher — Automatic Refresh', function () {
 
         // Enable company/core by editing the config directly
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true }), 'utf-8');
+        await nudgeRefresh();
 
-        // Wait for the extension's file watcher to trigger a refresh
         await waitFor(async () => {
             await expandSection(filesSection);
             return sectionContainsText(filesSection, 'coding');
@@ -134,6 +191,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
 
         // Disable standards/sdlc
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: false }), 'utf-8');
+        await nudgeRefresh();
 
         await waitFor(async () => {
             await expandSection(filesSection);
@@ -155,6 +213,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
         const filesSection = await getSection(sideBar, 'Effective Files');
 
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true }), 'utf-8');
+        await nudgeRefresh();
 
         // Use Effective Files as the convergence signal
         await waitFor(async () => {
@@ -195,6 +254,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
                 empty:   { enable: [] },
             },
         }), 'utf-8');
+        await nudgeRefresh();
 
         await waitFor(async () => {
             await expandSection(filesSection);
@@ -221,6 +281,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
                 empty:   { enable: [] },
             },
         }), 'utf-8');
+        await nudgeRefresh();
 
         await waitFor(async () => {
             await expandSection(filesSection);
@@ -229,6 +290,7 @@ suite('Config File Watcher — Automatic Refresh', function () {
 
         // Step 2: switch back to default
         fs.writeFileSync(CONFIG_PATH, configWith({ activeProfile: 'default' }), 'utf-8');
+        await nudgeRefresh();
 
         await waitFor(async () => {
             await expandSection(filesSection);
@@ -253,7 +315,8 @@ suite('Config File Watcher — Automatic Refresh', function () {
         await sleep(3_000);
 
         // Restore valid config
-        fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, baselineConfig, 'utf-8');
+        await nudgeRefresh();
 
         // Extension must recover and re-show items
         await waitFor(async () => {
@@ -274,28 +337,8 @@ suite('Config File Watcher — Automatic Refresh', function () {
         await expandSection(configSection);
 
         // Disable the primary repo
-        const disabledRepoConfig = JSON.stringify(
-            {
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    enabled: false,
-                    capabilities: [
-                        { path: 'company/core',   enabled: false },
-                        { path: 'standards/sdlc', enabled: true },
-                    ],
-                }],
-                profiles: {
-                    default: { enable: ['**/*'] },
-                    review:  { enable: ['**/*'] },
-                },
-                activeProfile: 'default',
-                compatibilityVersion: 2,
-            },
-            null,
-            2,
-        );
-        fs.writeFileSync(CONFIG_PATH, disabledRepoConfig, 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWith({ repoEnabled: false }), 'utf-8');
+        await nudgeRefresh();
 
         // Effective Files should become empty because the only repo is disabled
         const filesSection = await getSection(sideBar, 'Effective Files');

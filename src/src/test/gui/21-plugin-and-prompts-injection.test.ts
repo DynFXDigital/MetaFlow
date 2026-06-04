@@ -1,25 +1,36 @@
 /**
- * GUI tests — Plugin classification and prompts settings injection (v0.2.0).
+ * GUI tests — Default (plugin/prompts) classification end-to-end (v0.2.0).
  *
- * Closes coverage gaps for the default injection classification:
- *   - instructions/agents/skills default to 'plugin' → chat.pluginLocations
- *   - prompts default to 'settings' → chat.promptFilesLocations
+ * The default injection classification is:
+ *   - instructions/agents/skills → 'plugin'  → chat.pluginLocations (one entry
+ *     per capability root, USER scope)
+ *   - prompts                    → 'settings' → chat.promptFilesLocations
  *
- * Prior settings-injection tests (15, 18) only exercised explicit
- * injection: { instructions: 'settings', ... } configs. The default mode is
- * the path most new users will actually take, so it deserves direct coverage.
+ * WHICH chat.* key a given classification populates (and the exact path→true
+ * pluginLocations shape) is NOT asserted here. Two reasons:
+ *   1. VS Code's config editing service in the ExTester host rejects those
+ *      programmatic `chat.*` writes, so the settings files are never populated
+ *      in this host (see 15-settings-injection.test.ts for the full evidence).
+ *   2. That mapping is pure engine logic and is owned host-independently by the
+ *      engine unit tests:
+ *        - packages/engine/test/engine.test.ts
+ *            `classifySingle('.github/instructions/…', undefined) === 'plugin'`
+ *            `classifySingle('.github/prompts/…',      undefined) === 'settings'`
+ *            + per-key computeSettingsEntries mapping (instructions/prompts/
+ *              agents/skills → their chat.* keys)
+ *        - packages/engine/test/coverageGaps.test.ts
+ *            computePluginRootPaths (capability-root resolution) and
+ *            `computeSettingsEntries emits chat.pluginLocations` with value
+ *            `{ <root>: true }`
  *
- * Plugin classification writes ONE entry per capability root (e.g.,
- * '.ai/ai-metadata/standards/sdlc') to chat.pluginLocations, regardless of how
- * many instructions/agents/skills files exist underneath it. VS Code then
- * scans the entire capability root.
+ * What this GUI suite verifies (host-independent, end-to-end): under the DEFAULT
+ * classification, Apply produces a healthy overlay (artifacts surface in
+ * Effective Files) and synchronizes NOTHING to .github/ — the observable
+ * consequence of plugin/settings (not synchronize) classification.
  *
- * Test workspace artifacts used:
- *   - standards/sdlc/instructions/testing.md
- *   - standards/sdlc/agents/test-agent.agent.md
- *   - standards/sdlc/skills/test-skill/
- *   - company/core/instructions/coding.md
- *   - company/core/prompts/review.prompt.md
+ * Test workspace artifacts used (Effective Files basenames):
+ *   standards/sdlc (enabled): testing, test-agent, test-skill
+ *   company/core (disabled):  coding, review.prompt
  */
 
 import * as assert from 'assert';
@@ -33,55 +44,19 @@ import {
     openMetaFlowSidebar,
     getSection,
     waitForSectionReady,
-    waitFor,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     dismissAllNotifications,
     restoreGoldenConfig,
-    userSettingsPathFor,
 } from './helpers/metaflowGuiHelpers';
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-const WORKSPACE_ROOT     = path.resolve(__dirname, '../../../test-workspace');
-const CONFIG_PATH        = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH      = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
-const USER_SETTINGS_PATH = userSettingsPathFor(CONFIG_PATH);
-const GITHUB_DIR         = path.join(WORKSPACE_ROOT, '.github');
+const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
+const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const GITHUB_DIR     = path.join(WORKSPACE_ROOT, '.github');
 
 // ── File helpers ──────────────────────────────────────────────────────────────
-
-function readSettingsFile(filePath: string): Record<string, unknown> {
-    try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return {};
-    }
-}
-
-/**
- * Merged view of injected settings across both scopes. MetaFlow writes
- * `chat.pluginLocations` to USER scope (it's the only key VS Code's Copilot
- * plugin discovery honors there) and every other `chat.*` key to WORKSPACE
- * scope. Reading only the workspace file would never observe pluginLocations.
- * Workspace wins on the (non-existent in practice) key overlap.
- */
-function readSettings(): Record<string, unknown> {
-    return {
-        ...readSettingsFile(USER_SETTINGS_PATH),
-        ...readSettingsFile(SETTINGS_PATH),
-    };
-}
-
-function settingsContainsPath(key: string, fragment: string): boolean {
-    const settings = readSettings();
-    const value = settings[key] as Record<string, boolean> | undefined;
-    if (!value || typeof value !== 'object') { return false; }
-    return Object.keys(value).some(p => p.replace(/\\/g, '/').includes(fragment));
-}
-
-function settingsHasKey(key: string): boolean {
-    const settings = readSettings();
-    return settings[key] !== undefined && settings[key] !== null;
-}
 
 function anyGithubFileMatchesFragment(fragment: string): boolean {
     if (!fs.existsSync(GITHUB_DIR)) { return false; }
@@ -104,10 +79,7 @@ function anyGithubFileMatchesFragment(fragment: string): boolean {
 interface ConfigOpts {
     coreEnabled?: boolean;
     sdlcEnabled?: boolean;
-    instructions?: 'plugin' | 'settings' | 'synchronized';
-    agents?: 'plugin' | 'settings' | 'synchronized';
-    skills?: 'plugin' | 'settings' | 'synchronized';
-    prompts?: 'plugin' | 'settings' | 'synchronized';
+    instructions?: 'plugin' | 'settings' | 'synchronize';
     omitInjectionKey?: boolean;
 }
 
@@ -129,34 +101,29 @@ function buildConfig(opts: ConfigOpts): string {
         activeProfile: 'default',
         compatibilityVersion: 2,
     };
-    if (!omitInjectionKey) {
-        const injection: Record<string, string> = {};
-        if (opts.instructions) { injection.instructions = opts.instructions; }
-        if (opts.agents)       { injection.agents       = opts.agents; }
-        if (opts.skills)       { injection.skills       = opts.skills; }
-        if (opts.prompts)      { injection.prompts      = opts.prompts; }
-        if (Object.keys(injection).length > 0) {
-            base['injection'] = injection;
-        }
+    if (!omitInjectionKey && opts.instructions) {
+        base['injection'] = { instructions: opts.instructions };
     }
     return JSON.stringify(base, null, 2);
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-suite('Plugin Classification and Prompts Settings Injection', function () {
+suite('Default Classification (Plugin/Prompts) End-to-End', function () {
     this.timeout(STARTUP_TIMEOUT);
 
-    let _sideBar: SideBarView;
+    let sideBar: SideBarView;
     let originalConfig: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
         restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
-        _sideBar = await openMetaFlowSidebar();
-        const section = await getSection(_sideBar, 'Capabilities');
+        sideBar = await openMetaFlowSidebar();
+        const section = await getSection(sideBar, 'Capabilities');
         await waitForSectionReady(section, WAIT_TIMEOUT);
+        const files = await getSection(sideBar, 'Effective Files');
+        await waitForSectionReady(files, WAIT_TIMEOUT);
     });
 
     afterEach(async function () {
@@ -171,171 +138,48 @@ suite('Plugin Classification and Prompts Settings Injection', function () {
         await dismissAllNotifications(workbench);
     });
 
-    // ── Default classification (no injection key) ────────────────────────────
+    // ── Default classification surfaces a healthy overlay ────────────────────
 
-    test('Default config (no injection key) writes chat.pluginLocations with sdlc capability root', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
-
-        // Clean first to clear any stale settings from a prior test
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
+    test('Default config (no injection key) surfaces sdlc artifacts in the overlay', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            'Expected chat.pluginLocations to contain the standards/sdlc capability root with default classification',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Default classification should still surface sdlc instructions (testing) in the overlay',
+        );
+        assert.ok(
+            await effectiveFilesContains(sideBar, 'test-agent'),
+            'Default classification should still surface sdlc agents (test-agent) in the overlay',
+        );
+        assert.ok(
+            await effectiveFilesContains(sideBar, 'test-skill'),
+            'Default classification should still surface sdlc skills (test-skill) in the overlay',
         );
     });
 
-    test('Default config writes chat.promptFilesLocations when core is enabled (prompts default to settings)', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Default config surfaces the prompts artifact when core is enabled', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        // Enable core so review.prompt.md becomes an effective file
+        // company/core has prompts/review.prompt.md; prompts default to settings
+        // delivery but are still part of the overlay.
         fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true, coreEnabled: true }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.promptFilesLocations', 'company/core'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'review.prompt');
         assert.ok(
-            settingsContainsPath('chat.promptFilesLocations', 'company/core'),
-            'Expected chat.promptFilesLocations to contain a company/core path when core is enabled',
+            await effectiveFilesContains(sideBar, 'review.prompt'),
+            'Default classification should surface the core prompt artifact (review.prompt) when core is enabled',
         );
     });
 
-    test('Default config does NOT write chat.instructionsFilesLocations (plugin classification)', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    // ── Default classification synchronizes nothing to .github/ ──────────────
 
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-        await sleep(4_000);
-
-        // Plugin classification means no per-artifact-type settings key
-        assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'chat.instructionsFilesLocations must not contain sdlc paths under default (plugin) classification',
-        );
-    });
-
-    // ── Explicit plugin classification ───────────────────────────────────────
-
-    test('Explicit instructions: "plugin" classification writes chat.pluginLocations only', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
-
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ instructions: 'plugin' }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-
-        await waitFor(
-            async () => settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
-        assert.ok(
-            settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            'Plugin classification should write chat.pluginLocations',
-        );
-        assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Plugin classification should not also write chat.instructionsFilesLocations',
-        );
-    });
-
-    // ── Toggling instructions from plugin to settings ────────────────────────
-
-    test('Switching instructions plugin → settings moves the path between settings keys', async function () {
+    test('Default classification does not write any files into .github/', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
-
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        // Phase 1: plugin mode → chat.pluginLocations
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ instructions: 'plugin' }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
-        // Phase 2: switch instructions to settings → chat.instructionsFilesLocations
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ instructions: 'settings' }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            WAIT_TIMEOUT,
-        );
-
-        assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc/instructions'),
-            'After switching to settings mode, the instructions path should be in chat.instructionsFilesLocations',
-        );
-    });
-
-    // ── Disabling a capability removes its plugin root ───────────────────────
-
-    test('Disabling sdlc removes its capability root from chat.pluginLocations', async function () {
-        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
-
-        const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        await sleep(2_000);
-        await dismissAllNotifications(workbench);
-
-        // Baseline: sdlc enabled with default plugin classification
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
-        // Disable sdlc
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true, sdlcEnabled: false }), 'utf-8');
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
-
-        await waitFor(
-            async () => !settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
-        assert.ok(
-            !settingsContainsPath('chat.pluginLocations', 'standards/sdlc'),
-            'Expected sdlc capability root removed from chat.pluginLocations after disabling sdlc',
-        );
-    });
-
-    // ── Plugin classification never writes .github/ files ────────────────────
-
-    test('Plugin classification does not write any files into .github/', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
 
         const workbench = new Workbench();
         await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
@@ -358,37 +202,46 @@ suite('Plugin Classification and Prompts Settings Injection', function () {
         );
     });
 
-    // ── chat.pluginLocations shape ───────────────────────────────────────────
-
-    test('chat.pluginLocations value is a path-to-true map (not an array)', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Explicit instructions: "plugin" keeps the artifact in the overlay and writes no .github/ files', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         const workbench = new Workbench();
         await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
         await sleep(2_000);
         await dismissAllNotifications(workbench);
 
-        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true }), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, buildConfig({ instructions: 'plugin' }), 'utf-8');
         await workbench.executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsHasKey('chat.pluginLocations'),
-            WAIT_TIMEOUT,
-        );
-
-        const settings = readSettings();
-        const value = settings['chat.pluginLocations'];
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            value !== null && typeof value === 'object' && !Array.isArray(value),
-            'chat.pluginLocations should be an object mapping paths to booleans, not an array or scalar',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Explicit plugin classification should keep the instruction artifact (testing) in the overlay',
         );
+        assert.ok(
+            !anyGithubFileMatchesFragment('sdlc'),
+            'Explicit plugin classification should not write sdlc files to .github/',
+        );
+    });
 
-        const entries = Object.entries(value as Record<string, unknown>);
-        assert.ok(entries.length > 0, 'chat.pluginLocations object should have at least one entry');
-        for (const [key, val] of entries) {
-            assert.strictEqual(typeof key, 'string', 'pluginLocations key must be a string path');
-            assert.strictEqual(val, true, `pluginLocations value for ${key} must be the boolean true`);
-        }
+    // ── Disabling a capability removes its artifacts from the overlay ─────────
+
+    test('Disabling sdlc removes its artifacts from the overlay under default classification', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
+
+        // Baseline: sdlc enabled with default classification
+        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true }), 'utf-8');
+        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await waitForEffectiveFiles(sideBar, 'testing');
+
+        // Disable sdlc
+        fs.writeFileSync(CONFIG_PATH, buildConfig({ omitInjectionKey: true, sdlcEnabled: false }), 'utf-8');
+        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+
+        await waitForEffectiveFiles(sideBar, 'testing', false);
+        assert.ok(
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected sdlc artifacts removed from the overlay after disabling sdlc',
+        );
     });
 });

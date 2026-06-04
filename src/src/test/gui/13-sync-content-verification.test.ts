@@ -92,6 +92,25 @@ function cleanSyncedFiles(): void {
 }
 
 /**
+ * Deterministically deliver a just-written config.jsonc in the ExTester host.
+ *
+ * The GUI test settings set `metaflow.autoApply: false`
+ * (.vscode-test-gui-settings.json), so Refresh recomputes the overlay from disk
+ * but does NOT auto-apply; and the config watcher suppresses rapid writes that
+ * land while a prior Apply is still settling (extension.ts isApplying /
+ * suppressConfigWatcherUntil), so a bare Apply can act on the stale prior mode.
+ * Refresh re-reads config.jsonc straight from disk (immune to the watcher and to
+ * autoApply); the explicit Apply then runs the synchronizer against that fresh
+ * classification.
+ */
+async function reapplyFromDisk(): Promise<void> {
+    await sleep(1_000);
+    await new Workbench().executeCommand('MetaFlow: Refresh');
+    await sleep(1_500);
+    await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+}
+
+/**
  * Builds a config JSONC that sets all artifact types to 'synchronize' mode.
  * `coreEnabled` and `sdlcEnabled` control per-capability enabled state.
  */
@@ -143,12 +162,13 @@ suite('Synchronized Output Content Verification', function () {
     });
 
     afterEach(async function () {
-        // Restore settings mode so the synchronizer removes its previously written files.
+        // Restore golden (settings) config, then Refresh+Apply so the synchronizer
+        // prunes against the restored classification rather than the test's stale
+        // synchronize state (autoApply is off, so a bare Apply would not pick up the
+        // restored config). Belt-and-suspenders: directly remove any remaining files.
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
-        await sleep(1_500);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await sleep(3_000);
-        // Belt-and-suspenders: directly remove any remaining synced files.
+        await reapplyFromDisk();
+        await sleep(2_000);
         cleanSyncedFiles();
         await dismissAllNotifications(new Workbench());
         await sleep(500);
@@ -157,14 +177,13 @@ suite('Synchronized Output Content Verification', function () {
     // ── Apply writes the right files ──────────────────────────────────────────
 
     test('Apply writes files from the enabled capability to .github/', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         const uniqueLine = fs.readFileSync(SOURCE_TESTING_MD, 'utf-8')
             .split('\n').find(l => l.trim().length > 0) ?? '';
 
         fs.writeFileSync(CONFIG_PATH, syncModeConfig(), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length > 0, WAIT_TIMEOUT);
 
@@ -175,14 +194,13 @@ suite('Synchronized Output Content Verification', function () {
     });
 
     test('Apply writes no files from a disabled capability', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         const uniqueLine = fs.readFileSync(SOURCE_CODING_MD, 'utf-8')
             .split('\n').find(l => l.trim().length > 0) ?? '';
 
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ coreEnabled: false }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await sleep(4_000);
 
         assert.ok(
@@ -192,7 +210,7 @@ suite('Synchronized Output Content Verification', function () {
     });
 
     test('Both enabled capabilities each contribute files when both are on', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         const testingLine = fs.readFileSync(SOURCE_TESTING_MD, 'utf-8')
             .split('\n').find(l => l.trim().length > 0) ?? '';
@@ -200,8 +218,7 @@ suite('Synchronized Output Content Verification', function () {
             .split('\n').find(l => l.trim().length > 0) ?? '';
 
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ coreEnabled: true, sdlcEnabled: true }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length >= 2, WAIT_TIMEOUT);
 
@@ -213,15 +230,14 @@ suite('Synchronized Output Content Verification', function () {
     // ── Toggle changes output ─────────────────────────────────────────────────
 
     test('Enabling a disabled capability adds its content to synced output', async function () {
-        this.timeout(WAIT_TIMEOUT * 2 + 15_000);
+        this.timeout(WAIT_TIMEOUT * 3 + 20_000);
 
         const codingLine = fs.readFileSync(SOURCE_CODING_MD, 'utf-8')
             .split('\n').find(l => l.trim().length > 0) ?? '';
 
         // First pass: core disabled
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ coreEnabled: false }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await sleep(4_000);
 
         assert.ok(
@@ -231,8 +247,7 @@ suite('Synchronized Output Content Verification', function () {
 
         // Second pass: enable core
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ coreEnabled: true }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await sleep(4_000);
 
         assert.ok(
@@ -242,21 +257,19 @@ suite('Synchronized Output Content Verification', function () {
     });
 
     test('Disabling an enabled capability removes its content from synced output', async function () {
-        this.timeout(WAIT_TIMEOUT * 2 + 15_000);
+        this.timeout(WAIT_TIMEOUT * 3 + 20_000);
 
         const testingLine = fs.readFileSync(SOURCE_TESTING_MD, 'utf-8')
             .split('\n').find(l => l.trim().length > 0) ?? '';
 
         // First pass: sdlc enabled
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ sdlcEnabled: true }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitFor(async () => anyFileContains(findMetaFlowSyncedFiles(GITHUB_DIR), testingLine), WAIT_TIMEOUT);
 
         // Second pass: disable sdlc
         fs.writeFileSync(CONFIG_PATH, syncModeConfig({ sdlcEnabled: false }), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await sleep(4_000);
 
         assert.ok(
@@ -268,11 +281,10 @@ suite('Synchronized Output Content Verification', function () {
     // ── Provenance headers ────────────────────────────────────────────────────
 
     test('Every synchronized file carries a MetaFlow provenance header', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, syncModeConfig(), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length > 0, WAIT_TIMEOUT);
 
@@ -291,13 +303,12 @@ suite('Synchronized Output Content Verification', function () {
     });
 
     test('Synchronized files contain the original source content after the provenance header', async function () {
-        this.timeout(WAIT_TIMEOUT + 15_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         const testingContent = fs.readFileSync(SOURCE_TESTING_MD, 'utf-8').trim();
 
         fs.writeFileSync(CONFIG_PATH, syncModeConfig(), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length > 0, WAIT_TIMEOUT);
 
@@ -310,12 +321,11 @@ suite('Synchronized Output Content Verification', function () {
     // ── Clean removes synced files ────────────────────────────────────────────
 
     test('Applying with no synchronized capabilities removes previously written files', async function () {
-        this.timeout(WAIT_TIMEOUT * 2 + 15_000);
+        this.timeout(WAIT_TIMEOUT * 3 + 20_000);
 
         // Write files
         fs.writeFileSync(CONFIG_PATH, syncModeConfig(), 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length > 0, WAIT_TIMEOUT);
 
         const filesBeforeCount = findMetaFlowSyncedFiles(GITHUB_DIR).length;
@@ -326,8 +336,7 @@ suite('Synchronized Output Content Verification', function () {
         // config-change watcher has fired; give it the same settle window the other tests use,
         // then poll for removal rather than asserting on a fixed sleep.
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
-        await sleep(2_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitFor(async () => findMetaFlowSyncedFiles(GITHUB_DIR).length === 0, WAIT_TIMEOUT);
 

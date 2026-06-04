@@ -3,14 +3,22 @@
  *
  * Verifies that the active profile's enable patterns correctly narrow the
  * set of files surfaced by Apply Overlay, and that switching between
- * profiles updates both the Effective Files tree and the injected settings.
+ * profiles updates the Effective Files tree accordingly.
  *
  * Profile filtering acts on the resolved effective file set: a profile with
  * enable: ['instructions/**'] shows only instruction artifacts; a profile with
  * enable: ['**\/*'] shows all artifacts; a profile with enable: [] shows none.
  *
- * All tests use explicit injection: { instructions: 'settings', ... } so
- * the settings keys reflect what the profile exposes.
+ * Signal: the Effective Files tree (host-independent). The derived `chat.*`
+ * settings keys are NOT asserted here because VS Code's config editing service
+ * in the ExTester host rejects those programmatic writes (see
+ * 15-settings-injection.test.ts for the full explanation); the exact settings
+ * key→path mapping is verified by the engine unit tests for
+ * `computeSettingsEntries`.
+ *
+ * Fixture artifacts (Effective Files basenames):
+ *   standards/sdlc (enabled by default): testing, test-agent, test-skill
+ *   company/core   (disabled by default): coding, review.prompt
  */
 
 import * as assert from 'assert';
@@ -23,10 +31,9 @@ import {
     sleep,
     openMetaFlowSidebar,
     getSection,
-    expandSection,
     waitForSectionReady,
-    sectionContainsText,
-    waitFor,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     dismissAllNotifications,
     restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
@@ -35,29 +42,6 @@ import {
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
-const SETTINGS_PATH  = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
-
-// ── File helpers ──────────────────────────────────────────────────────────────
-
-function readSettings(): Record<string, unknown> {
-    try {
-        return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8')) as Record<string, unknown>;
-    } catch {
-        return {};
-    }
-}
-
-function settingsContainsPath(key: string, fragment: string): boolean {
-    const settings = readSettings();
-    const value = settings[key] as Record<string, boolean> | undefined;
-    if (!value || typeof value !== 'object') { return false; }
-    return Object.keys(value).some(p => p.replace(/\\/g, '/').includes(fragment));
-}
-
-function settingsHasKey(key: string): boolean {
-    const settings = readSettings();
-    return settings[key] !== undefined && settings[key] !== null;
-}
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
@@ -121,7 +105,7 @@ suite('Profile-Based Overlay Filtering', function () {
     // ── All-files profile ─────────────────────────────────────────────────────
 
     test('"default" profile with enable [**/*] surfaces all sdlc files in Effective Files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'default',
@@ -129,14 +113,9 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
+            await effectiveFilesContains(sideBar, 'testing'),
             'Expected testing.md from sdlc in Effective Files with all-files profile',
         );
     });
@@ -144,7 +123,7 @@ suite('Profile-Based Overlay Filtering', function () {
     // ── Empty-enable profile ──────────────────────────────────────────────────
 
     test('"empty" profile with enable [] shows no files in Effective Files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'empty',
@@ -155,20 +134,15 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return !(await sectionContainsText(filesSection, 'testing'));
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
-            !(await sectionContainsText(filesSection, 'testing')),
+            !(await effectiveFilesContains(sideBar, 'testing')),
             'Expected Effective Files to be empty when active profile has enable: []',
         );
     });
 
-    test('"empty" profile does not write settings keys when no files are enabled', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('"empty" profile surfaces no artifacts of any type', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'empty',
@@ -179,25 +153,23 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(async () => {
-            return (
-                !settingsHasKey('chat.instructionsFilesLocations') ||
-                !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc')
-            );
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected no sdlc settings paths when empty profile is active',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected no sdlc instruction artifact (testing) when empty profile is active',
+        );
+        assert.ok(
+            !(await effectiveFilesContains(sideBar, 'test-agent')),
+            'Expected no sdlc agent artifact (test-agent) when empty profile is active',
         );
     });
 
-    // ── Profile switch updates settings ───────────────────────────────────────
+    // ── Profile switch updates the overlay ────────────────────────────────────
 
-    test('Switching from "default" to "empty" profile removes settings paths after Apply', async function () {
+    test('Switching from "default" to "empty" profile removes files after Apply', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        // Start: default profile — settings should have sdlc paths
+        // Start: default profile — sdlc artifacts present
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'default',
             profiles: {
@@ -206,10 +178,7 @@ suite('Profile-Based Overlay Filtering', function () {
             },
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing');
 
         // Switch to empty profile
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
@@ -221,18 +190,14 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc settings paths removed after switching to empty profile',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'Expected sdlc artifacts removed after switching to empty profile',
         );
     });
 
-    test('Switching from "empty" back to "default" restores settings paths after Apply', async function () {
+    test('Switching from "empty" back to "default" restores files after Apply', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         // Step 1: empty profile
@@ -244,10 +209,7 @@ suite('Profile-Based Overlay Filtering', function () {
             },
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await waitFor(
-            async () => !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
+        await waitForEffectiveFiles(sideBar, 'testing', false);
 
         // Step 2: switch back to default
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
@@ -259,21 +221,17 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc settings paths to reappear after switching back to default profile',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc artifacts to reappear after switching back to default profile',
         );
     });
 
     // ── "review" profile ──────────────────────────────────────────────────────
 
     test('"review" profile with enable [**/*] also surfaces sdlc files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'review',
@@ -284,21 +242,17 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc paths in settings when "review" profile is active (enable: [**/*])',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc files when "review" profile is active (enable: [**/*])',
         );
     });
 
     // ── Both capabilities + profile ───────────────────────────────────────────
 
-    test('Both capabilities enabled + default profile → all paths in settings', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Both capabilities enabled + default profile → all files in overlay', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'default',
@@ -308,25 +262,19 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(async () => {
-            return (
-                settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
-                settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
-            );
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'coding');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc paths in settings (both capabilities enabled, default profile)',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc files (testing) in overlay (both capabilities enabled, default profile)',
         );
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'company/core'),
-            'Expected core paths in settings (both capabilities enabled, default profile)',
+            await effectiveFilesContains(sideBar, 'coding'),
+            'Expected core files (coding) in overlay (both capabilities enabled, default profile)',
         );
     });
 
-    test('Both capabilities enabled + empty profile → no paths in settings', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+    test('Both capabilities enabled + empty profile → no files in overlay', async function () {
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'empty',
@@ -339,20 +287,14 @@ suite('Profile-Based Overlay Filtering', function () {
         }), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitFor(async () => {
-            return (
-                !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc') &&
-                !settingsContainsPath('chat.instructionsFilesLocations', 'company/core')
-            );
-        }, WAIT_TIMEOUT);
-
+        await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'No sdlc paths expected in settings with empty profile even when sdlc is enabled',
+            !(await effectiveFilesContains(sideBar, 'testing')),
+            'No sdlc files expected with empty profile even when sdlc is enabled',
         );
         assert.ok(
-            !settingsContainsPath('chat.instructionsFilesLocations', 'company/core'),
-            'No core paths expected in settings with empty profile even when core is enabled',
+            !(await effectiveFilesContains(sideBar, 'coding')),
+            'No core files expected with empty profile even when core is enabled',
         );
     });
 
@@ -376,7 +318,7 @@ suite('Profile-Based Overlay Filtering', function () {
     });
 
     test('Profile with non-existent activeProfile falls back to surfacing all files', async function () {
-        this.timeout(WAIT_TIMEOUT + 20_000);
+        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWithProfiles({
             activeProfile: 'ghost-profile',
@@ -387,18 +329,12 @@ suite('Profile-Based Overlay Filtering', function () {
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
         // With an unknown activeProfile, the engine emits an ACTIVE_PROFILE_NOT_FOUND
-        // warning and surfaces all files without profile filtering. The injected
-        // settings paths are the deterministic signal for that fallback — the
-        // Effective Files tree is virtualized and may scroll its leaves out of the
-        // rendered DOM, so we assert on settings rather than tree text.
-        await waitFor(
-            async () => settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            WAIT_TIMEOUT,
-        );
-
+        // warning and surfaces all files without profile filtering. The Effective
+        // Files tree is the host-independent signal for that fallback.
+        await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(
-            settingsContainsPath('chat.instructionsFilesLocations', 'standards/sdlc'),
-            'Expected sdlc instruction paths surfaced as fallback when activeProfile does not exist',
+            await effectiveFilesContains(sideBar, 'testing'),
+            'Expected sdlc instruction artifact (testing) surfaced as fallback when activeProfile does not exist',
         );
     });
 });
