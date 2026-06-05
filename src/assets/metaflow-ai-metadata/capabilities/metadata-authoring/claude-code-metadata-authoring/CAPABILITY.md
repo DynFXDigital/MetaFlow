@@ -1,4 +1,5 @@
 ---
+uid: 5b3bbb8c-6715-498b-8ed8-f905dd82735c
 name: Claude Code Metadata Authoring
 description: Standards and workflows support authoring, reviewing, and maintaining Claude Code metadata constructs.
 license: SEE-LICENSE-IN-REPO

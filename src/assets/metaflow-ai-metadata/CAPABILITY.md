@@ -1,4 +1,5 @@
 ---
+uid: d7da7ee3-4ccf-42e8-a23f-c61e321ec612
 name: MetaFlow
 description: MetaFlow construct guidance, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
 license: MIT

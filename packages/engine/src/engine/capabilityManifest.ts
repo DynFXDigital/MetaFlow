@@ -3,7 +3,7 @@
  *
  * CAPABILITY.md frontmatter contract (MVP):
  * - required: name, description
- * - optional: license, experimental, agentPlugin
+ * - optional: uid, previousIds, previousPaths, license, experimental, agentPlugin
  *
  * Unknown fields are allowed with warnings for forward compatibility.
  */
@@ -20,9 +20,21 @@ import {
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
 const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
-const KNOWN_FIELDS = new Set(['name', 'description', 'license', 'experimental', 'agentPlugin']);
+const KNOWN_FIELDS = new Set([
+    'uid',
+    'previousIds',
+    'previousPaths',
+    'name',
+    'description',
+    'license',
+    'experimental',
+    'agentPlugin',
+]);
 
 type ManifestFields = {
+    uid?: string;
+    previousIds?: string;
+    previousPaths?: string;
     name?: string;
     description?: string;
     license?: string;
@@ -42,6 +54,22 @@ function parseBooleanField(value: string | undefined): boolean | undefined {
         return false;
     }
     return undefined;
+}
+
+function parseStringListField(value: string | undefined): string[] | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    const listBody =
+        trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+    const entries = listBody
+        .split(',')
+        .map((entry) => stripQuotes(entry).trim())
+        .filter((entry) => entry.length > 0);
+
+    return entries.length > 0 ? entries : undefined;
 }
 
 interface ParseFrontmatterResult {
@@ -244,6 +272,31 @@ function isLikelySpdxExpression(value: string): boolean {
 function isLikelyVersionRange(value: string): boolean {
     const trimmed = value.trim();
     return trimmed.length > 0 && /\d/.test(trimmed) && /^[0-9A-Za-z*.+\-<>=~^|\s]+$/.test(trimmed);
+}
+
+function isValidCapabilityUid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value.trim(),
+    );
+}
+
+function validateOptionalStringListField(
+    value: string | undefined,
+    fieldName: string,
+    code: string,
+    filePath?: string,
+): CapabilityWarning[] {
+    if (value === undefined || parseStringListField(value)) {
+        return [];
+    }
+
+    return [
+        toWarning(
+            code,
+            `CAPABILITY.md "${fieldName}" should be a non-empty string or comma-separated list when present.`,
+            filePath,
+        ),
+    ];
 }
 
 function isValidPluginName(value: string): boolean {
@@ -488,6 +541,31 @@ function loadAgentPluginManifestForLayer(layerPath: string): {
 function validateManifestFields(fields: ManifestFields, filePath?: string): CapabilityWarning[] {
     const warnings: CapabilityWarning[] = [];
 
+    if (fields.uid !== undefined && !isValidCapabilityUid(fields.uid)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_UID_INVALID',
+                'CAPABILITY.md "uid" should be an RFC 4122 UUID such as 123e4567-e89b-12d3-a456-426614174000.',
+                filePath,
+            ),
+        );
+    }
+
+    warnings.push(
+        ...validateOptionalStringListField(
+            fields.previousIds,
+            'previousIds',
+            'CAPABILITY_PREVIOUS_IDS_INVALID',
+            filePath,
+        ),
+        ...validateOptionalStringListField(
+            fields.previousPaths,
+            'previousPaths',
+            'CAPABILITY_PREVIOUS_PATHS_INVALID',
+            filePath,
+        ),
+    );
+
     if (!fields.name || fields.name.trim().length === 0) {
         warnings.push(
             toWarning(
@@ -572,6 +650,9 @@ export function parseCapabilityManifestContent(
     }
 
     const fields: ManifestFields = {
+        uid: parsed.fields.uid,
+        previousIds: parsed.fields.previousIds,
+        previousPaths: parsed.fields.previousPaths,
         name: parsed.fields.name,
         description: parsed.fields.description,
         license: parsed.fields.license,
@@ -583,6 +664,9 @@ export function parseCapabilityManifestContent(
 
     return {
         id: capabilityId,
+        uid: fields.uid?.trim() || undefined,
+        previousIds: parseStringListField(fields.previousIds),
+        previousPaths: parseStringListField(fields.previousPaths),
         manifestPath,
         name: fields.name?.trim() || undefined,
         description: fields.description?.trim() || undefined,
@@ -631,6 +715,46 @@ export function loadCapabilityManifestForLayer(
     }
 
     return manifest;
+}
+
+export function collectDuplicateCapabilityUidWarnings(
+    capabilities: CapabilityMetadata[],
+): CapabilityWarning[] {
+    const byUid = new Map<string, CapabilityMetadata[]>();
+    for (const capability of capabilities) {
+        const uid = capability.uid?.trim().toLowerCase();
+        if (!uid) {
+            continue;
+        }
+
+        const entries = byUid.get(uid) ?? [];
+        entries.push(capability);
+        byUid.set(uid, entries);
+    }
+
+    const warnings: CapabilityWarning[] = [];
+    for (const [uid, entries] of byUid) {
+        if (entries.length < 2) {
+            continue;
+        }
+
+        const locations = entries
+            .map((entry) => entry.manifestPath)
+            .sort((left, right) => left.localeCompare(right));
+
+        for (const entry of entries) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_UID_DUPLICATE',
+                    `CAPABILITY.md "uid" ${uid} is duplicated by ${locations.join(', ')}.`,
+                    entry.manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
+
+    return warnings;
 }
 
 export const capabilityManifestConstants = {

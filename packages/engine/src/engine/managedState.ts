@@ -33,6 +33,26 @@ export interface ManagedViewsState {
     layersViewMode?: string;
 }
 
+/** Last-known capability identity snapshot used for metadata drift reconciliation. */
+export interface ManagedCapabilityIdentityState {
+    /** ISO-8601 timestamp of the snapshot. */
+    updatedAt: string;
+    /** Indexed capability identity entries. */
+    entries: Array<{
+        repoId: string;
+        path: string;
+        id: string;
+        uid?: string;
+        previousIds?: string[];
+        previousPaths?: string[];
+        name?: string;
+        description?: string;
+        license?: string;
+        experimental?: boolean;
+        manifestPath?: string;
+    }>;
+}
+
 /** Full managed state document. */
 export interface ManagedState {
     /** Schema version for forward compatibility. */
@@ -43,6 +63,8 @@ export interface ManagedState {
     files: Record<string, ManagedFileState>;
     /** Optional extension-owned UI state. */
     views?: ManagedViewsState;
+    /** Optional last-known capability identity index snapshot. */
+    capabilityIdentity?: ManagedCapabilityIdentityState;
 }
 
 /** Default state directory relative to workspace root. */
@@ -95,6 +117,46 @@ function canonicalizeManagedViewsState(state: ManagedViewsState | undefined):
     return Object.keys(ordered).length > 0 ? ordered : undefined;
 }
 
+function canonicalizeCapabilityIdentityState(
+    state: ManagedCapabilityIdentityState | undefined,
+): ManagedCapabilityIdentityState | undefined {
+    if (!state || !Array.isArray(state.entries)) {
+        return undefined;
+    }
+
+    const entries = state.entries
+        .filter(
+            (entry) =>
+                entry &&
+                typeof entry.repoId === 'string' &&
+                typeof entry.path === 'string' &&
+                typeof entry.id === 'string',
+        )
+        .map((entry) => ({
+            repoId: entry.repoId,
+            path: entry.path,
+            id: entry.id,
+            ...(entry.uid !== undefined ? { uid: entry.uid } : {}),
+            ...(entry.previousIds !== undefined ? { previousIds: [...entry.previousIds] } : {}),
+            ...(entry.previousPaths !== undefined
+                ? { previousPaths: [...entry.previousPaths] }
+                : {}),
+            ...(entry.name !== undefined ? { name: entry.name } : {}),
+            ...(entry.description !== undefined ? { description: entry.description } : {}),
+            ...(entry.license !== undefined ? { license: entry.license } : {}),
+            ...(entry.experimental !== undefined ? { experimental: entry.experimental } : {}),
+            ...(entry.manifestPath !== undefined ? { manifestPath: entry.manifestPath } : {}),
+        }))
+        .sort((left, right) =>
+            `${left.repoId}:${left.path}`.localeCompare(`${right.repoId}:${right.path}`),
+        );
+
+    return {
+        updatedAt: state.updatedAt,
+        entries,
+    };
+}
+
 function canonicalizeManagedState(state: ManagedState): ManagedState {
     const files: Record<string, ManagedFileState> = {};
     for (const relativePath of Object.keys(state.files ?? {}).sort()) {
@@ -102,12 +164,14 @@ function canonicalizeManagedState(state: ManagedState): ManagedState {
     }
 
     const views = canonicalizeManagedViewsState(state.views);
+    const capabilityIdentity = canonicalizeCapabilityIdentityState(state.capabilityIdentity);
 
     return {
         version: state.version,
         lastApply: state.lastApply,
         files,
         ...(views ? { views } : {}),
+        ...(capabilityIdentity ? { capabilityIdentity } : {}),
     };
 }
 

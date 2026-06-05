@@ -91,8 +91,14 @@ export interface CapabilityPluginCatalogEntry {
 
 /** Parsed CAPABILITY.md metadata associated with a layer. */
 export interface CapabilityMetadata {
-    /** Internal capability identifier (derived from folder name). */
+    /** Internal capability identifier (currently derived from folder name). */
     id: string;
+    /** Immutable generated capability identity used to survive path/id reorganizations. */
+    uid?: string;
+    /** Historical human-readable ids that can be used for migration/reconciliation. */
+    previousIds?: string[];
+    /** Historical repo-relative paths that can be used for migration/reconciliation. */
+    previousPaths?: string[];
     /** Absolute path to CAPABILITY.md. */
     manifestPath: string;
     /** User-facing capability name. */

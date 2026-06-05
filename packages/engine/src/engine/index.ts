@@ -1,6 +1,24 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
 export type { ResolveLayersOptions } from './overlayEngine';
 export {
+    applyCapabilityReferenceRepairs,
+    buildCapabilityIdentityIndexFromConfig,
+    capabilityIdentityIndexToManagedState,
+    collectCapabilityIdentityIndexWarnings,
+    managedStateToCapabilityIdentityIndex,
+    reconcileConfiguredCapabilityReferences,
+} from './capabilityIdentity';
+export type {
+    BuildCapabilityIdentityIndexOptions,
+    CapabilityIdentityIndex,
+    CapabilityIdentityIndexEntry,
+    CapabilityReferenceResolution,
+    CapabilityReferenceResolutionKind,
+    CapabilityReferenceRepair,
+    CapabilityReferenceRepairResult,
+    ConfiguredCapabilityReference,
+} from './capabilityIdentity';
+export {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
 } from './pluginCatalog';
@@ -38,6 +56,7 @@ export {
     computeSettingsKeysToRemove,
 } from './settingsInjector';
 export {
+    collectDuplicateCapabilityUidWarnings,
     parseCapabilityManifestContent,
     loadCapabilityManifestForLayer,
     capabilityManifestConstants,
@@ -67,7 +86,12 @@ export type {
     PendingChange,
 } from './types';
 export type { ProvenanceData } from './provenanceHeader';
-export type { ManagedState, ManagedFileState, ManagedViewsState } from './managedState';
+export type {
+    ManagedState,
+    ManagedFileState,
+    ManagedViewsState,
+    ManagedCapabilityIdentityState,
+} from './managedState';
 export type { DriftStatus, DriftResult } from './driftDetector';
 export type {
     ApplyOptions,
