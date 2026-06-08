@@ -541,6 +541,22 @@ function repairRecordPath(
     return true;
 }
 
+function removeDuplicatePathRecords<T extends { path: string }>(
+    records: T[] | undefined,
+    keepIndex: number,
+    duplicatePath: string,
+): T[] | undefined {
+    if (!records) {
+        return records;
+    }
+
+    const normalizedDuplicatePath = normalizeLayerPath(duplicatePath);
+    return records.filter(
+        (record, index) =>
+            index === keepIndex || normalizeLayerPath(record.path) !== normalizedDuplicatePath,
+    );
+}
+
 function pushRepair(
     repaired: CapabilityReferenceRepair[],
     resolution: CapabilityReferenceResolution & {
@@ -582,22 +598,43 @@ export function applyCapabilityReferenceRepairs(
             const repo = config.metadataRepos?.find(
                 (candidate) => candidate.id === resolution.reference.repoId,
             );
-            const capability = repo?.capabilities?.find((candidate) =>
-                repairRecordPath(candidate, resolution.reference, newPath),
+            const capabilityIndex = repo?.capabilities?.findIndex(
+                (candidate) => normalizeLayerPath(candidate.path) === resolution.reference.path,
             );
-            if (capability) {
+            if (
+                repo?.capabilities &&
+                capabilityIndex !== undefined &&
+                capabilityIndex >= 0 &&
+                repairRecordPath(repo.capabilities[capabilityIndex], resolution.reference, newPath)
+            ) {
+                repo.capabilities = removeDuplicatePathRecords(
+                    repo.capabilities,
+                    capabilityIndex,
+                    newPath,
+                );
                 pushRepair(repaired, resolution, newPath);
             }
             continue;
         }
 
         if (resolution.reference.source === 'layerSources') {
-            const layerSource = config.layerSources?.find(
+            const layerSourceIndex = config.layerSources?.findIndex(
                 (candidate) =>
                     candidate.repoId === resolution.reference.repoId &&
-                    repairRecordPath(candidate, resolution.reference, newPath),
+                    normalizeLayerPath(candidate.path) === resolution.reference.path,
             );
-            if (layerSource) {
+            if (
+                config.layerSources &&
+                layerSourceIndex !== undefined &&
+                layerSourceIndex >= 0 &&
+                repairRecordPath(config.layerSources[layerSourceIndex], resolution.reference, newPath)
+            ) {
+                config.layerSources = config.layerSources.filter(
+                    (candidate, index) =>
+                        index === layerSourceIndex ||
+                        candidate.repoId !== resolution.reference.repoId ||
+                        normalizeLayerPath(candidate.path) !== normalizeLayerPath(newPath),
+                );
                 pushRepair(repaired, resolution, newPath);
             }
             continue;
@@ -625,6 +662,16 @@ export function applyCapabilityReferenceRepairs(
                 repairRecordPath(candidate, resolution.reference, newPath),
         );
         if (override) {
+            const profile = config.profiles?.[profileId];
+            if (profile?.layerOverrides) {
+                const repairedOverride = override;
+                profile.layerOverrides = profile.layerOverrides.filter(
+                    (candidate) =>
+                        candidate === repairedOverride ||
+                        candidate.repoId !== resolution.reference.repoId ||
+                        normalizeLayerPath(candidate.path) !== normalizeLayerPath(newPath),
+                );
+            }
             pushRepair(repaired, resolution, newPath);
         }
     }

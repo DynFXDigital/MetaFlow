@@ -298,6 +298,64 @@ describe('capability identity index', () => {
         );
     });
 
+    it('preserves enabled state when repair collides with a disabled discovered capability', () => {
+        const repoRoot = path.join(workspaceRoot, 'repo');
+        writeCapability(repoRoot, 'capabilities/project-management/planning', {
+            uid: '123e4567-e89b-42d3-a456-426614174000',
+            name: 'Planning',
+            description: 'Planning guidance.',
+        });
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: 'repo',
+                    capabilities: [
+                        { path: 'capabilities/planning', enabled: true },
+                        { path: 'capabilities/project-management/planning', enabled: false },
+                    ],
+                },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'capabilities/planning', enabled: true },
+                {
+                    repoId: 'primary',
+                    path: 'capabilities/project-management/planning',
+                    enabled: false,
+                },
+            ],
+        };
+        const current = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
+        const lastKnown: CapabilityIdentityIndex = {
+            generatedAt: '2026-06-03T00:00:00.000Z',
+            entries: [
+                {
+                    repoId: 'primary',
+                    path: 'capabilities/planning',
+                    id: 'planning',
+                    uid: '123e4567-e89b-42d3-a456-426614174000',
+                },
+            ],
+        };
+
+        const repairResult = applyCapabilityReferenceRepairs(
+            config,
+            reconcileConfiguredCapabilityReferences(config, workspaceRoot, current, lastKnown),
+        );
+
+        assert.strictEqual(repairResult.repaired.length, 2);
+        assert.deepStrictEqual(config.metadataRepos?.[0].capabilities, [
+            { path: 'capabilities/project-management/planning', enabled: true },
+        ]);
+        assert.deepStrictEqual(config.layerSources, [
+            {
+                repoId: 'primary',
+                path: 'capabilities/project-management/planning',
+                enabled: true,
+            },
+        ]);
+    });
+
     it('repairs deterministic stale profile override paths', () => {
         const repoRoot = path.join(workspaceRoot, 'repo');
         writeCapability(repoRoot, 'capabilities/project-management/planning', {
