@@ -162,6 +162,70 @@ suite('bundled metadata assets', () => {
         visit(capabilityRoot);
     });
 
+    test('bundled metadata-authoring markdown files avoid appended duplicate frontmatter blocks', () => {
+        const roots = [path.join(ASSET_ROOT, 'capabilities/metadata-authoring')];
+        const appendedDuplicateFrontmatterPattern = /---\r?\n\s{2}(description|name):/;
+
+        const visit = (dir: string): void => {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    visit(fullPath);
+                    continue;
+                }
+
+                if (!entry.name.endsWith('.md')) {
+                    continue;
+                }
+
+                const content = fs.readFileSync(fullPath, 'utf-8');
+                assert.ok(
+                    !appendedDuplicateFrontmatterPattern.test(content),
+                    `Expected no appended duplicate YAML frontmatter block: ${path.relative(ASSET_ROOT, fullPath)}`,
+                );
+            }
+        };
+
+        for (const root of roots) {
+            visit(root);
+        }
+    });
+
+    test('bundled metadata-authoring instructions keep Copilot and agent-file scopes separate', () => {
+        const instructionPairs = [
+            [
+                path.join(GITHUB_ROOT, 'instructions/ai-metadata-agent.instructions.md'),
+                path.join(GITHUB_ROOT, 'instructions/ai-metadata-agents-md.instructions.md'),
+            ],
+            [
+                path.join(
+                    ASSET_ROOT,
+                    'capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/instructions/ai-metadata-agent.instructions.md',
+                ),
+                path.join(
+                    ASSET_ROOT,
+                    'capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/instructions/ai-metadata-agents-md.instructions.md',
+                ),
+            ],
+        ];
+
+        for (const [copilotInstructionPath, agentInstructionPath] of instructionPairs) {
+            const copilotInstruction = fs.readFileSync(copilotInstructionPath, 'utf-8');
+            const agentInstruction = fs.readFileSync(agentInstructionPath, 'utf-8');
+
+            assert.match(
+                copilotInstruction,
+                /^applyTo:\s*['"]\.github\/copilot-instructions\.md,\.github\/instructions\/\*\*\/\*\.instructions\.md['"]$/m,
+                `Expected Copilot instruction scope to stay on Copilot surfaces: ${path.relative(ASSET_ROOT, copilotInstructionPath)}`,
+            );
+            assert.match(
+                agentInstruction,
+                /^applyTo:\s*['"]\*\*\/AGENTS\.md,\*\*\/AGENTS\.override\.md,CLAUDE\.md,GEMINI\.md['"]$/m,
+                `Expected agent instruction scope to stay on agent instruction files: ${path.relative(ASSET_ROOT, agentInstructionPath)}`,
+            );
+        }
+    });
+
     test('bundled .github artifacts classify into the correct artifact buckets', () => {
         const artifactFiles: string[] = [];
         const visit = (dir: string): void => {
