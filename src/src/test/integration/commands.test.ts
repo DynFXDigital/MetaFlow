@@ -163,7 +163,19 @@ suite('Command Execution', function () {
             const movedPath = `${targetPath}.stale-${Date.now()}-${Math.random()
                 .toString(16)
                 .slice(2)}`;
-            fs.renameSync(targetPath, movedPath);
+            try {
+                fs.renameSync(targetPath, movedPath);
+            } catch (renameError: unknown) {
+                const renameCode = (renameError as NodeJS.ErrnoException | undefined)?.code;
+                if (
+                    renameCode !== 'EPERM' &&
+                    renameCode !== 'EBUSY' &&
+                    renameCode !== 'ENOTEMPTY'
+                ) {
+                    throw renameError;
+                }
+                return;
+            }
             try {
                 remove(movedPath);
             } catch (secondError: unknown) {
@@ -665,6 +677,8 @@ suite('Command Execution', function () {
         const priorAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const priorAiMetadataAutoApplyMode =
             metaflowConfig.inspect<string>('aiMetadataAutoApplyMode')?.workspaceValue;
+        const priorInjectionTarget =
+            metaflowConfig.inspect<string>('injection.target')?.workspaceValue;
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -713,6 +727,12 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder,
         );
+        await updateConfigAndWait(
+            'metaflow.injection.target',
+            'workspace',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder,
+        );
         await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
         await metaflowConfig.update(
             'aiMetadataAutoApplyMode',
@@ -735,17 +755,15 @@ suite('Command Execution', function () {
 
             await waitFor(() => {
                 const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
-                const instructionLocations = getScopedSettingValue<Record<string, boolean>>(
-                    freshConfig,
-                    'chat.instructionsFilesLocations',
+                const instructionLocations = getInjectedLocationValue(
+                    freshConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
                 );
                 return !!instructionLocations && Object.keys(instructionLocations).length > 0;
             });
 
             const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
-            const instructionLocations = getScopedSettingValue<Record<string, boolean>>(
-                freshConfig,
-                'chat.instructionsFilesLocations',
+            const instructionLocations = getInjectedLocationValue(
+                freshConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
             );
             assert.ok(
                 instructionLocations && Object.keys(instructionLocations).length > 0,
@@ -762,6 +780,12 @@ suite('Command Execution', function () {
                 'aiMetadataAutoApplyMode',
                 priorAiMetadataAutoApplyMode,
                 vscode.ConfigurationTarget.Workspace,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.target',
+                priorInjectionTarget,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder,
             );
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(repoRoot);
