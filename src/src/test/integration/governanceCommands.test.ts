@@ -529,7 +529,6 @@ suite('Governance command enforcement', () => {
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const previousMode = wsConfig.inspect<string>(
             'metaflow.aiMetadataAutoApplyMode',
         )?.workspaceValue;
@@ -551,10 +550,11 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await metaflowConfig.update(
-                'injection.modes',
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
                 { instructions: 'settings' },
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await resetBuiltInCapabilityState();
             await wsConfig.update(
@@ -626,10 +626,11 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await metaflowConfig.update(
-                'injection.modes',
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
                 previousInjectionModes,
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await wsConfig.update(
                 'chat.instructionsFilesLocations',
@@ -653,7 +654,6 @@ suite('Governance command enforcement', () => {
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const previousMode = wsConfig.inspect<string>(
             'metaflow.aiMetadataAutoApplyMode',
         )?.workspaceValue;
@@ -675,10 +675,11 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await metaflowConfig.update(
-                'injection.modes',
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
                 { instructions: 'settings' },
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await resetBuiltInCapabilityState();
             await wsConfig.update(
@@ -751,10 +752,11 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await metaflowConfig.update(
-                'injection.modes',
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
                 previousInjectionModes,
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await wsConfig.update(
                 'chat.instructionsFilesLocations',
