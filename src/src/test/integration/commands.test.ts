@@ -682,7 +682,7 @@ suite('Command Execution', function () {
         const settingsOnlyConfig = {
             metadataRepos: [{ id: 'settings', localPath: '.ai/settings-only-repo', enabled: true }],
             layerSources: [{ repoId: 'settings', path: 'settings-only', enabled: true }],
-            filters: { include: ['instructions/**'], exclude: [] },
+            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -707,10 +707,11 @@ suite('Command Execution', function () {
             return undefined;
         };
 
-        await wsConfig.update(
+        await updateConfigAndWait(
             'chat.instructionsFilesLocations',
             undefined,
             vscode.ConfigurationTarget.Workspace,
+            wsFolder,
         );
         await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
         await metaflowConfig.update(
@@ -732,8 +733,19 @@ suite('Command Execution', function () {
                 'Apply should not show a completion toast when no Synchronized files are written',
             );
 
-            const instructionLocations = getInjectedLocationValue(
-                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+            await waitFor(() => {
+                const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
+                const instructionLocations = getScopedSettingValue<Record<string, boolean>>(
+                    freshConfig,
+                    'chat.instructionsFilesLocations',
+                );
+                return !!instructionLocations && Object.keys(instructionLocations).length > 0;
+            });
+
+            const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
+            const instructionLocations = getScopedSettingValue<Record<string, boolean>>(
+                freshConfig,
+                'chat.instructionsFilesLocations',
             );
             assert.ok(
                 instructionLocations && Object.keys(instructionLocations).length > 0,
