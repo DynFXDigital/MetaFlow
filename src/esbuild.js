@@ -1,4 +1,5 @@
 const esbuild = require('esbuild');
+const path = require('path');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -23,9 +24,9 @@ const esbuildProblemMatcher = {
 };
 
 const buildOptions = {
-    entryPoints: ['src/extension.ts'],
+    entryPoints: [path.join(__dirname, 'src/extension.ts')],
     bundle: true,
-    outfile: 'dist/extension.js',
+    outfile: path.join(__dirname, 'dist/extension.js'),
     external: ['vscode'],
     mainFields: ['module', 'main'],
     format: 'cjs',
