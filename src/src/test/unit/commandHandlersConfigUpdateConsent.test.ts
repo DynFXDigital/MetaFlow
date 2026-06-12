@@ -21,7 +21,7 @@ suite('Command handler config update consent', () => {
         const source = readCommandHandlersSource();
         const refreshUpdateBlock = sourceSlice(
             source,
-            'const shouldPersistConfig = await confirmConfigUpdate(',
+            'const shouldPersistConfig = autoAcceptRefreshUpdates',
             'state.config = result.config;',
         );
 
@@ -43,6 +43,34 @@ suite('Command handler config update consent', () => {
         );
         assert.match(confirmHelper, /'Open Config'/);
         assert.match(confirmHelper, /'Later'/);
+    });
+
+    test('test-mode refresh accepts pending updates without opening modal dialogs', () => {
+        const source = readCommandHandlersSource();
+        const refreshOptionsBlock = sourceSlice(
+            source,
+            'const refreshOptions = extractRefreshCommandOptions(arg);',
+            'const pendingCapabilityPluginMetadataDirtyVersion',
+        );
+
+        assert.match(refreshOptionsBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
+        assert.match(refreshOptionsBlock, /refreshOptions\.nonInteractive === true/);
+
+        const refreshUpdateBlock = sourceSlice(
+            source,
+            'const shouldPersistConfig = autoAcceptRefreshUpdates',
+            'if (shouldPersistConfig && capabilityRepairPreview) {'
+        );
+        assert.match(refreshUpdateBlock, /autoAcceptRefreshUpdates\s+\? true/);
+        assert.match(refreshUpdateBlock, /suppressRefreshUpdatePrompts\s+\? false/);
+
+        const builtInRepairBlock = sourceSlice(
+            source,
+            'const shouldUpdateBuiltInState = autoAcceptRefreshUpdates',
+            'if (shouldUpdateBuiltInState) {'
+        );
+        assert.match(builtInRepairBlock, /autoAcceptRefreshUpdates\s+\? true/);
+        assert.match(builtInRepairBlock, /suppressRefreshUpdatePrompts\s+\? false/);
     });
 
     test('declining capability repair preserves the previous identity snapshot', () => {
@@ -70,7 +98,7 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             builtInRepairBlock,
-            /const shouldUpdateBuiltInState = await confirmBuiltInCapabilityStateUpdate\(/,
+            /const shouldUpdateBuiltInState = autoAcceptRefreshUpdates[\s\S]*await confirmBuiltInCapabilityStateUpdate\(/,
         );
         assert.match(
             builtInRepairBlock,

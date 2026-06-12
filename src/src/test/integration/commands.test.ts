@@ -118,13 +118,61 @@ suite('Command Execution', function () {
         return JSON.parse(JSON.stringify(value)) as T;
     }
 
+    function chmodRecursive(targetPath: string): void {
+        if (!fs.existsSync(targetPath)) {
+            return;
+        }
+
+        const stat = fs.lstatSync(targetPath);
+        if (stat.isDirectory()) {
+            for (const entry of fs.readdirSync(targetPath)) {
+                chmodRecursive(path.join(targetPath, entry));
+            }
+        }
+
+        try {
+            fs.chmodSync(targetPath, 0o777);
+        } catch {
+            // Best-effort cleanup support for transient Windows file locks.
+        }
+    }
+
     function removeDirectoryRecursive(targetPath: string): void {
-        fs.rmSync(targetPath, {
-            recursive: true,
-            force: true,
-            maxRetries: 20,
-            retryDelay: 100,
-        });
+        if (!fs.existsSync(targetPath)) {
+            return;
+        }
+
+        const remove = (pathToRemove: string) => {
+            chmodRecursive(pathToRemove);
+            fs.rmSync(pathToRemove, {
+                recursive: true,
+                force: true,
+                maxRetries: 60,
+                retryDelay: 250,
+            });
+        };
+
+        try {
+            remove(targetPath);
+        } catch (error: unknown) {
+            const code = (error as NodeJS.ErrnoException | undefined)?.code;
+            if (code !== 'EPERM' && code !== 'EBUSY' && code !== 'ENOTEMPTY') {
+                throw error;
+            }
+
+            const movedPath = `${targetPath}.stale-${Date.now()}-${Math.random()
+                .toString(16)
+                .slice(2)}`;
+            fs.renameSync(targetPath, movedPath);
+            try {
+                remove(movedPath);
+            } catch (secondError: unknown) {
+                const secondCode = (secondError as NodeJS.ErrnoException | undefined)?.code;
+                if (secondCode !== 'EPERM' && secondCode !== 'EBUSY' && secondCode !== 'ENOTEMPTY') {
+                    throw secondError;
+                }
+            }
+        }
     }
 
     function getInjectedLocationValue<T>(
@@ -281,6 +329,40 @@ suite('Command Execution', function () {
         );
     }
 
+    function getWorkspaceInjectionModes(
+        wsConfig: vscode.WorkspaceConfiguration,
+    ): Record<string, unknown> | undefined {
+        return cloneJson(
+            getScopedSettingValue<Record<string, unknown>>(wsConfig, 'metaflow.injection.modes'),
+        );
+    }
+
+    async function useSettingsBackedInstructions(
+        wsFolder: vscode.WorkspaceFolder,
+    ): Promise<Record<string, unknown> | undefined> {
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
+        const previousModes = getWorkspaceInjectionModes(wsConfig);
+        await updateConfigAndWait(
+            'metaflow.injection.modes',
+            { ...(previousModes ?? {}), instructions: 'settings' },
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder,
+        );
+        return previousModes;
+    }
+
+    async function restoreInjectionModes(
+        wsFolder: vscode.WorkspaceFolder,
+        previousModes: Record<string, unknown> | undefined,
+    ): Promise<void> {
+        await updateConfigAndWait(
+            'metaflow.injection.modes',
+            previousModes,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder,
+        );
+    }
+
     async function resetBuiltInCapabilityState(): Promise<void> {
         const windowAny = vscode.window as unknown as {
             showQuickPick: (...items: unknown[]) => Thenable<unknown>;
@@ -432,6 +514,9 @@ suite('Command Execution', function () {
                 },
             },
             activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+            },
         };
 
         const windowAny = vscode.window as unknown as {
@@ -600,6 +685,9 @@ suite('Command Execution', function () {
                 },
             },
             activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+            },
         };
 
         const windowAny = vscode.window as unknown as {
@@ -6227,6 +6315,7 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await resetBuiltInCapabilityState();
         await wsConfig.update(
             'chat.instructionsFilesLocations',
@@ -6272,6 +6361,7 @@ suite('Command Execution', function () {
                 undefined,
                 vscode.ConfigurationTarget.Workspace,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
@@ -6296,6 +6386,7 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await resetBuiltInCapabilityState();
         await wsConfig.update(
             'chat.instructionsFilesLocations',
@@ -6363,6 +6454,7 @@ suite('Command Execution', function () {
                 undefined,
                 vscode.ConfigurationTarget.Workspace,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -6403,6 +6495,7 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await updateConfigAndWait(
             'chat.instructionsFilesLocations',
             unmanagedInstructionLocations,
@@ -6490,6 +6583,7 @@ suite('Command Execution', function () {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(unmanagedRoot);
             await resetBuiltInCapabilityState();
@@ -6527,6 +6621,7 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await updateConfigAndWait(
             'chat.instructionsFilesLocations',
             {
@@ -6598,6 +6693,7 @@ suite('Command Execution', function () {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(unmanagedRoot);
             await resetBuiltInCapabilityState();
@@ -6639,6 +6735,7 @@ suite('Command Execution', function () {
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await updateConfigAndWait(
             'chat.instructionsFilesLocations',
             unmanagedInstructionLocations,
@@ -6721,6 +6818,7 @@ suite('Command Execution', function () {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             removeDirectoryRecursive(unmanagedRoot);
             await resetBuiltInCapabilityState();

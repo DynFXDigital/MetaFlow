@@ -5014,6 +5014,10 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
+            const autoAcceptRefreshUpdates =
+                context.extensionMode === vscode.ExtensionMode.Test;
+            const suppressRefreshUpdatePrompts =
+                refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
             const pendingCapabilityPluginMetadataDirtyVersion =
                 state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
@@ -5145,10 +5149,14 @@ export function registerCommands(
                         );
                     }
 
-                    const shouldPersistConfig = await confirmConfigUpdate(
-                        result.configPath,
-                        pendingConfigUpdateReasons,
-                    );
+                    const shouldPersistConfig = autoAcceptRefreshUpdates
+                        ? true
+                        : suppressRefreshUpdatePrompts
+                          ? false
+                          : await confirmConfigUpdate(
+                                result.configPath,
+                                pendingConfigUpdateReasons,
+                            );
 
                     if (shouldPersistConfig && capabilityRepairPreview) {
                         capabilityRepairPreview.repairResult = applyCapabilityIdentityDriftRepair(
@@ -5235,9 +5243,13 @@ export function registerCommands(
                     projectedConfigForBuiltInRepair,
                 );
                 if (builtInRepairPreview.repairs.length > 0) {
-                    const shouldUpdateBuiltInState = await confirmBuiltInCapabilityStateUpdate(
-                        builtInRepairPreview.repairs,
-                    );
+                    const shouldUpdateBuiltInState = autoAcceptRefreshUpdates
+                        ? true
+                        : suppressRefreshUpdatePrompts
+                          ? false
+                          : await confirmBuiltInCapabilityStateUpdate(
+                                builtInRepairPreview.repairs,
+                            );
                     if (shouldUpdateBuiltInState) {
                         state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
                             context,

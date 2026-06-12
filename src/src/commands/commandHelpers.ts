@@ -9,6 +9,7 @@ export interface RefreshCommandOptions {
     skipRepoSync?: boolean;
     skipSettingsInjection?: boolean;
     preferStateConfig?: boolean;
+    nonInteractive?: boolean;
     forceDiscovery?: boolean;
     forceDiscoveryRepoId?: string;
 }
@@ -459,6 +460,7 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     const skipSettingsInjection = (arg as { skipSettingsInjection?: unknown })
         .skipSettingsInjection;
     const preferStateConfig = (arg as { preferStateConfig?: unknown }).preferStateConfig;
+    const nonInteractive = (arg as { nonInteractive?: unknown }).nonInteractive;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
@@ -469,6 +471,7 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
         skipSettingsInjection:
             typeof skipSettingsInjection === 'boolean' ? skipSettingsInjection : undefined,
         preferStateConfig: typeof preferStateConfig === 'boolean' ? preferStateConfig : undefined,
+        nonInteractive: typeof nonInteractive === 'boolean' ? nonInteractive : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
         forceDiscoveryRepoId:
             typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,
