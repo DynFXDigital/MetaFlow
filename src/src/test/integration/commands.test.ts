@@ -168,7 +168,11 @@ suite('Command Execution', function () {
                 remove(movedPath);
             } catch (secondError: unknown) {
                 const secondCode = (secondError as NodeJS.ErrnoException | undefined)?.code;
-                if (secondCode !== 'EPERM' && secondCode !== 'EBUSY' && secondCode !== 'ENOTEMPTY') {
+                if (
+                    secondCode !== 'EPERM' &&
+                    secondCode !== 'EBUSY' &&
+                    secondCode !== 'ENOTEMPTY'
+                ) {
                     throw secondError;
                 }
             }
@@ -2450,15 +2454,16 @@ suite('Command Execution', function () {
 
         const originalExecuteCommand = vscode.commands.executeCommand;
         const calls: Array<{ command: string; args: unknown[] }> = [];
-        (vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }).executeCommand =
-            (async (command: string, ...args: unknown[]) => {
-                calls.push({ command, args });
-                if (command === 'revealInExplorer') {
-                    return;
-                }
+        (
+            vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }
+        ).executeCommand = (async (command: string, ...args: unknown[]) => {
+            calls.push({ command, args });
+            if (command === 'revealInExplorer') {
+                return;
+            }
 
-                return originalExecuteCommand(command as never, ...(args as []));
-            }) as typeof vscode.commands.executeCommand;
+            return originalExecuteCommand(command as never, ...(args as []));
+        }) as typeof vscode.commands.executeCommand;
 
         try {
             const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
@@ -2473,13 +2478,17 @@ suite('Command Execution', function () {
                     (call) =>
                         call.command === 'revealInExplorer' &&
                         call.args[0] instanceof vscode.Uri &&
-                        path.normalize((call.args[0] as vscode.Uri).fsPath) === path.normalize(sourcePath),
+                        path.normalize((call.args[0] as vscode.Uri).fsPath) ===
+                            path.normalize(sourcePath),
                 ),
                 'openWarningSource should reveal the exact warning directory in Explorer',
             );
         } finally {
-            (vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }).executeCommand =
-                originalExecuteCommand;
+            (
+                vscode.commands as unknown as {
+                    executeCommand: typeof vscode.commands.executeCommand;
+                }
+            ).executeCommand = originalExecuteCommand;
             removeDirectoryRecursive(warningRoot);
         }
     });
