@@ -405,7 +405,10 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<string, { layerOverrides?: Array<{ path: string; enabled?: boolean }> }>;
+                profiles?: Record<
+                    string,
+                    { layerOverrides?: Array<{ path: string; enabled?: boolean }> }
+                >;
             };
             assert.strictEqual(
                 updatedConfig.profiles?.default?.layerOverrides,
@@ -414,7 +417,9 @@ suite('Governance command enforcement', () => {
             );
             assert.ok(
                 messages.errors.some((message) =>
-                    message.includes('[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::company/core]'),
+                    message.includes(
+                        '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::company/core]',
+                    ),
                 ),
                 `Expected stable governance ids in error message, got: ${messages.errors.join('\n')}`,
             );
@@ -488,7 +493,10 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<string, { layerOverrides?: Array<{ path: string; enabled?: boolean }> }>;
+                profiles?: Record<
+                    string,
+                    { layerOverrides?: Array<{ path: string; enabled?: boolean }> }
+                >;
             };
             assert.strictEqual(
                 updatedConfig.profiles?.default?.layerOverrides,
@@ -522,8 +530,9 @@ suite('Governance command enforcement', () => {
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
         const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>('metaflow.aiMetadataAutoApplyMode')
-            ?.workspaceValue;
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
         const previousInjectionModes = wsConfig.inspect<Record<string, unknown>>(
             'metaflow.injection.modes',
         )?.workspaceValue;
@@ -645,8 +654,9 @@ suite('Governance command enforcement', () => {
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
         const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>('metaflow.aiMetadataAutoApplyMode')
-            ?.workspaceValue;
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
         const previousInjectionModes = wsConfig.inspect<Record<string, unknown>>(
             'metaflow.injection.modes',
         )?.workspaceValue;
@@ -823,7 +833,9 @@ suite('Governance command enforcement', () => {
             }>('metaflow.getDiagnosticsSnapshot');
             assert.strictEqual(beforeSnapshot?.governance.compliance?.status, 'non-compliant');
             assert.deepStrictEqual(
-                beforeSnapshot?.governance.compliance?.violations.map((violation) => violation.id) ?? [],
+                beforeSnapshot?.governance.compliance?.violations.map(
+                    (violation) => violation.id,
+                ) ?? [],
                 ['GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc'],
             );
 
@@ -857,7 +869,8 @@ suite('Governance command enforcement', () => {
             }>('metaflow.getDiagnosticsSnapshot');
             assert.strictEqual(afterSnapshot?.governance.compliance?.status, 'compliant');
             assert.deepStrictEqual(
-                afterSnapshot?.governance.compliance?.violations.map((violation) => violation.id) ?? [],
+                afterSnapshot?.governance.compliance?.violations.map((violation) => violation.id) ??
+                    [],
                 [],
             );
             assert.deepStrictEqual(
