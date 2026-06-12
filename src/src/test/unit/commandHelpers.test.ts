@@ -357,6 +357,7 @@ suite('Command Helpers', () => {
                 skipRepoSync: undefined,
                 skipSettingsInjection: undefined,
                 preferStateConfig: undefined,
+                nonInteractive: undefined,
                 forceDiscovery: false,
                 forceDiscoveryRepoId: 'repo-a',
             },
@@ -373,19 +374,24 @@ suite('Command Helpers', () => {
                 skipRepoSync: undefined,
                 skipSettingsInjection: undefined,
                 preferStateConfig: undefined,
+                nonInteractive: undefined,
                 forceDiscovery: undefined,
                 forceDiscoveryRepoId: undefined,
             },
         );
-        assert.deepStrictEqual(extractRefreshCommandOptions({ skipRepoSync: true }), {
+        assert.deepStrictEqual(
+            extractRefreshCommandOptions({ skipRepoSync: true, nonInteractive: true }),
+            {
             skipAutoApply: undefined,
             skipBuiltInAutoApply: undefined,
             skipRepoSync: true,
             skipSettingsInjection: undefined,
             preferStateConfig: undefined,
+            nonInteractive: true,
             forceDiscovery: undefined,
             forceDiscoveryRepoId: undefined,
-        });
+            },
+        );
 
         assert.deepStrictEqual(extractApplyCommandOptions({ skipRefresh: true }), {
             skipRefresh: true,
