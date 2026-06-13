@@ -666,7 +666,6 @@ suite('Command Execution', function () {
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
         const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const priorAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const priorAiMetadataAutoApplyMode =
