@@ -19,6 +19,9 @@ function makeCapabilityDetailModel(
         capabilityId: 'capability-review',
         description: 'Review shared metadata assets.',
         license: undefined,
+        experimental: undefined,
+        agentPlugin: undefined,
+        agentPluginManifest: undefined,
         layerId: 'primary/review/capability-review',
         layerIndex: 2,
         layerPath: 'review/capability-review',
@@ -78,11 +81,30 @@ suite('CapabilityDetails helpers', () => {
                     'name: SDLC Traceability',
                     'description: Shared traceability metadata.',
                     'license: MIT',
+                    'experimental: true',
+                    'agentPlugin: true',
                     '---',
                     '',
                     '## Mission',
                     'Keep requirements, design, and tests aligned.',
                 ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(layerRoot, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'sdlc-traceability',
+                        version: '1.0.0',
+                        description: 'Traceability plugin manifest.',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0',
+                        },
+                    },
+                    null,
+                    2,
+                ),
                 'utf-8',
             );
             fs.writeFileSync(
@@ -173,16 +195,27 @@ suite('CapabilityDetails helpers', () => {
 
             assert.strictEqual(model.title, 'SDLC Traceability');
             assert.strictEqual(model.repoLabel, 'Team Metadata');
-            assert.strictEqual(model.artifactCount, 2);
+            assert.strictEqual(model.artifactCount, 3);
+            assert.strictEqual(model.experimental, true);
+            assert.strictEqual(model.agentPlugin, true);
+            assert.strictEqual(
+                model.agentPluginManifest?.name,
+                'sdlc-traceability',
+            );
             assert.ok(html.includes('capability-tab-details'));
             assert.ok(html.includes('capability-tab-contents'));
             assert.ok(html.includes('Contents'));
             assert.ok(html.includes('Team Metadata'));
-            assert.ok(html.includes('<span class="content-tree-title">.github</span>'));
+            assert.ok(html.includes('class="artifact-type-label"'));
             assert.ok(html.includes('trace.instructions.md'));
             assert.ok(html.includes('<h2>Mission</h2>'));
             assert.ok(html.includes('command:metaflow.toggleLayer?'));
+            assert.ok(html.includes('command:metaflow.openCapabilityManifest?'));
+            assert.ok(html.includes('Open CAPABILITY.md'));
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
+            assert.ok(html.includes('status-pill-warning">Experimental'));
+            assert.ok(html.includes('status-pill-info">Agent Plugin'));
+            assert.ok(html.includes('sdlc-traceability'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
             assert.ok(html.includes("script-src 'none'"));
         } finally {
@@ -234,7 +267,61 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(
                 html.includes('No <code>CAPABILITY.md</code> file exists for this layer yet.'),
             );
+            assert.ok(
+                !html.includes('Open CAPABILITY.md'),
+                'missing-manifest details should not render the open-manifest action',
+            );
             assert.ok(html.includes('tone.instructions.md'));
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('TC-0252: resolves capability details by layer path when the saved layer index is stale', () => {
+        const workspaceRoot = fs.mkdtempSync(
+            path.join(os.tmpdir(), 'metaflow-capability-details-stale-index-'),
+        );
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'ai-metadata');
+            const targetLayerRoot = path.join(repoRoot, 'standards', 'sdlc');
+            const otherLayerRoot = path.join(repoRoot, 'other');
+            fs.mkdirSync(targetLayerRoot, { recursive: true });
+            fs.mkdirSync(otherLayerRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(targetLayerRoot, 'CAPABILITY.md'),
+                ['---', 'name: SDLC Traceability', '---'].join('\n'),
+                'utf-8',
+            );
+
+            const target = resolveCapabilityDetailTarget(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'other', enabled: true },
+                        { repoId: 'primary', path: 'standards/sdlc', enabled: true },
+                    ],
+                },
+                workspaceRoot,
+                {
+                    enabled: false,
+                    layerEnabled: true,
+                    synchronizedFiles: [],
+                    sourceRoot: undefined,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow',
+                },
+                {
+                    layerIndex: 0,
+                    layerPath: 'standards/sdlc',
+                    repoId: 'primary',
+                },
+            );
+
+            assert.ok(target, 'expected detail target');
+            assert.strictEqual(target?.layerIndex, 1);
+            assert.strictEqual(target?.layerPath, 'standards/sdlc');
+            assert.strictEqual(target?.repoId, 'primary');
+            assert.strictEqual(target?.capabilityId, 'sdlc');
         } finally {
             fs.rmSync(workspaceRoot, { recursive: true, force: true });
         }
@@ -379,7 +466,7 @@ suite('CapabilityDetails helpers', () => {
         assert.ok(html.includes('Local'));
     });
 
-    test('TC-0252: renders a .github tree, unknown license, toggle action, and a normalized capability heading (Verifies: REQ-0311)', () => {
+    test('TC-0252: renders artifact bucket sections, unknown license, toggle action, and a normalized capability heading (Verifies: REQ-0311)', () => {
         const model = makeCapabilityDetailModel({
             instructionScopeSummary: {
                 inspectedCount: 2,
@@ -444,16 +531,16 @@ suite('CapabilityDetails helpers', () => {
 
         assert.ok(html.includes('<dt class="metadata-label">License</dt>'));
         assert.ok(html.includes('<dd class="metadata-value">Unknown</dd>'));
-        assert.ok(html.includes('<details class="content-tree" open>'));
-        assert.ok(html.includes('<span class="content-tree-title">.github</span>'));
+        assert.ok(html.includes('class="artifact-bucket"'));
+        assert.ok(html.includes('class="artifact-type-label"'));
         assert.ok(html.includes('command:metaflow.toggleLayer?'));
         assert.ok(html.includes('Disable'));
         assert.ok(html.includes('Included in the active MetaFlow capability set.'));
         assert.ok(html.includes('<h2>Metadata</h2>'));
         assert.ok(html.includes('<summary>Paths &amp; IDs</summary>'));
-        assert.ok(html.includes('instructions'));
+        assert.ok(html.includes('Instructions'));
         assert.ok(html.includes('review.instructions.md'));
-        assert.ok(html.includes('skills'));
+        assert.ok(html.includes('Skills'));
         assert.ok(html.includes('SKILL.md'));
         assert.ok(html.includes('notes/review-checklist.md'));
         assert.ok(!html.includes('Capability: Capability Review</h1>'));
@@ -467,6 +554,119 @@ suite('CapabilityDetails helpers', () => {
         );
         assert.ok(html.includes('review.instructions.md'));
         assert.ok(html.includes('Repo-wide wildcard pattern.'));
+    });
+
+    test('TC-0252: renders a governance notice when the selected capability is governed or violating', () => {
+        const model = makeCapabilityDetailModel({
+            governance: {
+                summary: 'Governance: non-compliant (severity: error)',
+                detailLines: [
+                    'Governance Rule: required capability',
+                    'Governance Violations: 1',
+                    '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::review/capability-review] Required capability "primary/review/capability-review" is not active because the capability is disabled in the active runtime state.',
+                ],
+                variant: 'error',
+            },
+        });
+
+        const html = renderCapabilityDetailsHtml(model, {
+            cspSource: 'https://webview.test',
+            nonce: 'nonce-governance',
+        });
+
+        assert.ok(html.includes('<h2>Governance</h2>'));
+        assert.ok(html.includes('governance-notice-error'));
+        assert.ok(html.includes('Governance: non-compliant (severity: error)'));
+        assert.ok(html.includes('Governance Rule: required capability'));
+        assert.ok(
+            html.includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::review/capability-review] Required capability &quot;primary/review/capability-review&quot; is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+    });
+
+    test('TC-0252: renders built-in capability details from actual bundled source root (Verifies: REQ-0311)', async () => {
+        const bundledSourceRoot = path.resolve(__dirname, '../../../assets/metaflow-ai-metadata');
+
+        const target = resolveCapabilityDetailTarget(
+            { metadataRepos: [], layerSources: [] },
+            bundledSourceRoot,
+            {
+                enabled: true,
+                layerEnabled: true,
+                synchronizedFiles: [],
+                sourceRoot: bundledSourceRoot,
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            },
+            { layerIndex: 0, repoId: '__metaflow_builtin__' },
+        );
+
+        assert.ok(target, 'expected built-in detail target from bundled source root');
+
+        const model = await loadCapabilityDetailModel(target!);
+        const html = renderCapabilityDetailsHtml(model, {
+            cspSource: 'https://webview.test',
+            nonce: 'nonce-bundled',
+        });
+
+        assert.strictEqual(model.title, 'MetaFlow');
+        assert.strictEqual(model.builtIn, true);
+        assert.strictEqual(model.warnings.length, 0);
+
+        const instructionsBucket = model.artifactBuckets.find(
+            (bucket) => bucket.type === 'instructions',
+        );
+        const promptsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'prompts');
+        const agentsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'agents');
+        const skillsBucket = model.artifactBuckets.find((bucket) => bucket.type === 'skills');
+
+        assert.ok(
+            instructionsBucket && instructionsBucket.files.length > 0,
+            'instructions bucket should be populated',
+        );
+        assert.ok(
+            promptsBucket && promptsBucket.files.length > 0,
+            'prompts bucket should be populated',
+        );
+        assert.ok(
+            agentsBucket && agentsBucket.files.length > 0,
+            'agents bucket should be populated',
+        );
+        assert.ok(
+            skillsBucket && skillsBucket.files.length > 0,
+            'skills bucket should be populated',
+        );
+
+        assert.ok(
+            html.includes('class="artifact-bucket"'),
+            'HTML should render artifact bucket sections',
+        );
+        assert.ok(html.includes('Instructions'), 'HTML should show Instructions section');
+        assert.ok(html.includes('Prompts'), 'HTML should show Prompts section');
+        assert.ok(html.includes('Agents'), 'HTML should show Agents section');
+        assert.ok(html.includes('Skills'), 'HTML should show Skills section');
+        assert.ok(html.includes('Built-in capability'), 'HTML should show built-in source kind');
+        assert.ok(
+            html.includes('metaflow-constructs.instructions.md'),
+            'HTML should include MetaFlow constructs instruction',
+        );
+        assert.ok(
+            html.includes('ai-metadata-agent.instructions.md'),
+            'HTML should include AI metadata agent instruction',
+        );
+        assert.ok(
+            html.includes('github-copilot-metadata-authoring-steward.agent.md'),
+            'HTML should include Copilot authoring steward agent',
+        );
+        assert.ok(
+            html.includes('create-agents-md.prompt.md'),
+            'HTML should include create-agents-md prompt',
+        );
+        assert.ok(
+            html.includes('grouped by artifact type'),
+            'HTML should describe artifact grouping in caption',
+        );
     });
 
     test('TC-0252: renders static built-in state and empty content fallbacks without toggle actions', () => {

@@ -70,6 +70,32 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
                 assert.strictEqual(result.config.layerSources?.length, 3);
+                assert.strictEqual(result.config.compatibilityVersion, 2);
+            }
+        });
+
+        test('migrates implicit released compatibility version on modern authored config', () => {
+            const result = parseAndValidate(
+                JSON.stringify({
+                    metadataRepos: [
+                        {
+                            id: 'r1',
+                            localPath: '.ai/metadata',
+                            capabilities: [{ path: 'company/core' }],
+                        },
+                    ],
+                }),
+                'test.json',
+            );
+            assert.strictEqual(result.ok, true);
+            if (result.ok) {
+                assert.strictEqual(result.config.compatibilityVersion, 2);
+                assert.strictEqual(result.migrated, true);
+                assert.ok(
+                    result.migrationMessages?.some((message) =>
+                        message.includes('compatibilityVersion'),
+                    ),
+                );
             }
         });
 
@@ -146,6 +172,7 @@ suite('Config Loader', () => {
 
         test('valid multi-repo config returns no errors', () => {
             const config: MetaFlowConfig = {
+                compatibilityVersion: 2,
                 metadataRepos: [
                     { id: 'primary', localPath: '.ai/metadata' },
                     { id: 'team', localPath: '../team-meta' },
@@ -160,6 +187,7 @@ suite('Config Loader', () => {
 
         test('valid multi-repo config allows disabled repos', () => {
             const config: MetaFlowConfig = {
+                compatibilityVersion: 2,
                 metadataRepos: [
                     { id: 'primary', localPath: '.ai/metadata', enabled: false },
                     { id: 'team', localPath: '../team-meta' },
@@ -178,12 +206,20 @@ suite('Config Loader', () => {
             assert.ok(errors.some((e) => e.message.includes('metadataRepo')));
         });
 
-        test('single-repo without layers produces error', () => {
+        test('future compatibilityVersion produces error', () => {
+            const config: MetaFlowConfig = {
+                compatibilityVersion: 999,
+                metadataRepos: [{ id: 'primary', localPath: 'a' }],
+            };
+            const errors = validateConfig(config);
+            assert.ok(errors.some((e) => e.message.includes('supported version')));
+        });
+
+        test('single-repo without layers is valid as a zero-layer bootstrap config', () => {
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: '.ai/metadata' },
             };
-            const errors = validateConfig(config);
-            assert.ok(errors.some((e) => e.message.includes('layers')));
+            assert.deepStrictEqual(validateConfig(config), []);
         });
 
         test('single-repo without localPath produces error', () => {
@@ -223,15 +259,17 @@ suite('Config Loader', () => {
             assert.ok(errors.some((e) => e.message.includes('"missing"')));
         });
 
-        test('activeProfile referencing non-existent profile produces error', () => {
+        test('activeProfile referencing non-existent profile is non-fatal', () => {
+            // A missing activeProfile degrades gracefully: the overlay surfaces all
+            // files unfiltered and emits an ACTIVE_PROFILE_NOT_FOUND warning, so a
+            // profile typo must not be a fatal config error.
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: '.ai/metadata' },
                 layers: ['company/core'],
                 profiles: { baseline: {} },
                 activeProfile: 'unknown',
             };
-            const errors = validateConfig(config);
-            assert.ok(errors.some((e) => e.message.includes('"unknown"')));
+            assert.deepStrictEqual(validateConfig(config), []);
         });
 
         test('activeProfile matching existing profile is valid', () => {

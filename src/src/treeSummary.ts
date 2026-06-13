@@ -3,7 +3,7 @@ import * as path from 'path';
 import {
     applyProfile,
     EffectiveFile,
-    ExcludableArtifactType,
+    ArtifactType,
     getArtifactType,
     MetaFlowConfig,
     parseFrontmatter,
@@ -11,7 +11,7 @@ import {
 } from '@metaflow/engine';
 import { BUILT_IN_CAPABILITY_REPO_ID, BuiltInCapabilityRuntimeState } from './builtInCapability';
 
-export type SummaryArtifactType = ExcludableArtifactType;
+export type SummaryArtifactType = Exclude<ArtifactType, 'other'>;
 
 export const SUMMARY_ARTIFACT_ORDER: SummaryArtifactType[] = [
     'instructions',
@@ -688,6 +688,7 @@ export async function buildTreeSummaryCache(
     effectiveFiles: EffectiveFile[],
     baseProfileFiles: EffectiveFile[],
     builtInCapability: BuiltInCapabilityRuntimeState,
+    profileEffectiveFilesByName?: Record<string, EffectiveFile[]>,
 ): Promise<TreeSummaryCache> {
     if (!workspaceRoot) {
         const empty = createEmptySummary();
@@ -722,7 +723,9 @@ export async function buildTreeSummaryCache(
         summarizeInstructionScopeRecords(instructionScopeRecords);
 
     for (const [profileName, profile] of Object.entries(config?.profiles ?? {})) {
-        const profileRecords = toRecords(applyProfile(baseProfileFiles, profile), repoDescriptors);
+        const profileFiles =
+            profileEffectiveFilesByName?.[profileName] ?? applyProfile(baseProfileFiles, profile);
+        const profileRecords = toRecords(profileFiles, repoDescriptors);
         profileSummaries[profileName] = summarize(profileRecords, availableRecords);
         profileInstructionScopeSummaries[profileName] = summarizeInstructionScopeRecords(
             instructionScopeRecords,

@@ -6,6 +6,7 @@ import {
     BUILT_IN_CAPABILITY_STATE_KEY,
     formatBuiltInCapabilityRepoLabel,
     isBuiltInCapabilityActive,
+    isBuiltInCapabilityEnabled,
     readBuiltInCapabilityRuntimeState,
     resolveBuiltInCapabilityDisplayName,
     sanitizeSynchronizedFiles,
@@ -246,14 +247,51 @@ suite('builtInCapability', () => {
         );
     });
 
+    test('isBuiltInCapabilityActive stays true when the built-in repo was disabled by the user', () => {
+        assert.strictEqual(
+            isBuiltInCapabilityActive({
+                enabled: false,
+                layerEnabled: false,
+                disabledByUser: true,
+                synchronizedFiles: [],
+            }),
+            true,
+        );
+    });
+
     test('isBuiltInCapabilityActive is false when disabled and no tracked files exist', () => {
         assert.strictEqual(
             isBuiltInCapabilityActive({
                 enabled: false,
                 layerEnabled: false,
+                disabledByUser: false,
                 synchronizedFiles: [],
             }),
             false,
+        );
+    });
+
+    test('isBuiltInCapabilityEnabled is false when the built-in repo is only kept active for recovery', () => {
+        assert.strictEqual(
+            isBuiltInCapabilityEnabled({
+                enabled: false,
+                layerEnabled: true,
+                disabledByUser: true,
+                synchronizedFiles: ['.github/skills/metaflow-capability-review/SKILL.md'],
+            }),
+            false,
+        );
+    });
+
+    test('isBuiltInCapabilityEnabled is true only when explicitly enabled', () => {
+        assert.strictEqual(
+            isBuiltInCapabilityEnabled({
+                enabled: true,
+                layerEnabled: false,
+                disabledByUser: true,
+                synchronizedFiles: [],
+            }),
+            true,
         );
     });
 });

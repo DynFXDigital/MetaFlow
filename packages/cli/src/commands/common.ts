@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import {
     applyFilters,
-    applyExcludedTypeFilters,
     applyProfile,
     classifyFiles,
     buildEffectiveFileMap,
@@ -33,6 +32,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'profiles',
     'activeProfile',
     'injection',
+    'fileNamingStrategy',
     'settingsInjectionTarget',
     'hooks',
 ]);
@@ -95,7 +95,6 @@ export function resolveEffectiveFiles(
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
     files = applyFilters(files, config.filters);
-    files = applyExcludedTypeFilters(files, config.layerSources);
 
     const profileName = config.activeProfile;
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;

@@ -25,28 +25,56 @@ import { ConfigTreeViewProvider } from './views/configTreeView';
 import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
 import { FilesTreeViewProvider } from './views/filesTreeView';
+import { StagedTreeExpandController } from './views/stagedTreeExpand';
 import {
     loadCapabilityDetailModel,
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
-import { extractLayerPath, extractRepoId } from './commands/commandHelpers';
+import { isBuiltInCapabilityActive } from './builtInCapability';
+import { extractLayerPath, extractRepoId, readManagedViewsState } from './commands/commandHelpers';
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
+import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
+import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
+import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
 
+type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
+    getChildren(element?: T): T[];
+};
+
+function getContextValue(item: vscode.TreeItem): string {
+    return typeof item.contextValue === 'string' ? item.contextValue : '';
+}
+
+function isArtifactTypeNode(item: vscode.TreeItem): boolean {
+    const contextValue = getContextValue(item);
+    return contextValue === 'artifactTypeFolder' || contextValue.startsWith('layerArtifactType:');
+}
+
+function isCapabilitySearchBoundary(
+    item: vscode.TreeItem,
+    children: readonly vscode.TreeItem[],
+): boolean {
+    const contextValue = getContextValue(item);
+    return (
+        contextValue === 'layer' ||
+        contextValue === 'effectiveCapabilityFolder' ||
+        children.some((child) => isArtifactTypeNode(child))
+    );
+}
+
 function getFilesViewMode(): FilesViewMode {
-    return vscode.workspace
-        .getConfiguration('metaflow')
-        .get<FilesViewMode>('filesViewMode', 'unified');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return readManagedViewsState(workspaceRoot).filesViewMode;
 }
 
 function getLayersViewMode(): LayersViewMode {
-    return vscode.workspace
-        .getConfiguration('metaflow')
-        .get<LayersViewMode>('layersViewMode', 'flat');
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    return readManagedViewsState(workspaceRoot).layersViewMode;
 }
 
 function workspaceHasMetaFlowConfig(): boolean {
@@ -82,7 +110,7 @@ function hasGitBackedRepo(config: ReturnType<typeof createState>['config']): boo
 }
 
 function hasInstalledMetaFlowCapability(state: ReturnType<typeof createState>): boolean {
-    return state.builtInCapability.enabled || state.builtInCapability.synchronizedFiles.length > 0;
+    return isBuiltInCapabilityActive(state.builtInCapability);
 }
 
 function hasLoadedConfig(state: ReturnType<typeof createState>): boolean {
@@ -109,6 +137,25 @@ async function revealAll<T extends vscode.TreeItem>(
     }
 }
 
+async function revealSearchBranches<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+    element?: T,
+): Promise<void> {
+    for (const child of provider.getChildren(element)) {
+        if (child.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            continue;
+        }
+
+        await treeView.reveal(child, { expand: 1, select: false, focus: false });
+
+        const children = provider.getChildren(child);
+        if (!isCapabilitySearchBoundary(child, children)) {
+            await revealSearchBranches(treeView, provider, child);
+        }
+    }
+}
+
 async function revealBranch<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: { getChildren(e?: T): T[] },
@@ -125,6 +172,33 @@ async function collapseBranch<T extends vscode.TreeItem>(
     // list.collapse operates on the focused tree item; select/focus the branch root first.
     await treeView.reveal(element, { expand: false, select: true, focus: true });
     await vscode.commands.executeCommand('list.collapse');
+}
+
+async function prepareTreeViewFilter<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    await revealSearchBranches(treeView, provider);
+}
+
+async function openTreeViewFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    await vscode.commands.executeCommand('list.find');
+
+    void prepareTreeViewFilter(treeView, provider).catch((error: unknown) => {
+        logWarn(`MetaFlow: Tree search preload failed: ${String(error)}`);
+    });
 }
 
 // ── Activation ─────────────────────────────────────────────────────
@@ -156,14 +230,42 @@ export function activate(context: vscode.ExtensionContext): void {
     // Register commands (wires engine + synchronization pipeline)
     registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
 
+    registerDiagnosticsTool(
+        context,
+        () => buildDiagnosticsSnapshot(state, diagnosticCollection),
+        async () => {
+            if (
+                state.capabilityPluginMetadataDirtyVersion ===
+                state.capabilityPluginMetadataSettledVersion
+            ) {
+                return;
+            }
+
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                skipAutoApply: true,
+                skipRepoSync: true,
+                skipSettingsInjection: true,
+                preferStateConfig: true,
+            });
+        },
+    );
+
     // Register TreeView providers
-    const configTreeViewProvider = new ConfigTreeViewProvider(state);
+    const configTreeViewProvider = new ConfigTreeViewProvider(state, diagnosticCollection);
     const profilesTreeViewProvider = new ProfilesTreeViewProvider(state);
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
 
-    vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', getFilesViewMode());
-    vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', getLayersViewMode());
+    const syncManagedViewModeContext = (): void => {
+        const filesMode = getFilesViewMode();
+        const layersMode = getLayersViewMode();
+        vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', filesMode);
+        vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', layersMode);
+        filesTreeViewProvider.refresh();
+        layersTreeViewProvider.refresh();
+    };
+
+    syncManagedViewModeContext();
     vscode.commands.executeCommand('setContext', 'metaflow.hasGitBackedRepo', false);
     vscode.commands.executeCommand(
         'setContext',
@@ -187,27 +289,58 @@ export function activate(context: vscode.ExtensionContext): void {
         treeDataProvider: filesTreeViewProvider,
     });
 
+    const layersExpandController = new StagedTreeExpandController(
+        layersTreeView,
+        layersTreeViewProvider,
+    );
+    const filesExpandController = new StagedTreeExpandController(
+        filesTreeView,
+        filesTreeViewProvider,
+    );
+
+    let syncCapabilityPluginMetadataScheduler = (): void => {};
+
     context.subscriptions.push(
         configTreeView,
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
         filesTreeView,
+        layersExpandController,
+        filesExpandController,
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.collapseAllLayers', () => {
-            vscode.commands.executeCommand(
+        vscode.commands.registerCommand('metaflow.collapseAllLayers', async () => {
+            layersExpandController.reset();
+            await vscode.commands.executeCommand(
                 'workbench.actions.treeView.metaflow-layers.collapseAll',
             );
         }),
         vscode.commands.registerCommand('metaflow.expandAllLayers', async () => {
+            if (layersTreeViewProvider.getExpandAllStrategy() === 'staged') {
+                await layersExpandController.expandAll();
+                return;
+            }
             await revealAll(layersTreeView, layersTreeViewProvider);
         }),
-        vscode.commands.registerCommand('metaflow.collapseAllFiles', () => {
-            vscode.commands.executeCommand('workbench.actions.treeView.metaflow-files.collapseAll');
+        vscode.commands.registerCommand('metaflow.collapseAllFiles', async () => {
+            filesExpandController.reset();
+            await vscode.commands.executeCommand(
+                'workbench.actions.treeView.metaflow-files.collapseAll',
+            );
         }),
         vscode.commands.registerCommand('metaflow.expandAllFiles', async () => {
+            if (filesTreeViewProvider.getExpandAllStrategy() === 'staged') {
+                await filesExpandController.expandAll();
+                return;
+            }
             await revealAll(filesTreeView, filesTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
+            await openTreeViewFilter('metaflow-layers', layersTreeView, layersTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
+            await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand(
             'metaflow.expandLayersBranch',
@@ -269,7 +402,11 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
 
-        void loadCapabilityDetailModel(target, state.treeSummaryCache)
+        void loadCapabilityDetailModel(target, state.treeSummaryCache, {
+            governanceContract: state.governanceContract,
+            governanceContractErrors: state.governanceContractErrors,
+            governanceCompliance: state.governanceCompliance,
+        })
             .then((model) => {
                 capabilityDetailsPanel.update(model);
             })
@@ -298,6 +435,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 hasLoadedConfig(state),
             );
 
+            syncCapabilityPluginMetadataScheduler();
             syncCapabilityDetailsPanel();
         }),
         configTreeView.onDidChangeCheckboxState(async (e) => {
@@ -309,8 +447,11 @@ export function activate(context: vscode.ExtensionContext): void {
                         checkboxState === vscode.TreeItemCheckboxState.Unchecked) &&
                     typeof repoId === 'string' &&
                     (contextValue === 'configRepoSourceRescannable' ||
+                        contextValue === 'configRepoSourceLocalGit' ||
+                        contextValue === 'configRepoSourceBuiltin' ||
                         contextValue === 'configRepoSourceGit' ||
-                        contextValue === 'configRepoSourceGitBehind')
+                        contextValue === 'configRepoSourceGitBehind' ||
+                        contextValue === 'configRepoSourceGitAhead')
                 ) {
                     await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                         repoId,
@@ -335,15 +476,11 @@ export function activate(context: vscode.ExtensionContext): void {
                 const repoId = extractRepoId(item);
                 const layerPath = extractLayerPath(item);
 
-                if (
-                    typeof contextValue === 'string' &&
-                    contextValue.startsWith('layerArtifactType:')
-                ) {
-                    await vscode.commands.executeCommand(
-                        'metaflow.toggleLayerArtifactType',
-                        item,
-                        checkboxState,
-                    );
+                if (contextValue === 'layerRepo' && typeof repoId === 'string') {
+                    await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                        repoId,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
                     continue;
                 }
 
@@ -395,16 +532,6 @@ export function activate(context: vscode.ExtensionContext): void {
             if (e.affectsConfiguration('metaflow.aiMetadataAutoApplyMode')) {
                 vscode.commands.executeCommand('metaflow.refresh');
             }
-            if (e.affectsConfiguration('metaflow.filesViewMode')) {
-                const mode = getFilesViewMode();
-                vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', mode);
-                filesTreeViewProvider.refresh();
-            }
-            if (e.affectsConfiguration('metaflow.layersViewMode')) {
-                const mode = getLayersViewMode();
-                vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', mode);
-                layersTreeViewProvider.refresh();
-            }
         }),
     );
 
@@ -416,6 +543,9 @@ export function activate(context: vscode.ExtensionContext): void {
     for (const folder of workspaceFolders) {
         const configWatcher = vscode.workspace.createFileSystemWatcher(
             new vscode.RelativePattern(folder, '.metaflow/config.jsonc'),
+        );
+        const stateWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(folder, '.metaflow/state.json'),
         );
 
         const registerWatcher = (watcher: vscode.FileSystemWatcher, label: string) => {
@@ -460,6 +590,27 @@ export function activate(context: vscode.ExtensionContext): void {
         };
 
         registerWatcher(configWatcher, '.metaflow/config.jsonc');
+        context.subscriptions.push(
+            stateWatcher,
+            stateWatcher.onDidCreate(() => {
+                logInfo(
+                    'Managed state created (.metaflow/state.json); refreshing view mode contexts.',
+                );
+                syncManagedViewModeContext();
+            }),
+            stateWatcher.onDidChange(() => {
+                logInfo(
+                    'Managed state changed (.metaflow/state.json); refreshing view mode contexts.',
+                );
+                syncManagedViewModeContext();
+            }),
+            stateWatcher.onDidDelete(() => {
+                logInfo(
+                    'Managed state deleted (.metaflow/state.json); restoring default view modes.',
+                );
+                syncManagedViewModeContext();
+            }),
+        );
     }
 
     // Set context for keybindings/menus
@@ -500,6 +651,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Start/stop automatic background checks for upstream repo updates.
         syncRepoUpdateSchedulerLifecycle();
+
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (workspaceRoot) {
+            const capabilityPluginMetadataScheduler = createCapabilityPluginMetadataScheduler(
+                state,
+                workspaceRoot,
+            );
+            syncCapabilityPluginMetadataScheduler = (): void => {
+                capabilityPluginMetadataScheduler.sync();
+            };
+            syncCapabilityPluginMetadataScheduler();
+            context.subscriptions.push(capabilityPluginMetadataScheduler);
+        }
     }
 
     logInfo('MetaFlow extension activated.');

@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    DEFAULT_FILES_VIEW_MODE,
+    DEFAULT_LAYERS_VIEW_MODE,
     DEFAULT_PROFILE_ID,
     addProfileToConfig,
     cloneProfileConfig,
@@ -27,6 +29,8 @@ import {
     normalizeLayerPath,
     normalizeAndDeduplicateLayerPaths,
     pruneStaleLayerSources,
+    readManagedViewsState,
+    writeManagedViewsState,
 } from '../../commands/commandHelpers';
 
 suite('Command Helpers', () => {
@@ -119,7 +123,7 @@ suite('Command Helpers', () => {
                     enabled: true,
                     capabilities: [
                         { path: 'company', enabled: true },
-                        { path: 'team', enabled: false, excludedTypes: ['agents'] },
+                        { path: 'team', enabled: false },
                     ],
                 },
             ],
@@ -197,7 +201,6 @@ suite('Command Helpers', () => {
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     enabled: false,
-                    excludedTypes: ['agents' as const],
                 },
             ],
         };
@@ -208,10 +211,6 @@ suite('Command Helpers', () => {
         assert.notStrictEqual(cloned.disable, original.disable);
         assert.notStrictEqual(cloned.layerOverrides, original.layerOverrides);
         assert.notStrictEqual(cloned.layerOverrides?.[0], original.layerOverrides?.[0]);
-        assert.notStrictEqual(
-            cloned.layerOverrides?.[0]?.excludedTypes,
-            original.layerOverrides?.[0]?.excludedTypes,
-        );
     });
 
     test('cloneProfileConfig handles partially defined profile fields', () => {
@@ -354,7 +353,11 @@ suite('Command Helpers', () => {
             }),
             {
                 skipAutoApply: true,
+                skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
+                skipSettingsInjection: undefined,
+                preferStateConfig: undefined,
+                nonInteractive: undefined,
                 forceDiscovery: false,
                 forceDiscoveryRepoId: 'repo-a',
             },
@@ -367,17 +370,28 @@ suite('Command Helpers', () => {
             }),
             {
                 skipAutoApply: undefined,
+                skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
+                skipSettingsInjection: undefined,
+                preferStateConfig: undefined,
+                nonInteractive: undefined,
                 forceDiscovery: undefined,
                 forceDiscoveryRepoId: undefined,
             },
         );
-        assert.deepStrictEqual(extractRefreshCommandOptions({ skipRepoSync: true }), {
-            skipAutoApply: undefined,
-            skipRepoSync: true,
-            forceDiscovery: undefined,
-            forceDiscoveryRepoId: undefined,
-        });
+        assert.deepStrictEqual(
+            extractRefreshCommandOptions({ skipRepoSync: true, nonInteractive: true }),
+            {
+                skipAutoApply: undefined,
+                skipBuiltInAutoApply: undefined,
+                skipRepoSync: true,
+                skipSettingsInjection: undefined,
+                preferStateConfig: undefined,
+                nonInteractive: true,
+                forceDiscovery: undefined,
+                forceDiscoveryRepoId: undefined,
+            },
+        );
 
         assert.deepStrictEqual(extractApplyCommandOptions({ skipRefresh: true }), {
             skipRefresh: true,
@@ -405,10 +419,46 @@ suite('Command Helpers', () => {
 
     test('normalizes view mode settings to safe defaults', () => {
         assert.strictEqual(normalizeFilesViewMode('repoTree'), 'repoTree');
-        assert.strictEqual(normalizeFilesViewMode('other'), 'unified');
+        assert.strictEqual(normalizeFilesViewMode('other'), DEFAULT_FILES_VIEW_MODE);
 
         assert.strictEqual(normalizeLayersViewMode('tree'), 'tree');
-        assert.strictEqual(normalizeLayersViewMode('other'), 'flat');
+        assert.strictEqual(normalizeLayersViewMode('flat'), 'flat');
+        assert.strictEqual(normalizeLayersViewMode('other'), DEFAULT_LAYERS_VIEW_MODE);
+    });
+
+    test('TC-0605: reads managed view mode defaults when no state exists', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
+
+        try {
+            assert.deepStrictEqual(readManagedViewsState(tmpDir), {
+                filesViewMode: DEFAULT_FILES_VIEW_MODE,
+                layersViewMode: DEFAULT_LAYERS_VIEW_MODE,
+            });
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    test('TC-0606: writes managed view modes to state.json without overwriting the other preference', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-views-'));
+
+        try {
+            const first = writeManagedViewsState(tmpDir, { layersViewMode: 'flat' });
+            assert.deepStrictEqual(first, {
+                filesViewMode: DEFAULT_FILES_VIEW_MODE,
+                layersViewMode: 'flat',
+            });
+
+            const second = writeManagedViewsState(tmpDir, { filesViewMode: 'repoTree' });
+            assert.deepStrictEqual(second, {
+                filesViewMode: 'repoTree',
+                layersViewMode: 'flat',
+            });
+
+            assert.deepStrictEqual(readManagedViewsState(tmpDir), second);
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
     });
 
     test('normalizes ai metadata auto-apply mode settings', () => {
@@ -459,7 +509,7 @@ suite('Command Helpers', () => {
                     enabled: true,
                     capabilities: [
                         { path: 'company/core', enabled: true },
-                        { path: 'standards/sdlc', enabled: true, excludedTypes: ['agents'] },
+                        { path: 'standards/sdlc', enabled: true },
                     ],
                 },
             ],
@@ -469,7 +519,6 @@ suite('Command Helpers', () => {
                     repoId: 'primary',
                     path: 'standards/sdlc',
                     enabled: true,
-                    excludedTypes: ['agents'],
                 },
             ],
             profiles: {
@@ -481,7 +530,6 @@ suite('Command Helpers', () => {
                             repoId: 'primary',
                             path: 'standards/sdlc',
                             enabled: false,
-                            excludedTypes: [],
                         },
                     ],
                 },
@@ -496,17 +544,9 @@ suite('Command Helpers', () => {
             projected.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.enabled,
             false,
         );
-        assert.deepStrictEqual(
-            projected.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.excludedTypes,
-            [],
-        );
         assert.strictEqual(
             config.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.enabled,
             true,
-        );
-        assert.deepStrictEqual(
-            config.layerSources?.find((layer) => layer.path === 'standards/sdlc')?.excludedTypes,
-            ['agents'],
         );
         assert.strictEqual(
             projected.metadataRepos?.[0]?.capabilities?.find(
@@ -544,6 +584,31 @@ suite('pruneStaleLayerSources', () => {
         assert.deepStrictEqual(pruned, ['org/removed']);
         assert.strictEqual(config.layerSources.length, 1);
         assert.strictEqual(config.layerSources[0].path, 'present');
+    });
+
+    test('removes authored metadata repo capabilities whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present'), { recursive: true });
+
+        const config = {
+            metadataRepos: [
+                {
+                    id: 'org',
+                    localPath: repoRoot,
+                    enabled: true,
+                    capabilities: [
+                        { path: 'present', enabled: false },
+                        { path: 'removed', enabled: false },
+                    ],
+                },
+            ],
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['org/removed']);
+        assert.deepStrictEqual(config.metadataRepos[0].capabilities, [
+            { path: 'present', enabled: false },
+        ]);
     });
 
     test('removes single-repo layers whose directories do not exist', () => {
@@ -587,5 +652,31 @@ suite('pruneStaleLayerSources', () => {
         const pruned = pruneStaleLayerSources(config as never, tmpDir);
         assert.deepStrictEqual(pruned, []);
         assert.strictEqual(config.layerSources.length, 1);
+    });
+
+    test('removes stale profile layer overrides whose directories do not exist', () => {
+        const repoRoot = path.join(tmpDir, 'org');
+        fs.mkdirSync(path.join(repoRoot, 'present'), { recursive: true });
+
+        const config = {
+            metadataRepos: [{ id: 'org', localPath: repoRoot, enabled: true }],
+            profiles: {
+                default: {
+                    displayName: 'Default',
+                    enable: ['**/*'],
+                    disable: [],
+                    layerOverrides: [
+                        { repoId: 'org', path: 'present', enabled: true },
+                        { repoId: 'org', path: 'removed', enabled: true },
+                    ],
+                },
+            },
+        };
+
+        const pruned = pruneStaleLayerSources(config as never, tmpDir);
+        assert.deepStrictEqual(pruned, ['profile:default:org/removed']);
+        assert.deepStrictEqual(config.profiles.default.layerOverrides, [
+            { repoId: 'org', path: 'present', enabled: true },
+        ]);
     });
 });

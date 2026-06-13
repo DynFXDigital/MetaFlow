@@ -54,85 +54,103 @@ export function registerPreviewCommand(program: Command): void {
             if (!loaded) {
                 return;
             }
-            const { config } = loaded;
-            const files = resolveEffectiveFiles(config, workspaceRoot);
-            const changes = preview(workspaceRoot, files);
-            const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
-            const warnings = formatSurfacedConflictWarnings(conflicts);
-            const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
-            const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
-            const sourceSummary = summarizeSources(files);
-            const settingsCount = files.filter((file) => file.classification === 'settings').length;
-            const synchronizedCount = files.length - settingsCount;
-
-            if (options.json) {
-                const data = {
-                    summary: {
-                        total: files.length,
-                        settings: settingsCount,
-                        synchronized: synchronizedCount,
-                        sourceCount: sourceSummary.length,
-                    },
-                    effectiveFiles: files.map((f) => ({
-                        relativePath: f.relativePath,
-                        classification: f.classification,
-                        sourceLayer: f.sourceLayer,
-                        sourceRepo: f.sourceRepo ?? null,
-                    })),
-                    pendingChanges: changes.map((c) => ({
-                        relativePath: c.relativePath,
-                        action: c.action,
-                        reason: c.reason ?? null,
-                    })),
-                    settingsEntries,
-                    sources: sourceSummary,
-                    surfacedFileConflicts: conflicts,
-                    warnings,
-                };
-                console.log(JSON.stringify(data, null, 2));
-                return;
-            }
-
-            if (files.length === 0) {
-                console.log('No files in overlay.');
-                return;
-            }
-
-            console.log('Effective files:');
-            for (const f of files) {
-                console.log(
-                    `  [${f.classification}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+            try {
+                const { config } = loaded;
+                const files = resolveEffectiveFiles(config, workspaceRoot);
+                const changes = preview(
+                    workspaceRoot,
+                    files,
+                    undefined,
+                    config.fileNamingStrategy,
+                    config.layerSources,
                 );
-            }
-            console.log(
-                `\nSummary: ${files.length} total (${settingsCount} settings, ${synchronizedCount} synchronized)`,
-            );
-            if (settingsEntrySummary.length > 0) {
-                console.log(`Settings Entries: ${settingsEntrySummary.length}`);
-                for (const summary of settingsEntrySummary) {
-                    console.log(`  - ${summary}`);
-                }
-            }
-            if (sourceSummary.length > 0) {
-                console.log(`Sources: ${sourceSummary.length}`);
-                for (const source of sourceSummary) {
-                    console.log(`  - ${source}`);
-                }
-            }
+                const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
+                const warnings = formatSurfacedConflictWarnings(conflicts);
+                const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
+                const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
+                const sourceSummary = summarizeSources(files);
+                const settingsCount = files.filter(
+                    (file) => file.classification === 'settings',
+                ).length;
+                const synchronizedCount = files.length - settingsCount;
 
-            if (changes.length > 0) {
-                console.log(`\nPending changes (${changes.length}):`);
-                for (const c of changes) {
-                    const suffix = c.reason ? ` (${c.reason})` : '';
-                    console.log(`  ${c.action} ${c.relativePath}${suffix}`);
+                if (options.json) {
+                    const data = {
+                        summary: {
+                            total: files.length,
+                            settings: settingsCount,
+                            synchronized: synchronizedCount,
+                            sourceCount: sourceSummary.length,
+                        },
+                        effectiveFiles: files.map((f) => ({
+                            relativePath: f.relativePath,
+                            classification: f.classification,
+                            sourceLayer: f.sourceLayer,
+                            sourceRepo: f.sourceRepo ?? null,
+                        })),
+                        pendingChanges: changes.map((c) => ({
+                            relativePath: c.relativePath,
+                            action: c.action,
+                            reason: c.reason ?? null,
+                        })),
+                        settingsEntries,
+                        sources: sourceSummary,
+                        surfacedFileConflicts: conflicts,
+                        warnings,
+                    };
+                    console.log(JSON.stringify(data, null, 2));
+                    return;
                 }
-            }
 
-            if (warnings.length > 0) {
-                console.log(`\nWarnings (${warnings.length}):`);
-                for (const warning of warnings) {
-                    console.log(`  ! ${warning}`);
+                if (files.length === 0) {
+                    console.log('No files in overlay.');
+                    return;
                 }
+
+                console.log('Effective files:');
+                for (const f of files) {
+                    console.log(
+                        `  [${f.classification}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+                    );
+                }
+                console.log(
+                    `\nSummary: ${files.length} total (${settingsCount} settings, ${synchronizedCount} synchronized)`,
+                );
+                if (settingsEntrySummary.length > 0) {
+                    console.log(`Settings Entries: ${settingsEntrySummary.length}`);
+                    for (const summary of settingsEntrySummary) {
+                        console.log(`  - ${summary}`);
+                    }
+                }
+                if (sourceSummary.length > 0) {
+                    console.log(`Sources: ${sourceSummary.length}`);
+                    for (const source of sourceSummary) {
+                        console.log(`  - ${source}`);
+                    }
+                }
+
+                if (changes.length > 0) {
+                    console.log(`\nPending changes (${changes.length}):`);
+                    for (const c of changes) {
+                        const suffix = c.reason ? ` (${c.reason})` : '';
+                        console.log(`  ${c.action} ${c.relativePath}${suffix}`);
+                    }
+                }
+
+                if (warnings.length > 0) {
+                    console.log(`\nWarnings (${warnings.length}):`);
+                    for (const warning of warnings) {
+                        console.log(`  ! ${warning}`);
+                    }
+                }
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                if (options.json) {
+                    console.log(JSON.stringify({ error: message }, null, 2));
+                } else {
+                    console.error(`Error: ${message}`);
+                }
+                process.exitCode = 1;
             }
         });
 }

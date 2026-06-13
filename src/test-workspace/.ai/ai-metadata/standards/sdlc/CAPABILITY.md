@@ -2,6 +2,7 @@
 name: SDLC Traceability
 description: SDLC traceability metadata includes instructions, skills, and agent guidance.
 license: MIT
+agentPlugin: true
 ---
 
 ## Mission

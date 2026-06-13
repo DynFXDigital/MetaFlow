@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha module rewiring */
-
 import * as assert from 'assert';
 
 class MockDisposable {
@@ -143,7 +141,7 @@ suite('CapabilityDetailsPanelManager', () => {
 
         const snapshot = manager.show(
             { title: 'Capability A' } as never,
-            { layerIndex: 0, repoId: 'primary' } as never,
+            { layerIndex: 0, layerPath: 'review/capability-review', repoId: 'primary' } as never,
         );
 
         assert.strictEqual(createWebviewPanelCalls.length, 1);
@@ -155,14 +153,18 @@ suite('CapabilityDetailsPanelManager', () => {
         assert.deepStrictEqual(createWebviewPanelCalls[0].options, {
             enableFindWidget: true,
             enableScripts: false,
-            enableCommandUris: ['metaflow.toggleLayer'],
+            enableCommandUris: ['metaflow.toggleLayer', 'metaflow.openCapabilityManifest'],
             localResourceRoots: [],
         });
         assert.strictEqual(snapshot.viewType, CAPABILITY_DETAILS_WEBVIEW_TYPE);
         assert.strictEqual(snapshot.title, 'Capability Details: Capability A');
         assert.strictEqual(snapshot.viewColumn, mockVscode.ViewColumn.Two);
         assert.strictEqual(snapshot.html, 'html:Capability A:vscode-webview://panel:32');
-        assert.deepStrictEqual(manager.getCurrentRequest(), { layerIndex: 0, repoId: 'primary' });
+        assert.deepStrictEqual(manager.getCurrentRequest(), {
+            layerIndex: 0,
+            layerPath: 'review/capability-review',
+            repoId: 'primary',
+        });
         assert.ok(snapshot.panelId.length > 0);
 
         manager.dispose();
@@ -174,13 +176,13 @@ suite('CapabilityDetailsPanelManager', () => {
 
         const firstSnapshot = manager.show(
             { title: 'Capability A' } as never,
-            { layerIndex: 0, repoId: 'primary' } as never,
+            { layerIndex: 0, layerPath: 'review/capability-review', repoId: 'primary' } as never,
         );
         mockVscode.window.activeTextEditor = { viewColumn: mockVscode.ViewColumn.One };
 
         const secondSnapshot = manager.show(
             { title: 'Capability B' } as never,
-            { layerIndex: 2, repoId: 'secondary' } as never,
+            { layerIndex: 2, layerPath: 'security/policy', repoId: 'secondary' } as never,
         );
 
         assert.strictEqual(createWebviewPanelCalls.length, 1);
@@ -194,6 +196,7 @@ suite('CapabilityDetailsPanelManager', () => {
         assert.strictEqual(secondSnapshot.html, 'html:Capability B:vscode-webview://panel:32');
         assert.deepStrictEqual(manager.getCurrentRequest(), {
             layerIndex: 2,
+            layerPath: 'security/policy',
             repoId: 'secondary',
         });
 

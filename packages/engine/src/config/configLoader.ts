@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import { MetaFlowConfig, ConfigError, ConfigLoadResult } from './configSchema';
 import { discoverConfigPath } from './configPathUtils';
-import { normalizeConfigShape } from './configNormalization';
+import { CURRENT_CONFIG_COMPATIBILITY_VERSION, normalizeConfigShape } from './configNormalization';
 
 /**
  * Load and validate a `.metaflow/config.jsonc` configuration file.
@@ -119,6 +119,23 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
 export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): ConfigError[] {
     const errors: ConfigError[] = [];
 
+    if (config.compatibilityVersion !== undefined) {
+        if (
+            !Number.isInteger(config.compatibilityVersion) ||
+            config.compatibilityVersion < 1
+        ) {
+            errors.push({
+                message:
+                    '"compatibilityVersion" must be an integer greater than or equal to 1.',
+            });
+        } else if (config.compatibilityVersion > CURRENT_CONFIG_COMPATIBILITY_VERSION) {
+            errors.push({
+                message:
+                    `"compatibilityVersion" ${config.compatibilityVersion} is newer than the supported version ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+            });
+        }
+    }
+
     const hasSingleRepo = config.metadataRepo !== undefined;
     const hasMultiRepo = config.metadataRepos !== undefined && config.metadataRepos.length > 0;
 
@@ -127,15 +144,9 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
         errors.push({ message: 'Config must define "metadataRepo" or "metadataRepos".' });
     }
 
-    // Single-repo mode requires layers
     if (hasSingleRepo && !hasMultiRepo) {
         if (!config.metadataRepo!.localPath) {
             errors.push({ message: '"metadataRepo.localPath" is required.' });
-        }
-        if (!config.layers || config.layers.length === 0) {
-            errors.push({
-                message: '"layers" is required when using single-repo mode (metadataRepo).',
-            });
         }
     }
 
@@ -190,19 +201,45 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                             return true;
                         }
 
-                        const candidate = capability as { path?: unknown; excludedTypes?: unknown };
+                        const candidate = capability as {
+                            path?: unknown;
+                            fileNamingStrategy?: unknown;
+                        };
                         return (
                             typeof candidate.path !== 'string' ||
-                            (candidate.excludedTypes !== undefined &&
-                                (!Array.isArray(candidate.excludedTypes) ||
-                                    candidate.excludedTypes.some(
-                                        (item) => typeof item !== 'string',
-                                    )))
+                            (candidate.fileNamingStrategy !== undefined &&
+                                candidate.fileNamingStrategy !== 'prefixed' &&
+                                candidate.fileNamingStrategy !== 'original-unless-conflict')
                         );
                     }))
             ) {
                 errors.push({
                     message: `"metadataRepos" entry "${repo.id}" has invalid "capabilities" entries.`,
+                });
+            }
+
+            for (const capability of repo.capabilities ?? []) {
+                if (
+                    typeof capability === 'object' &&
+                    capability !== null &&
+                    !Array.isArray(capability) &&
+                    Object.prototype.hasOwnProperty.call(capability, 'excludedTypes')
+                ) {
+                    errors.push({
+                        message:
+                            `"metadataRepos" entry "${repo.id}" capability "${(capability as { path?: unknown }).path ?? '<unknown>'}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
+                    });
+                }
+            }
+
+            if (
+                repo.fileNamingStrategy !== undefined &&
+                repo.fileNamingStrategy !== 'prefixed' &&
+                repo.fileNamingStrategy !== 'original-unless-conflict'
+            ) {
+                errors.push({
+                    message:
+                        `"metadataRepos" entry "${repo.id}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
                 });
             }
         }
@@ -243,27 +280,41 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 if (!ls.path) {
                     errors.push({ message: 'Each "layerSources" entry must have a "path".' });
                 }
+                if (Object.prototype.hasOwnProperty.call(ls, 'excludedTypes')) {
+                    errors.push({
+                        message:
+                            `"layerSources" entry "${ls.repoId}/${ls.path}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
+                    });
+                }
                 if (
-                    ls.excludedTypes !== undefined &&
-                    (!Array.isArray(ls.excludedTypes) ||
-                        ls.excludedTypes.some((item) => typeof item !== 'string'))
+                    ls.fileNamingStrategy !== undefined &&
+                    ls.fileNamingStrategy !== 'prefixed' &&
+                    ls.fileNamingStrategy !== 'original-unless-conflict'
                 ) {
                     errors.push({
-                        message: `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "excludedTypes".`,
+                        message:
+                            `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
                     });
                 }
             }
         }
     }
 
-    // Active profile must exist in profiles if set
-    if (config.activeProfile && config.profiles) {
-        if (!(config.activeProfile in config.profiles)) {
-            errors.push({
-                message: `Active profile "${config.activeProfile}" not found in "profiles".`,
-            });
-        }
+    if (
+        config.fileNamingStrategy !== undefined &&
+        config.fileNamingStrategy !== 'prefixed' &&
+        config.fileNamingStrategy !== 'original-unless-conflict'
+    ) {
+        errors.push({
+            message:
+                '"fileNamingStrategy" must be either "prefixed" or "original-unless-conflict".',
+        });
     }
+
+    // An activeProfile that does not exist in "profiles" is intentionally NOT a
+    // fatal config error: the overlay layer surfaces all files without profile
+    // filtering and emits an ACTIVE_PROFILE_NOT_FOUND warning instead, so a profile
+    // typo degrades gracefully rather than nuking all metadata delivery.
 
     return errors;
 }

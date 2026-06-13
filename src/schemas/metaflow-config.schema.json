@@ -5,6 +5,11 @@
   "description": "MetaFlow config for AI metadata repository sources, capabilities, profiles, and injection behavior.",
   "additionalProperties": false,
   "properties": {
+    "compatibilityVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Config compatibility version used by MetaFlow for release-aware automatic migration."
+    },
     "metadataRepos": {
       "type": "array",
       "description": "Public authored repository sources with grouped capability entries.",
@@ -115,14 +120,6 @@
           "type": "boolean",
           "description": "Whether this capability is enabled. Defaults to true when omitted."
         },
-        "excludedTypes": {
-          "type": "array",
-          "description": "Artifact-type directories to exclude for this capability.",
-          "items": {
-            "type": "string",
-            "enum": ["instructions", "prompts", "agents", "skills"]
-          }
-        },
         "injection": {
           "$ref": "#/definitions/injectionConfig",
           "description": "Capability-scoped injection mode overrides. Overrides repo-level and top-level defaults."
@@ -185,13 +182,6 @@
         },
         "enabled": {
           "type": "boolean"
-        },
-        "excludedTypes": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["instructions", "prompts", "agents", "skills"]
-          }
         }
       }
     },
@@ -231,6 +221,40 @@
           "items": {
             "type": "string"
           }
+        },
+        "layerOverrides": {
+          "type": "array",
+          "description": "Optional per-layer overrides applied while this profile is active.",
+          "items": {
+            "$ref": "#/definitions/profileLayerOverride"
+          }
+        }
+      }
+    },
+    "profileLayerOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repoId", "path"],
+      "properties": {
+        "repoId": {
+          "type": "string",
+          "description": "Repo identifier from metadataRepos."
+        },
+        "path": {
+          "type": "string",
+          "description": "Layer path within the referenced repository."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this layer is enabled while the profile is active."
+        },
+        "excludedTypes": {
+          "type": "array",
+          "description": "Artifact-type directories to exclude for this layer while the profile is active.",
+          "items": {
+            "type": "string",
+            "enum": ["instructions", "prompts", "agents", "skills"]
+          }
         }
       }
     },
@@ -260,7 +284,7 @@
     },
     "injectionMode": {
       "type": "string",
-      "enum": ["settings", "synchronize"]
+      "enum": ["settings", "synchronize", "plugin"]
     },
     "hooksConfig": {
       "type": "object",

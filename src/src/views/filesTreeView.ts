@@ -7,8 +7,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { EffectiveFile, getArtifactType, ArtifactType, parseFrontmatter } from '@metaflow/engine';
+import {
+    EffectiveFile,
+    getArtifactType,
+    ArtifactType,
+    loadRepoManifestForRoot,
+    parseFrontmatter,
+} from '@metaflow/engine';
 import { ExtensionState } from '../commands/commandHandlers';
+import { readManagedViewsState } from '../commands/commandHelpers';
 import {
     BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
@@ -31,6 +38,7 @@ import {
     summarizeRepo,
     SummaryArtifactType,
 } from '../treeSummary';
+import type { ExpandAllStrategy, StagedExpandPlan } from './stagedTreeExpand';
 
 interface SourceRoot {
     rootPath: string;
@@ -44,6 +52,11 @@ interface CapabilityMetadata {
     name?: string;
     description?: string;
     license?: string;
+    experimental?: boolean;
+}
+
+function getExperimentalMarker(experimental: boolean | undefined): string {
+    return experimental ? '[Experimental] ' : '';
 }
 
 interface FolderTooltipMetadata {
@@ -55,6 +68,11 @@ interface FolderTooltipMetadata {
 interface SkillFolderMetadata {
     slug: string;
     displayLabel: string;
+}
+
+interface DirectoryManifestMetadata {
+    name?: string;
+    description?: string;
 }
 
 type FilesViewMode = 'unified' | 'repoTree';
@@ -79,6 +97,11 @@ const sortByLabel = <T extends vscode.TreeItem>(items: T[]): T[] =>
         String(a.label).localeCompare(String(b.label), undefined, { sensitivity: 'base' }),
     );
 const normalizeIdentity = (value: string): string => value.trim().toLowerCase();
+
+function normalizeSearchQuery(value: string | undefined): string | undefined {
+    const normalized = value?.trim().toLowerCase();
+    return normalized ? normalized : undefined;
+}
 
 function toDisplayRelativePath(relativePath: string): string {
     const parts = toPosixPath(relativePath).split('/').filter(Boolean);
@@ -134,7 +157,13 @@ function getDisplayLayerLabel(file: EffectiveFile, sourceLabel: string): string 
 }
 
 function getClassificationLabel(classification: EffectiveFile['classification']): string {
-    return classification === 'settings' ? 'settings' : 'synchronized';
+    if (classification === 'settings') {
+        return 'settings';
+    }
+    if (classification === 'plugin') {
+        return 'plugin';
+    }
+    return 'synchronized';
 }
 
 function buildMarkdownTooltip(
@@ -210,6 +239,9 @@ function buildFileItemTooltip(
         if (file.sourceCapabilityName && file.sourceCapabilityId) {
             details.push(`Capability ID: \`${file.sourceCapabilityId}\``);
         }
+        if (file.sourceCapabilityExperimental) {
+            details.push('Capability Status: Experimental');
+        }
         if (file.sourceCapabilityDescription) {
             details.push(`Capability Description: ${file.sourceCapabilityDescription}`);
         }
@@ -234,6 +266,7 @@ class RepoItem extends vscode.TreeItem {
         repoPath?: string,
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.id = `effectiveRepo:${repoId}`;
         this.contextValue = 'effectiveRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
         this.description = formatSummaryDescription(descriptionBase, summary);
@@ -288,9 +321,11 @@ class FolderItem extends vscode.TreeItem {
         public readonly artifactType?: ArtifactType,
         summary?: ArtifactSummary,
         descriptionBase?: string,
+        isCapabilityFolder = false,
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
-        this.contextValue = 'effectiveFolder';
+        this.id = `effectiveFolder:${repoId ?? 'no-repo'}:${artifactType ?? 'folder'}:${prefix || '.'}`;
+        this.contextValue = isCapabilityFolder ? 'effectiveCapabilityFolder' : 'effectiveFolder';
         this.iconPath = new vscode.ThemeIcon('folder');
         if (summary) {
             this.description = formatSummaryDescription(descriptionBase, summary);
@@ -327,10 +362,11 @@ class FileItem extends vscode.TreeItem {
         this.sourceLabel = sourceLabel;
         this.displayLayerLabel = displayLayerLabel;
         const classificationLabel = getClassificationLabel(file.classification);
+        const experimentalMarker = getExperimentalMarker(file.sourceCapabilityExperimental);
         this.description =
             options?.showSourceLabelInDescription === false
-                ? `(${classificationLabel})`
-                : `${sourceLabel} (${classificationLabel})`;
+                ? `${experimentalMarker}(${classificationLabel})`
+                : `${experimentalMarker}${sourceLabel} (${classificationLabel})`;
         this.contextValue = 'effectiveFile';
         this.iconPath =
             file.classification === 'settings'
@@ -358,19 +394,39 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
     private _onDidChangeTreeData = new vscode.EventEmitter<FileTreeNode | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
     private readonly _parentMap = new WeakMap<FileTreeNode, FileTreeNode | undefined>();
+    private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
+    private searchQuery: string | undefined;
+    private searchVersion = 0;
 
     constructor(
         private state: ExtensionState,
         private readonly modeResolver: () => FilesViewMode = () =>
-            vscode.workspace
-                .getConfiguration('metaflow')
-                .get<FilesViewMode>('filesViewMode', 'unified'),
+            readManagedViewsState(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath).filesViewMode,
     ) {
-        state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
+        state.onDidChange.event(() => {
+            this.directoryManifestByPath.clear();
+            this._onDidChangeTreeData.fire(undefined);
+        });
     }
 
     refresh(): void {
+        this.directoryManifestByPath.clear();
         this._onDidChangeTreeData.fire(undefined);
+    }
+
+    setSearchQuery(value: string | undefined): void {
+        const normalized = normalizeSearchQuery(value);
+        if (normalized === this.searchQuery) {
+            return;
+        }
+
+        this.searchQuery = normalized;
+        this.searchVersion += 1;
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    getSearchQuery(): string | undefined {
+        return this.searchQuery;
     }
 
     getTreeItem(element: FileTreeNode): vscode.TreeItem {
@@ -443,11 +499,20 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     capabilityTooltip.description,
                 );
             } else {
-                item.tooltip = buildMarkdownTooltip(`**${String(element.label)}**`, [
-                    `Folder: \`${element.folderSourcePath}\``,
-                    ...summaryLines,
-                    ...scopeLines,
-                ]);
+                const directoryTooltip = this.getDirectoryFolderTooltipMetadata(element);
+                if (directoryTooltip) {
+                    item.tooltip = buildMarkdownTooltip(
+                        directoryTooltip.title,
+                        [...directoryTooltip.details, ...summaryLines, ...scopeLines],
+                        directoryTooltip.description,
+                    );
+                } else {
+                    item.tooltip = buildMarkdownTooltip(`**${String(element.label)}**`, [
+                        `Folder: \`${element.folderSourcePath}\``,
+                        ...summaryLines,
+                        ...scopeLines,
+                    ]);
+                }
             }
         }
         return item;
@@ -461,6 +526,93 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             this._parentMap.set(item, parent);
         }
         return items;
+    }
+
+    private getSearchableText(element: FileTreeNode): string {
+        if (element instanceof RepoItem) {
+            return [element.label, element.repoId, element.description]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof ArtifactTypeItem) {
+            return [element.label, element.artifactType, element.description]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof FolderItem) {
+            return [
+                element.label,
+                element.prefix,
+                element.repoId,
+                element.artifactType,
+                element.description,
+            ]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        if (element instanceof FileItem) {
+            return [
+                element.label,
+                element.file.relativePath,
+                element.file.sourcePath,
+                element.file.sourceLayer,
+                element.sourceLabel,
+                element.displayLayerLabel,
+                element.description,
+            ]
+                .filter((value): value is string => typeof value === 'string')
+                .join(' ')
+                .toLowerCase();
+        }
+
+        return String(element.label ?? '').toLowerCase();
+    }
+
+    private matchesSearch(element: FileTreeNode): boolean {
+        if (!this.searchQuery) {
+            return true;
+        }
+
+        return this.getSearchableText(element).includes(this.searchQuery);
+    }
+
+    private applySearchPresentation<T extends FileTreeNode>(element: T): T {
+        if (element.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
+            element.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
+        }
+
+        if (typeof element.id === 'string' && element.id.length > 0) {
+            element.id = `${element.id}|search:${this.searchVersion}`;
+        }
+
+        return element;
+    }
+
+    private getSearchFilteredChildren(element?: FileTreeNode): FileTreeNode[] {
+        const children = this.getChildrenCore(element);
+        if (!this.searchQuery) {
+            return children;
+        }
+
+        return children.filter((child) => {
+            const descendantMatches =
+                child.collapsibleState === vscode.TreeItemCollapsibleState.None
+                    ? []
+                    : this.getSearchFilteredChildren(child);
+            const include = this.matchesSearch(child) || descendantMatches.length > 0;
+
+            if (include && descendantMatches.length > 0) {
+                this.applySearchPresentation(child);
+            }
+
+            return include;
+        });
     }
 
     private getSourceRoots(): SourceRoot[] {
@@ -570,13 +722,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 file.sourceCapabilityId ||
                 file.sourceCapabilityName ||
                 file.sourceCapabilityDescription ||
-                file.sourceCapabilityLicense
+                file.sourceCapabilityLicense ||
+                file.sourceCapabilityExperimental
             ) {
                 capabilityByLayer.set(normalized, {
                     id: file.sourceCapabilityId,
                     name: file.sourceCapabilityName,
                     description: file.sourceCapabilityDescription,
                     license: file.sourceCapabilityLicense,
+                    experimental: file.sourceCapabilityExperimental,
                 });
             }
         }
@@ -718,6 +872,32 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
     }
 
+    private getDirectoryManifestMetadata(
+        folderSourcePath: string | undefined,
+    ): DirectoryManifestMetadata | undefined {
+        if (!folderSourcePath) {
+            return undefined;
+        }
+
+        const normalizedPath = path.normalize(folderSourcePath);
+        const cached = this.directoryManifestByPath.get(normalizedPath);
+        if (cached !== undefined) {
+            return cached ?? undefined;
+        }
+
+        const manifest = loadRepoManifestForRoot(normalizedPath);
+        const metadata =
+            manifest?.name?.trim() || manifest?.description?.trim()
+                ? {
+                      name: manifest.name?.trim() || undefined,
+                      description: manifest.description?.trim() || undefined,
+                  }
+                : undefined;
+
+        this.directoryManifestByPath.set(normalizedPath, metadata ?? null);
+        return metadata;
+    }
+
     private getCapabilityMetadataForPrefix(
         repoId: string | undefined,
         prefix: string,
@@ -756,13 +936,15 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             representative.sourceCapabilityId ||
             representative.sourceCapabilityName ||
             representative.sourceCapabilityDescription ||
-            representative.sourceCapabilityLicense
+            representative.sourceCapabilityLicense ||
+            representative.sourceCapabilityExperimental
         ) {
             return {
                 id: representative.sourceCapabilityId,
                 name: representative.sourceCapabilityName,
                 description: representative.sourceCapabilityDescription,
                 license: representative.sourceCapabilityLicense,
+                experimental: representative.sourceCapabilityExperimental,
             };
         }
 
@@ -840,6 +1022,9 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         if (capability.license) {
             details.push(`License: \`${capability.license}\``);
         }
+        if (capability.experimental) {
+            details.push('Status: Experimental');
+        }
         if (repoLabel) {
             details.push(`Repository: \`${repoLabel}\``);
         }
@@ -854,6 +1039,21 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             title: `**${String(element.label)}**`,
             description: capability.description ? `*${capability.description}*` : undefined,
             details,
+        };
+    }
+
+    private getDirectoryFolderTooltipMetadata(
+        element: FolderItem,
+    ): FolderTooltipMetadata | undefined {
+        const metadata = this.getDirectoryManifestMetadata(element.folderSourcePath);
+        if (!metadata) {
+            return undefined;
+        }
+
+        return {
+            title: `**${String(element.label)}**`,
+            description: metadata.description ? `*${metadata.description}*` : undefined,
+            details: element.folderSourcePath ? [`Folder: \`${element.folderSourcePath}\``] : [],
         };
     }
 
@@ -924,6 +1124,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     capability?.name?.trim() || skillMetadata?.displayLabel || segmentLabel;
                 const descriptionBase = this.buildDescriptionBase(displayLabel, [
                     capability?.id,
+                    capability?.experimental ? 'experimental' : undefined,
                     skillMetadata?.slug,
                     segmentLabel,
                 ]);
@@ -987,6 +1188,33 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         }
 
         return sourceFolder;
+    }
+
+    private getRepoTreeFolderSourcePath(
+        files: EffectiveFile[],
+        prefix: string,
+        roots: SourceRoot[],
+    ): string | undefined {
+        if (files.length === 0 || !prefix) {
+            return undefined;
+        }
+
+        const representative = files[0];
+        const sourceRoot = this.getSourceRoot(representative, roots)?.rootPath;
+        const absoluteSourceRepo =
+            typeof representative.sourceRepo === 'string' &&
+            path.isAbsolute(representative.sourceRepo)
+                ? path.normalize(representative.sourceRepo)
+                : undefined;
+        const repoRootPath = sourceRoot || absoluteSourceRepo;
+
+        if (!repoRootPath) {
+            return this.getFolderSourcePath(files, prefix, roots, (file: EffectiveFile) =>
+                getDisplayPathForRepoTree(file),
+            );
+        }
+
+        return path.join(repoRootPath, ...prefix.split('/').filter(Boolean));
     }
 
     private getChildrenRepoTree(roots: SourceRoot[]): FileTreeNode[] {
@@ -1122,19 +1350,26 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                 const repoId = this.getRepoIdForFiles(subset, roots);
                 const capability = this.getCapabilityMetadataForPrefix(repoId, nextPrefix, subset);
                 const segmentLabel = path.posix.basename(nextPrefix);
-                const folderSourcePath = this.getFolderSourcePath(
+                const folderSourcePath = this.getRepoTreeFolderSourcePath(
                     subset,
                     nextPrefix,
                     roots,
-                    (file: EffectiveFile) => getDisplayPathForRepoTree(file),
                 );
                 const skillMetadata = nextPrefix.includes('/skills/')
                     ? this.getSkillFolderMetadata(folderSourcePath, segmentLabel)
                     : undefined;
+                const directoryMetadata =
+                    capability || skillMetadata
+                        ? undefined
+                        : this.getDirectoryManifestMetadata(folderSourcePath);
                 const displayLabel =
-                    capability?.name?.trim() || skillMetadata?.displayLabel || segmentLabel;
+                    capability?.name?.trim() ||
+                    skillMetadata?.displayLabel ||
+                    directoryMetadata?.name?.trim() ||
+                    segmentLabel;
                 const descriptionBase = this.buildDescriptionBase(displayLabel, [
                     capability?.id,
+                    capability?.experimental ? 'experimental' : undefined,
                     skillMetadata?.slug,
                     segmentLabel,
                 ]);
@@ -1148,6 +1383,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
                     undefined,
                     summarizeDisplayPrefix(this.state.treeSummaryCache, repoId, nextPrefix),
                     descriptionBase,
+                    !!capability,
                 );
             }),
         );
@@ -1170,7 +1406,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return [...folders, ...typeItems, ...sortByLabel(leafFiles)];
     }
 
-    getChildren(element?: FileTreeNode): FileTreeNode[] {
+    private getChildrenCore(element?: FileTreeNode): FileTreeNode[] {
         if (this.state.isLoading && !this.state.config) {
             return element ? [] : [new LoadingFileItem()];
         }
@@ -1234,7 +1470,92 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
         return this.trackChildren(this.groupByArtifactType(files, rootRepoId), undefined);
     }
 
+    getChildren(element?: FileTreeNode): FileTreeNode[] {
+        return this.searchQuery
+            ? this.getSearchFilteredChildren(element)
+            : this.getChildrenCore(element);
+    }
+
+    getExpandAllStrategy(): ExpandAllStrategy {
+        return this.modeResolver() === 'repoTree' ? 'staged' : 'recursive';
+    }
+
+    getStagedExpandPlan(): StagedExpandPlan<FileTreeNode> {
+        if (this.getExpandAllStrategy() !== 'staged') {
+            return { stageOne: [], stageTwo: [] };
+        }
+
+        const stageOne: FileTreeNode[] = [];
+        const stageTwo: FileTreeNode[] = [];
+        const stageOneSeen = new Set<string>();
+        const stageTwoSeen = new Set<string>();
+
+        const visit = (node: FileTreeNode, ancestors: FileTreeNode[]): void => {
+            const children = this.getChildren(node);
+            const isBoundary =
+                (node instanceof RepoItem || node instanceof FolderItem) &&
+                children.some((child) => child instanceof ArtifactTypeItem);
+
+            if (isBoundary) {
+                for (const ancestor of this.getExpandPlanAncestors(node, ancestors)) {
+                    this.appendExpandPlanNode(stageOne, stageOneSeen, ancestor);
+                }
+                this.appendExpandPlanNode(stageTwo, stageTwoSeen, node);
+                return;
+            }
+
+            const nextAncestors =
+                node.collapsibleState === vscode.TreeItemCollapsibleState.None
+                    ? ancestors
+                    : [...ancestors, node];
+
+            for (const child of children) {
+                visit(child, nextAncestors);
+            }
+        };
+
+        for (const root of this.getChildren()) {
+            visit(root, []);
+        }
+
+        return { stageOne, stageTwo };
+    }
+
+    private getExpandPlanAncestors(node: FileTreeNode, ancestors: FileTreeNode[]): FileTreeNode[] {
+        if (ancestors.length > 0) {
+            return ancestors;
+        }
+
+        const resolved: FileTreeNode[] = [];
+        let current = this.getParent(node);
+        while (current) {
+            resolved.unshift(current);
+            current = this.getParent(current);
+        }
+        return resolved;
+    }
+
     getParent(element: FileTreeNode): FileTreeNode | undefined {
         return this._parentMap.get(element);
+    }
+
+    private appendExpandPlanNode(
+        target: FileTreeNode[],
+        seen: Set<string>,
+        node: FileTreeNode,
+    ): void {
+        if (node.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            return;
+        }
+
+        const key = typeof node.id === 'string' ? node.id : undefined;
+        if (key && seen.has(key)) {
+            return;
+        }
+
+        if (key) {
+            seen.add(key);
+        }
+        target.push(node);
     }
 }

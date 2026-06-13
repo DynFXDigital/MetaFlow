@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha proxyquire module rewiring */
-
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 class MockTreeItem {
     label: unknown;
@@ -10,6 +11,7 @@ class MockTreeItem {
     description?: string | boolean;
     checkboxState?: number;
     tooltip?: unknown;
+    command?: { command: string; title: string; arguments?: unknown[] };
     accessibilityInformation?: { label: string; role: string };
 
     constructor(label: unknown, collapsibleState: number) {
@@ -57,10 +59,14 @@ type MockConfigTreeItem = {
     contextValue?: string;
     tooltip?: unknown;
     description?: string | boolean;
+    checkboxState?: number;
     iconPath?: unknown;
+    command?: { command: string; title: string; arguments?: unknown[] };
     accessibilityInformation?: { label: string; role: string };
     section?: 'repositories' | 'warnings';
     repoId?: string;
+    warningMessage?: string;
+    sourcePath?: string;
 };
 
 type ConfigTreeViewModule = {
@@ -68,18 +74,34 @@ type ConfigTreeViewModule = {
         isLoading?: boolean;
         config?: unknown;
         capabilityWarnings: string[];
+        configWarnings: string[];
+        localGitRepoIds?: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById?: Record<string, { name?: string; description?: string }>;
         capabilityByLayer?: Record<string, { name?: string }>;
         builtInCapability: {
             enabled: boolean;
             layerEnabled: boolean;
+            disabledByUser?: boolean;
             synchronizedFiles: string[];
             sourceRoot?: string;
             sourceId: string;
             sourceDisplayName: string;
         };
         onDidChange: { event: (_l: unknown) => { dispose: () => void } };
+    }, diagnosticCollection?: {
+        forEach: (
+            callback: (
+                uri: { fsPath: string },
+                diagnostics: Array<{
+                    message: string;
+                    severity: number;
+                    range: { start: { line: number; character: number } };
+                    source?: string;
+                    code?: string | number;
+                }>,
+            ) => void,
+        ) => void;
     }) => {
         getChildren(element?: MockConfigTreeItem): MockConfigTreeItem[];
         getTreeItem(element: MockConfigTreeItem): MockConfigTreeItem;
@@ -117,12 +139,30 @@ function makeState(
         isLoading: boolean;
         config: unknown;
         capabilityWarnings: string[];
+        configWarnings: string[];
+        localGitRepoIds: Set<string>;
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById: Record<string, { name?: string; description?: string }>;
         capabilityByLayer: Record<string, { name?: string }>;
+        governanceContractErrors: Array<{ message: string; code?: string | number }>;
+        governanceContract: {
+            requiredCapabilities?: Array<{ repoId: string; path: string }>;
+            defaultOnCapabilities?: Array<{ repoId: string; path: string }>;
+            severity?: 'warn' | 'error';
+        };
+        governanceCompliance: {
+            status: 'not-applicable' | 'compliant' | 'non-compliant';
+            severity: 'warn' | 'error';
+            activeProfile?: string;
+            activeProfileLocked: boolean;
+            allowedProfiles: string[];
+            lockedProfiles: string[];
+            violations: Array<{ id: string; message: string; repoId?: string; path?: string }>;
+        };
         builtInCapability: {
             enabled: boolean;
             layerEnabled: boolean;
+            disabledByUser?: boolean;
             synchronizedFiles: string[];
             sourceRoot?: string;
             sourceId: string;
@@ -139,12 +179,18 @@ function makeState(
         isLoading: false,
         config: undefined,
         capabilityWarnings: [],
+        configWarnings: [],
+        localGitRepoIds: new Set<string>(),
         repoSyncByRepoId: {},
         repoMetadataById: {},
         capabilityByLayer: {},
+        governanceContractErrors: [],
+        governanceContract: undefined,
+        governanceCompliance: undefined,
         builtInCapability: {
             enabled: false,
             layerEnabled: true,
+            disabledByUser: false,
             synchronizedFiles: [],
             sourceRoot: undefined,
             sourceId: 'dynfxdigital.metaflow-ai',
@@ -279,6 +325,11 @@ suite('ConfigTreeView', () => {
         assert.ok(builtInItem, 'expected built-in repo item');
         assert.strictEqual(String(builtInItem?.label), 'MetaFlow');
         assert.strictEqual(
+            builtInItem?.checkboxState,
+            1,
+            'built-in repo should expose a checked checkbox',
+        );
+        assert.strictEqual(
             extractTooltipText(builtInItem?.tooltip),
             joinTooltip(
                 '**MetaFlow**',
@@ -344,8 +395,43 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(section.section, 'repositories');
         assert.strictEqual(String(builtInItem.label), 'MetaFlow: AI Metadata Overlay');
         assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
+        assert.strictEqual(
+            builtInItem.checkboxState,
+            0,
+            'disabled built-in repo should expose an unchecked checkbox',
+        );
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
         assert.deepStrictEqual(provider.getChildren(builtInItem), []);
+    });
+
+    test('CTV-06b: built-in repo stays visible when it is temporarily disabled by the user', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                builtInCapability: {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [builtInItem] = provider.getChildren(section);
+
+        assert.strictEqual(String(builtInItem.label), 'MetaFlow: AI Metadata Overlay');
+        assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
+        assert.strictEqual(
+            builtInItem.checkboxState,
+            0,
+            'user-disabled built-in repo should remain visible with an unchecked checkbox',
+        );
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
     });
 
     test('CTV-07: warnings section appears with warning leaves alongside repositories', () => {
@@ -379,15 +465,216 @@ suite('ConfigTreeView', () => {
                 {
                     label: 'Missing METAFLOW.md',
                     contextValue: 'configWarning',
-                    tooltip: 'Missing METAFLOW.md',
+                    tooltip: '**Warning**\n\nMissing METAFLOW.md',
                 },
                 {
                     label: 'Repo path is not accessible',
                     contextValue: 'configWarning',
-                    tooltip: 'Repo path is not accessible',
+                    tooltip: '**Warning**\n\nRepo path is not accessible',
                 },
             ],
         );
+        assert.strictEqual(warningItems[0].command, undefined);
+    });
+
+    test('CTV-07d: diagnostics-only warnings render even when config failed to load', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(makeState(), {
+            forEach(callback): void {
+                callback(
+                    { fsPath: '/workspace/.metaflow/config.jsonc' },
+                    [
+                        {
+                            message: 'Enabled capability path is missing.',
+                            severity: 1,
+                            range: { start: { line: 0, character: 0 } },
+                            source: 'MetaFlow',
+                            code: 'LAYER_PATH_MISSING',
+                        },
+                    ],
+                );
+            },
+        });
+
+        const [warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.strictEqual(warningsSection.section, 'warnings');
+        assert.strictEqual(String(warningItem.label), 'Enabled capability path is missing.');
+        assert.strictEqual(
+            warningItem.description,
+            '[LAYER_PATH_MISSING] /workspace/.metaflow/config.jsonc#L1C1',
+        );
+        assert.strictEqual(
+            extractTooltipText(warningItem.tooltip),
+            '**Warning**\n\nCode: `LAYER_PATH_MISSING`  \nEnabled capability path is missing.  \nLocation: `/workspace/.metaflow/config.jsonc#L1C1`',
+        );
+        assert.strictEqual(warningItem.command, undefined);
+    });
+
+    test('CTV-07e: state-backed config warnings render without diagnostics collection', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                configWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                ],
+            }),
+        );
+
+        const [, warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.ok(
+            String(warningItem.label).startsWith(
+                'Configured layer "primary/capabilities/ghost" does not exist or is not currently',
+            ),
+        );
+        assert.ok(extractTooltipText(warningItem.tooltip).includes('currently mounted.'));
+        assert.strictEqual(warningItem.description, '[LAYER_PATH_MISSING]');
+    });
+
+    test('CTV-07f: config warning locations win over duplicate raw capability warnings', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                capabilityWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                ],
+                configWarnings: [
+                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted. [/workspace/.metaflow/config.jsonc#L13C9]',
+                ],
+            }),
+        );
+
+        const [, warningsSection] = provider.getChildren();
+        const [warningItem] = provider.getChildren(warningsSection);
+
+        assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
+        assert.strictEqual(
+            warningItem.description,
+            '[LAYER_PATH_MISSING] /workspace/.metaflow/config.jsonc#L13C9',
+        );
+        assert.strictEqual(String(warningItem.label).includes('Configured layer'), true);
+    });
+
+    test('CTV-07b: long structured warnings render a compact row with full tooltip details', () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-warning-item-'));
+        const sourcePath = path.join(
+            tempRoot,
+            'capabilities',
+            'agentic-development',
+            'sample',
+            '.github',
+            'agents',
+            'plugin.json',
+        );
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(sourcePath, '{}\n', 'utf-8');
+
+        try {
+            const normalizedSourcePath = sourcePath.replace(/\\/g, '/');
+            const { ConfigTreeViewProvider } = loadConfigTreeView();
+            const provider = new ConfigTreeViewProvider(
+                makeState({
+                    config: {},
+                    capabilityWarnings: [
+                        `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]`,
+                    ],
+                }),
+            );
+
+            const [, warningsSection] = provider.getChildren();
+            const [warningItem] = provider.getChildren(warningsSection);
+
+            assert.strictEqual(
+                String(warningItem.label),
+                'Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON…',
+            );
+            assert.strictEqual(warningItem.contextValue, 'configWarningSource');
+            assert.ok(
+                String(warningItem.description).includes(
+                    '[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID]',
+                ),
+            );
+            assert.ok(String(warningItem.description).includes('agents/plugin.json'));
+            assert.strictEqual(
+                extractTooltipText(warningItem.tooltip),
+                joinTooltip('**Warning**', [
+                    'Code: `CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID`',
+                    'Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1',
+                    `Location: \`${normalizedSourcePath}\``,
+                    'Action: Click to open the warning source location.',
+                ]),
+            );
+            assert.deepStrictEqual(warningItem.command, {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath,
+                        sourceKind: 'file',
+                        warningMessage: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]`,
+                    },
+                ],
+            });
+            assert.deepStrictEqual(warningItem.accessibilityInformation, {
+                label: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Capability agent plugin plugin.json could not be parsed: Unexpected token { in JSON at position 1 [${normalizedSourcePath}]. Opens source file.`,
+                role: 'listitem',
+            });
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('CTV-07c: maintenance failure warnings reveal existing capability directories', () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-warning-dir-'));
+        const capabilityDir = path.join(tempRoot, 'capabilities', 'demo', '.agents');
+        fs.mkdirSync(capabilityDir, { recursive: true });
+
+        try {
+            const normalizedCapabilityDir = capabilityDir.replace(/\\/g, '/');
+            const { ConfigTreeViewProvider } = loadConfigTreeView();
+            const provider = new ConfigTreeViewProvider(
+                makeState({
+                    config: {},
+                    capabilityWarnings: [
+                        `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]`,
+                    ],
+                }),
+            );
+
+            const [, warningsSection] = provider.getChildren();
+            const [warningItem] = provider.getChildren(warningsSection);
+
+            assert.strictEqual(warningItem.contextValue, 'configWarningSource');
+            assert.deepStrictEqual(warningItem.command, {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath: capabilityDir,
+                        sourceKind: 'directory',
+                        warningMessage: `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]`,
+                    },
+                ],
+            });
+            assert.ok(
+                extractTooltipText(warningItem.tooltip).includes(
+                    'Action: Click to reveal the warning source location in Explorer.',
+                ),
+            );
+            assert.deepStrictEqual(warningItem.accessibilityInformation, {
+                label: `MetaFlow: Failed to maintain plugin metadata for capabilities/demo/.agents. CAPABILITY.md was not found. [${normalizedCapabilityDir}]. Reveals source location in Explorer.`,
+                role: 'listitem',
+            });
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
     });
 
     test('CTV-08: repo label falls back to repo id when name and path are empty', () => {
@@ -441,6 +728,35 @@ suite('ConfigTreeView', () => {
         );
         assert.strictEqual(provider.getChildren(repoItem).length, 0);
         assert.strictEqual(provider.getTreeItem(repoItem), repoItem);
+    });
+
+    test('CTV-09b: local git repos render distinct local-git copy without remote-tracked context', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {
+                    metadataRepos: [
+                        {
+                            id: 'local-git',
+                            localPath: '/workspace/local-git',
+                            enabled: true,
+                        },
+                    ],
+                },
+                localGitRepoIds: new Set(['local-git']),
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [repoItem] = provider.getChildren(section);
+
+        assert.strictEqual(repoItem.contextValue, 'configRepoSourceLocalGit');
+        assert.strictEqual(repoItem.description, 'local-git [local git] (0/0)');
+        assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'source-control');
+        assert.strictEqual(
+            extractTooltipText(repoItem.tooltip),
+            '**local-git**\n\nStatus: enabled  \nLocal path: `local-git`  \nSource control: local git repository  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+        );
     });
 
     test('CTV-10: remote repos show behind sync details in description, icon, and tooltip', () => {
@@ -541,7 +857,7 @@ suite('ConfigTreeView', () => {
                 },
                 {
                     label: 'ahead',
-                    contextValue: 'configRepoSourceGit',
+                    contextValue: 'configRepoSourceGitAhead',
                     description: 'ahead [git] (0/0, 3 ahead)',
                     icon: 'arrow-up',
                 },
@@ -567,7 +883,7 @@ suite('ConfigTreeView', () => {
             makeState({
                 config: {},
                 capabilityByLayer: {
-                    '__metaflow_builtin__/.github': {
+                    '__metaflow_builtin__/.': {
                         name: ' Bundled Capability ',
                     },
                 },
@@ -620,6 +936,94 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
             '**Shared Metadata**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+        );
+    });
+
+    test('CTV-14: repo source descriptions and tooltips surface repo-scoped governance violations', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {
+                    metadataRepos: [
+                        {
+                            id: 'primary',
+                            localPath: '/workspace/team',
+                            enabled: true,
+                        },
+                    ],
+                },
+                governanceContract: {
+                    requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+                    severity: 'error',
+                },
+                governanceCompliance: {
+                    status: 'non-compliant',
+                    severity: 'error',
+                    activeProfile: 'default',
+                    activeProfileLocked: false,
+                    allowedProfiles: [],
+                    lockedProfiles: [],
+                    violations: [
+                        {
+                            id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
+                            message:
+                                'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                            repoId: 'primary',
+                            path: 'standards/sdlc',
+                        },
+                    ],
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [repoItem] = provider.getChildren(section);
+
+        assert.strictEqual(repoItem.description, 'team (0/0, governance 1 violation)');
+        assert.ok(
+            extractTooltipText(repoItem.tooltip).includes(
+                'Governance: non-compliant (severity: error)',
+            ),
+        );
+        assert.ok(
+            extractTooltipText(repoItem.tooltip).includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc] Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+    });
+
+    test('CTV-15: warnings section surfaces concise governance summary when violations are not repo-scoped', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                governanceCompliance: {
+                    status: 'non-compliant',
+                    severity: 'warn',
+                    activeProfile: undefined,
+                    activeProfileLocked: false,
+                    allowedProfiles: ['default'],
+                    lockedProfiles: [],
+                    violations: [
+                        {
+                            id: 'GOVERNANCE_ACTIVE_PROFILE_NOT_ALLOWED::__none__',
+                            message: 'No active profile is selected. Allowed profiles: default.',
+                        },
+                    ],
+                },
+            }),
+        );
+
+        const rootItems = provider.getChildren();
+        assert.deepStrictEqual(
+            rootItems.map((item) => String(item.label)),
+            ['Repositories', 'Warnings (1)'],
+        );
+
+        const warningItems = provider.getChildren(rootItems[1]);
+        assert.deepStrictEqual(
+            warningItems.map((item) => String(item.label)),
+            ['Governance: non-compliant (severity: warn)'],
         );
     });
 });

@@ -20,6 +20,10 @@ const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skill
  */
 export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
+    if (posix === 'copilot-instructions.md') {
+        return 'instructions';
+    }
+
     const firstSegment = posix.split('/')[0] ?? '';
     return KNOWN_TYPES.has(firstSegment) ? (firstSegment as ArtifactType) : 'other';
 }

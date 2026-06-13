@@ -11,7 +11,7 @@ suite('settingsInjector', () => {
 
     function makeFile(
         relativePath: string,
-        classification: 'settings' | 'synchronized',
+        classification: 'settings' | 'plugin' | 'synchronized',
         sourcePath?: string,
     ): EffectiveFile {
         return {
@@ -33,11 +33,6 @@ suite('settingsInjector', () => {
         assert.ok(instrEntry);
         assert.strictEqual(typeof instrEntry!.value, 'object');
         assert.ok((instrEntry!.value as Record<string, boolean>)['../repo/instructions']);
-
-        const legacyInstrEntry = entries.find(
-            (e) => e.key === 'github.copilot.chat.codeGeneration.instructionFiles',
-        );
-        assert.ok(legacyInstrEntry);
     });
 
     test('computes settings for prompts paths', () => {
@@ -49,9 +44,6 @@ suite('settingsInjector', () => {
         const promptEntry = entries.find((e) => e.key === 'chat.promptFilesLocations');
         assert.ok(promptEntry);
         assert.ok((promptEntry!.value as Record<string, boolean>)['../repo/prompts']);
-
-        const legacyPromptEntry = entries.find((e) => e.key === 'github.copilot.chat.promptFiles');
-        assert.ok(legacyPromptEntry);
     });
 
     test('computes settings for agents and skills paths', () => {
@@ -109,11 +101,49 @@ suite('settingsInjector', () => {
         assert.ok((skillsEntry!.value as Record<string, boolean>)['../repo/.github/skills']);
     });
 
+    test('computes object-map settings paths in deterministic lexical order', () => {
+        const files = [
+            makeFile('instructions/a.md', 'settings', '/repo/team/instructions/a.md'),
+            makeFile('instructions/b.md', 'settings', '/repo/team/core/instructions/b.md'),
+        ];
+
+        const entries = computeSettingsEntries(files, workspaceRoot, {});
+        const instructionsEntry = entries.find((entry) => entry.key === 'chat.instructionsFilesLocations');
+
+        assert.deepStrictEqual(
+            Object.keys(instructionsEntry!.value as Record<string, boolean>),
+            ['../repo/team/core/instructions', '../repo/team/instructions'],
+        );
+    });
+
     test('ignores Synchronized files', () => {
         const files = [makeFile('agents/coder.agent.md', 'synchronized')];
 
         const entries = computeSettingsEntries(files, workspaceRoot, {});
         assert.strictEqual(entries.length, 0);
+    });
+
+    test('computes plugin locations from plugin-classified capability roots', () => {
+        const files = [
+            makeFile(
+                '.github/agents/reviewer.agent.md',
+                'plugin',
+                '/repo/capabilities/example/.github/agents/reviewer.agent.md',
+            ),
+            makeFile(
+                '.github/skills/testing/SKILL.md',
+                'plugin',
+                '/repo/capabilities/example/.github/skills/testing/SKILL.md',
+            ),
+        ];
+
+        const entries = computeSettingsEntries(files, workspaceRoot, {});
+        const pluginEntry = entries.find((entry) => entry.key === 'chat.pluginLocations');
+
+        assert.ok(pluginEntry);
+        assert.deepStrictEqual(pluginEntry!.value, {
+            '../repo/capabilities/example': true,
+        });
     });
 
     test('includes hook paths from config', () => {
@@ -139,12 +169,11 @@ suite('settingsInjector', () => {
     test('computeSettingsKeysToRemove returns expected keys', () => {
         const keys = computeSettingsKeysToRemove();
         assert.ok(keys.length >= 4);
+        assert.ok(keys.includes('chat.pluginLocations'));
         assert.ok(keys.includes('chat.instructionsFilesLocations'));
         assert.ok(keys.includes('chat.promptFilesLocations'));
         assert.ok(keys.includes('chat.agentFilesLocations'));
         assert.ok(keys.includes('chat.agentSkillsLocations'));
         assert.ok(keys.includes('chat.hookFilesLocations'));
-        assert.ok(keys.includes('github.copilot.chat.codeGeneration.instructionFiles'));
-        assert.ok(keys.includes('github.copilot.chat.promptFiles'));
     });
 });

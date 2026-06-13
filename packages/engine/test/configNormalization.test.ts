@@ -10,6 +10,7 @@
 import * as assert from 'assert';
 import { normalizeConfigShape, toAuthoredConfig } from '../src/index';
 import type { MetaFlowConfig } from '../src/index';
+import { canonicalizeAuthoredConfig } from '../src/config/configNormalization';
 
 describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional fields', () => {
     it('preserves injection config when present', () => {
@@ -61,6 +62,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
 
     it('canonicalizes nested property ordering for stable serialization', () => {
         const config: MetaFlowConfig = {
+            compatibilityVersion: 2,
             metadataRepos: [
                 {
                     id: 'r1',
@@ -79,7 +81,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
                     capabilities: [
                         {
                             path: 'cap-a',
-                            excludedTypes: ['skills', 'instructions', 'agents'],
                             injection: {
                                 hooks: 'synchronize',
                                 prompts: 'settings',
@@ -98,7 +99,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
                         {
                             path: 'cap-a',
                             repoId: 'r1',
-                            excludedTypes: ['skills', 'instructions'],
                             enabled: false,
                         },
                     ],
@@ -141,11 +141,6 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '      "capabilities": [',
             '        {',
             '          "path": "cap-a",',
-            '          "excludedTypes": [',
-            '            "instructions",',
-            '            "agents",',
-            '            "skills"',
-            '          ],',
             '          "injection": {',
             '            "instructions": "settings",',
             '            "prompts": "settings",',
@@ -155,6 +150,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '      ]',
             '    }',
             '  ],',
+            '  "compatibilityVersion": 2,',
             '  "profiles": {',
             '    "alpha": {',
             '      "displayName": "Alpha",',
@@ -165,11 +161,7 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
             '        {',
             '          "repoId": "r1",',
             '          "path": "cap-a",',
-            '          "enabled": false,',
-            '          "excludedTypes": [',
-            '            "instructions",',
-            '            "skills"',
-            '          ]',
+            '          "enabled": false',
             '        }',
             '      ]',
             '    },',
@@ -195,6 +187,114 @@ describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional f
         ].join('\n');
 
         assert.strictEqual(serialized, expected);
+    });
+
+    it('preserves repo order while canonicalizing capability ordering and path normalization', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team/zeta' }, { path: '.github' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: 'beta\\.github' }, { path: 'alpha/core' }],
+                },
+            ],
+        });
+
+        assert.deepStrictEqual(
+            authored.metadataRepos?.map((repo) => repo.id),
+            ['repo-b', 'repo-a'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
+            ['.', 'team', 'team/zeta'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
+            ['beta', 'alpha/core'],
+        );
+    });
+
+    it('produces byte-stable authored output for logically equivalent repo state', () => {
+        const configA: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team/zeta' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: 'alpha/core' }, { path: '.github' }],
+                },
+            ],
+            layerSources: [
+                { repoId: 'repo-a', path: '.github', enabled: true },
+                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
+                { repoId: 'repo-b', path: 'team', enabled: false },
+            ],
+        };
+
+        const configB: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'repo-b',
+                    localPath: 'repos/repo-b',
+                    capabilities: [{ path: 'team' }, { path: 'team/zeta' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: 'repos/repo-a',
+                    capabilities: [{ path: '.github' }, { path: 'alpha\\core' }],
+                },
+            ],
+            layerSources: [
+                { repoId: 'repo-b', path: 'team', enabled: false },
+                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
+                { repoId: 'repo-a', path: '.github', enabled: true },
+            ],
+        };
+
+        assert.strictEqual(
+            JSON.stringify(toAuthoredConfig(configA), null, 2),
+            JSON.stringify(toAuthoredConfig(configB), null, 2),
+        );
+    });
+});
+
+describe('configNormalization: canonicalizeAuthoredConfig', () => {
+    it('deduplicates and sorts layerSources by authored repo order, then orphan repo id, then layer path', () => {
+        const canonical = canonicalizeAuthoredConfig({
+            metadataRepos: [
+                { id: 'repo-b', localPath: 'repos/repo-b' },
+                { id: 'repo-a', localPath: 'repos/repo-a' },
+            ],
+            layerSources: [
+                { repoId: 'orphan-z', path: 'team/z' },
+                { repoId: 'repo-a', path: 'beta/core', enabled: false },
+                { repoId: 'repo-b', path: '.github' },
+                { repoId: 'repo-a', path: 'beta\\.github', enabled: true },
+                { repoId: 'orphan-a', path: 'team' },
+                { repoId: 'repo-b', path: 'alpha/core' },
+                { repoId: 'repo-a', path: 'beta/.github' },
+            ],
+            layers: ['team/deeper', '.github', 'team', 'team\\.github', 'team/deeper'],
+        });
+
+        assert.deepStrictEqual(canonical.layerSources, [
+            { repoId: 'repo-b', path: '.' },
+            { repoId: 'repo-b', path: 'alpha/core' },
+            { repoId: 'repo-a', path: 'beta', enabled: true },
+            { repoId: 'repo-a', path: 'beta/core', enabled: false },
+            { repoId: 'orphan-a', path: 'team' },
+            { repoId: 'orphan-z', path: 'team/z' },
+        ]);
+        assert.deepStrictEqual(canonical.layers, ['.', 'team', 'team/deeper']);
     });
 });
 
@@ -307,7 +407,7 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
         assert.strictEqual(capB!.enabled, true);
     });
 
-    it('creates capability from layerSource with excludedTypes when not in capabilities', () => {
+    it('creates capability from layerSource when not in capabilities', () => {
         const config: MetaFlowConfig = {
             metadataRepos: [
                 {
@@ -321,7 +421,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
                     repoId: 'r1',
                     path: 'cap-x',
                     enabled: false,
-                    excludedTypes: ['skills'],
                 },
             ],
         };
@@ -330,10 +429,9 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
         const capX = caps?.find((c) => c.path === 'cap-x');
         assert.ok(capX);
         assert.strictEqual(capX!.enabled, false);
-        assert.deepStrictEqual(capX!.excludedTypes, ['skills']);
     });
 
-    it('preserves existing capability enabled and excludedTypes when matching layerSource omits them', () => {
+    it('preserves existing capability enabled when matching layerSource omits it', () => {
         const config: MetaFlowConfig = {
             metadataRepos: [
                 {
@@ -343,7 +441,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
                         {
                             path: 'team/core',
                             enabled: false,
-                            excludedTypes: ['instructions'],
                         },
                     ],
                 },
@@ -361,7 +458,6 @@ describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySourc
             {
                 path: 'team/core',
                 enabled: false,
-                excludedTypes: ['instructions'],
             },
         ]);
     });
@@ -478,9 +574,51 @@ describe('configNormalization: normalizeConfigShape — flattenCapabilities with
         assert.ok(core);
         assert.strictEqual(core!.injection, undefined);
     });
+
+    it('flattens repo and capability fileNamingStrategy onto layerSources with capability precedence', () => {
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    fileNamingStrategy: 'original-unless-conflict',
+                    capabilities: [
+                        { path: 'core' },
+                        { path: 'override', fileNamingStrategy: 'prefixed' },
+                    ],
+                },
+            ],
+            fileNamingStrategy: 'prefixed',
+        };
+
+        const result = normalizeConfigShape(config);
+        const core = result.config.layerSources?.find((source) => source.path === 'core');
+        const override = result.config.layerSources?.find((source) => source.path === 'override');
+
+        assert.ok(core);
+        assert.ok(override);
+        assert.strictEqual(core!.fileNamingStrategy, 'original-unless-conflict');
+        assert.strictEqual(override!.fileNamingStrategy, 'prefixed');
+        assert.strictEqual(result.config.fileNamingStrategy, 'prefixed');
+    });
 });
 
 describe('configNormalization: normalizeConfigShape — migration messages', () => {
+    it('reports migration message for implicit released compatibility version', () => {
+        const result = normalizeConfigShape({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    capabilities: [{ path: 'core' }],
+                },
+            ],
+        });
+        assert.ok(result.migrated);
+        assert.strictEqual(result.authoredConfig.compatibilityVersion, 2);
+        assert.ok(result.migrationMessages.some((m) => m.includes('compatibilityVersion')));
+    });
+
     it('reports migration message for legacy metadataRepo/layers config', () => {
         const result = normalizeConfigShape({
             metadataRepo: { localPath: '.ai' },
@@ -510,6 +648,7 @@ describe('configNormalization: normalizeConfigShape — migration messages', () 
 
     it('does not set migrated flag for modern config', () => {
         const result = normalizeConfigShape({
+            compatibilityVersion: 2,
             metadataRepos: [
                 {
                     id: 'r1',
@@ -519,9 +658,7 @@ describe('configNormalization: normalizeConfigShape — migration messages', () 
             ],
             // No layerSources → not legacy
         });
-        // Might still be migrated for Canonicalized if capabilities exist, depends on shape
-        // Key thing is no crash
-        assert.ok(typeof result.migrated === 'boolean');
+        assert.strictEqual(result.migrated, false);
     });
 });
 

@@ -10,12 +10,48 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 
-suite('Command Execution', () => {
+const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+const COMPLEX_COMMAND_TEST_TIMEOUT_MS = 30000;
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10000;
+
+suite('Command Execution', function () {
+    this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
+
     let workspaceRoot: string;
+    let originalWorkspaceConfig = '';
+
+    function getWorkspaceConfigPath(): string {
+        return path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+    }
+
+    function restoreWorkspaceConfig(): void {
+        const configPath = getWorkspaceConfigPath();
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
+        fs.writeFileSync(configPath, originalWorkspaceConfig, 'utf-8');
+    }
+
+    function removeKnownCommandTestArtifacts(): void {
+        const tempRoots = fs
+            .readdirSync(workspaceRoot, { withFileTypes: true })
+            .filter((entry) => entry.isDirectory() && entry.name.startsWith('.tmp-'));
+
+        for (const entry of tempRoots) {
+            removeDirectoryRecursive(path.join(workspaceRoot, entry.name));
+        }
+
+        removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+    }
+
+    async function restoreCommandTestWorkspace(): Promise<void> {
+        restoreWorkspaceConfig();
+        removeKnownCommandTestArtifacts();
+        await vscode.commands.executeCommand('metaflow.refresh');
+    }
 
     async function waitFor(
         predicate: () => boolean | Promise<boolean>,
-        timeoutMs = 5000,
+        timeoutMs = DEFAULT_WAIT_FOR_TIMEOUT_MS,
         intervalMs = 100,
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
@@ -28,19 +64,135 @@ suite('Command Execution', () => {
         assert.fail(`Condition not met within ${timeoutMs}ms`);
     }
 
+    function summarizeCapabilityDetailsHtml(html: string | undefined): string {
+        if (!html) {
+            return 'no html';
+        }
+
+        const status = html.match(/<span class="status-pill[^"]*">[^<]+/)?.[0] ?? 'no status pill';
+        const action = html.match(/>Enable<\/a>|>Disable<\/a>/)?.[0] ?? 'no toggle action';
+        return `${status}; ${action}`;
+    }
+
+    async function updateConfigAndWait(
+        section: string,
+        value: unknown,
+        target: vscode.ConfigurationTarget,
+        wsFolder?: vscode.WorkspaceFolder,
+    ): Promise<void> {
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder?.uri);
+        await wsConfig.update(section, value, target);
+        // In a clean Extension Host sandbox, configuration writes may not
+        // propagate synchronously.  Poll until a fresh getConfiguration()
+        // read returns the expected value.
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline) {
+            const fresh = vscode.workspace.getConfiguration(undefined, wsFolder?.uri);
+            const inspected = fresh.inspect(section);
+            const scoped =
+                target === vscode.ConfigurationTarget.Workspace
+                    ? inspected?.workspaceValue
+                    : target === vscode.ConfigurationTarget.WorkspaceFolder
+                      ? inspected?.workspaceFolderValue
+                      : inspected?.globalValue;
+            if (JSON.stringify(scoped) === JSON.stringify(value)) {
+                return;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+    }
+
+    function getScopedSettingValue<T>(
+        wsConfig: vscode.WorkspaceConfiguration,
+        section: string,
+    ): T | undefined {
+        const inspected = wsConfig.inspect<T>(section);
+        return (inspected?.workspaceValue ?? inspected?.workspaceFolderValue) as T | undefined;
+    }
+
+    function cloneJson<T>(value: T): T {
+        if (value === undefined) {
+            return value;
+        }
+
+        return JSON.parse(JSON.stringify(value)) as T;
+    }
+
+    function isIgnorableCleanupError(error: unknown): boolean {
+        const code = (error as NodeJS.ErrnoException | undefined)?.code;
+        return code === 'EPERM' || code === 'EBUSY' || code === 'ENOTEMPTY' || code === 'ENOENT';
+    }
+
+    function chmodRecursive(targetPath: string): void {
+        try {
+            if (!fs.existsSync(targetPath)) {
+                return;
+            }
+
+            const stat = fs.lstatSync(targetPath);
+            if (stat.isDirectory()) {
+                for (const entry of fs.readdirSync(targetPath)) {
+                    chmodRecursive(path.join(targetPath, entry));
+                }
+            }
+
+            fs.chmodSync(targetPath, 0o777);
+        } catch {
+            // Best-effort cleanup support for transient Windows file locks.
+        }
+    }
+
     function removeDirectoryRecursive(targetPath: string): void {
-        fs.rmSync(targetPath, {
-            recursive: true,
-            force: true,
-            maxRetries: 20,
-            retryDelay: 100,
-        });
+        if (!fs.existsSync(targetPath)) {
+            return;
+        }
+
+        const remove = (pathToRemove: string) => {
+            chmodRecursive(pathToRemove);
+            fs.rmSync(pathToRemove, {
+                recursive: true,
+                force: true,
+                maxRetries: 60,
+                retryDelay: 250,
+            });
+        };
+
+        try {
+            remove(targetPath);
+        } catch (error: unknown) {
+            if (!isIgnorableCleanupError(error)) {
+                throw error;
+            }
+
+            const movedPath = `${targetPath}.stale-${Date.now()}-${Math.random()
+                .toString(16)
+                .slice(2)}`;
+            try {
+                fs.renameSync(targetPath, movedPath);
+            } catch (renameError: unknown) {
+                if (!isIgnorableCleanupError(renameError)) {
+                    throw renameError;
+                }
+                return;
+            }
+            try {
+                remove(movedPath);
+            } catch (secondError: unknown) {
+                if (!isIgnorableCleanupError(secondError)) {
+                    throw secondError;
+                }
+            }
+        }
     }
 
     function getInjectedLocationValue<T>(
-        inspection: { workspaceValue?: T; workspaceFolderValue?: T } | undefined,
+        inspection: { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined,
     ): T | undefined {
-        return inspection?.workspaceValue ?? inspection?.workspaceFolderValue;
+        return (
+            inspection?.workspaceValue ??
+            inspection?.workspaceFolderValue ??
+            inspection?.globalValue
+        );
     }
 
     function createSettingsBackedWorkspaceConfig() {
@@ -70,30 +222,155 @@ suite('Command Execution', () => {
         };
     }
 
-    function hasBuiltInInstructionPath(locations: Record<string, boolean> | undefined): boolean {
-        if (!locations) {
-            return false;
-        }
-
-        return Object.keys(locations).some((location) =>
-            location.replace(/\\/g, '/').includes('metaflow-ai-metadata/.github/instructions'),
-        );
+    function createPluginBackedWorkspaceConfig(repoLocalPath: string, capabilityPath: string) {
+        return {
+            compatibilityVersion: 2,
+            metadataRepos: [
+                {
+                    id: 'plugin-enable',
+                    localPath: repoLocalPath,
+                    enabled: true,
+                    capabilities: [
+                        {
+                            path: capabilityPath,
+                            enabled: true,
+                        },
+                    ],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'plugin',
+                prompts: 'settings',
+                skills: 'plugin',
+                agents: 'plugin',
+                hooks: 'settings',
+            },
+        };
     }
 
-    function hasExtensionInstallInstructionPath(
-        locations: Record<string, boolean> | undefined,
+    function hasBuiltInInstructionPath(
+        locations: Record<string, boolean> | string[] | undefined,
+    ): boolean {
+        return hasBundledMetaFlowPath(locations, '/.github/instructions');
+    }
+
+    function hasBundledMetaFlowPath(
+        locations: Record<string, boolean> | string[] | undefined,
+        suffix?: string,
     ): boolean {
         if (!locations) {
             return false;
         }
 
-        return Object.keys(locations).some((location) => {
+        const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
+        return candidates.some((location) => {
+            const normalized = location.replace(/\\/g, '/').toLowerCase();
+            return (
+                normalized.includes(
+                    '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/',
+                ) &&
+                (!suffix || normalized.endsWith(suffix))
+            );
+        });
+    }
+
+    function hasExtensionInstallInstructionPath(
+        locations: Record<string, boolean> | string[] | undefined,
+    ): boolean {
+        if (!locations) {
+            return false;
+        }
+
+        const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
+        return candidates.some((location) => {
             const normalized = location.replace(/\\/g, '/').toLowerCase();
             return (
                 normalized.includes('/extensions/dynfxdigital.metaflow-ai-') &&
                 normalized.includes('assets/metaflow-ai-metadata/.github/instructions')
             );
         });
+    }
+
+    function getBuiltInInstructionSettingsPresence(wsConfig: vscode.WorkspaceConfiguration): {
+        hasBuiltIn: boolean;
+        hasExtensionInstall: boolean;
+    } {
+        const instructionLocations = getInjectedLocationValue(
+            wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+        );
+
+        return {
+            hasBuiltIn: hasBuiltInInstructionPath(instructionLocations),
+            hasExtensionInstall: hasExtensionInstallInstructionPath(instructionLocations),
+        };
+    }
+
+    interface InstructionSettingsSnapshot {
+        instructionLocations?: Record<string, boolean>;
+    }
+
+    function getInstructionSettingsSnapshot(
+        wsConfig: vscode.WorkspaceConfiguration,
+    ): InstructionSettingsSnapshot {
+        return {
+            instructionLocations: cloneJson(
+                getScopedSettingValue<Record<string, boolean>>(
+                    wsConfig,
+                    'chat.instructionsFilesLocations',
+                ),
+            ),
+        };
+    }
+
+    function snapshotHasBuiltInInstructions(snapshot: InstructionSettingsSnapshot): boolean {
+        return hasBuiltInInstructionPath(snapshot.instructionLocations);
+    }
+
+    function getUnmanagedInstructionLocationKeys(snapshot: InstructionSettingsSnapshot): string[] {
+        return Object.keys(snapshot.instructionLocations ?? {}).filter(
+            (location) => !hasBuiltInInstructionPath([location]),
+        );
+    }
+
+    function getWorkspaceInjectionModes(
+        wsConfig: vscode.WorkspaceConfiguration,
+    ): Record<string, unknown> | undefined {
+        return cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('metaflow.injection.modes')?.workspaceValue,
+        );
+    }
+
+    async function useSettingsBackedInstructions(
+        wsFolder: vscode.WorkspaceFolder,
+    ): Promise<Record<string, unknown> | undefined> {
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
+        const previousModes = getWorkspaceInjectionModes(wsConfig);
+        await updateConfigAndWait(
+            'metaflow.injection.modes',
+            { ...(previousModes ?? {}), instructions: 'settings' },
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder,
+        );
+        return previousModes;
+    }
+
+    async function restoreInjectionModes(
+        wsFolder: vscode.WorkspaceFolder,
+        previousModes: Record<string, unknown> | undefined,
+    ): Promise<void> {
+        await updateConfigAndWait(
+            'metaflow.injection.modes',
+            previousModes,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder,
+        );
     }
 
     async function resetBuiltInCapabilityState(): Promise<void> {
@@ -132,7 +409,7 @@ suite('Command Execution', () => {
     }
 
     suiteSetup(async function () {
-        this.timeout(15000);
+        this.timeout(INTEGRATION_STARTUP_TIMEOUT_MS);
 
         // Ensure extension is active
         const ext = vscode.extensions.getExtension('dynfxdigital.metaflow-ai');
@@ -143,6 +420,12 @@ suite('Command Execution', () => {
         const ws = vscode.workspace.workspaceFolders?.[0];
         assert.ok(ws, 'Test workspace folder should be available');
         workspaceRoot = ws.uri.fsPath;
+        originalWorkspaceConfig = fs.readFileSync(getWorkspaceConfigPath(), 'utf-8');
+    });
+
+    teardown(async function () {
+        this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
+        await restoreCommandTestWorkspace();
     });
 
     test('refresh loads config from test workspace', async function () {
@@ -241,6 +524,9 @@ suite('Command Execution', () => {
                 },
             },
             activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+            },
         };
 
         const windowAny = vscode.window as unknown as {
@@ -279,6 +565,100 @@ suite('Command Execution', () => {
         }
     });
 
+    test('apply honors original-unless-conflict except for prefixed chatmodes outputs', async function () {
+        this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
+
+        await resetBuiltInCapabilityState();
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'sync-naming-repo');
+        const nestedSkillDir = path.join(repoRoot, 'core', 'skills', 'naming-strategy', 'nested');
+        const layerChatmodesDir = path.join(repoRoot, 'core', '.github', 'chatmodes');
+        const originalSkillPath = path.join(
+            workspaceRoot,
+            '.github',
+            'skills',
+            'naming-strategy',
+            'nested',
+            'guide.md',
+        );
+        const prefixedChatmodePath = path.join(
+            workspaceRoot,
+            '.github',
+            'chatmodes',
+            '_default-core__sync-naming-legacy.chatmode.md',
+        );
+        const unprefixedChatmodePath = path.join(
+            workspaceRoot,
+            '.github',
+            'chatmodes',
+            'sync-naming-legacy.chatmode.md',
+        );
+
+        removeDirectoryRecursive(repoRoot);
+        removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+        fs.rmSync(prefixedChatmodePath, { force: true });
+        fs.rmSync(unprefixedChatmodePath, { force: true });
+
+        fs.mkdirSync(nestedSkillDir, { recursive: true });
+        fs.mkdirSync(layerChatmodesDir, { recursive: true });
+        fs.writeFileSync(path.join(nestedSkillDir, 'guide.md'), '# Guide\n', 'utf-8');
+        fs.writeFileSync(
+            path.join(layerChatmodesDir, 'sync-naming-legacy.chatmode.md'),
+            '# Legacy\n',
+            'utf-8',
+        );
+
+        const namingStrategyConfig = {
+            metadataRepo: {
+                localPath: '.ai/sync-naming-repo',
+            },
+            layers: ['core'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                skills: 'synchronize',
+            },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(namingStrategyConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            assert.ok(
+                fs.existsSync(originalSkillPath),
+                'Skills should preserve their original nested path under original-unless-conflict',
+            );
+            assert.ok(
+                fs.existsSync(prefixedChatmodePath),
+                'Deprecated chatmodes should remain on the prefixed synchronized path',
+            );
+            assert.ok(
+                !fs.existsSync(unprefixedChatmodePath),
+                'Deprecated chatmodes should not be written to the original relative path',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            removeDirectoryRecursive(
+                path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'),
+            );
+            fs.rmSync(prefixedChatmodePath, { force: true });
+            fs.rmSync(unprefixedChatmodePath, { force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('apply suppresses completion toast when no Synchronized files are written', async function () {
         this.timeout(20000);
 
@@ -286,7 +666,6 @@ suite('Command Execution', () => {
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
         const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const priorAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const priorAiMetadataAutoApplyMode =
@@ -308,13 +687,16 @@ suite('Command Execution', () => {
         const settingsOnlyConfig = {
             metadataRepos: [{ id: 'settings', localPath: '.ai/settings-only-repo', enabled: true }],
             layerSources: [{ repoId: 'settings', path: 'settings-only', enabled: true }],
-            filters: { include: ['instructions/**'], exclude: [] },
+            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
                 },
             },
             activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+            },
         };
 
         const windowAny = vscode.window as unknown as {
@@ -330,20 +712,20 @@ suite('Command Execution', () => {
             return undefined;
         };
 
-        await wsConfig.update(
-            'chat.instructionsFilesLocations',
-            undefined,
-            vscode.ConfigurationTarget.Workspace,
-        );
-        await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
-        await metaflowConfig.update(
-            'aiMetadataAutoApplyMode',
-            'off',
-            vscode.ConfigurationTarget.Workspace,
-        );
-
         try {
             fs.writeFileSync(configPath, JSON.stringify(settingsOnlyConfig, null, 2), 'utf-8');
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder,
+            );
+            await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+            await metaflowConfig.update(
+                'aiMetadataAutoApplyMode',
+                'off',
+                vscode.ConfigurationTarget.Workspace,
+            );
 
             await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
             applyMessages.length = 0;
@@ -355,8 +737,17 @@ suite('Command Execution', () => {
                 'Apply should not show a completion toast when no Synchronized files are written',
             );
 
+            await waitFor(() => {
+                const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
+                const instructionLocations = getInjectedLocationValue(
+                    freshConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return !!instructionLocations && Object.keys(instructionLocations).length > 0;
+            });
+
+            const freshConfig = vscode.workspace.getConfiguration(undefined, wsFolder.uri);
             const instructionLocations = getInjectedLocationValue(
-                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                freshConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
             );
             assert.ok(
                 instructionLocations && Object.keys(instructionLocations).length > 0,
@@ -539,6 +930,85 @@ suite('Command Execution', () => {
         }
     });
 
+    test('refresh clears stale built-in instruction settings when no capabilities are effective', async function () {
+        this.timeout(15000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const disabledConfig = {
+            compatibilityVersion: 2,
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    capabilities: [{ path: 'company/core', enabled: false }],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+        await metaflowConfig.update(
+            'aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+        );
+        await wsConfig.update(
+            'chat.instructionsFilesLocations',
+            {
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/instructions': true,
+            },
+            vscode.ConfigurationTarget.Workspace,
+        );
+
+        try {
+            await resetBuiltInCapabilityState();
+            fs.writeFileSync(configPath, JSON.stringify(disabledConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const instructionLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+            );
+
+            assert.ok(
+                !hasBuiltInInstructionPath(instructionLocations),
+                'Refresh should clear stale built-in instruction paths when no capabilities are effective',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await metaflowConfig.update(
+                'autoApply',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await metaflowConfig.update(
+                'aiMetadataAutoApplyMode',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('config watcher triggers auto refresh and settings injection on config change', async function () {
         this.timeout(20000);
 
@@ -652,9 +1122,11 @@ suite('Command Execution', () => {
             );
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
                 metadataRepos?: Array<{ id: string; capabilities?: Array<{ path: string }> }>;
             };
 
+            assert.strictEqual(migratedConfig.compatibilityVersion, 2);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -666,6 +1138,105 @@ suite('Command Execution', () => {
                 'Migrated config should persist capability entries',
             );
         } finally {
+            await wsConfig.update(
+                'metaflow.autoApply',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('refresh rewrites modern released config with compatibilityVersion and generic migration notice', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        const unversionedModernConfig = {
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    enabled: true,
+                    capabilities: [{ path: 'company/core', enabled: true }],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+                skills: 'settings',
+                agents: 'settings',
+                hooks: 'settings',
+            },
+        };
+
+        await wsConfig.update('metaflow.autoApply', false, vscode.ConfigurationTarget.Workspace);
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(unversionedModernConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await waitFor(() => {
+                const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    compatibilityVersion?: number;
+                };
+                return migratedConfig.compatibilityVersion === 2;
+            }, 10000);
+
+            const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
+                metadataRepos?: Array<{ capabilities?: Array<{ path: string }> }>;
+            };
+
+            assert.strictEqual(
+                migratedConfig.compatibilityVersion,
+                2,
+                'Refresh should persist the current compatibilityVersion for released configs',
+            );
+            assert.ok(
+                migratedConfig.metadataRepos?.[0]?.capabilities?.some(
+                    (capability) => capability.path === 'company/core',
+                ),
+                'Refresh should preserve configured capabilities while persisting compatibilityVersion',
+            );
+            assert.ok(
+                infoMessages.includes(
+                    'MetaFlow: Configuration was automatically migrated. Check the output channel for details.',
+                ),
+                'Refresh should surface a generic migration notice for release-aware config upgrades',
+            );
+            assert.ok(
+                !infoMessages.some((message) => message.includes('metadataRepos[*].capabilities')),
+                'Release-aware migration notice should not claim a legacy metadataRepos[*].capabilities rewrite',
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
             await wsConfig.update(
                 'metaflow.autoApply',
                 undefined,
@@ -979,6 +1550,247 @@ suite('Command Execution', () => {
         );
     });
 
+    test('apply manages one non-built-in plugin capability without retaining disabled built-in registrations', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-plugin-enable-repo');
+        const capabilityPath = 'capabilities/plugin-smoke';
+        const capabilityRoot = path.join(repoRoot, 'capabilities', 'plugin-smoke');
+        const copilotSettingsPath = path.join(
+            workspaceRoot,
+            '.github',
+            'copilot',
+            'settings.local.json',
+        );
+        const originalCopilotSettings = fs.existsSync(copilotSettingsPath)
+            ? fs.readFileSync(copilotSettingsPath, 'utf-8')
+            : undefined;
+        const staleBundledPluginUri = vscode.Uri.file(
+            path.join(
+                workspaceRoot,
+                '..',
+                '..',
+                '..',
+                'AppData',
+                'Roaming',
+                'Code - Insiders',
+                'User',
+                'globalStorage',
+                'dynfxdigital.metaflow-ai',
+                'bundled-metadata',
+                'metaflow-ai-metadata',
+            ),
+        ).toString();
+        const unrelatedPluginUri = 'file:///unrelated-plugin-root';
+
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(path.join(capabilityRoot, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Plugin Smoke',
+                'description: Plugin-backed capability for enablement testing.',
+                'agentPlugin: true',
+                '---',
+            ].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'plugin.json'),
+            JSON.stringify(
+                {
+                    name: 'plugin-smoke',
+                    version: '0.1.0',
+                    description: 'Plugin enablement smoke test.',
+                    rules: '.github/instructions',
+                    metaflow: {
+                        pluginHosts: ['github-copilot'],
+                        minimumMetaflowVersion: '^0.1.0-preview.0',
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.github', 'instructions', 'plugin-smoke.instructions.md'),
+            '# Plugin Smoke\n',
+            'utf-8',
+        );
+
+        fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+        fs.writeFileSync(
+            copilotSettingsPath,
+            JSON.stringify(
+                {
+                    enabledPlugins: {
+                        [unrelatedPluginUri]: true,
+                        [staleBundledPluginUri]: true,
+                    },
+                    extraKnownMarketplaces: {
+                        sample: {
+                            source: 'github',
+                            repo: 'owner/repo',
+                        },
+                    },
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+
+        const expectedPluginUri = vscode.Uri.file(capabilityRoot).toString();
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+
+        try {
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify(
+                    createPluginBackedWorkspaceConfig('.tmp-plugin-enable-repo', capabilityPath),
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+            await resetBuiltInCapabilityState();
+            await vscode.workspace
+                .getConfiguration('metaflow', vscode.workspace.workspaceFolders?.[0]?.uri)
+                .update('aiMetadataAutoApplyMode', 'off', vscode.ConfigurationTarget.Workspace);
+            await wsConfig.update(
+                'chat.instructionsFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/instructions': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/instructions': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.agentFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/agents': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/agents': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.agentSkillsLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/skills': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.promptFilesLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/prompts': true,
+                },
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.pluginLocations',
+                {
+                    '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata': true,
+                },
+                vscode.ConfigurationTarget.Global,
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply');
+
+            const instructionLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+            );
+            const agentLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.agentFilesLocations'),
+            );
+            const skillLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.agentSkillsLocations'),
+            );
+            const promptLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.promptFilesLocations'),
+            );
+            const pluginLocations = getInjectedLocationValue(
+                wsConfig.inspect<Record<string, boolean>>('chat.pluginLocations'),
+            );
+
+            assert.ok(
+                !hasBundledMetaFlowPath(instructionLocations, '/.github/instructions'),
+                'Non-built-in plugin enablement should prune disabled built-in instruction locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(agentLocations, '/.github/agents'),
+                'Non-built-in plugin enablement should prune disabled built-in agent locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(skillLocations, '/.github/skills'),
+                'Non-built-in plugin enablement should prune disabled built-in skill locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(promptLocations, '/.github/prompts'),
+                'Non-built-in plugin enablement should prune disabled built-in prompt locations',
+            );
+            assert.ok(
+                !hasBundledMetaFlowPath(pluginLocations),
+                'Non-built-in plugin enablement should prune disabled built-in plugin locations',
+            );
+            const expectedPluginLocation = path
+                .relative(workspaceRoot, capabilityRoot)
+                .replace(/\\/g, '/');
+            assert.strictEqual(pluginLocations?.[expectedPluginLocation], true);
+
+            const appliedSettings = JSON.parse(fs.readFileSync(copilotSettingsPath, 'utf-8')) as {
+                enabledPlugins?: Record<string, boolean>;
+                extraKnownMarketplaces?: Record<string, unknown>;
+            };
+
+            assert.strictEqual(appliedSettings.enabledPlugins?.[unrelatedPluginUri], true);
+            assert.strictEqual(appliedSettings.enabledPlugins?.[expectedPluginUri], true);
+            assert.strictEqual(appliedSettings.enabledPlugins?.[staleBundledPluginUri], undefined);
+            assert.ok(appliedSettings.extraKnownMarketplaces?.sample);
+
+            windowAny.showWarningMessage = async () => 'Remove';
+            await vscode.commands.executeCommand('metaflow.clean');
+
+            const cleanedSettings = JSON.parse(fs.readFileSync(copilotSettingsPath, 'utf-8')) as {
+                enabledPlugins?: Record<string, boolean>;
+                extraKnownMarketplaces?: Record<string, unknown>;
+            };
+
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[expectedPluginUri], undefined);
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[unrelatedPluginUri], true);
+            assert.strictEqual(cleanedSettings.enabledPlugins?.[staleBundledPluginUri], undefined);
+            assert.ok(cleanedSettings.extraKnownMarketplaces?.sample);
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.workspace
+                .getConfiguration('metaflow', vscode.workspace.workspaceFolders?.[0]?.uri)
+                .update('aiMetadataAutoApplyMode', undefined, vscode.ConfigurationTarget.Workspace);
+            if (originalCopilotSettings !== undefined) {
+                fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+                fs.writeFileSync(copilotSettingsPath, originalCopilotSettings, 'utf-8');
+            } else if (fs.existsSync(copilotSettingsPath)) {
+                fs.unlinkSync(copilotSettingsPath);
+            }
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('status logs key metrics to output channel', async function () {
         this.timeout(15000);
 
@@ -1083,6 +1895,265 @@ suite('Command Execution', () => {
         }
     });
 
+    test('status reports missing metadata repo paths when effective files resolve empty', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const missingRepoConfig = {
+            metadataRepos: [
+                {
+                    id: 'missing-meta',
+                    localPath: '.ai/missing-mounted-metadata',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'missing-meta', path: '.', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(missingRepoConfig, null, 2), 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            const lines = (await vscode.commands.executeCommand('metaflow.status')) as
+                | string[]
+                | undefined;
+            assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
+
+            const warningLine = lines.find((line) => line.includes('REPO_PATH_MISSING'));
+            assert.ok(
+                warningLine,
+                'Status should include a warning when a configured metadata repo path is missing',
+            );
+            assert.ok(
+                warningLine?.includes('.ai/missing-mounted-metadata'),
+                `Expected missing repo warning to include configured localPath, got: ${warningLine}`,
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('top-level refresh exposes user-facing capability names for newly discovered capabilities', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const priorAutoApply = wsConfig.inspect<boolean>('metaflow.autoApply')?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const repoRoot = path.join(workspaceRoot, '.ai', 'refresh-name-repo');
+        const baseLayerRoot = path.join(repoRoot, 'base', 'chatmodes');
+        const discoveredLayerRoot = path.join(repoRoot, 'named-capability');
+        const discoveredChatmodesRoot = path.join(discoveredLayerRoot, 'chatmodes');
+        fs.mkdirSync(baseLayerRoot, { recursive: true });
+        fs.mkdirSync(discoveredChatmodesRoot, { recursive: true });
+        fs.writeFileSync(path.join(baseLayerRoot, 'base.chatmode.md'), '# Base chatmode', 'utf-8');
+        fs.writeFileSync(
+            path.join(discoveredLayerRoot, 'CAPABILITY.md'),
+            ['---', 'name: Named Capability', 'description: Friendly display name.', '---'].join(
+                '\n',
+            ),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(discoveredChatmodesRoot, 'named.chatmode.md'),
+            '# Named chatmode',
+            'utf-8',
+        );
+
+        const discoveryConfig = {
+            metadataRepos: [
+                {
+                    id: 'refresh-name-repo',
+                    localPath: '.ai/refresh-name-repo',
+                },
+            ],
+            layerSources: [{ repoId: 'refresh-name-repo', path: 'base' }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(discoveryConfig, null, 2), 'utf-8');
+            await wsConfig.update(
+                'metaflow.autoApply',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'refresh-name-repo',
+                    layerPath: 'named-capability',
+                },
+            )) as { title?: string; html?: string } | undefined;
+
+            assert.ok(snapshot, 'Expected capability details snapshot for discovered capability');
+            assert.strictEqual(snapshot?.title, 'Capability Details: Named Capability');
+            assert.ok(
+                snapshot?.html?.includes('Named Capability'),
+                'Capability details HTML should use the user-facing name after top-level refresh',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await wsConfig.update(
+                'metaflow.autoApply',
+                priorAutoApply,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0349: openCapabilityDetails renders governance notice in live runtime (Verifies: REQ-0311, REQ-0412)', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const originalGovernanceExists = fs.existsSync(governancePath);
+        const originalGovernance = originalGovernanceExists
+            ? fs.readFileSync(governancePath, 'utf-8')
+            : undefined;
+
+        const governedConfig = {
+            metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+            layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+        const governanceContract = {
+            severity: 'error',
+            requiredCapabilities: [{ repoId: 'primary', path: 'standards/sdlc' }],
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(governedConfig, null, 2), 'utf-8');
+            fs.writeFileSync(governancePath, JSON.stringify(governanceContract, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'primary',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { title?: string; html?: string } | undefined;
+
+            assert.ok(snapshot, 'Expected capability details snapshot for governed capability');
+            assert.ok(snapshot?.html?.includes('<h2>Governance</h2>'));
+            assert.ok(snapshot?.html?.includes('governance-notice-error'));
+            assert.ok(snapshot?.html?.includes('Governance: non-compliant (severity: error)'));
+            assert.ok(snapshot?.html?.includes('Governance Rule: required capability'));
+            assert.ok(snapshot?.html?.includes('Governance Violations: 1'));
+            assert.ok(
+                snapshot?.html?.includes(
+                    '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc]',
+                ),
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            if (originalGovernanceExists) {
+                fs.writeFileSync(governancePath, originalGovernance!, 'utf-8');
+            } else if (fs.existsSync(governancePath)) {
+                fs.unlinkSync(governancePath);
+            }
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openCapabilityDetails renders experimental status in live runtime', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.ai', 'experimental-details-repo');
+        const layerRoot = path.join(repoRoot, 'review', 'experimental-capability');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Experimental Capability',
+                'description: Preview metadata experience.',
+                'experimental: true',
+                '---',
+                '',
+                '# Experimental Capability',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const config = {
+            metadataRepos: [
+                {
+                    id: 'experimental-details',
+                    localPath: '.ai/experimental-details-repo',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'experimental-details',
+                    path: 'review/experimental-capability',
+                    enabled: true,
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'experimental-details',
+                    layerPath: 'review/experimental-capability',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(snapshot?.html?.includes('status-pill-warning">Experimental'));
+            assert.ok(snapshot?.html?.includes('Experimental Capability'));
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
     test('TC-0317: openCapabilityDetails reuses a capability details webview panel in the current editor group (Verifies: REQ-0311, REQ-0412)', async function () {
         this.timeout(15000);
 
@@ -1140,6 +2211,516 @@ suite('Command Execution', () => {
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openCapabilityDetails refreshes enable state after details toggle', async function () {
+        this.timeout(20000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const config = {
+            metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata', enabled: true }],
+            layerSources: [{ repoId: 'details-toggle', path: 'standards/sdlc', enabled: false }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                    disable: [],
+                },
+            },
+            activeProfile: 'default',
+        };
+        const originalGovernance = fs.readFileSync(governancePath, 'utf-8');
+
+        try {
+            fs.writeFileSync(
+                governancePath,
+                JSON.stringify({ severity: 'error', allowedProfiles: ['default'] }, null, 2),
+                'utf-8',
+            );
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const initialSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                initialSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-disabled">Disabled',
+                ),
+            );
+            assert.ok(initialSnapshot?.html?.includes('>Enable</a>'));
+            assert.ok(
+                initialSnapshot?.html?.includes(
+                    'Excluded from the active MetaFlow capability set.',
+                ),
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                repoId: 'details-toggle',
+                layerPath: 'standards/sdlc',
+                checked: true,
+            });
+
+            const enabledSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                enabledSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-enabled">Enabled',
+                ),
+                `Expected enabled status pill, got: ${summarizeCapabilityDetailsHtml(enabledSnapshot?.html)}`,
+            );
+            assert.ok(
+                enabledSnapshot?.html?.includes('>Disable</a>'),
+                `Expected Disable action, got: ${summarizeCapabilityDetailsHtml(enabledSnapshot?.html)}`,
+            );
+            assert.ok(
+                enabledSnapshot?.html?.includes('Included in the active MetaFlow capability set.'),
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                repoId: 'details-toggle',
+                layerPath: 'standards/sdlc',
+                checked: false,
+            });
+
+            const disabledSnapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'details-toggle',
+                    layerPath: 'standards/sdlc',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                disabledSnapshot?.html?.includes(
+                    '<span class="status-pill status-pill-disabled">Disabled',
+                ),
+            );
+            assert.ok(disabledSnapshot?.html?.includes('>Enable</a>'));
+            assert.ok(
+                disabledSnapshot?.html?.includes(
+                    'Excluded from the active MetaFlow capability set.',
+                ),
+            );
+        } finally {
+            fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openCapabilityManifest opens the backing CAPABILITY.md from capability details context', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.ai', 'manifest-open-repo');
+        const layerRoot = path.join(repoRoot, 'review', 'capability-open');
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Capability Open',
+                'description: Open raw manifest.',
+                '---',
+                '',
+                '# Capability Open',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const config = {
+            metadataRepos: [
+                { id: 'manifest-open', localPath: '.ai/manifest-open-repo', enabled: true },
+            ],
+            layerSources: [
+                { repoId: 'manifest-open', path: 'review/capability-open', enabled: true },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const snapshot = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityDetails',
+                {
+                    repoId: 'manifest-open',
+                    layerPath: 'review/capability-open',
+                },
+            )) as { html?: string } | undefined;
+
+            assert.ok(
+                snapshot?.html?.includes('Open CAPABILITY.md'),
+                'details view should render the open-manifest action',
+            );
+            assert.ok(
+                snapshot?.html?.includes('command:metaflow.openCapabilityManifest?'),
+                'details view should expose the open-manifest command uri',
+            );
+
+            const openedPath = (await vscode.commands.executeCommand(
+                'metaflow.openCapabilityManifest',
+                {
+                    manifestPath: path.join(layerRoot, 'CAPABILITY.md'),
+                },
+            )) as string | undefined;
+
+            assert.strictEqual(openedPath, path.join(layerRoot, 'CAPABILITY.md'));
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'opening the manifest should reveal a text editor',
+            );
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(path.join(layerRoot, 'CAPABILITY.md')),
+                'openCapabilityManifest should open the exact backing CAPABILITY.md file',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openWarningSource opens the backing warning source file and copyWarningMessage copies full text', async function () {
+        this.timeout(15000);
+
+        const warningRoot = path.join(workspaceRoot, '.tmp-warning-source-command');
+        const sourcePath = path.join(
+            warningRoot,
+            'capabilities',
+            'sample',
+            '.github',
+            'agents',
+            'plugin.json',
+        );
+        const warningMessage = `[CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID] Sample warning [${sourcePath.replace(/\\/g, '/')}]`;
+
+        removeDirectoryRecursive(warningRoot);
+        fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+        fs.writeFileSync(sourcePath, '{"name":"sample"}\n', 'utf-8');
+
+        try {
+            const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
+                sourcePath,
+                sourceLine: 0,
+                sourceColumn: 8,
+                warningMessage,
+            })) as string | undefined;
+
+            assert.strictEqual(openedPath, sourcePath);
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'opening a warning source should reveal a text editor',
+            );
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(sourcePath),
+                'openWarningSource should open the exact warning source file',
+            );
+            assert.strictEqual(vscode.window.activeTextEditor!.selection.active.line, 0);
+            assert.strictEqual(vscode.window.activeTextEditor!.selection.active.character, 8);
+
+            const copied = (await vscode.commands.executeCommand('metaflow.copyWarningMessage', {
+                warningMessage,
+            })) as string | undefined;
+
+            assert.strictEqual(copied, warningMessage);
+            assert.strictEqual(await vscode.env.clipboard.readText(), warningMessage);
+        } finally {
+            removeDirectoryRecursive(warningRoot);
+            await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+        }
+    });
+
+    test('openWarningSource reveals backing warning directories in Explorer', async function () {
+        this.timeout(15000);
+
+        const warningRoot = path.join(workspaceRoot, '.tmp-warning-source-directory');
+        const sourcePath = path.join(warningRoot, 'capabilities', 'sample');
+
+        removeDirectoryRecursive(warningRoot);
+        fs.mkdirSync(sourcePath, { recursive: true });
+
+        const originalExecuteCommand = vscode.commands.executeCommand;
+        const calls: Array<{ command: string; args: unknown[] }> = [];
+        (
+            vscode.commands as unknown as { executeCommand: typeof vscode.commands.executeCommand }
+        ).executeCommand = (async (command: string, ...args: unknown[]) => {
+            calls.push({ command, args });
+            if (command === 'revealInExplorer') {
+                return;
+            }
+
+            return originalExecuteCommand(command as never, ...(args as []));
+        }) as typeof vscode.commands.executeCommand;
+
+        try {
+            const openedPath = (await vscode.commands.executeCommand('metaflow.openWarningSource', {
+                sourcePath,
+                sourceKind: 'directory',
+                warningMessage: `[CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING] Missing capability manifest [${sourcePath.replace(/\\/g, '/')}]`,
+            })) as string | undefined;
+
+            assert.strictEqual(openedPath, sourcePath);
+            assert.ok(
+                calls.some(
+                    (call) =>
+                        call.command === 'revealInExplorer' &&
+                        call.args[0] instanceof vscode.Uri &&
+                        path.normalize((call.args[0] as vscode.Uri).fsPath) ===
+                            path.normalize(sourcePath),
+                ),
+                'openWarningSource should reveal the exact warning directory in Explorer',
+            );
+        } finally {
+            (
+                vscode.commands as unknown as {
+                    executeCommand: typeof vscode.commands.executeCommand;
+                }
+            ).executeCommand = originalExecuteCommand;
+            removeDirectoryRecursive(warningRoot);
+        }
+    });
+
+    test('createCapabilityManifest prompts for capability naming and creates a child directory under the selected parent', async function () {
+        this.timeout(15000);
+
+        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-capability-create-context');
+        const layerPath = 'capabilities/context-target';
+        const layerRoot = path.join(repoRoot, 'capabilities', 'context-target');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(layerRoot, { recursive: true });
+
+        const config = {
+            metadataRepos: [
+                {
+                    id: 'context-repo',
+                    localPath: '.tmp-capability-create-context',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                {
+                    repoId: 'context-repo',
+                    path: layerPath,
+                    enabled: true,
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInputBox: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInputBox = windowAny.showInputBox;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'suggested')) {
+                return picks.find((pick) => pick.mode === 'suggested') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => undefined;
+
+        let inputPromptCount = 0;
+        windowAny.showInputBox = async () => {
+            inputPromptCount += 1;
+            if (inputPromptCount === 1) {
+                return 'Context Capability';
+            }
+            if (inputPromptCount === 2) {
+                return 'context-capability';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const result = (await vscode.commands.executeCommand(
+                'metaflow.createCapabilityManifest',
+                {
+                    repoId: 'context-repo',
+                    layerPath,
+                },
+            )) as
+                | {
+                      guidancePath?: string;
+                      examplePath?: string;
+                      draftUri?: string;
+                      manifestPath?: string;
+                      pluginJsonPath?: string;
+                      targetDirectory?: string;
+                      capabilityDirectoryPath?: string;
+                      capabilityGithubDirectoryPath?: string;
+                      capabilityName?: string;
+                      capabilityDirectoryName?: string;
+                  }
+                | undefined;
+
+            assert.ok(
+                result?.guidancePath,
+                'guided create should return the bundled guidance path',
+            );
+            assert.ok(result?.examplePath, 'guided create should return the bundled example path');
+
+            const expectedCapabilityDirectoryPath = path.join(layerRoot, 'context-capability');
+            const expectedCapabilityGithubDirectoryPath = path.join(
+                expectedCapabilityDirectoryPath,
+                '.github',
+            );
+            const expectedManifestPath = path.join(
+                expectedCapabilityDirectoryPath,
+                'CAPABILITY.md',
+            );
+            const expectedPluginJsonPath = path.join(
+                expectedCapabilityDirectoryPath,
+                'plugin.json',
+            );
+            assert.strictEqual(
+                path.normalize(result?.manifestPath ?? ''),
+                path.normalize(expectedManifestPath),
+                'guided create should write CAPABILITY.md in the child capability directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.pluginJsonPath ?? ''),
+                path.normalize(expectedPluginJsonPath),
+                'guided create should write plugin.json in the child capability directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.targetDirectory ?? ''),
+                path.normalize(layerRoot),
+                'guided create should return the selected parent destination directory',
+            );
+            assert.strictEqual(
+                path.normalize(result?.capabilityDirectoryPath ?? ''),
+                path.normalize(expectedCapabilityDirectoryPath),
+                'guided create should return the created child capability directory path',
+            );
+            assert.strictEqual(
+                path.normalize(result?.capabilityGithubDirectoryPath ?? ''),
+                path.normalize(expectedCapabilityGithubDirectoryPath),
+                'guided create should return the created .github directory path',
+            );
+            assert.strictEqual(
+                result?.capabilityName,
+                'Context Capability',
+                'guided create should return the entered capability name',
+            );
+            assert.strictEqual(
+                result?.capabilityDirectoryName,
+                'context-capability',
+                'guided create should return the entered capability directory name',
+            );
+            assert.strictEqual(
+                result?.draftUri,
+                vscode.Uri.file(expectedManifestPath).toString(),
+                'guided create should return the created CAPABILITY.md uri',
+            );
+            assert.ok(
+                fs.existsSync(expectedCapabilityGithubDirectoryPath),
+                'guided create should create an empty .github directory for the new capability',
+            );
+            assert.ok(
+                fs.existsSync(expectedPluginJsonPath),
+                'guided create should create plugin.json',
+            );
+
+            assert.ok(
+                vscode.workspace.textDocuments.some(
+                    (doc) =>
+                        path.normalize(doc.uri.fsPath) === path.normalize(result!.guidancePath!),
+                ),
+                'guided create should open the bundled capability-contract guidance',
+            );
+            assert.ok(
+                vscode.workspace.textDocuments.some(
+                    (doc) =>
+                        path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
+                ),
+                'guided create should open the bundled example CAPABILITY.md',
+            );
+
+            const manifestContent = fs.readFileSync(expectedManifestPath, 'utf-8');
+            assert.ok(manifestContent.includes('agentPlugin: true'));
+
+            const pluginJsonContent = JSON.parse(
+                fs.readFileSync(expectedPluginJsonPath, 'utf-8'),
+            ) as {
+                name?: string;
+                version?: string;
+                agents?: string;
+                metaflow?: { pluginHosts?: string[] };
+            };
+            assert.strictEqual(pluginJsonContent.name, 'context-capability');
+            assert.strictEqual(pluginJsonContent.version, '0.1.0');
+            assert.strictEqual(pluginJsonContent.agents, '.github/agents');
+            assert.deepStrictEqual(pluginJsonContent.metaflow?.pluginHosts, ['github-copilot']);
+
+            assert.ok(
+                vscode.window.activeTextEditor,
+                'guided create should leave CAPABILITY.md active',
+            );
+            assert.strictEqual(
+                path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
+                path.normalize(expectedManifestPath),
+                'guided create should open the created CAPABILITY.md file',
+            );
+            assert.ok(
+                vscode.window
+                    .activeTextEditor!.document.getText()
+                    .includes('name: Context Capability'),
+                'guided create should use the entered capability name in CAPABILITY.md frontmatter',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInputBox = originalInputBox;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('workbench.action.closeAllEditors');
         }
@@ -1627,7 +3208,9 @@ suite('Command Execution', () => {
         this.timeout(20000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const originalGovernance = fs.readFileSync(governancePath, 'utf-8');
 
         const profileScopedConfig = {
             metadataRepos: [
@@ -1668,6 +3251,15 @@ suite('Command Execution', () => {
         };
 
         try {
+            fs.writeFileSync(
+                governancePath,
+                JSON.stringify(
+                    { severity: 'error', allowedProfiles: ['default', 'focused'] },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
             fs.writeFileSync(configPath, JSON.stringify(profileScopedConfig, null, 2), 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
 
@@ -1789,101 +3381,7 @@ suite('Command Execution', () => {
                 'Edited profile should retain its layer override after being reselected',
             );
         } finally {
-            fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh');
-        }
-    });
-
-    test('toggleLayerArtifactType persists excludedTypes updates', async function () {
-        this.timeout(15000);
-
-        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
-        const originalConfig = fs.readFileSync(configPath, 'utf-8');
-
-        const multiRepoConfig = {
-            metadataRepos: [{ id: 'ai-metadata', localPath: '.ai/ai-metadata', enabled: true }],
-            layerSources: [{ repoId: 'ai-metadata', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
-            profiles: {
-                default: {
-                    enable: ['**/*'],
-                    disable: [],
-                },
-            },
-            activeProfile: 'default',
-            injection: {
-                instructions: 'settings',
-                prompts: 'settings',
-                skills: 'settings',
-                agents: 'settings',
-                hooks: 'settings',
-            },
-        };
-
-        try {
-            fs.writeFileSync(configPath, JSON.stringify(multiRepoConfig, null, 2), 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh');
-
-            await vscode.commands.executeCommand(
-                'metaflow.toggleLayerArtifactType',
-                { layerIndex: 0, artifactType: 'instructions' },
-                vscode.TreeItemCheckboxState.Unchecked,
-            );
-
-            const afterExclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ excludedTypes?: string[] }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            excludedTypes?: string[];
-                        }>;
-                    }
-                >;
-            };
-
-            assert.ok(
-                afterExclude.metadataRepos?.[0]?.capabilities?.length,
-                'Config should contain persisted capabilities',
-            );
-            assert.ok(
-                afterExclude.profiles?.default?.layerOverrides
-                    ?.find((override) => override.path === '.')
-                    ?.excludedTypes?.includes('instructions'),
-                'instructions should be persisted in the active profile override when unchecked',
-            );
-
-            await vscode.commands.executeCommand(
-                'metaflow.toggleLayerArtifactType',
-                { layerIndex: 0, artifactType: 'instructions' },
-                vscode.TreeItemCheckboxState.Checked,
-            );
-
-            const afterInclude = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ excludedTypes?: string[] }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            excludedTypes?: string[];
-                        }>;
-                    }
-                >;
-            };
-
-            assert.ok(
-                !afterInclude.profiles?.default?.layerOverrides
-                    ?.find((override) => override.path === '.')
-                    ?.excludedTypes?.includes('instructions'),
-                'instructions should be removed from the active profile override when checked',
-            );
-        } finally {
+            fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
@@ -3389,6 +4887,337 @@ suite('Command Execution', () => {
         }
     });
 
+    test('addRepoSource recognizes local git repositories without remotes as local promotion-ready repos', async function () {
+        this.timeout(25000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-local-only');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        execFileSync('git', ['init'], { cwd: repoPath, windowsHide: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let localGitInfoCount = 0;
+        let promotionPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('local git repository with no configured remotes yet')
+            ) {
+                localGitInfoCount += 1;
+            }
+            if (
+                typeof message === 'string' &&
+                message.includes('Promote it to a git-backed source?')
+            ) {
+                promotionPromptCount += 1;
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+            };
+
+            const addedRepo = updatedConfig.metadataRepos?.find(
+                (candidate) =>
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)) ||
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
+            );
+
+            assert.ok(addedRepo, 'Add repo source should add the selected local git directory');
+            assert.strictEqual(
+                addedRepo?.url,
+                undefined,
+                'Local git repo without remote should remain untracked',
+            );
+            assert.ok(
+                localGitInfoCount > 0,
+                'Local git info message should appear during add repo source flow',
+            );
+            assert.strictEqual(
+                promotionPromptCount,
+                0,
+                'Remote promotion prompt should not appear when no remotes exist',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
+    test('addRepoSource offers to initialize non-git metadata directories and creates an empty initial commit only', async function () {
+        this.timeout(30000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-init-local');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let initPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes(
+                    'is not a git repository. Initialize it for local promotion workflows?',
+                )
+            ) {
+                initPromptCount += 1;
+                return 'Initialize Git';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            assert.ok(
+                initPromptCount > 0,
+                'Git initialization prompt should appear for non-git metadata directories',
+            );
+            assert.ok(
+                fs.existsSync(path.join(repoPath, '.git')),
+                'Accepted init flow should create a git repository',
+            );
+
+            const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+                cwd: repoPath,
+                windowsHide: true,
+                encoding: 'utf-8',
+            }).trim();
+            assert.ok(head.length > 0, 'Accepted init flow should create an initial HEAD commit');
+
+            const committedFiles = execFileSync('git', ['ls-tree', '--name-only', '-r', 'HEAD'], {
+                cwd: repoPath,
+                windowsHide: true,
+                encoding: 'utf-8',
+            }).trim();
+            assert.strictEqual(
+                committedFiles,
+                '',
+                "Accepted init flow should not stage or commit the directory's pre-existing files",
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
+    test('addRepoSource keeps non-git metadata directories local-only when git initialization is declined', async function () {
+        this.timeout(25000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-decline-init');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoPath, '.github', 'instructions', 'example.instructions.md'),
+            '# example\n',
+            'utf-8',
+        );
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const isolatedConfig = {
+            metadataRepos: [
+                {
+                    id: 'tracked-primary',
+                    localPath: '.ai/ai-metadata',
+                    url: 'https://example.com/tracked-primary.git',
+                    enabled: true,
+                },
+            ],
+            layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+        let initPromptCount = 0;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes(
+                    'is not a git repository. Initialize it for local promotion workflows?',
+                )
+            ) {
+                initPromptCount += 1;
+                return 'Skip';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(isolatedConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+            };
+
+            const addedRepo = updatedConfig.metadataRepos?.find(
+                (candidate) =>
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)) ||
+                    path.normalize(candidate.localPath) ===
+                        path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
+            );
+
+            assert.ok(
+                initPromptCount > 0,
+                'Git initialization prompt should appear for non-git metadata directories',
+            );
+            assert.ok(
+                addedRepo,
+                'Declining init should still keep the new repository source configured',
+            );
+            assert.strictEqual(
+                addedRepo?.url,
+                undefined,
+                'Declining init should keep the repo source local-only',
+            );
+            assert.strictEqual(
+                fs.existsSync(path.join(repoPath, '.git')),
+                false,
+                'Declining init should not create a git repository',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            removeDirectoryRecursive(repoPath);
+        }
+    });
+
     test('initConfig immediately offers promotion for existing local git repositories', async function () {
         this.timeout(30000);
 
@@ -3486,13 +5315,104 @@ suite('Command Execution', () => {
                 'https://example.com/meta-init-config.git',
                 'Initialize configuration should immediately promote local git repositories with remotes',
             );
-            assert.ok(
-                builtInPromptCount > 0,
-                'Built-in capability onboarding prompt should appear during init configuration flow',
+            assert.strictEqual(
+                builtInPromptCount,
+                0,
+                'Built-in capability onboarding prompt should not appear during init configuration flow',
             );
             assert.ok(
                 promotionPromptCount > 0,
                 'Promotion prompt should appear during init configuration flow',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showWarningMessage = originalWarning;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoPath);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('initConfig accepts an empty existing metadata directory as zero-capability bootstrap config', async function () {
+        this.timeout(30000);
+
+        const repoPath = path.join(workspaceRoot, '.tmp-empty-existing-init-config');
+        removeDirectoryRecursive(repoPath);
+        fs.mkdirSync(repoPath, { recursive: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalWarning = windowAny.showWarningMessage;
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+            if (picks.some((pick) => pick.mode === 'later')) {
+                return picks.find((pick) => pick.mode === 'later') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(repoPath)];
+
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string' && message.includes('already exists. Overwrite?')) {
+                return 'Overwrite';
+            }
+            return undefined;
+        };
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.initConfig');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                compatibilityVersion?: number;
+                metadataRepos?: Array<{
+                    localPath: string;
+                    capabilities?: Array<{ path: string }>;
+                }>;
+            };
+
+            assert.strictEqual(updatedConfig.compatibilityVersion, 2);
+            assert.strictEqual(
+                path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
+                path.normalize(path.relative(workspaceRoot, repoPath)),
+            );
+            assert.deepStrictEqual(
+                updatedConfig.metadataRepos?.[0]?.capabilities,
+                [],
+                'Empty existing metadata directories should initialize with zero capabilities',
+            );
+            assert.ok(
+                infoMessages.some((message) => message.includes('0 discovered layer(s)')),
+                'Initialize configuration should report a zero-layer bootstrap config',
             );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
@@ -3978,6 +5898,56 @@ suite('Command Execution', () => {
         }
     });
 
+    test('pushRepository warns when requested repo is not git-backed', async function () {
+        this.timeout(15000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const gitBackedConfig = {
+            metadataRepo: {
+                url: 'git@github.com:org/ai-metadata.git',
+                localPath: '.ai/ai-metadata',
+            },
+            layers: ['company/core', 'standards/sdlc'],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        fs.writeFileSync(configPath, JSON.stringify(gitBackedConfig, null, 2), 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const warningMessages: string[] = [];
+        windowAny.showWarningMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                warningMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.pushRepository', {
+                repoId: 'missing-repo-id',
+            });
+            assert.ok(
+                warningMessages.some((message) => message.includes('not git-backed or not found')),
+                'pushRepository should warn when a non-git or unknown repo is requested',
+            );
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('promote reports drift status', async function () {
         this.timeout(15000);
 
@@ -4362,11 +6332,13 @@ suite('Command Execution', () => {
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
-        await wsConfig.update(
+        await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
             'off',
             vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
         );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
         await resetBuiltInCapabilityState();
         await wsConfig.update(
             'chat.instructionsFilesLocations',
@@ -4375,23 +6347,22 @@ suite('Command Execution', () => {
         );
 
         try {
-            await wsConfig.update(
+            await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
                 'builtinLayer',
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const instructionLocations = getInjectedLocationValue(
-                wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-            );
+            const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
             assert.strictEqual(
-                hasBuiltInInstructionPath(instructionLocations),
+                instructionSettings.hasBuiltIn,
                 true,
                 'builtinLayer mode should inject built-in capability instruction paths',
             );
             assert.strictEqual(
-                hasExtensionInstallInstructionPath(instructionLocations),
+                instructionSettings.hasExtensionInstall,
                 false,
                 'builtinLayer mode should not inject paths from the installed extension directory',
             );
@@ -4413,7 +6384,467 @@ suite('Command Execution', () => {
                 undefined,
                 vscode.ConfigurationTarget.Workspace,
             );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0318: toggleRepoSource toggles the built-in MetaFlow repo without mutating config', async function () {
+        this.timeout(25000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        await resetBuiltInCapabilityState();
+        await wsConfig.update(
+            'chat.instructionsFilesLocations',
+            undefined,
+            vscode.ConfigurationTarget.Workspace,
+        );
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return hasBuiltInInstructionPath(instructionLocations);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return !hasBuiltInInstructionPath(instructionLocations);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const instructionLocations = getInjectedLocationValue(
+                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+                );
+                return hasBuiltInInstructionPath(instructionLocations);
+            }, 10000);
+
+            const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(
+                afterToggleConfig,
+                originalConfig,
+                'Built-in repo toggling should not mutate .metaflow/config.jsonc in builtinLayer mode',
+            );
+        } finally {
+            await wsConfig.update(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await wsConfig.update(
+                'chat.instructionsFilesLocations',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0339: built-in remove/re-add preserves deterministic managed settings ordering', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+        const unmanagedInstructionLocations = {
+            [unmanagedZeta]: true,
+            [unmanagedAlpha]: true,
+        };
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            unmanagedInstructionLocations,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const firstEnabledSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            assert.ok(
+                snapshotHasBuiltInInstructions(firstEnabledSnapshot),
+                'First built-in enable cycle should inject managed instruction settings',
+            );
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return !snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const secondEnabledSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            assert.deepStrictEqual(
+                secondEnabledSnapshot,
+                firstEnabledSnapshot,
+                'Built-in remove/re-add should restore the same deterministic instruction settings payload',
+            );
+
+            const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(
+                afterToggleConfig,
+                originalConfig,
+                'Built-in remove/re-add should not mutate .metaflow/config.jsonc in builtinLayer mode',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0340: repeated equivalent built-in operations are byte-stable', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            {
+                [unmanagedZeta]: true,
+                [unmanagedAlpha]: true,
+            },
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const firstSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            const firstConfig = fs.readFileSync(configPath, 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const secondSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            const secondConfig = fs.readFileSync(configPath, 'utf-8');
+
+            assert.deepStrictEqual(
+                secondSnapshot,
+                firstSnapshot,
+                'Equivalent builtinLayer refresh/apply cycles should preserve the same serialized managed settings payload',
+            );
+            assert.strictEqual(
+                secondConfig,
+                firstConfig,
+                'Equivalent builtinLayer cycles should keep .metaflow/config.jsonc byte-stable',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('TC-0341: unmanaged user settings entries survive managed ordering rewrites', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
+        const previousInstructionLocations = cloneJson(
+            getScopedSettingValue<Record<string, boolean>>(
+                wsConfig,
+                'chat.instructionsFilesLocations',
+            ),
+        );
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const unmanagedRoot = path.join(workspaceRoot, '.metaflow-test-unmanaged-instructions');
+        const unmanagedZeta = path.join(unmanagedRoot, 'zeta');
+        const unmanagedAlpha = path.join(unmanagedRoot, 'alpha');
+        removeDirectoryRecursive(unmanagedRoot);
+        fs.mkdirSync(unmanagedZeta, { recursive: true });
+        fs.mkdirSync(unmanagedAlpha, { recursive: true });
+        const unmanagedInstructionLocations = {
+            [unmanagedZeta]: true,
+            [unmanagedAlpha]: true,
+        };
+
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        await updateConfigAndWait(
+            'chat.instructionsFilesLocations',
+            unmanagedInstructionLocations,
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
+
+        const baselineSnapshot = getInstructionSettingsSnapshot(
+            vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+        );
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'builtinLayer',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: false,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return !snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                repoId: '__metaflow_builtin__',
+                checked: true,
+            });
+            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
+
+            await waitFor(() => {
+                const snapshot = getInstructionSettingsSnapshot(
+                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+                );
+                return snapshotHasBuiltInInstructions(snapshot);
+            }, 10000);
+
+            const finalSnapshot = getInstructionSettingsSnapshot(
+                vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
+            );
+            const baselineUnmanagedInstructionLocations =
+                getUnmanagedInstructionLocationKeys(baselineSnapshot);
+            const preservedBaselineInstructionLocations = getUnmanagedInstructionLocationKeys(
+                finalSnapshot,
+            ).filter((location) => baselineUnmanagedInstructionLocations.includes(location));
+
+            assert.deepStrictEqual(
+                preservedBaselineInstructionLocations,
+                baselineUnmanagedInstructionLocations,
+                'Unmanaged instruction location entries should survive built-in managed rewrites in their original relative order',
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                previousInstructionLocations,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await restoreInjectionModes(wsFolder!, previousInjectionModes);
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(unmanagedRoot);
+            await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });

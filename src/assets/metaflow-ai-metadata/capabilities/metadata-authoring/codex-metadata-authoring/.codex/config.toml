@@ -1,0 +1,9 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+developer_instructions = """
+When the task touches OpenAI Codex metadata, use the `codex-metadata` skill before making structural changes.
+
+Keep Codex metadata ownership narrow: `AGENTS.md`, `.codex/config.toml`, `.agents/skills/`, `.codex/agents/`, `.codex/hooks.json`, `.codex/rules/`, and `.codex-plugin/plugin.json`.
+
+Prefer official OpenAI Codex documentation for behavior claims, and call out platform limits when hooks, rules, subagents, or project-scoped config affect a recommendation.
+"""

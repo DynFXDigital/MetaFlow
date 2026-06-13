@@ -27,6 +27,9 @@ export interface LayerContent {
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
+export type CapabilityDiagnosticSeverity = 'error' | 'warning' | 'info';
+
+/** Warning emitted while parsing/validating capability metadata. */
 export interface CapabilityWarning {
     /** Stable warning code for testability and diagnostics routing. */
     code: string;
@@ -34,12 +37,68 @@ export interface CapabilityWarning {
     message: string;
     /** Optional file path associated with the warning. */
     filePath?: string;
+    /** Severity used for diagnostics routing. */
+    severity?: CapabilityDiagnosticSeverity;
+}
+
+/** Capability-local agent-plugin manifest metadata loaded from plugin.json. */
+export interface CapabilityAgentPluginManifest {
+    /** Absolute path to the plugin.json file. */
+    pluginJsonPath: string;
+    /** Plugin manifest name. */
+    name?: string;
+    /** Plugin manifest version. */
+    version?: string;
+    /** Plugin manifest description. */
+    description?: string;
+    /** Optional discovery keywords. */
+    keywords: string[];
+    /** Optional target plugin hosts. */
+    pluginHosts: string[];
+    /** Optional minimum MetaFlow version range. */
+    minimumMetaflowVersion?: string;
+}
+
+/** A normalized agent-plugin catalog entry derived from a capability layer. */
+export interface CapabilityPluginCatalogEntry {
+    /** Stable plugin identity used by agent-plugin consumers. */
+    pluginName: string;
+    /** Published plugin package version. */
+    version: string;
+    /** User-facing title for marketplace and catalog displays. */
+    displayName: string;
+    /** Optional user-facing description. */
+    description?: string;
+    /** Capability identifier backing this plugin package. */
+    capabilityId: string;
+    /** Layer identifier backing this plugin package. */
+    layerId: string;
+    /** Repo identifier backing this plugin package. */
+    repoId?: string;
+    /** Capability manifest path. */
+    manifestPath: string;
+    /** plugin.json path. */
+    pluginJsonPath: string;
+    /** Declared plugin hosts. */
+    pluginHosts: string[];
+    /** Optional minimum MetaFlow version range. */
+    minimumMetaflowVersion?: string;
+    /** Optional SPDX identifier/expression or fallback token. */
+    license?: string;
+    /** Whether the capability is marked experimental. */
+    experimental?: boolean;
 }
 
 /** Parsed CAPABILITY.md metadata associated with a layer. */
 export interface CapabilityMetadata {
-    /** Internal capability identifier (derived from folder name). */
+    /** Internal capability identifier (currently derived from folder name). */
     id: string;
+    /** Immutable generated capability identity used to survive path/id reorganizations. */
+    uid?: string;
+    /** Historical human-readable ids that can be used for migration/reconciliation. */
+    previousIds?: string[];
+    /** Historical repo-relative paths that can be used for migration/reconciliation. */
+    previousPaths?: string[];
     /** Absolute path to CAPABILITY.md. */
     manifestPath: string;
     /** User-facing capability name. */
@@ -48,6 +107,12 @@ export interface CapabilityMetadata {
     description?: string;
     /** Optional SPDX identifier/expression or fallback token. */
     license?: string;
+    /** Whether the capability is explicitly marked experimental. */
+    experimental?: boolean;
+    /** Whether this capability opts into agent-plugin packaging validation. */
+    agentPlugin?: boolean;
+    /** Optional validated plugin manifest metadata for agent-plugin-compatible capabilities. */
+    agentPluginManifest?: CapabilityAgentPluginManifest;
     /** Markdown content after frontmatter. */
     body?: string;
     /** Warnings emitted while parsing/validating this manifest. */
@@ -68,8 +133,8 @@ export interface RepoMetadata {
 
 // ── Effective file model ───────────────────────────────────────────
 
-/** Classification of an artifact: settings-injected or Synchronized. */
-export type ArtifactClassification = 'settings' | 'synchronized';
+/** Classification of an artifact: settings-injected, plugin-activated, or synchronized. */
+export type ArtifactClassification = 'settings' | 'plugin' | 'synchronized';
 
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {
@@ -89,6 +154,8 @@ export interface EffectiveFile {
     sourceCapabilityDescription?: string;
     /** Capability license associated with the source layer. */
     sourceCapabilityLicense?: string;
+    /** Whether the source capability is explicitly marked experimental. */
+    sourceCapabilityExperimental?: boolean;
     /** Classification for realization strategy. */
     classification: ArtifactClassification;
 }

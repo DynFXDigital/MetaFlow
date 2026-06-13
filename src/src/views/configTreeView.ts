@@ -5,6 +5,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import * as path from 'path';
 import { ExtensionState } from '../commands/commandHandlers';
 import { RepoSyncStatus } from '../commands/repoSyncStatus';
@@ -13,6 +14,7 @@ import {
     BUILT_IN_CAPABILITY_REPO_ID,
     isBuiltInCapabilityActive,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInRepoEnabled,
 } from '../builtInCapability';
 import {
     ArtifactSummary,
@@ -23,6 +25,15 @@ import {
     summarizeRepoInstructionScope,
     summarizeRepo,
 } from '../treeSummary';
+import {
+    buildConfigGovernanceWarnings,
+    buildRepoGovernanceProjection,
+    type RepoGovernanceProjection,
+} from '../governanceSignals';
+import {
+    buildDiagnosticsSnapshot,
+    formatDiagnosticsSnapshotWarningMessage,
+} from '../diagnostics/diagnosticsSnapshot';
 
 function buildMarkdownTooltip(
     title: string,
@@ -34,6 +45,183 @@ function buildMarkdownTooltip(
     const header = normalizedDescription ? `${title}  \n${normalizedDescription}` : title;
     const body = normalizedDetails.join('  \n');
     return new vscode.MarkdownString(body ? `${header}\n\n${body}` : header);
+}
+
+const WARNING_LABEL_MAX_LENGTH = 88;
+const WARNING_DESCRIPTION_MAX_LENGTH = 40;
+
+function normalizeWarningMessage(message: string): string {
+    return message.trim().replace(/\s+/g, ' ');
+}
+
+function truncateWarningText(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    const truncated = value.slice(0, Math.max(0, maxLength - 1)).trimEnd();
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace >= Math.floor(maxLength * 0.6)) {
+        return `${truncated.slice(0, lastSpace).trimEnd()}…`;
+    }
+
+    return `${truncated}…`;
+}
+
+function truncateMiddle(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+        return value;
+    }
+
+    const normalized = value.replace(/\\/g, '/');
+    const segments = normalized.split('/').filter((segment) => segment.length > 0);
+    if (segments.length >= 3) {
+        const suffix = `/${segments.slice(-2).join('/')}`;
+        const prefixLength = Math.max(1, maxLength - suffix.length - 1);
+        const prefix = normalized.slice(0, prefixLength).replace(/[\/]+$/, '');
+        return `${prefix}…${suffix}`;
+    }
+
+    const visibleLength = Math.max(1, maxLength - 1);
+    const prefixLength = Math.ceil(visibleLength / 2);
+    const suffixLength = Math.floor(visibleLength / 2);
+    return `${value.slice(0, prefixLength)}…${value.slice(value.length - suffixLength)}`;
+}
+
+type WarningSourceTarget =
+    | {
+          path: string;
+          kind: 'file' | 'directory';
+          line?: number;
+          column?: number;
+      }
+    | undefined;
+
+function parseWarningLocation(location: string | undefined): {
+    path: string;
+    line?: number;
+    column?: number;
+} | undefined {
+    const trimmed = location?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    const match = /^(.*?)(?:#L(\d+)(?:C(\d+))?)?$/.exec(trimmed);
+    if (!match) {
+        return {
+            path: trimmed,
+        };
+    }
+
+    return {
+        path: match[1],
+        line: match[2] ? Math.max(0, Number.parseInt(match[2], 10) - 1) : undefined,
+        column: match[3] ? Math.max(0, Number.parseInt(match[3], 10) - 1) : undefined,
+    };
+}
+
+function resolveWarningSourceTarget(location: string | undefined): WarningSourceTarget {
+    const parsedLocation = parseWarningLocation(location);
+    if (!parsedLocation) {
+        return undefined;
+    }
+
+    const candidates: string[] = [];
+    if (path.isAbsolute(parsedLocation.path)) {
+        candidates.push(path.normalize(parsedLocation.path));
+    } else {
+        for (const folder of vscode.workspace.workspaceFolders ?? []) {
+            candidates.push(path.resolve(folder.uri.fsPath, parsedLocation.path));
+        }
+    }
+
+    for (const candidate of candidates) {
+        try {
+            if (fs.existsSync(candidate)) {
+                const stat = fs.statSync(candidate);
+                if (stat.isFile()) {
+                    return {
+                        path: candidate,
+                        kind: 'file',
+                        line: parsedLocation.line,
+                        column: parsedLocation.column,
+                    };
+                }
+
+                if (stat.isDirectory()) {
+                    return {
+                        path: candidate,
+                        kind: 'directory',
+                        line: parsedLocation.line,
+                        column: parsedLocation.column,
+                    };
+                }
+            }
+        } catch {
+            // Ignore invalid or unreadable paths and leave the warning non-actionable.
+        }
+    }
+
+    return undefined;
+}
+
+function buildWarningPresentation(message: string): {
+    label: string;
+    description?: string;
+    tooltip: vscode.MarkdownString;
+    normalizedMessage: string;
+    warningIdentity: string;
+    location?: string;
+    sourcePath?: string;
+    sourceKind?: 'file' | 'directory';
+    sourceLine?: number;
+    sourceColumn?: number;
+} {
+    const normalized = normalizeWarningMessage(message);
+    const structuredMatch = normalized.match(/^\[([^\]]+)\]\s+(.+?)(?:\s+\[([^\]]+)\])?$/);
+    const plainLocationMatch = structuredMatch
+        ? undefined
+        : normalized.match(/^(.+?)\s+\[([^\]]+)\]$/);
+    const code = structuredMatch?.[1]?.trim();
+    const details = structuredMatch?.[2]?.trim() ?? plainLocationMatch?.[1]?.trim() ?? normalized;
+    const location = structuredMatch?.[3]?.trim() ?? plainLocationMatch?.[2]?.trim();
+    const sourceTarget = resolveWarningSourceTarget(location);
+    const label = truncateWarningText(details, WARNING_LABEL_MAX_LENGTH);
+    const description = [
+        code ? `[${code}]` : undefined,
+        location ? truncateMiddle(location, WARNING_DESCRIPTION_MAX_LENGTH) : undefined,
+    ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ');
+
+    const tooltipLines = [details];
+    if (code) {
+        tooltipLines.unshift(`Code: \`${code}\``);
+    }
+    if (location) {
+        tooltipLines.push(`Location: \`${location}\``);
+    }
+    if (sourceTarget) {
+        tooltipLines.push(
+            sourceTarget.kind === 'directory'
+                ? 'Action: Click to reveal the warning source location in Explorer.'
+                : 'Action: Click to open the warning source location.',
+        );
+    }
+
+    return {
+        label,
+        description: description || undefined,
+        tooltip: buildMarkdownTooltip('**Warning**', tooltipLines),
+        normalizedMessage: normalized,
+        warningIdentity: `${code ?? ''}\n${details}`,
+        location,
+        sourcePath: sourceTarget?.path,
+        sourceKind: sourceTarget?.kind,
+        sourceLine: sourceTarget?.line,
+        sourceColumn: sourceTarget?.column,
+    };
 }
 
 class SectionItem extends vscode.TreeItem {
@@ -71,23 +259,30 @@ class RepoSourceItem extends vscode.TreeItem {
             title?: string;
             description?: string;
             builtIn?: boolean;
+            localGit?: boolean;
+            governance?: RepoGovernanceProjection;
         },
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         const isReadonly = !repoId;
         const isRemote = RepoSourceItem.isGitRemoteUrl(repoUrl);
+        const isLocalGit = options?.localGit === true && !isRemote;
         this.contextValue = isReadonly
             ? 'configRepoSourceReadonly'
             : isRemote
               ? RepoSourceItem.buildGitContextValue(syncStatus)
-              : 'configRepoSourceRescannable';
+              : isLocalGit
+                ? 'configRepoSourceLocalGit'
+                : 'configRepoSourceRescannable';
         this.description = RepoSourceItem.buildDescription(
             localPath,
             isRemote,
+            isLocalGit,
             syncStatus,
             summary,
+            options?.governance,
         );
-        this.iconPath = RepoSourceItem.buildIcon(isRemote, syncStatus);
+        this.iconPath = RepoSourceItem.buildIcon(isRemote, isLocalGit, syncStatus);
         if (!isReadonly) {
             this.checkboxState = enabled
                 ? vscode.TreeItemCheckboxState.Checked
@@ -110,19 +305,32 @@ class RepoSourceItem extends vscode.TreeItem {
     }
 
     private static buildGitContextValue(syncStatus?: RepoSyncStatus): string {
-        return syncStatus?.state === 'behind' ? 'configRepoSourceGitBehind' : 'configRepoSourceGit';
+        if (syncStatus?.state === 'behind') {
+            return 'configRepoSourceGitBehind';
+        }
+        if (syncStatus?.state === 'ahead') {
+            return 'configRepoSourceGitAhead';
+        }
+        return 'configRepoSourceGit';
     }
 
     private static buildDescription(
         localPath: string,
         isRemote: boolean,
+        isLocalGit: boolean,
         syncStatus: RepoSyncStatus | undefined,
         summary: ArtifactSummary | undefined,
+        governance: RepoGovernanceProjection | undefined,
     ): string {
-        const base = isRemote ? `${localPath} [git]` : localPath;
-        const qualifiers = [RepoSourceItem.syncStatusQualifier(syncStatus)].filter(
-            (value): value is string => Boolean(value),
-        );
+        const base = isRemote
+            ? `${localPath} [git]`
+            : isLocalGit
+              ? `${localPath} [local git]`
+              : localPath;
+        const qualifiers = [
+            RepoSourceItem.syncStatusQualifier(syncStatus),
+            ...(governance?.descriptionQualifiers ?? []),
+        ].filter((value): value is string => Boolean(value));
 
         if (summary) {
             return formatSummaryDescription(base, summary, qualifiers);
@@ -156,9 +364,17 @@ class RepoSourceItem extends vscode.TreeItem {
         }
     }
 
-    private static buildIcon(isRemote: boolean, syncStatus?: RepoSyncStatus): vscode.ThemeIcon {
-        if (!isRemote) {
+    private static buildIcon(
+        isRemote: boolean,
+        isLocalGit: boolean,
+        syncStatus?: RepoSyncStatus,
+    ): vscode.ThemeIcon {
+        if (!isRemote && !isLocalGit) {
             return new vscode.ThemeIcon('folder');
+        }
+
+        if (isLocalGit) {
+            return new vscode.ThemeIcon('source-control');
         }
 
         if (!syncStatus) {
@@ -203,6 +419,8 @@ class RepoSourceItem extends vscode.TreeItem {
         options?: {
             description?: string;
             builtIn?: boolean;
+            localGit?: boolean;
+            governance?: RepoGovernanceProjection;
         },
     ): vscode.MarkdownString {
         const detailLines = [`Status: ${enabled ? 'enabled' : 'disabled'}`];
@@ -211,6 +429,10 @@ class RepoSourceItem extends vscode.TreeItem {
             detailLines.push('Source: bundled with the MetaFlow extension');
         } else {
             detailLines.push(`Local path: \`${localPath}\``);
+        }
+
+        if (!options?.builtIn && options?.localGit && !RepoSourceItem.isGitRemoteUrl(repoUrl)) {
+            detailLines.push('Source control: local git repository');
         }
 
         if (!options?.builtIn && RepoSourceItem.isGitRemoteUrl(repoUrl)) {
@@ -241,6 +463,7 @@ class RepoSourceItem extends vscode.TreeItem {
         if (scopeSummary) {
             detailLines.push(...getInstructionScopeTooltipLines(scopeSummary));
         }
+        detailLines.push(...(options?.governance?.tooltipLines ?? []));
         return buildMarkdownTooltip(
             `**${title}**`,
             detailLines,
@@ -267,11 +490,51 @@ class RepoSourceItem extends vscode.TreeItem {
 }
 
 class WarningItem extends vscode.TreeItem {
+    public readonly warningMessage: string;
+    public readonly sourcePath?: string;
+    public readonly sourceKind?: 'file' | 'directory';
+    public readonly sourceLine?: number;
+    public readonly sourceColumn?: number;
+
     constructor(message: string) {
-        super(message, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = 'configWarning';
+        const presentation = buildWarningPresentation(message);
+        super(presentation.label, vscode.TreeItemCollapsibleState.None);
+        this.warningMessage = presentation.normalizedMessage;
+        this.sourcePath = presentation.sourcePath;
+        this.sourceKind = presentation.sourceKind;
+        this.sourceLine = presentation.sourceLine;
+        this.sourceColumn = presentation.sourceColumn;
+        this.contextValue = this.sourcePath ? 'configWarningSource' : 'configWarning';
         this.iconPath = new vscode.ThemeIcon('warning');
-        this.tooltip = message;
+        this.description = presentation.description;
+        this.tooltip = presentation.tooltip;
+        if (this.sourcePath) {
+            this.command = {
+                command: 'metaflow.openWarningSource',
+                title: 'Open Warning Source',
+                arguments: [
+                    {
+                        sourcePath: this.sourcePath,
+                        sourceKind: this.sourceKind,
+                        ...(typeof this.sourceLine === 'number'
+                            ? { sourceLine: this.sourceLine }
+                            : {}),
+                        ...(typeof this.sourceColumn === 'number'
+                            ? { sourceColumn: this.sourceColumn }
+                            : {}),
+                        warningMessage: this.warningMessage,
+                    },
+                ],
+            };
+        }
+        this.accessibilityInformation = {
+            label: this.sourcePath
+                ? this.sourceKind === 'directory'
+                    ? `${this.warningMessage}. Reveals source location in Explorer.`
+                    : `${this.warningMessage}. Opens source file.`
+                : this.warningMessage,
+            role: 'listitem',
+        };
     }
 }
 
@@ -281,7 +544,10 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
     private _onDidChangeTreeData = new vscode.EventEmitter<ConfigTreeItem | undefined>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    constructor(private state: ExtensionState) {
+    constructor(
+        private state: ExtensionState,
+        private diagnosticCollection?: vscode.DiagnosticCollection,
+    ) {
         state.onDidChange.event(() => this._onDidChangeTreeData.fire(undefined));
     }
 
@@ -315,6 +581,76 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         return new Map(Object.entries(this.state.repoMetadataById ?? {}));
     }
 
+    private getGovernanceWarningMessages(): string[] {
+        return buildConfigGovernanceWarnings({
+            governanceContract: this.state.governanceContract,
+            governanceContractErrors: this.state.governanceContractErrors,
+            governanceCompliance: this.state.governanceCompliance,
+        });
+    }
+
+    private getWarningMessages(): string[] {
+        const dedupedWarnings = new Map<
+            string,
+            {
+                message: string;
+                hasLocation: boolean;
+                sourceWeight: number;
+                order: number;
+            }
+        >();
+        let nextOrder = 0;
+
+        const addWarning = (message: string): void => {
+            const presentation = buildWarningPresentation(message);
+            const candidate = {
+                message,
+                hasLocation: Boolean(presentation.location),
+                sourceWeight: presentation.sourcePath ? 2 : presentation.location ? 1 : 0,
+                order: nextOrder++,
+            };
+            const existing = dedupedWarnings.get(presentation.warningIdentity);
+            if (!existing) {
+                dedupedWarnings.set(presentation.warningIdentity, candidate);
+                return;
+            }
+
+            if (
+                candidate.sourceWeight > existing.sourceWeight ||
+                (candidate.sourceWeight === existing.sourceWeight &&
+                    candidate.hasLocation &&
+                    !existing.hasLocation)
+            ) {
+                dedupedWarnings.set(presentation.warningIdentity, candidate);
+            }
+        };
+
+        for (const message of this.state.capabilityWarnings) {
+            addWarning(message);
+        }
+
+        for (const message of this.state.configWarnings) {
+            addWarning(message);
+        }
+
+        if (this.diagnosticCollection) {
+            for (const diagnosticWarning of buildDiagnosticsSnapshot(
+                this.state,
+                this.diagnosticCollection,
+            ).warnings.map(formatDiagnosticsSnapshotWarningMessage)) {
+                addWarning(diagnosticWarning);
+            }
+        }
+
+        for (const governanceWarning of this.getGovernanceWarningMessages()) {
+            addWarning(governanceWarning);
+        }
+
+        return Array.from(dedupedWarnings.values())
+            .sort((left, right) => left.order - right.order)
+            .map((entry) => entry.message);
+    }
+
     private resolveRepoDisplayLabel(
         repoId: string,
         configName: string | undefined,
@@ -338,6 +674,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
     private createBuiltInSourceItem(): RepoSourceItem {
         const repoMetadata = this.getRepoMetadataById();
         const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
+        const summary = summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID);
+        const builtInEnabled =
+            resolveBuiltInRepoEnabled(this.state.builtInCapability) || summary.totalActive > 0;
         const builtInCapabilityName =
             repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.name?.trim() ||
             resolveBuiltInCapabilityDisplayName(
@@ -346,25 +685,26 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             );
         const item = new RepoSourceItem(
             builtInCapabilityName,
-            undefined,
-            this.state.builtInCapability.layerEnabled,
+            BUILT_IN_CAPABILITY_REPO_ID,
+            builtInEnabled,
             'bundled extension metadata',
             undefined,
             undefined,
-            summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
+            summary,
             summarizeRepoInstructionScope(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
             {
                 title: builtInCapabilityName,
                 description: repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.description,
                 builtIn: true,
+                governance: buildRepoGovernanceProjection(BUILT_IN_CAPABILITY_REPO_ID, {
+                    governanceContract: this.state.governanceContract,
+                    governanceContractErrors: this.state.governanceContractErrors,
+                    governanceCompliance: this.state.governanceCompliance,
+                }),
             },
         );
         item.contextValue = 'configRepoSourceBuiltin';
-        item.description = formatSummaryDescription(
-            'bundled extension metadata',
-            summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
-            [this.state.builtInCapability.layerEnabled ? 'enabled' : 'disabled'],
-        );
+        item.description = `bundled extension metadata (${summary.totalActive}/${summary.totalAvailable}, ${builtInEnabled ? 'enabled' : 'disabled'})`;
         item.iconPath = new vscode.ThemeIcon('package');
         return item;
     }
@@ -374,14 +714,16 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             return element ? [] : [new LoadingItem()];
         }
 
+        const warningMessages = this.getWarningMessages();
         const config = this.state.config;
-        if (!config) {
-            return [];
-        }
 
         if (element instanceof SectionItem) {
             if (element.section === 'warnings') {
-                return this.state.capabilityWarnings.map((message) => new WarningItem(message));
+                return warningMessages.map((message) => new WarningItem(message));
+            }
+
+            if (!config) {
+                return [];
             }
 
             const builtInSource = isBuiltInCapabilityActive(this.state.builtInCapability)
@@ -410,6 +752,13 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                 {
                                     title: repoMetadataById.get(repo.id)?.name,
                                     description: repoMetadataById.get(repo.id)?.description,
+                                    localGit: this.state.localGitRepoIds.has(repo.id),
+                                    governance: buildRepoGovernanceProjection(repo.id, {
+                                        governanceContract: this.state.governanceContract,
+                                        governanceContractErrors:
+                                            this.state.governanceContractErrors,
+                                        governanceCompliance: this.state.governanceCompliance,
+                                    }),
                                 },
                             ),
                     ),
@@ -437,6 +786,12 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         {
                             title: repoMetadataById.get('primary')?.name,
                             description: repoMetadataById.get('primary')?.description,
+                            localGit: this.state.localGitRepoIds.has('primary'),
+                            governance: buildRepoGovernanceProjection('primary', {
+                                governanceContract: this.state.governanceContract,
+                                governanceContractErrors: this.state.governanceContractErrors,
+                                governanceCompliance: this.state.governanceCompliance,
+                            }),
                         },
                     ),
                     ...builtInSource,
@@ -446,6 +801,12 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             return builtInSource;
         }
 
+        if (!config) {
+            return warningMessages.length > 0
+                ? [new SectionItem(`Warnings (${warningMessages.length})`, 'warnings', 'warning')]
+                : [];
+        }
+
         if (element) {
             return [];
         }
@@ -453,10 +814,10 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         const rootItems: ConfigTreeItem[] = [
             new SectionItem('Repositories', 'repositories', 'repo'),
         ];
-        if (this.state.capabilityWarnings.length > 0) {
+        if (warningMessages.length > 0) {
             rootItems.push(
                 new SectionItem(
-                    `Warnings (${this.state.capabilityWarnings.length})`,
+                    `Warnings (${warningMessages.length})`,
                     'warnings',
                     'warning',
                 ),

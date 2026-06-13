@@ -62,6 +62,8 @@ export function startWatch(
                 workspaceRoot,
                 effectiveFiles: files,
                 activeProfile: configResult.config.activeProfile,
+                fileNamingStrategy: configResult.config.fileNamingStrategy,
+                layerSources: configResult.config.layerSources,
                 force,
             });
 
@@ -179,16 +181,24 @@ export function registerWatchCommand(program: Command): void {
             console.log('Press Ctrl+C to stop.\n');
 
             // Do an initial apply
-            const files = resolveEffectiveFiles(configResult.config, workspaceRoot);
-            const initial = apply({
-                workspaceRoot,
-                effectiveFiles: files,
-                activeProfile: configResult.config.activeProfile,
-                force: options.force ?? false,
-            });
-            console.log(
-                `Initial apply: ${initial.written.length} written, ${initial.removed.length} removed, ${initial.skipped.length} skipped.`,
-            );
+            try {
+                const files = resolveEffectiveFiles(configResult.config, workspaceRoot);
+                const initial = apply({
+                    workspaceRoot,
+                    effectiveFiles: files,
+                    activeProfile: configResult.config.activeProfile,
+                    fileNamingStrategy: configResult.config.fileNamingStrategy,
+                    layerSources: configResult.config.layerSources,
+                    force: options.force ?? false,
+                });
+                console.log(
+                    `Initial apply: ${initial.written.length} written, ${initial.removed.length} removed, ${initial.skipped.length} skipped.`,
+                );
+            } catch (err: unknown) {
+                console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+                process.exitCode = 1;
+                return;
+            }
 
             // Start watching
             startWatch(workspaceRoot, {

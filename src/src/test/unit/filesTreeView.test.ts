@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha proxyquire module rewiring */
-
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -65,6 +63,7 @@ const mockVscode = {
 type MockItem = {
     contextValue?: string;
     label?: unknown;
+    collapsibleState?: number;
     description?: string | boolean;
     artifactType?: string;
     files?: EffectiveFile[];
@@ -77,8 +76,15 @@ type MockItem = {
 
 type MockProvider = {
     getChildren(element?: MockItem): MockItem[];
+    getExpandAllStrategy?(): string;
+    getStagedExpandPlan?(): {
+        stageOne: MockItem[];
+        stageTwo: MockItem[];
+    };
+    getSearchQuery?(): string | undefined;
     getParent?(element: MockItem): MockItem | undefined;
     resolveTreeItem?(item: MockItem, element: MockItem, token: unknown): Promise<MockItem>;
+    setSearchQuery?(value: string | undefined): void;
 };
 
 type FilesTreeViewModule = {
@@ -616,6 +622,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             .getChildren(capabilitiesFolder)
             .find((item) => String(item.label) === 'Agent Commit Coordination');
         assert.ok(capabilityFolder, 'expected capability folder to use display name');
+        assert.strictEqual(capabilityFolder?.contextValue, 'effectiveCapabilityFolder');
         assert.strictEqual(
             String(capabilityFolder?.description),
             'agent-commit-coordination (0/0)',
@@ -636,6 +643,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
                 sourceCapabilityName: 'Agent Commit Coordination',
                 sourceCapabilityDescription: 'Shared-worktree coordination and commit locking.',
                 sourceCapabilityLicense: 'MIT',
+                sourceCapabilityExperimental: true,
             } as EffectiveFile,
         ];
         const stateWithMetadata = makeState(files, {
@@ -673,6 +681,10 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.ok(
             tooltipText.includes('License:') && tooltipText.includes('MIT'),
             `expected capability license, got: ${tooltipText}`,
+        );
+        assert.ok(
+            tooltipText.includes('Status: Experimental'),
+            `expected experimental status, got: ${tooltipText}`,
         );
     });
 
@@ -769,6 +781,317 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(String(skillFolder?.description), 'agent-commit-coordination (0/0)');
     });
 
+    test('FTV-AT-08E: repoTree non-capability folder uses directory METAFLOW metadata for label and tooltip', async () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
+        mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: tmpDir } }];
+
+        try {
+            const repoRoot = path.join(tmpDir, 'rt08e-directory-meta');
+            const folderRoot = path.join(repoRoot, 'domains', 'ui');
+            const instructionPath = path.join(
+                folderRoot,
+                '.github',
+                'instructions',
+                'guide.instructions.md',
+            );
+
+            fs.mkdirSync(path.dirname(instructionPath), { recursive: true });
+            fs.writeFileSync(
+                path.join(folderRoot, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: User Interface',
+                    'description: Human-friendly metadata for the UI grouping folder.',
+                    '---',
+                    '',
+                    '# User Interface',
+                ].join('\n'),
+            );
+            fs.writeFileSync(instructionPath, '# Guide\n');
+
+            const files = [
+                {
+                    relativePath: '.github/instructions/guide.instructions.md',
+                    sourcePath: instructionPath,
+                    sourceLayer: 'primary/domains/ui',
+                    sourceRepo: 'primary',
+                    classification: 'settings',
+                } as EffectiveFile,
+            ];
+            const provider = new FilesTreeViewProvider(
+                makeState(files, {
+                    metadataRepos: [{ id: 'primary', localPath: 'rt08e-directory-meta' }],
+                }),
+                () => 'repoTree',
+            );
+
+            const [repoItem] = provider.getChildren();
+            const domainsFolder = provider
+                .getChildren(repoItem)
+                .find((item) => String(item.label) === 'domains');
+            assert.ok(domainsFolder, 'expected domains folder');
+
+            const uiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'User Interface');
+            assert.ok(uiFolder, 'expected METAFLOW display name on non-capability folder');
+            assert.strictEqual(String(uiFolder?.description), 'ui (0/0)');
+
+            await provider.resolveTreeItem!(uiFolder!, uiFolder!, mockToken);
+            const tooltipText = String(uiFolder?.tooltip);
+
+            assert.ok(
+                tooltipText.includes('**User Interface**'),
+                `expected manifest title in tooltip, got: ${tooltipText}`,
+            );
+            assert.ok(
+                tooltipText.includes('Human-friendly metadata for the UI grouping folder.'),
+                `expected manifest description in tooltip, got: ${tooltipText}`,
+            );
+        } finally {
+            mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
+        }
+    });
+
+    test('FTV-AT-08E1: repoTree refresh invalidates cached missing directory METAFLOW metadata', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
+        mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: tmpDir } }];
+
+        try {
+            const repoRoot = path.join(tmpDir, 'rt08e1-directory-meta-refresh');
+            const folderRoot = path.join(repoRoot, 'domains', 'ui');
+            const instructionPath = path.join(
+                folderRoot,
+                '.github',
+                'instructions',
+                'guide.instructions.md',
+            );
+
+            fs.mkdirSync(path.dirname(instructionPath), { recursive: true });
+            fs.writeFileSync(instructionPath, '# Guide\n');
+
+            const files = [
+                {
+                    relativePath: '.github/instructions/guide.instructions.md',
+                    sourcePath: instructionPath,
+                    sourceLayer: 'primary/domains/ui',
+                    sourceRepo: 'primary',
+                    classification: 'settings',
+                } as EffectiveFile,
+            ];
+            const provider = new FilesTreeViewProvider(
+                makeState(files, {
+                    metadataRepos: [{ id: 'primary', localPath: 'rt08e1-directory-meta-refresh' }],
+                }),
+                () => 'repoTree',
+            ) as MockProvider & { refresh(): void };
+
+            const [repoItem] = provider.getChildren();
+            const domainsFolder = provider
+                .getChildren(repoItem)
+                .find((item) => String(item.label) === 'domains');
+            assert.ok(domainsFolder, 'expected domains folder');
+
+            const initialUiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'ui');
+            assert.ok(initialUiFolder, 'expected raw folder label before METAFLOW.md exists');
+
+            fs.writeFileSync(
+                path.join(folderRoot, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: User Interface',
+                    'description: Refreshed folder metadata.',
+                    '---',
+                    '',
+                    '# User Interface',
+                ].join('\n'),
+            );
+
+            provider.refresh();
+
+            const refreshedUiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'User Interface');
+            assert.ok(
+                refreshedUiFolder,
+                'expected refresh to invalidate cached missing directory metadata',
+            );
+        } finally {
+            mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
+        }
+    });
+
+    test('FTV-AT-08F: repoTree capability folder keeps capability metadata over colocated METAFLOW', async () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
+        mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: tmpDir } }];
+
+        try {
+            const repoRoot = path.join(tmpDir, 'rt08f-capability-precedence');
+            const capabilityRoot = path.join(repoRoot, 'capabilities', 'platform-ui');
+            const instructionPath = path.join(
+                capabilityRoot,
+                '.github',
+                'instructions',
+                'guide.instructions.md',
+            );
+
+            fs.mkdirSync(path.dirname(instructionPath), { recursive: true });
+            fs.writeFileSync(
+                path.join(capabilityRoot, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: Folder Manifest Name',
+                    'description: Description from METAFLOW that should not win.',
+                    '---',
+                ].join('\n'),
+            );
+            fs.writeFileSync(instructionPath, '# Guide\n');
+
+            const files = [
+                {
+                    relativePath: '.github/instructions/guide.instructions.md',
+                    sourcePath: instructionPath,
+                    sourceLayer: 'primary/capabilities/platform-ui',
+                    sourceRepo: 'primary',
+                    sourceCapabilityId: 'platform-ui',
+                    sourceCapabilityName: 'Platform UI',
+                    sourceCapabilityDescription: 'Capability metadata description that should win.',
+                    classification: 'settings',
+                } as EffectiveFile,
+            ];
+            const provider = new FilesTreeViewProvider(
+                makeState(files, {
+                    metadataRepos: [{ id: 'primary', localPath: 'rt08f-capability-precedence' }],
+                }),
+                () => 'repoTree',
+            );
+
+            const [repoItem] = provider.getChildren();
+            const capabilitiesFolder = provider
+                .getChildren(repoItem)
+                .find((item) => String(item.label) === 'capabilities');
+            assert.ok(capabilitiesFolder, 'expected capabilities folder');
+
+            const capabilityFolder = provider
+                .getChildren(capabilitiesFolder!)
+                .find((item) => String(item.label) === 'Platform UI');
+            assert.ok(capabilityFolder, 'expected capability metadata label to win');
+            assert.strictEqual(String(capabilityFolder?.description), 'platform-ui (0/0)');
+
+            await provider.resolveTreeItem!(capabilityFolder!, capabilityFolder!, mockToken);
+            const tooltipText = String(capabilityFolder?.tooltip);
+
+            assert.ok(
+                tooltipText.includes('Capability metadata description that should win.'),
+                `expected capability description in tooltip, got: ${tooltipText}`,
+            );
+            assert.ok(
+                !tooltipText.includes('Description from METAFLOW that should not win.'),
+                `did not expect METAFLOW description to override capability tooltip, got: ${tooltipText}`,
+            );
+        } finally {
+            mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
+        }
+    });
+
+    test('FTV-AT-08G: skill folder keeps SKILL metadata over colocated METAFLOW', async () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
+        mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: tmpDir } }];
+
+        try {
+            const repoRoot = path.join(tmpDir, 'rt08g-skill-precedence');
+            const skillRoot = path.join(
+                repoRoot,
+                'domains',
+                'ui',
+                '.github',
+                'skills',
+                'navigator',
+            );
+            const skillFile = path.join(skillRoot, 'SKILL.md');
+
+            fs.mkdirSync(skillRoot, { recursive: true });
+            fs.writeFileSync(
+                skillFile,
+                [
+                    '---',
+                    'name: navigator',
+                    'description: Description from SKILL that should win.',
+                    '---',
+                    '',
+                    '# Navigator Skill',
+                ].join('\n'),
+            );
+            fs.writeFileSync(
+                path.join(skillRoot, 'METAFLOW.md'),
+                [
+                    '---',
+                    'name: Folder Manifest Name',
+                    'description: Description from METAFLOW that should not win.',
+                    '---',
+                ].join('\n'),
+            );
+
+            const files = [
+                {
+                    relativePath: '.github/skills/navigator/SKILL.md',
+                    sourcePath: skillFile,
+                    sourceLayer: 'primary/domains/ui',
+                    sourceRepo: 'primary',
+                    classification: 'settings',
+                } as EffectiveFile,
+            ];
+            const provider = new FilesTreeViewProvider(
+                makeState(files, {
+                    metadataRepos: [{ id: 'primary', localPath: 'rt08g-skill-precedence' }],
+                }),
+                () => 'repoTree',
+            );
+
+            const [repoItem] = provider.getChildren();
+            const domainsFolder = provider
+                .getChildren(repoItem)
+                .find((item) => String(item.label) === 'domains');
+            assert.ok(domainsFolder, 'expected domains folder');
+
+            const uiFolder = provider
+                .getChildren(domainsFolder!)
+                .find((item) => String(item.label) === 'ui');
+            assert.ok(uiFolder, 'expected ui folder');
+
+            const skillsFolder = provider
+                .getChildren(uiFolder!)
+                .find((item) => String(item.label) === 'skills');
+            assert.ok(skillsFolder, 'expected skills folder');
+
+            const skillFolder = provider
+                .getChildren(skillsFolder!)
+                .find((item) => String(item.label) === 'Navigator');
+            assert.ok(skillFolder, 'expected SKILL metadata label to win');
+            assert.strictEqual(String(skillFolder?.description), '(0/0)');
+
+            await provider.resolveTreeItem!(skillFolder!, skillFolder!, mockToken);
+            const tooltipText = String(skillFolder?.tooltip);
+
+            assert.ok(
+                tooltipText.includes('Description from SKILL that should win.'),
+                `expected SKILL description in tooltip, got: ${tooltipText}`,
+            );
+            assert.ok(
+                !tooltipText.includes('Description from METAFLOW that should not win.'),
+                `did not expect METAFLOW description to override SKILL tooltip, got: ${tooltipText}`,
+            );
+        } finally {
+            mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
+        }
+    });
+
     // FTV-AT-07: FolderItem traversal works for skill sub-directories
     test('FTV-AT-07: FolderItem sub-path traversal within skill type', () => {
         const { FilesTreeViewProvider } = loadFilesTreeView();
@@ -822,6 +1145,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             sourceCapabilityName: 'SDLC Traceability',
             sourceCapabilityDescription: 'Traceability metadata capability.',
             sourceCapabilityLicense: 'MIT',
+            sourceCapabilityExperimental: true,
         } as EffectiveFile;
 
         const provider = new FilesTreeViewProvider(makeState([file]), () => 'unified');
@@ -831,6 +1155,14 @@ suite('FilesTreeView – artifact-type grouping', () => {
         await provider.resolveTreeItem!(fileNode, fileNode, mockToken);
         const tooltipText = String(fileNode.tooltip);
 
+        assert.ok(
+            String(fileNode.description).startsWith('[Experimental] '),
+            `expected experimental marker in file description, got: ${fileNode.description}`,
+        );
+        assert.ok(
+            String(fileNode.description).includes('('),
+            `expected classification suffix in file description, got: ${fileNode.description}`,
+        );
         assert.ok(tooltipText.includes('Capability: SDLC Traceability'));
         assert.ok(
             tooltipText.includes('Capability ID:') && tooltipText.includes('sdlc-traceability'),
@@ -838,6 +1170,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.ok(
             tooltipText.includes('Capability Description: Traceability metadata capability.'),
         );
+        assert.ok(tooltipText.includes('Capability Status: Experimental'));
         assert.ok(tooltipText.includes('Capability License:') && tooltipText.includes('MIT'));
     });
 
@@ -907,7 +1240,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
             relativePath: '.github/instructions/traceability.instructions.md',
             sourcePath:
                 '/tmp/ext/assets/metaflow-ai-metadata/.github/instructions/traceability.instructions.md',
-            sourceLayer: '__metaflow_builtin__/.github',
+            sourceLayer: '__metaflow_builtin__/.',
             classification: 'settings',
         } as EffectiveFile;
 
@@ -941,7 +1274,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         const builtInFile = {
             relativePath: '.github/skills/review/SKILL.md',
             sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/skills/review/SKILL.md',
-            sourceLayer: '__metaflow_builtin__/.github',
+            sourceLayer: '__metaflow_builtin__/.',
             classification: 'settings',
         } as EffectiveFile;
 
@@ -976,14 +1309,14 @@ suite('FilesTreeView – artifact-type grouping', () => {
             {
                 relativePath: 'instructions/a.md',
                 sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/instructions/a.md',
-                sourceLayer: '__metaflow_builtin__/.github',
+                sourceLayer: '__metaflow_builtin__/.',
                 sourceRepo: '__metaflow_builtin__',
                 classification: 'settings',
             } as EffectiveFile,
             {
                 relativePath: 'prompts/b.md',
                 sourcePath: '/tmp/ext/assets/metaflow-ai-metadata/.github/prompts/b.md',
-                sourceLayer: '__metaflow_builtin__/.github',
+                sourceLayer: '__metaflow_builtin__/.',
                 sourceRepo: '__metaflow_builtin__',
                 classification: 'settings',
             } as EffectiveFile,
@@ -1461,6 +1794,128 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.ok(
             tooltipText.includes('Sync the shared Copilot Pack.'),
             `expected description, got: ${tooltipText}`,
+        );
+    });
+
+    test('FTV-SEA-01: repoTree staged expand stops at capability folders, then artifact types', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [
+            {
+                ...makeFile(
+                    '.github/instructions/a.md',
+                    '/repo/capabilities/agent-commit-coordination/.github/instructions/a.md',
+                    'primary/capabilities/agent-commit-coordination',
+                ),
+                sourceRepo: 'primary',
+                sourceCapabilityId: 'agent-commit-coordination',
+                sourceCapabilityName: 'Agent Commit Coordination',
+            } as EffectiveFile,
+            {
+                relativePath: '.github/skills/agent-commit-coordination/SKILL.md',
+                sourcePath:
+                    '/repo/capabilities/agent-commit-coordination/.github/skills/agent-commit-coordination/SKILL.md',
+                sourceLayer: 'primary/capabilities/agent-commit-coordination',
+                sourceRepo: 'primary',
+                classification: 'settings',
+            } as EffectiveFile,
+        ];
+        const provider = new FilesTreeViewProvider(
+            makeState(files, {
+                metadataRepos: [{ id: 'primary', name: 'Team Metadata', localPath: '/repo' }],
+            }),
+            () => 'repoTree',
+        );
+
+        assert.strictEqual(provider.getExpandAllStrategy?.(), 'staged');
+
+        const plan = provider.getStagedExpandPlan?.();
+        assert.ok(plan, 'expected staged expand plan');
+        assert.deepStrictEqual(
+            plan!.stageOne.map((item) => String(item.label)),
+            ['Team Metadata', 'capabilities'],
+        );
+        assert.deepStrictEqual(
+            plan!.stageTwo.map((item) => String(item.label)),
+            ['Agent Commit Coordination'],
+        );
+        assert.ok(
+            plan!.stageOne
+                .concat(plan!.stageTwo)
+                .every((item) => typeof (item as { id?: unknown }).id === 'string'),
+            'staged files-tree targets should have stable ids for expansion tracking',
+        );
+        assert.ok(
+            !plan!.stageOne.concat(plan!.stageTwo).some((item) => String(item.label) === 'skills'),
+            'stage plan must stop before skill folder internals',
+        );
+    });
+
+    test('FTV-SEA-02: unified mode keeps recursive expand behavior', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const provider = new FilesTreeViewProvider(
+            makeState([makeFile('.github/instructions/a.md')]),
+            () => 'unified',
+        );
+
+        assert.strictEqual(provider.getExpandAllStrategy?.(), 'recursive');
+        assert.deepStrictEqual(provider.getStagedExpandPlan?.(), { stageOne: [], stageTwo: [] });
+    });
+
+    test('FTV-SCH-01: repoTree search prunes unmatched branches and expands the match path', () => {
+        const { FilesTreeViewProvider } = loadFilesTreeView();
+        const files = [
+            {
+                relativePath: '.github/instructions/foo.md',
+                sourcePath: '/repo/capabilities/devtools/.github/instructions/foo.md',
+                sourceLayer: '/repo/capabilities/devtools',
+                sourceRepo: '/repo',
+                classification: 'synchronized',
+            } as EffectiveFile,
+            {
+                relativePath: '.github/skills/my-skill/SKILL.md',
+                sourcePath: '/repo/capabilities/devtools/.github/skills/my-skill/SKILL.md',
+                sourceLayer: '/repo/capabilities/devtools',
+                sourceRepo: '/repo',
+                classification: 'synchronized',
+            } as EffectiveFile,
+        ];
+        const provider = new FilesTreeViewProvider(
+            makeState(files, {
+                metadataRepos: [{ id: 'primary', name: 'Team Metadata', localPath: '/repo' }],
+            }),
+            () => 'repoTree',
+        );
+
+        provider.setSearchQuery?.('foo');
+
+        const roots = provider.getChildren();
+        assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
+        assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
+
+        const level2 = provider.getChildren(roots[0]);
+        assert.deepStrictEqual(
+            level2.map((item) => String(item.label)),
+            ['capabilities'],
+        );
+        assert.strictEqual(level2[0].collapsibleState, 2, 'ancestor folder should auto-expand');
+
+        const level3 = provider.getChildren(level2[0]);
+        assert.deepStrictEqual(
+            level3.map((item) => String(item.label)),
+            ['devtools'],
+        );
+        assert.strictEqual(level3[0].collapsibleState, 2, 'matching branch should auto-expand');
+
+        const level4 = provider.getChildren(level3[0]);
+        assert.deepStrictEqual(
+            level4.map((item) => String(item.label)),
+            ['instructions'],
+        );
+
+        const leaves = provider.getChildren(level4[0]);
+        assert.deepStrictEqual(
+            leaves.map((item) => String(item.label)),
+            ['foo.md'],
         );
     });
 });

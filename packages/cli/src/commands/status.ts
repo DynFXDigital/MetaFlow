@@ -9,10 +9,10 @@ import {
 } from './common';
 
 const DEFAULT_INJECTION_MODE = {
-    instructions: 'settings',
+    instructions: 'plugin',
     prompts: 'settings',
-    skills: 'settings',
-    agents: 'settings',
+    skills: 'plugin',
+    agents: 'plugin',
     hooks: 'settings',
 } as const;
 

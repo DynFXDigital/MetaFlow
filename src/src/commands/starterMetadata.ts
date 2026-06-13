@@ -38,6 +38,7 @@ export async function scaffoldMetaFlowAiMetadata(options: {
         sourceRoot,
         destinationRoot: options.workspaceRoot,
         includeRootCapabilityManifest: false,
+        flattenNestedCapabilities: true,
         overwriteExisting: options.overwriteExisting,
         copyFile: options.copyFile,
     });
@@ -113,6 +114,7 @@ async function copyBundledMetaFlowAiMetadata(options: {
     sourceRoot: string;
     destinationRoot: string;
     includeRootCapabilityManifest?: boolean;
+    flattenNestedCapabilities?: boolean;
     overwriteExisting?: boolean;
     copyFile?: (sourceFile: string, destinationFile: string) => Promise<void>;
 }): Promise<ScaffoldMetaFlowAiMetadataResult> {
@@ -128,35 +130,43 @@ async function copyBundledMetaFlowAiMetadata(options: {
     const copyFile = options.copyFile ?? fsp.copyFile;
 
     for (const sourceFile of targets) {
-        const relative = path.relative(options.sourceRoot, sourceFile);
-        const destinationFile = path.join(options.destinationRoot, relative);
+        const relative = path.relative(options.sourceRoot, sourceFile).replace(/\\/g, '/');
+        const destinationRelative = resolveDestinationRelativePath(
+            relative,
+            options.flattenNestedCapabilities === true,
+        );
+        if (!destinationRelative) {
+            continue;
+        }
+
+        const destinationFile = path.join(options.destinationRoot, destinationRelative);
         const destinationDir = path.dirname(destinationFile);
         try {
             await fsp.mkdir(destinationDir, { recursive: true });
         } catch (err: unknown) {
             if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-                skippedFiles.push(relative.replace(/\\/g, '/'));
+                skippedFiles.push(destinationRelative);
                 continue;
             }
             throw err;
         }
 
         if (!options.overwriteExisting && fs.existsSync(destinationFile)) {
-            skippedFiles.push(relative.replace(/\\/g, '/'));
+            skippedFiles.push(destinationRelative);
             continue;
         }
 
         if (!fs.existsSync(sourceFile)) {
-            skippedFiles.push(relative.replace(/\\/g, '/'));
+            skippedFiles.push(destinationRelative);
             continue;
         }
 
         try {
             await copyFile(sourceFile, destinationFile);
-            writtenFiles.push(relative.replace(/\\/g, '/'));
+            writtenFiles.push(destinationRelative);
         } catch (err: unknown) {
             if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-                skippedFiles.push(relative.replace(/\\/g, '/'));
+                skippedFiles.push(destinationRelative);
                 continue;
             }
             throw err;
@@ -174,6 +184,28 @@ function isRootCapabilityManifest(sourceRoot: string, sourceFile: string): boole
     return (
         path.relative(sourceRoot, sourceFile).replace(/\\/g, '/') === CAPABILITY_MANIFEST_FILE_NAME
     );
+}
+
+function resolveDestinationRelativePath(
+    sourceRelativePath: string,
+    flattenNestedCapabilities: boolean,
+): string | undefined {
+    if (!flattenNestedCapabilities) {
+        return sourceRelativePath;
+    }
+
+    const nestedGithubMatch = sourceRelativePath.match(
+        /^capabilities\/(?:[^/]+\/)+(\.github\/.+)$/,
+    );
+    if (nestedGithubMatch) {
+        return nestedGithubMatch[1];
+    }
+
+    if (/^capabilities\/(?:[^/]+\/)+CAPABILITY\.md$/i.test(sourceRelativePath)) {
+        return undefined;
+    }
+
+    return sourceRelativePath;
 }
 
 function readBundledMetadataVersionMarker(

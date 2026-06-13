@@ -32,6 +32,7 @@ import {
     apply,
     // settingsInjector
     computeSettingsEntries,
+    computePluginRootPaths,
 } from '../src/index';
 import type { EffectiveFile, MetaFlowConfig, ManagedState } from '../src/index';
 
@@ -367,7 +368,7 @@ describe('Engine gaps: configLoader', () => {
         assert.ok(errors.some((e) => e.message.includes('capabilities')));
     });
 
-    it('validateConfig reports error for invalid excludedTypes in layerSources', () => {
+    it('validateConfig reports error for unsupported excludedTypes in layerSources', () => {
         const errors = validateConfig({
             metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
             layerSources: [
@@ -375,10 +376,80 @@ describe('Engine gaps: configLoader', () => {
                     repoId: 'r1',
                     path: 'core',
                     excludedTypes: [1 as unknown as string],
+                } as unknown as { repoId: string; path: string },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(errors.some((e) => e.message.includes('unsupported "excludedTypes"')));
+    });
+
+    it('validateConfig reports error for invalid capability fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    capabilities: [
+                        {
+                            path: 'core',
+                            fileNamingStrategy: 'bad-value' as unknown as
+                                MetaFlowConfig['fileNamingStrategy'],
+                        },
+                    ],
                 },
             ],
         } as MetaFlowConfig);
-        assert.ok(errors.some((e) => e.message.includes('excludedTypes')));
+        assert.ok(errors.some((e) => e.message.includes('capabilities')));
+    });
+
+    it('validateConfig reports error for invalid metadataRepos fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [
+                {
+                    id: 'r1',
+                    localPath: 'repos/r1',
+                    fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+                },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some(
+                (e) =>
+                    e.message.includes('"r1"') && e.message.includes('invalid "fileNamingStrategy"'),
+            ),
+        );
+    });
+
+    it('validateConfig reports error for invalid layerSources fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
+            layerSources: [
+                {
+                    repoId: 'r1',
+                    path: 'core',
+                    fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+                },
+            ],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some(
+                (e) =>
+                    e.message.includes('r1/core') &&
+                    e.message.includes('invalid "fileNamingStrategy"'),
+            ),
+        );
+    });
+
+    it('validateConfig reports error for invalid top-level fileNamingStrategy', () => {
+        const errors = validateConfig({
+            metadataRepo: { localPath: '.ai/metadata' },
+            layers: ['core'],
+            fileNamingStrategy: 'bad' as unknown as MetaFlowConfig['fileNamingStrategy'],
+        } as MetaFlowConfig);
+        assert.ok(
+            errors.some((e) =>
+                e.message.includes('"fileNamingStrategy" must be either'),
+            ),
+        );
     });
 });
 
@@ -460,5 +531,131 @@ describe('Engine gaps: settingsInjector absolute hooks', () => {
         const entries = computeSettingsEntries([], tmpDir, config);
         const hookLocations = entries.find((e) => e.key === 'chat.hookFilesLocations');
         assert.ok(hookLocations, 'should have hook file locations');
+    });
+
+    it('computeSettingsEntries keeps a workspace-relative hook path relative (no drive letter)', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+            hooks: { preApply: 'scripts/pre-apply.sh' },
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        const hookEntry = entries.find((e) => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookEntry, 'should emit chat.hookFilesLocations');
+
+        const value = hookEntry!.value as Record<string, boolean>;
+        const keys = Object.keys(value).map((p) => p.replace(/\\/g, '/'));
+        assert.ok(keys.length > 0, 'hook locations should not be empty');
+        for (const k of keys) {
+            assert.ok(
+                !k.includes(':'),
+                `hook location must be workspace-relative (no drive letter), got: ${k}`,
+            );
+        }
+        assert.ok(
+            keys.some((k) => k.includes('scripts/pre-apply.sh')),
+            'should contain the workspace-relative pre-apply path',
+        );
+        for (const v of Object.values(value)) {
+            assert.strictEqual(v, true, 'hook location values must be boolean true');
+        }
+    });
+
+    it('computeSettingsEntries includes both preApply and postApply hook paths', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+            hooks: { preApply: 'scripts/pre-apply.sh', postApply: 'scripts/post-apply.sh' },
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        const hookEntry = entries.find((e) => e.key === 'chat.hookFilesLocations');
+        assert.ok(hookEntry, 'should emit chat.hookFilesLocations');
+
+        const keys = Object.keys(hookEntry!.value as Record<string, boolean>).map((p) =>
+            p.replace(/\\/g, '/'),
+        );
+        assert.ok(
+            keys.some((k) => k.includes('scripts/pre-apply.sh')),
+            'should contain the preApply path',
+        );
+        assert.ok(
+            keys.some((k) => k.includes('scripts/post-apply.sh')),
+            'should contain the postApply path',
+        );
+    });
+
+    it('computeSettingsEntries omits chat.hookFilesLocations when no hooks are configured', () => {
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+        };
+        const entries = computeSettingsEntries([], tmpDir, config);
+        assert.ok(
+            !entries.find((e) => e.key === 'chat.hookFilesLocations'),
+            'chat.hookFilesLocations should be absent when config has no hooks block',
+        );
+    });
+});
+
+describe('Engine gaps: settingsInjector plugin roots', () => {
+    const workspaceRoot = path.resolve('/ws');
+
+    function pluginFile(relativePath: string, sourcePath: string): EffectiveFile {
+        return {
+            relativePath,
+            sourcePath,
+            sourceLayer: 'core',
+            classification: 'plugin',
+        };
+    }
+
+    it('computePluginRootPaths resolves the capability root above .github', () => {
+        const file = pluginFile(
+            '.github/instructions/coding.md',
+            path.join(workspaceRoot, 'repo', 'cap', '.github', 'instructions', 'coding.md'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
+
+    it('computePluginRootPaths resolves a root when path has no .github segment', () => {
+        const file = pluginFile(
+            'instructions/coding.md',
+            path.join(workspaceRoot, 'repo', 'cap', 'instructions', 'coding.md'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
+
+    it('computePluginRootPaths ignores non-plugin files', () => {
+        const settingsFile: EffectiveFile = {
+            relativePath: '.github/instructions/x.md',
+            sourcePath: path.join(workspaceRoot, 'repo', '.github', 'instructions', 'x.md'),
+            sourceLayer: 'core',
+            classification: 'settings',
+        };
+        assert.deepStrictEqual(computePluginRootPaths([settingsFile]), []);
+    });
+
+    it('computePluginRootPaths skips files whose relative path is empty', () => {
+        const file = pluginFile('', path.join(workspaceRoot, 'repo'));
+        assert.deepStrictEqual(computePluginRootPaths([file]), []);
+    });
+
+    it('computePluginRootPaths skips files that are only .github', () => {
+        const file = pluginFile('.github', path.join(workspaceRoot, 'repo', '.github'));
+        assert.deepStrictEqual(computePluginRootPaths([file]), []);
+    });
+
+    it('computeSettingsEntries emits chat.pluginLocations for plugin-classified files', () => {
+        const file = pluginFile(
+            '.github/instructions/coding.md',
+            path.join(workspaceRoot, 'cap', '.github', 'instructions', 'coding.md'),
+        );
+        const config: MetaFlowConfig = { metadataRepo: { localPath: 'repo' }, layers: ['core'] };
+        const entries = computeSettingsEntries([file], workspaceRoot, config);
+        const pluginEntry = entries.find((e) => e.key === 'chat.pluginLocations');
+        assert.ok(pluginEntry, 'should emit chat.pluginLocations');
+        assert.deepStrictEqual(pluginEntry?.value, { cap: true });
     });
 });

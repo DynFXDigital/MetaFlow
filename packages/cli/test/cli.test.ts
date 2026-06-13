@@ -37,6 +37,10 @@ function synchronizedPath(relativePath: string, layer = 'company/core', repo = '
     return dir === '.' ? prefixed : `${dir}/${prefixed}`;
 }
 
+function originalSynchronizedPath(relativePath: string): string {
+    return relativePath.replace(/\\/g, '/');
+}
+
 // ── Init command ───────────────────────────────────────────────────
 
 describe('CLI: init', () => {
@@ -232,6 +236,108 @@ describe('CLI: preview', () => {
 
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('No files in overlay'));
+    });
+
+    it('should preserve original relative paths when fileNamingStrategy is original-unless-conflict', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+            layers: STANDARD_LAYERS,
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')));
+        assert.ok(!previewResult.stdout.includes(synchronizedPath('skills/testing/SKILL.md')));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+        assert.ok(
+            fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')),
+        );
+
+        const validateResult = await runCli(['validate', '-w', ws.root]);
+        assert.strictEqual(validateResult.exitCode, 0);
+    });
+
+    it('should fail preview and apply with the same remap message after prefixed outputs already exist', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        const initialApply = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(initialApply.exitCode, 0);
+
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(previewResult.exitCode, 1);
+        assert.strictEqual(applyResult.exitCode, 1);
+        assert.ok(previewResult.stderr.includes('Automatic migration is not supported'));
+        assert.ok(applyResult.stderr.includes('Automatic migration is not supported'));
+    });
+
+    it('exits early when the config cannot be loaded', async () => {
+        ws = createTestWorkspace({});
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            '{ not valid jsonc',
+            'utf-8',
+        );
+
+        const result = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Error:'));
+    });
+
+    it('emits a JSON error object when preview fails in --json mode', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        const initialApply = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(initialApply.exitCode, 0);
+
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.ok(typeof data.error === 'string' && data.error.length > 0);
+    });
+
+    it('prints surfaced capability conflict warnings', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({ layers: ['company/core', 'company/extra'] }),
+            layers: {
+                'company/core': [{ relativePath: 'skills/dup/SKILL.md', content: 'A' }],
+                'company/extra': [{ relativePath: 'skills/dup/SKILL.md', content: 'B' }],
+            },
+        });
+
+        const result = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Warnings ('), result.stdout);
+        assert.ok(result.stdout.includes('CAPABILITY_CONFLICT'), result.stdout);
     });
 });
 
@@ -794,6 +900,33 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.drifted, 1);
         assert.ok(data.drifted.includes(synchronizedPath('skills/testing/SKILL.md')));
     });
+
+    it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        const beforeApply = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(beforeApply.exitCode, 1);
+        const beforeData = JSON.parse(beforeApply.stdout);
+        assert.ok(beforeData.unmanaged.includes('copilot-instructions.md'));
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(path.join(ws.root, '.github', 'copilot-instructions.md'), 'local edit');
+
+        const afterDrift = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(afterDrift.exitCode, 1);
+        const afterData = JSON.parse(afterDrift.stdout);
+        assert.ok(afterData.drifted.includes('copilot-instructions.md'));
+    });
 });
 
 // ── Multi-repo ─────────────────────────────────────────────────────
@@ -967,6 +1100,65 @@ describe('CLI: coverage - validate edge cases', () => {
         assert.strictEqual(result.exitCode, 1);
         assert.ok(result.stdout.includes('stale'), 'should report stale files');
     });
+
+    it('exits early when the config cannot be loaded', async () => {
+        ws = createTestWorkspace({});
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            '{ not valid jsonc',
+            'utf-8',
+        );
+
+        const result = await runCli(['validate', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Error:'));
+    });
+
+    it('reports a validation error as text when overlay resolution throws', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        const result = await runCli(['validate', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Error:'));
+    });
+
+    it('reports a validation error as JSON when overlay resolution throws', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        const result = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.valid, false);
+        assert.ok(typeof data.error === 'string' && data.error.length > 0);
+    });
 });
 
 describe('CLI: coverage - promote edge cases', () => {
@@ -1019,6 +1211,133 @@ describe('CLI: coverage - promote edge cases', () => {
         const result = promoteAuto(ws.root, {});
         assert.strictEqual(result.committed, false);
         assert.ok(result.error?.includes('not a git repository'));
+    });
+
+    it('promoteAuto reports a config load failure', () => {
+        ws = createTestWorkspace({});
+
+        // Invalid JSONC so loadConfig fails.
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            '{ this is not valid json',
+            'utf-8',
+        );
+
+        const state = {
+            version: 1,
+            files: {
+                'skills/test.md': { hash: 'abc', sourceLayer: 'core', appliedAt: '' },
+            },
+        };
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'state.json'),
+            JSON.stringify(state),
+            'utf-8',
+        );
+
+        const matDir = path.join(ws.root, '.github', 'skills');
+        fs.mkdirSync(matDir, { recursive: true });
+        fs.writeFileSync(path.join(matDir, 'test.md'), 'drifted content');
+
+        const result = promoteAuto(ws.root, {});
+        assert.strictEqual(result.committed, false);
+        assert.ok(result.error?.includes('Cannot load config'), result.error);
+    });
+
+    it('promoteAuto refuses drift spanning multiple metadata repositories', () => {
+        ws = createTestWorkspace({});
+
+        const config = {
+            metadataRepos: [
+                { id: 'repoA', localPath: 'repos/a' },
+                { id: 'repoB', localPath: 'repos/b' },
+            ],
+            layerSources: [
+                { repoId: 'repoA', path: 'core' },
+                { repoId: 'repoB', path: 'core' },
+            ],
+            injection: { skills: 'synchronize' },
+        };
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(config, null, 2),
+            'utf-8',
+        );
+
+        const state = {
+            version: 1,
+            files: {
+                'skills/a.md': {
+                    hash: 'abc',
+                    sourceLayer: 'repoA/core',
+                    sourceRepo: 'repoA',
+                    appliedAt: '',
+                },
+                'skills/b.md': {
+                    hash: 'def',
+                    sourceLayer: 'repoB/core',
+                    sourceRepo: 'repoB',
+                    appliedAt: '',
+                },
+            },
+        };
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'state.json'),
+            JSON.stringify(state),
+            'utf-8',
+        );
+
+        const matDir = path.join(ws.root, '.github', 'skills');
+        fs.mkdirSync(matDir, { recursive: true });
+        fs.writeFileSync(path.join(matDir, 'a.md'), 'drifted a');
+        fs.writeFileSync(path.join(matDir, 'b.md'), 'drifted b');
+
+        const result = promoteAuto(ws.root, {});
+        assert.strictEqual(result.committed, false);
+        assert.ok(result.error?.includes('multiple metadata repositories'), result.error);
+    });
+
+    it('promoteAuto cannot determine the repo path when the source repo is unresolved', () => {
+        ws = createTestWorkspace({});
+
+        const config = {
+            metadataRepos: [
+                { id: 'repoA', localPath: 'repos/a' },
+                { id: 'repoB', localPath: 'repos/b' },
+            ],
+            layerSources: [{ repoId: 'repoA', path: 'core' }],
+            injection: { skills: 'synchronize' },
+        };
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(config, null, 2),
+            'utf-8',
+        );
+
+        const state = {
+            version: 1,
+            files: {
+                'skills/test.md': {
+                    hash: 'abc',
+                    sourceLayer: 'ghost/core',
+                    sourceRepo: 'ghost',
+                    appliedAt: '',
+                },
+            },
+        };
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'state.json'),
+            JSON.stringify(state),
+            'utf-8',
+        );
+
+        const matDir = path.join(ws.root, '.github', 'skills');
+        fs.mkdirSync(matDir, { recursive: true });
+        fs.writeFileSync(path.join(matDir, 'test.md'), 'drifted content');
+
+        const result = promoteAuto(ws.root, {});
+        assert.strictEqual(result.committed, false);
+        assert.ok(result.error?.includes('Cannot determine metadata repo path'), result.error);
     });
 
     it('promote --auto --json with error shows error in JSON', async () => {
@@ -1123,6 +1442,21 @@ describe('CLI: coverage - status edge cases', () => {
         assert.ok(result.stdout.includes('https://github.com/org/metadata.git'));
         assert.ok(result.stdout.includes('Commit:'));
         assert.ok(result.stdout.includes('abc1234'));
+    });
+
+    it('prints surfaced capability conflict warnings', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({ layers: ['company/core', 'company/extra'] }),
+            layers: {
+                'company/core': [{ relativePath: 'skills/dup/SKILL.md', content: 'A' }],
+                'company/extra': [{ relativePath: 'skills/dup/SKILL.md', content: 'B' }],
+            },
+        });
+
+        const result = await runCli(['status', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Warnings:'), result.stdout);
+        assert.ok(result.stdout.includes('CAPABILITY_CONFLICT'), result.stdout);
     });
 });
 
@@ -1514,6 +1848,31 @@ describe('CLI: watch', () => {
             })
             .catch((err: unknown) => cleanup2(err));
     });
+
+    it('watch CLI command exits with error code 1 when the initial apply throws', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        // Apply with the default strategy, then switch to original-unless-conflict so the
+        // next overlay resolution throws an unsupported-migration error during initial apply.
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(
+            path.join(ws.root, '.metaflow', 'config.jsonc'),
+            JSON.stringify(
+                standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
+                null,
+                2,
+            ),
+            'utf-8',
+        );
+
+        // The command returns before starting any watchers, so no cleanup is required.
+        const result = await runCli(['watch', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Error:'));
+    });
 });
 
 // ── Promote --auto ─────────────────────────────────────────────────
@@ -1608,6 +1967,50 @@ describe('CLI: promote --auto', () => {
             encoding: 'utf-8',
         }).trim();
         assert.strictEqual(branch, 'test-promote');
+    });
+
+    it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        gitInit(ws.metadataRepo);
+
+        await runCli(['apply', '-w', ws.root]);
+        fs.writeFileSync(
+            path.join(ws.root, '.github', 'copilot-instructions.md'),
+            '# Updated Repo-wide Copilot Instructions',
+        );
+
+        const result = promoteAuto(ws.root, {
+            noBranch: true,
+            message: 'test: promote repo-wide instructions',
+        });
+
+        assert.strictEqual(result.committed, true);
+        assert.ok(result.filesPromoted.includes('copilot-instructions.md'));
+
+        const promotedFile = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            '.github',
+            'copilot-instructions.md',
+        );
+        assert.ok(fs.existsSync(promotedFile), 'promoted file should stay under .github');
+        assert.ok(
+            fs
+                .readFileSync(promotedFile, 'utf-8')
+                .includes('Updated Repo-wide Copilot Instructions'),
+        );
     });
 
     it('should fall back to tracked synchronized relative path for older managed state files', async () => {
@@ -1766,5 +2169,95 @@ describe('CLI: promote --auto', () => {
         assert.strictEqual(data.branch, 'json-test');
         assert.ok(data.filesPromoted.length > 0);
         assert.strictEqual(data.error, undefined);
+    });
+
+    it('promote --auto reports no files could be promoted when source layer metadata is missing', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        gitInit(ws.metadataRepo);
+
+        await runCli(['apply', '-w', ws.root]);
+
+        const skillPath = path.join(
+            ws.root,
+            '.github',
+            synchronizedPath('skills/testing/SKILL.md'),
+        );
+        fs.writeFileSync(skillPath, '# Updated Skill');
+
+        // Strip the sourceLayer from every tracked file so promotion has no target.
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        for (const key of Object.keys(state.files)) {
+            delete state.files[key].sourceLayer;
+        }
+        fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+
+        const result = promoteAuto(ws.root, { noBranch: true });
+
+        assert.strictEqual(result.committed, false);
+        assert.deepStrictEqual(result.filesPromoted, []);
+        assert.ok(result.error?.includes('No files could be promoted'), result.error);
+    });
+
+    it('promote --auto skips files whose authored path escapes the layer root', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        gitInit(ws.metadataRepo);
+
+        await runCli(['apply', '-w', ws.root]);
+
+        const skillPath = path.join(
+            ws.root,
+            '.github',
+            synchronizedPath('skills/testing/SKILL.md'),
+        );
+        fs.writeFileSync(skillPath, '# Updated Skill');
+
+        // Force an unsafe authored relative path on every tracked file.
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        for (const key of Object.keys(state.files)) {
+            state.files[key].sourceRelativePath = '../escape.md';
+        }
+        fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf-8');
+
+        const result = promoteAuto(ws.root, { noBranch: true });
+
+        assert.strictEqual(result.committed, false);
+        assert.deepStrictEqual(result.filesPromoted, []);
+        assert.ok(result.error?.includes('No files could be promoted'), result.error);
+    });
+
+    it('promote --auto returns the git error when branch creation fails', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: STANDARD_LAYERS,
+        });
+
+        gitInit(ws.metadataRepo);
+        // Pre-create the target branch so `git checkout -b` fails inside promoteAuto.
+        execSync('git branch collision', { cwd: ws.metadataRepo, stdio: 'pipe' });
+
+        await runCli(['apply', '-w', ws.root]);
+
+        const skillPath = path.join(
+            ws.root,
+            '.github',
+            synchronizedPath('skills/testing/SKILL.md'),
+        );
+        fs.writeFileSync(skillPath, '# Updated Skill');
+
+        const result = promoteAuto(ws.root, { branch: 'collision' });
+
+        assert.strictEqual(result.committed, false);
+        assert.strictEqual(result.branch, 'collision');
+        assert.ok(result.error && result.error.length > 0);
     });
 });

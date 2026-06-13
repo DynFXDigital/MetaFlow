@@ -38,10 +38,6 @@ test-results/
 # Integration test workspace runtime artifacts
 src/test-workspace/.github/
 src/test-workspace/.vscode/
-.ai/temp/
-.ai/plan/
-.ai/issues/
-.ai/tasks/
 
 # Local env
 .env
@@ -53,8 +49,9 @@ src/test-workspace/.vscode/
 .pytest_cache/
 do_icon.ps1
 
-# Ignore synchronized AI metadata files
-.github/**/_*
+# Local test harness logs
+.tmp-*.log
+tmp-*.log
 
 # Ignore Metaflow state and config files
 .metaflow/

@@ -14,8 +14,10 @@ Workflow:
 1. Assess repository AI metadata quality, scope boundaries, and consistency.
 2. Compare repository-local metadata against enabled or candidate linked metadata repositories when reconciliation is needed.
 3. Coach on MetaFlow best practices for instructions, prompts, agents, and skills.
-4. Identify retirement, replacement, merge, or promotion candidates for linked metadata repositories.
-5. For each candidate, recommend destination repository, capability path, canonical owner, and required generalization edits.
+4. When required input is missing or materially ambiguous and the answer would change retirement, replacement, merge, promotion, or destructive-consolidation recommendations, use askQuestions to collect the smallest useful batch of high-impact decisions before finalizing guidance.
+5. Prefer recommended options or defaults when possible, continue immediately after answers arrive, and fall back to one concise chat question only when the tool is unavailable.
+6. Identify retirement, replacement, merge, or promotion candidates for linked metadata repositories.
+7. For each candidate, recommend destination repository, capability path, canonical owner, and required generalization edits.
 
 Output contract:
 

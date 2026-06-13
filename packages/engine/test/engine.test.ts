@@ -42,6 +42,7 @@ import {
     checkAllDrift,
     apply,
     clean,
+    planSynchronization,
     preview,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
@@ -67,6 +68,23 @@ function createTmpDir(): string {
 
 function cleanupDir(dir: string): void {
     fs.rmSync(dir, { recursive: true, force: true });
+}
+
+function captureErrorMessage(fn: () => unknown): string {
+    try {
+        fn();
+        assert.fail('Expected function to throw');
+    } catch (err: unknown) {
+        return err instanceof Error ? err.message : String(err);
+    }
+}
+
+function createDirectoryLink(targetPath: string, linkPath: string): void {
+    fs.symlinkSync(
+        path.resolve(targetPath),
+        linkPath,
+        process.platform === 'win32' ? 'junction' : 'dir',
+    );
 }
 
 function expectedSynchronizedPath(
@@ -185,7 +203,6 @@ describe('Engine package: config loading', () => {
                         {
                             path: 'company/core',
                             enabled: false,
-                            excludedTypes: ['instructions'],
                         },
                     ],
                 },
@@ -203,9 +220,61 @@ describe('Engine package: config loading', () => {
             {
                 path: 'company/core',
                 enabled: true,
-                excludedTypes: ['instructions'],
             },
         ]);
+    });
+
+    it('toAuthoredConfig preserves non-built-in repo order while sorting capabilities canonically', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [
+                {
+                    id: 'repo-z',
+                    localPath: '.ai/repo-z',
+                    capabilities: [{ path: 'team/zeta' }, { path: '.' }, { path: 'team' }],
+                },
+                {
+                    id: 'repo-a',
+                    localPath: '.ai/repo-a',
+                    capabilities: [{ path: 'gamma/core' }, { path: 'beta/.github' }],
+                },
+            ],
+        });
+
+        assert.deepStrictEqual(
+            authored.metadataRepos?.map((repo) => repo.id),
+            ['repo-z', 'repo-a'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
+            ['.', 'team', 'team/zeta'],
+        );
+        assert.deepStrictEqual(
+            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
+            ['beta', 'gamma/core'],
+        );
+    });
+
+    it('loadConfig preserves fileNamingStrategy through normalization', () => {
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+        fs.writeFileSync(
+            path.join(tmpDir, '.metaflow', 'config.jsonc'),
+            JSON.stringify(config),
+            'utf-8',
+        );
+
+        const result = loadConfig(tmpDir);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.fileNamingStrategy, 'original-unless-conflict');
+            assert.strictEqual(
+                toAuthoredConfig(result.config).fileNamingStrategy,
+                'original-unless-conflict',
+            );
+        }
     });
 });
 
@@ -366,6 +435,21 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(instruction?.classification, 'settings');
     });
 
+    it('discovers CAPABILITY-only layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-capability-only-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'empty-capability'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoRoot, 'capabilities', 'empty-capability', 'CAPABILITY.md'),
+            ['---', 'name: Empty Capability', 'description: Empty', '---'].join('\n'),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/empty-capability']);
+    });
+
     it('classifies deprecated chatmodes as Synchronized-only', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
@@ -435,6 +519,7 @@ describe('Engine package: overlay pipeline', () => {
                 'name: SDLC Traceability',
                 'description: Traceability metadata capability.',
                 'license: MIT',
+                'experimental: true',
                 '---',
             ].join('\n'),
             'utf-8',
@@ -460,6 +545,7 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(file.sourceCapabilityName, 'SDLC Traceability');
         assert.strictEqual(file.sourceCapabilityDescription, 'Traceability metadata capability.');
         assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
+        assert.strictEqual(file.sourceCapabilityExperimental, true);
     });
 });
 
@@ -693,7 +779,7 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries(files, tmpDir, config);
-        assert.ok(entries.length >= 4, `expected >=4 entries, got ${entries.length}`);
+        assert.strictEqual(entries.length, 2, `expected 2 entries, got ${entries.length}`);
 
         const instrEntry = entries.find((e) => e.key === 'chat.instructionsFilesLocations');
         const promptEntry = entries.find((e) => e.key === 'chat.promptFilesLocations');
@@ -724,8 +810,38 @@ describe('Engine: settings injector', () => {
         assert.ok(locations['scripts/post.sh']);
     });
 
-    it('classifySingle treats .github instructions as settings artifacts', () => {
-        assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'settings');
+    it('computeSettingsEntries sorts object-map settings paths deterministically', () => {
+        const files: EffectiveFile[] = [
+            {
+                relativePath: 'instructions/root.md',
+                sourcePath: path.join(tmpDir, 'repo', 'team', 'instructions', 'root.md'),
+                sourceLayer: 'team',
+                classification: 'settings',
+            },
+            {
+                relativePath: 'instructions/deep.md',
+                sourcePath: path.join(tmpDir, 'repo', 'team', 'core', 'instructions', 'deep.md'),
+                sourceLayer: 'team/core',
+                classification: 'settings',
+            },
+        ];
+
+        const entries = computeSettingsEntries(files, tmpDir, {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['team', 'team/core'],
+        });
+        const entry = entries.find(
+            (candidate) => candidate.key === 'chat.instructionsFilesLocations',
+        );
+
+        assert.deepStrictEqual(Object.keys(entry?.value as Record<string, boolean>), [
+            'repo/team/core/instructions',
+            'repo/team/instructions',
+        ]);
+    });
+
+    it('classifySingle treats .github instructions as plugin artifacts by default', () => {
+        assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'plugin');
         assert.strictEqual(
             classifySingle('.github/prompts/review.prompt.md', undefined),
             'settings',
@@ -816,7 +932,7 @@ describe('Engine: settings injector', () => {
         assert.ok((skillsEntry!.value as Record<string, boolean>)['repo/core/.github/skills']);
     });
 
-    it('computeSettingsEntries sorts legacy array-valued settings entries deterministically', () => {
+    it('computeSettingsEntries sorts object-valued settings entries deterministically', () => {
         const files: EffectiveFile[] = [
             {
                 relativePath: 'instructions/beta.md',
@@ -838,14 +954,14 @@ describe('Engine: settings injector', () => {
         };
 
         const entries = computeSettingsEntries(files, tmpDir, config);
-        const legacyInstructionsEntry = entries.find(
-            (entry) => entry.key === 'github.copilot.chat.codeGeneration.instructionFiles',
+        const instructionsEntry = entries.find(
+            (entry) => entry.key === 'chat.instructionsFilesLocations',
         );
 
-        assert.deepStrictEqual(legacyInstructionsEntry?.value, [
-            'repo/alpha/instructions',
-            'repo/zeta/instructions',
-        ]);
+        assert.deepStrictEqual(instructionsEntry?.value, {
+            'repo/alpha/instructions': true,
+            'repo/zeta/instructions': true,
+        });
     });
 
     it('computeSettingsEntries skips hooks when not configured', () => {
@@ -866,8 +982,6 @@ describe('Engine: settings injector', () => {
         assert.ok(keys.includes('chat.agentFilesLocations'));
         assert.ok(keys.includes('chat.agentSkillsLocations'));
         assert.ok(keys.includes('chat.hookFilesLocations'));
-        assert.ok(keys.includes('github.copilot.chat.codeGeneration.instructionFiles'));
-        assert.ok(keys.includes('github.copilot.chat.promptFiles'));
     });
 });
 
@@ -965,6 +1079,28 @@ describe('Engine: profile engine advanced', () => {
 
         const result = applyProfile(files, {} as ProfileConfig);
         assert.strictEqual(result.length, 1);
+    });
+
+    it('profile with an explicit empty enable list ([]) enables nothing', () => {
+        const files: EffectiveFile[] = [
+            {
+                relativePath: 'skills/a.md',
+                sourcePath: '/x',
+                sourceLayer: 'l',
+                classification: 'synchronized',
+            },
+            {
+                relativePath: 'instructions/c.md',
+                sourcePath: '/x',
+                sourceLayer: 'l',
+                classification: 'settings',
+            },
+        ];
+
+        // `enable: []` is an active (match-nothing) allowlist, distinct from an
+        // absent enable key which means "no filter / all pass".
+        const result = applyProfile(files, { enable: [] });
+        assert.strictEqual(result.length, 0);
     });
 });
 
@@ -1104,6 +1240,70 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.ok(layerIds.includes('company/dynamic'));
     });
 
+    it('discovers layers when .github is mounted through a directory link', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const backingGithub = path.join(tmpDir, 'mounted', 'company-core', '.github');
+
+        fs.mkdirSync(path.join(repoRoot, 'company', 'core'), { recursive: true });
+        fs.mkdirSync(path.join(backingGithub, 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(backingGithub, 'instructions', 'mounted.instructions.md'),
+            '# Mounted',
+        );
+        createDirectoryLink(backingGithub, path.join(repoRoot, 'company', 'core', '.github'));
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('company/core'));
+    });
+
+    it('does not discover nested hidden metadata folders as standalone layers', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const capabilityRoot = path.join(
+            repoRoot,
+            'capabilities',
+            'agentic-development',
+            'metadata-authoring',
+            'codex-metadata-authoring',
+        );
+
+        fs.mkdirSync(path.join(capabilityRoot, '.github', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(capabilityRoot, '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(capabilityRoot, '.codex', 'agents'), { recursive: true });
+        fs.writeFileSync(path.join(capabilityRoot, 'CAPABILITY.md'), '# Capability');
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.github', 'instructions', 'codex.instructions.md'),
+            '# Codex',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            '# Skill',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.codex', 'agents', 'codex-metadata-authoring-steward.toml'),
+            'name = "steward"',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+
+        assert.ok(
+            discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring',
+            ),
+        );
+        assert.ok(
+            !discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/.agents',
+            ),
+        );
+        assert.ok(
+            !discovered.includes(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/.codex',
+            ),
+        );
+    });
+
     it('skips runtime discovery when resolve option disables discovery', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
@@ -1159,6 +1359,34 @@ describe('Engine: overlay multi-repo resolution', () => {
         const layerIds = layers.map((layer) => layer.layerId);
         assert.ok(layerIds.includes('company/base'));
         assert.ok(layerIds.includes('company/dynamic'));
+    });
+
+    it('resolves files from a layer whose .github directory is mounted through a directory link', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'company', 'core');
+        const backingGithub = path.join(tmpDir, 'mounted', 'company-core', '.github');
+
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.mkdirSync(path.join(backingGithub, 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(backingGithub, 'instructions', 'mounted.instructions.md'),
+            '# Mounted',
+        );
+        createDirectoryLink(backingGithub, path.join(layerRoot, '.github'));
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [{ id: 'company', localPath: 'repos/company' }],
+            layerSources: [{ repoId: 'company', path: 'company/core' }],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].layerId, 'company/company/core');
+        assert.deepStrictEqual(
+            layers[0].files.map((file) => file.relativePath),
+            ['instructions/mounted.instructions.md'],
+        );
     });
 
     it('forces discovery in single-repo mode for primary repo id', () => {
@@ -1243,7 +1471,7 @@ describe('Engine: config validation', () => {
         assert.ok(result.errors.some((e) => e.message.includes('localPath')));
     });
 
-    it('validates single-repo mode requires layers', () => {
+    it('accepts single-repo mode without layers as a zero-layer bootstrap config', () => {
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
             configPath,
@@ -1254,8 +1482,11 @@ describe('Engine: config validation', () => {
         );
 
         const result = loadConfigFromPath(configPath);
-        assert.strictEqual(result.ok, false);
-        assert.ok(result.errors.some((e) => e.message.includes('layers')));
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.deepStrictEqual(result.config.metadataRepos?.[0]?.capabilities, []);
+            assert.deepStrictEqual(result.config.layerSources, []);
+        }
     });
 
     it('validates multi-repo unique IDs', () => {
@@ -1296,6 +1527,33 @@ describe('Engine: config validation', () => {
         }
     });
 
+    it('migrates implicit released compatibility version on otherwise modern config', () => {
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                metadataRepos: [
+                    {
+                        id: 'r1',
+                        localPath: 'a',
+                        capabilities: [{ path: 'core' }],
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const result = loadConfigFromPath(configPath);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.compatibilityVersion, 2);
+            assert.strictEqual(result.migrated, true);
+            assert.ok(
+                result.migrationMessages?.some((message) => message.includes('implicit v1 to v2')),
+            );
+        }
+    });
+
     it('validates multi-repo repoId references', () => {
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
@@ -1328,7 +1586,10 @@ describe('Engine: config validation', () => {
         assert.ok(result.errors.length > 0);
     });
 
-    it('validates active profile must exist in profiles', () => {
+    it('treats an activeProfile missing from profiles as non-fatal (loads OK)', () => {
+        // A profile typo must not reject the whole config: the overlay layer falls
+        // back to surfacing all files and emits an ACTIVE_PROFILE_NOT_FOUND warning,
+        // so config loading itself succeeds.
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
             configPath,
@@ -1342,8 +1603,10 @@ describe('Engine: config validation', () => {
         );
 
         const result = loadConfigFromPath(configPath);
-        assert.strictEqual(result.ok, false);
-        assert.ok(result.errors.some((e) => e.message.includes('not found in "profiles"')));
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.strictEqual(result.config.activeProfile, 'nonexistent');
+        }
     });
 
     it('validates config must have at least one repo mode', () => {
@@ -1497,6 +1760,241 @@ describe('Engine: synchronizer advanced', () => {
         const stale = pending.find((p) => p.relativePath === reviewPath);
         assert.ok(stale);
         assert.strictEqual(stale!.action, 'skip');
+    });
+
+    it('original-unless-conflict preserves nested relative paths in preview and apply', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'skills', 'nested', 'guide.md'), '# Guide');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { skills: 'synchronize' },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files, undefined, config.fileNamingStrategy);
+        assert.ok(
+            pending.some((change) => change.relativePath === 'skills/nested/guide.md'),
+            'preview should preserve the original nested relative path',
+        );
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            effectiveFiles: files,
+            fileNamingStrategy: config.fileNamingStrategy,
+        });
+        assert.ok(result.written.includes('skills/nested/guide.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'skills', 'nested', 'guide.md')));
+    });
+
+    it('discovers and synchronizes repo-wide copilot instructions', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'copilot-instructions.md'),
+            '# Repo-wide Copilot Instructions',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { instructions: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const file = fileMap.get('copilot-instructions.md');
+        assert.ok(file, 'repo-wide copilot instructions should be retained');
+        assert.strictEqual(file?.classification, 'synchronized');
+
+        const pending = preview(tmpDir, files);
+        assert.ok(pending.some((change) => change.relativePath === 'copilot-instructions.md'));
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('copilot-instructions.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'copilot-instructions.md')));
+
+        fs.writeFileSync(path.join(tmpDir, '.github', 'copilot-instructions.md'), 'local edit');
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === 'copilot-instructions.md')?.status,
+            'drifted',
+        );
+    });
+
+    it('planSynchronization fails when repo-wide copilot instructions would overwrite an unmanaged file', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github'), { recursive: true });
+        fs.mkdirSync(path.join(tmpDir, '.github'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'copilot-instructions.md'),
+            '# Managed Instructions',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(tmpDir, '.github', 'copilot-instructions.md'),
+            '# User Instructions',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { instructions: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('copilot-instructions.md'));
+    });
+
+    it('preview and apply fail with the same message when strategy change would remap managed files', () => {
+        const files = setupAndApply();
+        apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });
+
+        const previewMessage = captureErrorMessage(() =>
+            preview(tmpDir, files, undefined, 'original-unless-conflict'),
+        );
+        const applyMessage = captureErrorMessage(() =>
+            apply({
+                workspaceRoot: tmpDir,
+                effectiveFiles: files,
+                fileNamingStrategy: 'original-unless-conflict',
+                force: false,
+            }),
+        );
+
+        assert.strictEqual(applyMessage, previewMessage);
+        assert.ok(applyMessage.includes('Automatic migration is not supported'));
+    });
+
+    it('planSynchronization fails when original-unless-conflict would overwrite an unmanaged file', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'skills', 'nested', 'guide.md'), '# Guide');
+        fs.mkdirSync(path.join(tmpDir, '.github', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(
+            path.join(tmpDir, '.github', 'skills', 'nested', 'guide.md'),
+            'user-owned file',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { skills: 'synchronize' },
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                effectiveFiles: files,
+                fileNamingStrategy: config.fileNamingStrategy,
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('skills/nested/guide.md'));
+    });
+
+    it('layerSources fileNamingStrategy overrides the global default for synchronized files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'base', 'skills', 'nested'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'base', 'skills', 'nested', 'guide.md'), '# Guide');
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                {
+                    id: 'meta',
+                    localPath: '.ai/ai-metadata',
+                    fileNamingStrategy: 'prefixed',
+                    capabilities: [
+                        {
+                            path: 'base',
+                            fileNamingStrategy: 'original-unless-conflict',
+                            injection: { skills: 'synchronize' },
+                        },
+                    ],
+                },
+            ],
+            fileNamingStrategy: 'prefixed',
+        };
+
+        const normalized = normalizeConfigShape(config).config;
+        const layers = resolveLayers(normalized, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, normalized.injection, normalized.layerSources);
+
+        const pending = preview(
+            tmpDir,
+            files,
+            undefined,
+            normalized.fileNamingStrategy,
+            normalized.layerSources,
+        );
+
+        assert.ok(pending.some((change) => change.relativePath === 'skills/nested/guide.md'));
+    });
+
+    it('chatmodes stay on prefixed synchronized paths even when original-unless-conflict is configured', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'chatmodes', 'legacy.chatmode.md'),
+            '# Legacy chatmode',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            fileNamingStrategy: 'original-unless-conflict',
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files, undefined, config.fileNamingStrategy);
+        const prefixedPath = expectedSynchronizedPath('chatmodes/legacy.chatmode.md');
+        assert.ok(pending.some((change) => change.relativePath === prefixedPath));
+        assert.ok(
+            !pending.some((change) => change.relativePath === 'chatmodes/legacy.chatmode.md'),
+        );
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            effectiveFiles: files,
+            fileNamingStrategy: config.fileNamingStrategy,
+        });
+        assert.ok(result.written.includes(prefixedPath));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.github', prefixedPath)));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'chatmodes', 'legacy.chatmode.md')));
     });
 });
 

@@ -1,5 +1,7 @@
 import * as assert from 'assert';
+import type { EffectiveFile } from '@metaflow/engine';
 import {
+    computeLegacySettingsEntriesFromEffectiveFiles,
     isSettingsInjectionTarget,
     mergeSettingsValue,
     pruneBundledMetaFlowSettingsEntries,
@@ -8,6 +10,19 @@ import {
 } from '../../commands/settingsTargetHelpers';
 
 suite('settingsTargetHelpers', () => {
+    function makeFile(
+        relativePath: string,
+        classification: 'settings' | 'plugin' | 'synchronized',
+        sourcePath: string,
+    ): EffectiveFile {
+        return {
+            relativePath,
+            sourcePath,
+            sourceLayer: 'test',
+            classification,
+        };
+    }
+
     // ── isSettingsInjectionTarget ──────────────────────────────────
 
     suite('isSettingsInjectionTarget', () => {
@@ -103,7 +118,7 @@ suite('settingsTargetHelpers', () => {
             const existing = ['user/path'];
             const managed = ['metaflow/path', 'user/path'];
             const result = mergeSettingsValue(existing, managed);
-            assert.deepStrictEqual(result, ['user/path', 'metaflow/path']);
+            assert.deepStrictEqual(result, ['metaflow/path', 'user/path']);
         });
 
         test('SIT-MG-05 array merge onto undefined creates array', () => {
@@ -120,6 +135,46 @@ suite('settingsTargetHelpers', () => {
 
         test('SIT-MG-07 scalar managed replaces existing', () => {
             assert.strictEqual(mergeSettingsValue('old', 'new'), 'new');
+        });
+
+        test('SIT-MG-08 object map preserves unmanaged order and appends managed subset in normalized path order', () => {
+            const existing = {
+                'user/zeta': true,
+                'user/alpha': true,
+                'meta/legacy': true,
+            };
+            const managed = {
+                'repo\\team\\instructions': true,
+                'repo/alpha/instructions': true,
+            };
+
+            const result = mergeSettingsValue(existing, managed) as Record<string, boolean>;
+
+            assert.deepStrictEqual(Object.keys(result), [
+                'user/zeta',
+                'user/alpha',
+                'meta/legacy',
+                'repo/alpha/instructions',
+                'repo\\team\\instructions',
+            ]);
+        });
+
+        test('SIT-MG-09 array merge preserves unmanaged remainder and appends sorted unique managed subset', () => {
+            const existing = ['user/path', 'repo/zeta/instructions', 'repo/alpha/instructions'];
+            const managed = [
+                'repo\\zeta\\instructions',
+                'repo/alpha/instructions',
+                'repo/beta/instructions',
+            ];
+
+            const result = mergeSettingsValue(existing, managed);
+
+            assert.deepStrictEqual(result, [
+                'user/path',
+                'repo/alpha/instructions',
+                'repo/beta/instructions',
+                'repo\\zeta\\instructions',
+            ]);
         });
     });
 
@@ -165,12 +220,140 @@ suite('settingsTargetHelpers', () => {
             // managed is array, existing is object
             assert.strictEqual(removeSettingsEntries({ key: true }, ['path']), undefined);
         });
+
+        test('SIT-RM-07 removal matches normalized paths for object maps and arrays', () => {
+            const objectResult = removeSettingsEntries(
+                {
+                    'user/path': true,
+                    'repo\\team\\instructions': true,
+                },
+                { 'repo/team/instructions': true },
+            );
+            const arrayResult = removeSettingsEntries(
+                ['user/path', 'repo\\team\\instructions'],
+                ['repo/team/instructions'],
+            );
+
+            assert.deepStrictEqual(objectResult, { 'user/path': true });
+            assert.deepStrictEqual(arrayResult, ['user/path']);
+        });
     });
 
     // ── pruneBundledMetaFlowSettingsEntries ───────────────────────
 
+    suite('computeLegacySettingsEntriesFromEffectiveFiles', () => {
+        test('SIT-CL-01 includes plugin-classified instruction, agent, and skill roots for stale cleanup', () => {
+            const entries = computeLegacySettingsEntriesFromEffectiveFiles(
+                [
+                    makeFile(
+                        '.github/instructions/a.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/instructions/a.md',
+                    ),
+                    makeFile(
+                        '.github/agents/reviewer.agent.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/agents/reviewer.agent.md',
+                    ),
+                    makeFile(
+                        '.github/skills/testing/SKILL.md',
+                        'plugin',
+                        '/repo/capabilities/smoke/.github/skills/testing/SKILL.md',
+                    ),
+                ],
+                '/workspace',
+            );
+
+            assert.deepStrictEqual(entries, [
+                {
+                    key: 'chat.instructionsFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/instructions': true },
+                },
+                {
+                    key: 'chat.agentFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/agents': true },
+                },
+                {
+                    key: 'chat.agentSkillsLocations',
+                    value: { '../repo/capabilities/smoke/.github/skills': true },
+                },
+            ]);
+        });
+
+        test('SIT-CL-02 preserves prompt settings roots and ignores synchronized files', () => {
+            const entries = computeLegacySettingsEntriesFromEffectiveFiles(
+                [
+                    makeFile(
+                        '.github/prompts/example.prompt.md',
+                        'settings',
+                        '/repo/capabilities/smoke/.github/prompts/example.prompt.md',
+                    ),
+                    makeFile(
+                        '.github/prompts/ignored.prompt.md',
+                        'synchronized',
+                        '/repo/capabilities/smoke/.github/prompts/ignored.prompt.md',
+                    ),
+                ],
+                '/workspace',
+            );
+
+            assert.deepStrictEqual(entries, [
+                {
+                    key: 'chat.promptFilesLocations',
+                    value: { '../repo/capabilities/smoke/.github/prompts': true },
+                },
+            ]);
+        });
+    });
+
     suite('pruneBundledMetaFlowSettingsEntries', () => {
-        test('SIT-PB-01 prunes stale bundled prompt map entries from other clients', () => {
+        test('SIT-PB-00 prunes stale bundled plugin locations while retaining selected plugin roots', () => {
+            const existing = {
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata': true,
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            };
+            const retained = {
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            };
+
+            const result = pruneBundledMetaFlowSettingsEntries(
+                existing,
+                'chat.pluginLocations',
+                retained,
+            );
+
+            assert.deepStrictEqual(result, {
+                '../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test': true,
+            });
+        });
+
+        test('SIT-PB-01 prunes nested bundled locations for every file-location setting', () => {
+            const cases: Array<{ key: string; suffix: string }> = [
+                { key: 'chat.instructionsFilesLocations', suffix: '.github/instructions' },
+                { key: 'chat.agentFilesLocations', suffix: '.github/agents' },
+                { key: 'chat.agentSkillsLocations', suffix: '.github/skills' },
+                { key: 'chat.promptFilesLocations', suffix: '.github/prompts' },
+            ];
+
+            for (const { key, suffix } of cases) {
+                const nonBuiltInPath = `../AI/DFX-AI-Metadata/capabilities/miscelleneous/agent-visibility-smoke-test/${suffix}`;
+                const result = pruneBundledMetaFlowSettingsEntries(
+                    {
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/claude-code-metadata-authoring/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/codex-metadata-authoring/${suffix}`]: true,
+                        [`../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/capabilities/metadata-authoring/github-copilot-metadata-authoring/${suffix}`]: true,
+                        [nonBuiltInPath]: true,
+                    },
+                    key,
+                    { [nonBuiltInPath]: true },
+                );
+
+                assert.deepStrictEqual(result, { [nonBuiltInPath]: true }, key);
+            }
+        });
+
+        test('SIT-PB-02 prunes stale bundled prompt map entries from other clients', () => {
             const existing = {
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
@@ -192,7 +375,7 @@ suite('settingsTargetHelpers', () => {
             });
         });
 
-        test('SIT-PB-02 prunes stale bundled skill array entries when no bundled root is retained', () => {
+        test('SIT-PB-03 prunes stale bundled skill array entries when no bundled root is retained', () => {
             const existing = [
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
                 '../../AppData/Roaming/Code - Insiders/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/skills',
@@ -210,7 +393,7 @@ suite('settingsTargetHelpers', () => {
             ]);
         });
 
-        test('SIT-PB-03 leaves unrelated settings keys unchanged', () => {
+        test('SIT-PB-04 leaves unrelated settings keys unchanged', () => {
             const existing = {
                 '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
                 'user/path': true,

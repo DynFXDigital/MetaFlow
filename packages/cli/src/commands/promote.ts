@@ -11,6 +11,8 @@ import {
 } from '@metaflow/engine';
 import { getWorkspaceRoot } from './common';
 
+const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
+
 // ── Auto-promotion helpers ─────────────────────────────────────────
 
 function git(cwd: string, args: string[]): string {
@@ -37,6 +39,18 @@ function isSafeRelativePath(relativePath: string): boolean {
     }
 
     return !normalized.split('/').some((segment) => segment === '..');
+}
+
+function resolveAuthoredSourceRelativePath(sourceLayer: string, sourceRelativePath: string): string {
+    const normalizedLayer = normalizeInputPath(sourceLayer);
+    const normalizedSource = normalizeInputPath(sourceRelativePath);
+    if (normalizedSource !== REPO_WIDE_COPILOT_INSTRUCTIONS_PATH) {
+        return normalizedSource;
+    }
+
+    return normalizedLayer.endsWith('/.github')
+        ? normalizedSource
+        : `.github/${REPO_WIDE_COPILOT_INSTRUCTIONS_PATH}`;
 }
 
 export interface PromoteAutoResult {
@@ -147,7 +161,11 @@ export function promoteAuto(
             const sourceRelativePath = normalizeInputPath(
                 state.files[d.relativePath]?.sourceRelativePath ?? d.relativePath,
             );
-            if (!isSafeRelativePath(sourceRelativePath)) {
+            const authoredSourceRelativePath = resolveAuthoredSourceRelativePath(
+                sourceLayer,
+                sourceRelativePath,
+            );
+            if (!isSafeRelativePath(authoredSourceRelativePath)) {
                 continue;
             }
 
@@ -161,7 +179,7 @@ export function promoteAuto(
             const synchronizedContent = fs.readFileSync(synchronizedPath, 'utf-8');
             const cleanContent = stripProvenanceHeader(synchronizedContent);
 
-            const targetPath = path.join(repoPath, resolvedLayerPath, sourceRelativePath);
+            const targetPath = path.join(repoPath, resolvedLayerPath, authoredSourceRelativePath);
             fs.mkdirSync(path.dirname(targetPath), { recursive: true });
             fs.writeFileSync(targetPath, cleanContent, 'utf-8');
             filesPromoted.push(d.relativePath);

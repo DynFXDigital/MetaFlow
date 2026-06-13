@@ -33,10 +33,10 @@ export function registerInitCommand(program: Command): void {
                 profiles: { default: { displayName: 'Default', enable: ['**'] } },
                 activeProfile: 'default',
                 injection: {
-                    instructions: 'settings',
+                    instructions: 'plugin',
                     prompts: 'settings',
-                    skills: 'settings',
-                    agents: 'settings',
+                    skills: 'plugin',
+                    agents: 'plugin',
                     hooks: 'settings',
                 },
             };

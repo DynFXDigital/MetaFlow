@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha proxyquire module rewiring */
-
 import * as assert from 'assert';
 
 const EXTENSION_VERSION = 'test-version-1';
@@ -113,7 +111,6 @@ function createCommandHandlersHarness(initResult: boolean) {
         buildEffectiveFileMap: () => new Map(),
         resolvePathFromWorkspace: (_root: string, localPath: string) => localPath,
         applyFilters: (files: unknown[]) => files,
-        applyExcludedTypeFilters: (files: unknown[]) => files,
         applyProfile: (files: unknown[]) => files,
         classifyFiles: () => [],
         apply: () => ({ written: [], skipped: [], removed: [], warnings: [] }),
@@ -189,11 +186,29 @@ function createCommandHandlersHarness(initResult: boolean) {
                 deriveRepoId: () => 'primary',
                 ensureMultiRepoConfig: (config: unknown) => config,
                 extractLayerIndex: () => undefined,
-                extractLayerCheckedState: () => undefined,
-                extractRepoId: () => undefined,
+                extractLayerPath: (arg: unknown) =>
+                    typeof (arg as { layerPath?: unknown } | undefined)?.layerPath === 'string'
+                        ? ((arg as { layerPath: string }).layerPath as string)
+                        : undefined,
+                extractLayerCheckedState: (arg: unknown) =>
+                    typeof (arg as { checked?: unknown } | undefined)?.checked === 'boolean'
+                        ? ((arg as { checked: boolean }).checked as boolean)
+                        : undefined,
+                extractRepoId: (arg: unknown) =>
+                    typeof (arg as { repoId?: unknown } | undefined)?.repoId === 'string'
+                        ? ((arg as { repoId: string }).repoId as string)
+                        : undefined,
                 extractRepoScopeOptions: () => ({}),
                 extractRefreshCommandOptions: (arg: unknown) => arg ?? {},
                 extractApplyCommandOptions: (arg: unknown) => arg ?? {},
+                readManagedViewsState: () => ({
+                    filesViewMode: 'unified',
+                    layersViewMode: 'tree',
+                }),
+                writeManagedViewsState: () => ({
+                    filesViewMode: 'unified',
+                    layersViewMode: 'tree',
+                }),
                 normalizeFilesViewMode: () => 'unified',
                 normalizeLayersViewMode: () => 'flat',
                 normalizeAiMetadataAutoApplyMode: () => 'off',
@@ -223,6 +238,7 @@ function createCommandHandlersHarness(initResult: boolean) {
         }
         if (request === '../builtInCapability' || request.endsWith('/builtInCapability')) {
             return {
+                BUILT_IN_CAPABILITY_LAYER_PATH: '.',
                 BUILT_IN_CAPABILITY_REPO_ID: 'metaflow.builtin',
                 BUILT_IN_CAPABILITY_STATE_KEY: 'metaflow.builtin.state',
                 isBuiltInCapabilityActive: (state: {
@@ -234,6 +250,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                         | {
                               enabled?: boolean;
                               layerEnabled?: boolean;
+                              layerStates?: Record<string, boolean>;
                               synchronizedFiles?: string[];
                           }
                         | undefined;
@@ -241,13 +258,24 @@ function createCommandHandlersHarness(initResult: boolean) {
                     return {
                         enabled: payload?.enabled ?? false,
                         layerEnabled: payload?.layerEnabled ?? true,
+                        layerStates: payload?.layerStates ?? {},
                         synchronizedFiles: payload?.synchronizedFiles ?? [],
                         sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
                         sourceId: 'dynfxdigital.metaflow-ai',
                         sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
                     };
                 },
+                normalizeBuiltInLayerPath: (layerPath: string) => layerPath || '.',
                 resolveBuiltInCapabilityDisplayName: () => 'MetaFlow: AI Metadata Overlay',
+                resolveBuiltInLayerEnabled: (
+                    state: {
+                        layerEnabled: boolean;
+                        layerStates?: Record<string, boolean>;
+                    },
+                    layerPath: string,
+                ) => state.layerStates?.[layerPath] ?? state.layerEnabled,
+                sanitizeBuiltInLayerStates: (value: Record<string, boolean> | undefined) =>
+                    value ?? {},
                 sanitizeSynchronizedFiles: (files: string[]) => files,
             };
         }
@@ -333,7 +361,13 @@ function createCommandHandlersHarness(initResult: boolean) {
             context,
             state,
             { clear: () => {}, delete: () => {}, set: () => {}, dispose: () => {} },
-            { getCurrentRequest: () => undefined, update: () => {} },
+            {
+                getCurrentRequest: () => undefined,
+                getSnapshot: () => undefined,
+                updateEnabledState: () => undefined,
+                update: () => {},
+                show: () => undefined,
+            },
         );
 
         return {
@@ -342,6 +376,8 @@ function createCommandHandlersHarness(initResult: boolean) {
             progressTitles,
             informationMessages,
             informationMessageResponses,
+            workspaceStateStore,
+            state,
             dispose: () => {
                 moduleInternals._load = originalLoad;
                 delete require.cache[targetPath];
@@ -355,14 +391,12 @@ function createCommandHandlersHarness(initResult: boolean) {
 }
 
 suite('Command Handlers initConfig command', () => {
-    test('refreshes, offers built-in onboarding, and runs promotion after initialization succeeds', async () => {
+    test('refreshes, auto-enables built-in plugin-first defaults, and runs promotion after initialization succeeds', async () => {
         const harness = createCommandHandlersHarness(true);
 
         try {
             const callback = harness.registeredCommands.get('metaflow.initConfig');
             assert.ok(callback, 'metaflow.initConfig command should be registered');
-
-            harness.informationMessageResponses.push('Enable Now');
 
             await callback!();
 
@@ -376,11 +410,6 @@ suite('Command Handlers initConfig command', () => {
                     inProgress: entry.inProgress,
                 })),
                 [
-                    {
-                        command: 'metaflow.refresh',
-                        args: [{ skipRepoSync: true }],
-                        inProgress: false,
-                    },
                     {
                         command: 'metaflow.refresh',
                         args: [{ skipRepoSync: true }],
@@ -399,22 +428,33 @@ suite('Command Handlers initConfig command', () => {
                 ],
             );
             assert.deepStrictEqual(harness.informationMessages, [
-                'MetaFlow: Enable the bundled AI metadata capabilities now?',
-                'MetaFlow: Built-in MetaFlow capability enabled (settings-only mode).',
+                'MetaFlow: Built-in MetaFlow capability enabled automatically (plugin-first defaults).',
             ]);
+            assert.deepStrictEqual(harness.workspaceStateStore.get('metaflow.builtin.state'), {
+                enabled: true,
+                layerEnabled: true,
+                disabledByUser: false,
+                synchronizedFiles: [],
+                layerStates: {},
+            });
         } finally {
             harness.dispose();
         }
     });
 
-    test('continues initialization without enabling built-in capability when user declines onboarding prompt', async () => {
+    test('continues initialization without re-enabling built-in capability when it is already active', async () => {
         const harness = createCommandHandlersHarness(true);
 
         try {
             const callback = harness.registeredCommands.get('metaflow.initConfig');
             assert.ok(callback, 'metaflow.initConfig command should be registered');
-
-            harness.informationMessageResponses.push('Not Now');
+            harness.workspaceStateStore.set('metaflow.builtin.state', {
+                enabled: true,
+                layerEnabled: true,
+                disabledByUser: false,
+                synchronizedFiles: [],
+                layerStates: {},
+            });
 
             await callback!();
 
@@ -445,9 +485,7 @@ suite('Command Handlers initConfig command', () => {
                     },
                 ],
             );
-            assert.deepStrictEqual(harness.informationMessages, [
-                'MetaFlow: Enable the bundled AI metadata capabilities now?',
-            ]);
+            assert.deepStrictEqual(harness.informationMessages, []);
         } finally {
             harness.dispose();
         }
@@ -464,6 +502,154 @@ suite('Command Handlers initConfig command', () => {
 
             assert.deepStrictEqual(harness.progressTitles, []);
             assert.deepStrictEqual(harness.executedCommands, []);
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleRepoSource toggles the built-in MetaFlow repo through workspace state and refreshes', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleRepoSource');
+            assert.ok(callback, 'metaflow.toggleRepoSource command should be registered');
+
+            harness.state.builtInCapability = {
+                enabled: true,
+                layerEnabled: true,
+                layerStates: {
+                    'capabilities/metadata-authoring/github-copilot-metadata-authoring': false,
+                },
+                synchronizedFiles: [],
+                sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            } as typeof harness.state.builtInCapability & {
+                layerStates: Record<string, boolean>;
+            };
+
+            await callback!({ repoId: 'metaflow.builtin', checked: false });
+
+            assert.deepStrictEqual(
+                harness.workspaceStateStore.get('metaflow.builtin.state'),
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    layerStates: {},
+                    synchronizedFiles: [],
+                },
+                'built-in repo toggle should persist repo-level disabled state, mark the repo as user-disabled, and clear per-layer overrides',
+            );
+            assert.deepStrictEqual(
+                harness.executedCommands.map((entry) => ({
+                    command: entry.command,
+                    args: entry.args,
+                })),
+                [
+                    {
+                        command: 'metaflow.refresh',
+                        args: [{ skipRepoSync: true }],
+                    },
+                ],
+            );
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleLayer disables the built-in root capability through workspace state and refreshes', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleLayer');
+            assert.ok(callback, 'metaflow.toggleLayer command should be registered');
+
+            harness.state.builtInCapability = {
+                enabled: true,
+                layerEnabled: true,
+                layerStates: {
+                    'capabilities/metadata-authoring/github-copilot-metadata-authoring': false,
+                },
+                synchronizedFiles: [],
+                sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            } as typeof harness.state.builtInCapability & {
+                layerStates: Record<string, boolean>;
+            };
+
+            await callback!({
+                repoId: 'metaflow.builtin',
+                layerPath: '.',
+                checked: false,
+            });
+
+            assert.deepStrictEqual(
+                harness.workspaceStateStore.get('metaflow.builtin.state'),
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    layerStates: {},
+                    synchronizedFiles: [],
+                },
+                'built-in root layer toggle should disable the built-in source and clear nested overrides',
+            );
+            assert.deepStrictEqual(
+                harness.executedCommands.map((entry) => ({
+                    command: entry.command,
+                    args: entry.args,
+                })),
+                [
+                    {
+                        command: 'metaflow.refresh',
+                        args: [{ skipRepoSync: true, preferStateConfig: true }],
+                    },
+                ],
+            );
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleLayer disables the built-in source when the event omits the root layer path', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleLayer');
+            assert.ok(callback, 'metaflow.toggleLayer command should be registered');
+
+            harness.state.builtInCapability = {
+                enabled: true,
+                layerEnabled: true,
+                layerStates: {
+                    'capabilities/metadata-authoring/github-copilot-metadata-authoring': false,
+                },
+                synchronizedFiles: [],
+                sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            } as typeof harness.state.builtInCapability & {
+                layerStates: Record<string, boolean>;
+            };
+
+            await callback!({
+                repoId: 'metaflow.builtin',
+                checked: false,
+            });
+
+            assert.deepStrictEqual(
+                harness.workspaceStateStore.get('metaflow.builtin.state'),
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    layerStates: {},
+                    synchronizedFiles: [],
+                },
+                'built-in fallback toggle should still disable the built-in source when layerPath is omitted',
+            );
         } finally {
             harness.dispose();
         }

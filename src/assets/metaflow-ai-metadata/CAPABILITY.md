@@ -1,4 +1,5 @@
 ---
+uid: d7da7ee3-4ccf-42e8-a23f-c61e321ec612
 name: MetaFlow
 description: MetaFlow construct guidance, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
 license: MIT
@@ -28,3 +29,4 @@ Provide a small built-in MetaFlow metadata layer that works out of the box in th
 - Prefer soft, optional composition with adjacent capabilities or local workflows when they provide related functionality.
 - Do not hard-code one neighboring capability as a mandatory dependency when the same concern could be satisfied by a different compatible workflow.
 - Capability behavior should degrade cleanly when the adjacent workflow is absent.
+- Compose with the nested `capabilities/metadata-authoring/*` capability set when a repository also needs GitHub Copilot, Claude Code, or Codex metadata authoring standards and review workflows.

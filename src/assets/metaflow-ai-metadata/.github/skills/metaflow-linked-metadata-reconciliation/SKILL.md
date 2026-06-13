@@ -94,6 +94,10 @@ For every non-`keep-local` item, specify:
 - exact generalization changes required before promotion
 - what local file should be removed, replaced, or reduced to a thin repository-specific specialization
 
+When a required decision is missing or materially ambiguous and the answer would change canonical ownership, destructive consolidation, split-first handling, or promotion direction, use askQuestions to collect the smallest useful batch of high-impact decisions before finalizing the action plan.
+
+Prefer recommended options or defaults when possible, continue immediately after answers arrive, and fall back to one concise chat question only when the tool is unavailable.
+
 Do not recommend deleting or overwriting local metadata without explicit user confirmation.
 
 ## Output Contract

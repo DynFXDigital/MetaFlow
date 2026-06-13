@@ -33,6 +33,8 @@ export interface NamedMetadataRepo extends MetadataRepo {
     capabilities?: CapabilitySource[];
     /** Repo-scoped injection mode defaults (overrides top-level). */
     injection?: InjectionConfig;
+    /** Repo-scoped synchronized output naming defaults (overrides top-level). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 /** Runtime layer discovery settings for a metadata repository. */
@@ -45,23 +47,16 @@ export interface RepoDiscoveryConfig {
 
 // ── Layer configuration ────────────────────────────────────────────
 
-/**
- * Artifact-type bucket that can be toggled per layer source.
- * Distinct from the full `ArtifactType` (which includes `'other'`) defined in
- * the engine utility; `'other'` cannot be explicitly excluded.
- */
-export type ExcludableArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills';
-
 /** A public capability entry grouped under a metadata repository. */
 export interface CapabilitySource {
     /** Path within the repo (e.g., `company/core`). */
     path: string;
     /** Whether this capability is enabled (default: true). */
     enabled?: boolean;
-    /** Artifact-type directories to exclude for this capability. */
-    excludedTypes?: ExcludableArtifactType[];
     /** Capability-scoped injection mode overrides (overrides repo and top-level). */
     injection?: InjectionConfig;
+    /** Capability-scoped synchronized output naming override (overrides repo and top-level). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 /** A layer source entry for multi-repo configurations. */
@@ -72,14 +67,10 @@ export interface LayerSource {
     path: string;
     /** Whether this layer is enabled (default: true). */
     enabled?: boolean;
-    /**
-     * Artifact-type directories to exclude for this layer source.
-     * UI-managed; distinct from `filters.exclude` (which is hand-authored).
-     * Absent or empty → all types are included (default behaviour unchanged).
-     */
-    excludedTypes?: ExcludableArtifactType[];
     /** Layer-scoped injection mode overrides (flattened from capability injection during normalization). */
     injection?: InjectionConfig;
+    /** Layer-scoped synchronized output naming override (flattened from capability/repo config during normalization). */
+    fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
 // ── Filters ────────────────────────────────────────────────────────
@@ -114,17 +105,18 @@ export interface ProfileLayerOverride {
     path: string;
     /** Whether this layer is enabled while the profile is active. */
     enabled?: boolean;
-    /** Profile-local artifact exclusions for this layer. Empty array means none excluded. */
-    excludedTypes?: ExcludableArtifactType[];
 }
 
 // ── Injection modes ────────────────────────────────────────────────
 
 /** Per-artifact-type injection mode. */
-export type InjectionMode = 'settings' | 'synchronize';
+export type InjectionMode = 'settings' | 'synchronize' | 'plugin';
 
 /** Target VS Code configuration scope for settings-backed injection. */
 export type SettingsInjectionTarget = 'user' | 'workspace' | 'workspaceFolder';
+
+/** Strategy for naming synchronized output files. */
+export type SyncFileNamingStrategy = 'prefixed' | 'original-unless-conflict';
 
 /** Injection configuration for each artifact type. */
 export interface InjectionConfig {
@@ -154,6 +146,9 @@ export interface HooksConfig {
  * (`metadataRepo` + `layers`) and legacy multi-repo (`layerSources`) shapes.
  */
 export interface MetaFlowConfig {
+    /** Authored config compatibility version used for release-aware migration. */
+    compatibilityVersion?: number;
+
     // ── Single-repo mode ───────────────────────────────────────────
     /** Primary metadata repository (single-repo mode). */
     metadataRepo?: MetadataRepo;
@@ -180,6 +175,8 @@ export interface MetaFlowConfig {
     // ── Injection & hooks ──────────────────────────────────────────
     /** Per-artifact-type injection mode overrides. */
     injection?: InjectionConfig;
+    /** Strategy for naming synchronized output files. */
+    fileNamingStrategy?: SyncFileNamingStrategy;
     /** Repository default VS Code scope for settings-backed injection. */
     settingsInjectionTarget?: SettingsInjectionTarget;
     /** Hook file paths. */
@@ -191,6 +188,10 @@ export interface MetaFlowConfig {
 /** A config validation error with optional location. */
 export interface ConfigError {
     message: string;
+    /** Stable machine-readable diagnostic identifier. */
+    code?: string;
+    /** Diagnostic severity for downstream consumers. */
+    severity?: 'error' | 'warning';
     /** 0-based line in the config file (if available). */
     line?: number;
     /** 0-based column in the config file (if available). */

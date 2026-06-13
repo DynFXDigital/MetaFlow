@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-var-requires -- CommonJS require needed for Mocha module rewiring */
-
 import * as assert from 'assert';
 
 class MockTreeItem {
@@ -128,6 +126,16 @@ function createState(
             profiles?: Record<string, { displayName?: string }>;
         };
         treeSummaryCache: unknown;
+        governanceContractErrors: Array<{ message: string; code?: string | number }>;
+        governanceCompliance: {
+            status: 'not-applicable' | 'compliant' | 'non-compliant';
+            severity: 'warn' | 'error';
+            activeProfile?: string;
+            activeProfileLocked: boolean;
+            allowedProfiles: string[];
+            lockedProfiles: string[];
+            violations: Array<{ id: string; message: string; repoId?: string; path?: string }>;
+        };
     }>,
 ): {
     isLoading: boolean;
@@ -136,12 +144,24 @@ function createState(
         profiles?: Record<string, { displayName?: string }>;
     };
     treeSummaryCache?: unknown;
+    governanceContractErrors?: Array<{ message: string; code?: string | number }>;
+    governanceCompliance?: {
+        status: 'not-applicable' | 'compliant' | 'non-compliant';
+        severity: 'warn' | 'error';
+        activeProfile?: string;
+        activeProfileLocked: boolean;
+        allowedProfiles: string[];
+        lockedProfiles: string[];
+        violations: Array<{ id: string; message: string; repoId?: string; path?: string }>;
+    };
     onDidChange: MockEventEmitter<void>;
 } {
     return {
         isLoading: overrides?.isLoading ?? false,
         config: overrides?.config,
         treeSummaryCache: overrides?.treeSummaryCache,
+        governanceContractErrors: overrides?.governanceContractErrors,
+        governanceCompliance: overrides?.governanceCompliance,
         onDidChange: new MockEventEmitter<void>(),
     };
 }
@@ -243,5 +263,65 @@ suite('ProfilesTreeViewProvider', () => {
         state.onDidChange.fire(undefined);
 
         assert.deepStrictEqual(seen, [undefined]);
+    });
+
+    test('surfaces governance lock and active non-compliance cues without mutating profile behavior', () => {
+        const { ProfilesTreeViewProvider } = loadProfilesTreeView();
+        const provider = new ProfilesTreeViewProvider(
+            createState({
+                config: {
+                    activeProfile: 'default',
+                    profiles: {
+                        default: {},
+                        preview: { displayName: 'Preview Profile' },
+                    },
+                },
+                treeSummaryCache: { cache: true },
+                governanceContractErrors: [],
+                governanceCompliance: {
+                    status: 'non-compliant',
+                    severity: 'error',
+                    activeProfile: 'default',
+                    activeProfileLocked: false,
+                    allowedProfiles: ['default'],
+                    lockedProfiles: ['preview'],
+                    violations: [
+                        {
+                            id: 'GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc',
+                            message: 'Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+                            repoId: 'primary',
+                            path: 'standards/sdlc',
+                        },
+                    ],
+                },
+            }) as never,
+        );
+
+        const children = provider.getChildren();
+        const activeItem = children[0];
+        const lockedItem = children[1];
+
+        assert.strictEqual((activeItem.iconPath as MockThemeIcon).id, 'error');
+        assert.strictEqual(
+            activeItem.description,
+            'desc:-:summary-default:active|governance non-compliant',
+        );
+        assert.ok(
+            tooltipText(activeItem.tooltip).includes('Governance: non-compliant (severity: error)'),
+        );
+        assert.ok(
+            tooltipText(activeItem.tooltip).includes(
+                '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::standards/sdlc] Required capability "primary/standards/sdlc" is not active because the capability is disabled in the active runtime state.',
+            ),
+        );
+
+        assert.strictEqual((lockedItem.iconPath as MockThemeIcon).id, 'lock-small');
+        assert.strictEqual(
+            lockedItem.description,
+            'desc:preview:summary-preview:governance locked',
+        );
+        assert.ok(
+            tooltipText(lockedItem.tooltip).includes('Governance Locked Profiles: preview'),
+        );
     });
 });

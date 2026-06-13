@@ -1,5 +1,5 @@
 import { FilterConfig, LayerSource, ProfileConfig } from '../config/configSchema';
-import { applyFilters, applyExcludedTypeFilters } from './filterEngine';
+import { applyFilters } from './filterEngine';
 import { applyProfile } from './profileEngine';
 import {
     EffectiveFile,
@@ -73,7 +73,6 @@ export function detectSurfacedFileConflicts(
     }
 
     let filtered = applyFilters(candidates, options?.filters);
-    filtered = applyExcludedTypeFilters(filtered, options?.layerSources);
     filtered = applyProfile(filtered, options?.profile);
 
     const contendersByPath = new Map<string, EffectiveFile[]>();

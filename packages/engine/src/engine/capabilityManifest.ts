@@ -3,24 +3,74 @@
  *
  * CAPABILITY.md frontmatter contract (MVP):
  * - required: name, description
- * - optional: license
+ * - optional: uid, previousIds, previousPaths, license, experimental, agentPlugin
  *
  * Unknown fields are allowed with warnings for forward compatibility.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CapabilityMetadata, CapabilityWarning } from './types';
+import {
+    CapabilityAgentPluginManifest,
+    CapabilityDiagnosticSeverity,
+    CapabilityMetadata,
+    CapabilityWarning,
+} from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
+const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
-const KNOWN_FIELDS = new Set(['name', 'description', 'license']);
+const KNOWN_FIELDS = new Set([
+    'uid',
+    'previousIds',
+    'previousPaths',
+    'name',
+    'description',
+    'license',
+    'experimental',
+    'agentPlugin',
+]);
 
 type ManifestFields = {
+    uid?: string;
+    previousIds?: string;
+    previousPaths?: string;
     name?: string;
     description?: string;
     license?: string;
+    experimental?: string;
+    agentPlugin?: string;
 };
+
+function parseBooleanField(value: string | undefined): boolean | undefined {
+    const normalized = value?.trim().toLowerCase();
+    if (!normalized) {
+        return undefined;
+    }
+    if (normalized === 'true') {
+        return true;
+    }
+    if (normalized === 'false') {
+        return false;
+    }
+    return undefined;
+}
+
+function parseStringListField(value: string | undefined): string[] | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+
+    const listBody =
+        trimmed.startsWith('[') && trimmed.endsWith(']') ? trimmed.slice(1, -1) : trimmed;
+    const entries = listBody
+        .split(',')
+        .map((entry) => stripQuotes(entry).trim())
+        .filter((entry) => entry.length > 0);
+
+    return entries.length > 0 ? entries : undefined;
+}
 
 interface ParseFrontmatterResult {
     fields: Record<string, string>;
@@ -28,8 +78,13 @@ interface ParseFrontmatterResult {
     warnings: CapabilityWarning[];
 }
 
-function toWarning(code: string, message: string, filePath?: string): CapabilityWarning {
-    return { code, message, filePath };
+function toWarning(
+    code: string,
+    message: string,
+    filePath?: string,
+    severity: CapabilityDiagnosticSeverity = 'warning',
+): CapabilityWarning {
+    return { code, message, filePath, severity };
 }
 
 function stripQuotes(value: string): string {
@@ -214,8 +269,302 @@ function isLikelySpdxExpression(value: string): boolean {
     return ok && index === tokens.length;
 }
 
+function isLikelyVersionRange(value: string): boolean {
+    const trimmed = value.trim();
+    return trimmed.length > 0 && /\d/.test(trimmed) && /^[0-9A-Za-z*.+\-<>=~^|\s]+$/.test(trimmed);
+}
+
+function isValidCapabilityUid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        value.trim(),
+    );
+}
+
+function validateOptionalStringListField(
+    value: string | undefined,
+    fieldName: string,
+    code: string,
+    filePath?: string,
+): CapabilityWarning[] {
+    if (value === undefined || parseStringListField(value)) {
+        return [];
+    }
+
+    return [
+        toWarning(
+            code,
+            `CAPABILITY.md "${fieldName}" should be a non-empty string or comma-separated list when present.`,
+            filePath,
+        ),
+    ];
+}
+
+function isValidPluginName(value: string): boolean {
+    const trimmed = value.trim();
+    if (trimmed.length === 0 || trimmed !== value || trimmed.length > 64) {
+        return false;
+    }
+
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed);
+}
+
+function isLikelySemver(value: string): boolean {
+    return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(value.trim());
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) {
+        return undefined;
+    }
+
+    const normalized = value
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+
+    return normalized;
+}
+
+function parseAgentPluginManifestContent(
+    rawText: string,
+    pluginJsonPath: string,
+): { metadata?: CapabilityAgentPluginManifest; warnings: CapabilityWarning[] } {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(rawText) as unknown;
+    } catch (error) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID',
+                    `plugin.json could not be parsed: ${(error as Error).message}`,
+                    pluginJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_OBJECT_REQUIRED',
+                    'plugin.json must contain a top-level JSON object.',
+                    pluginJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    const manifestObject = parsed as Record<string, unknown>;
+    const warnings: CapabilityWarning[] = [];
+    const pluginName =
+        typeof manifestObject.name === 'string' ? manifestObject.name.trim() : undefined;
+    const version =
+        typeof manifestObject.version === 'string' ? manifestObject.version.trim() : undefined;
+    const description =
+        typeof manifestObject.description === 'string'
+            ? manifestObject.description.trim()
+            : undefined;
+    const keywords = normalizeStringArray(manifestObject.keywords) ?? [];
+
+    if (!pluginName) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_REQUIRED',
+                'plugin.json requires a non-empty "name" field for agent-plugin capabilities.',
+                pluginJsonPath,
+                'error',
+            ),
+        );
+    } else if (!isValidPluginName(pluginName)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_INVALID',
+                'plugin.json "name" must be kebab-case using only lowercase letters, numbers, and hyphens.',
+                pluginJsonPath,
+                'error',
+            ),
+        );
+    }
+
+    if (!version) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_REQUIRED',
+                'plugin.json requires a non-empty "version" field for agent-plugin capabilities.',
+                pluginJsonPath,
+                'error',
+            ),
+        );
+    } else if (!isLikelySemver(version)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_INVALID',
+                'plugin.json "version" should use SemVer syntax such as 1.0.0.',
+                pluginJsonPath,
+                'error',
+            ),
+        );
+    }
+
+    if (manifestObject.keywords !== undefined && !Array.isArray(manifestObject.keywords)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_KEYWORDS_INVALID',
+                'plugin.json "keywords" should be an array of strings when present.',
+                pluginJsonPath,
+                'warning',
+            ),
+        );
+    }
+
+    const metaflow = manifestObject.metaflow;
+    let pluginHosts: string[] = [];
+    let minimumMetaflowVersion: string | undefined;
+
+    if (metaflow !== undefined) {
+        if (!metaflow || typeof metaflow !== 'object' || Array.isArray(metaflow)) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_METAFLOW_INVALID',
+                    'plugin.json "metaflow" should be an object when present.',
+                    pluginJsonPath,
+                    'error',
+                ),
+            );
+        } else {
+            const metaflowObject = metaflow as Record<string, unknown>;
+            const normalizedPluginHosts = normalizeStringArray(metaflowObject.pluginHosts);
+            if (metaflowObject.pluginHosts !== undefined && !normalizedPluginHosts) {
+                warnings.push(
+                    toWarning(
+                        'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_INVALID',
+                        'plugin.json "metaflow.pluginHosts" should be an array of strings when present.',
+                        pluginJsonPath,
+                        'error',
+                    ),
+                );
+            } else {
+                pluginHosts = normalizedPluginHosts ?? [];
+            }
+
+            if (typeof metaflowObject.minimumMetaflowVersion === 'string') {
+                minimumMetaflowVersion = metaflowObject.minimumMetaflowVersion.trim() || undefined;
+                if (minimumMetaflowVersion && !isLikelyVersionRange(minimumMetaflowVersion)) {
+                    warnings.push(
+                        toWarning(
+                            'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID',
+                            'plugin.json "metaflow.minimumMetaflowVersion" should be a recognizable version range.',
+                            pluginJsonPath,
+                            'error',
+                        ),
+                    );
+                }
+            } else if (metaflowObject.minimumMetaflowVersion !== undefined) {
+                warnings.push(
+                    toWarning(
+                        'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID',
+                        'plugin.json "metaflow.minimumMetaflowVersion" should be a string when present.',
+                        pluginJsonPath,
+                        'error',
+                    ),
+                );
+            }
+        }
+    }
+
+    if (pluginHosts.length === 0) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED',
+                'plugin.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
+                pluginJsonPath,
+                'warning',
+            ),
+        );
+    }
+
+    return {
+        metadata: {
+            pluginJsonPath,
+            name: pluginName,
+            version,
+            description,
+            keywords,
+            pluginHosts,
+            minimumMetaflowVersion,
+        },
+        warnings,
+    };
+}
+
+function loadAgentPluginManifestForLayer(layerPath: string): {
+    metadata?: CapabilityAgentPluginManifest;
+    warnings: CapabilityWarning[];
+} {
+    const pluginJsonPath = path.join(layerPath, AGENT_PLUGIN_MANIFEST_FILE_NAME);
+    if (!fs.existsSync(pluginJsonPath)) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING',
+                    'CAPABILITY.md declares "agentPlugin: true" but plugin.json is missing at the capability root.',
+                    pluginJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    let rawText: string;
+    try {
+        rawText = fs.readFileSync(pluginJsonPath, 'utf-8');
+    } catch (error) {
+        return {
+            warnings: [
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_READ_ERROR',
+                    `Failed to read plugin.json: ${(error as Error).message}`,
+                    pluginJsonPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    return parseAgentPluginManifestContent(rawText, pluginJsonPath);
+}
+
 function validateManifestFields(fields: ManifestFields, filePath?: string): CapabilityWarning[] {
     const warnings: CapabilityWarning[] = [];
+
+    if (fields.uid !== undefined && !isValidCapabilityUid(fields.uid)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_UID_INVALID',
+                'CAPABILITY.md "uid" should be an RFC 4122 UUID such as 123e4567-e89b-12d3-a456-426614174000.',
+                filePath,
+            ),
+        );
+    }
+
+    warnings.push(
+        ...validateOptionalStringListField(
+            fields.previousIds,
+            'previousIds',
+            'CAPABILITY_PREVIOUS_IDS_INVALID',
+            filePath,
+        ),
+        ...validateOptionalStringListField(
+            fields.previousPaths,
+            'previousPaths',
+            'CAPABILITY_PREVIOUS_PATHS_INVALID',
+            filePath,
+        ),
+    );
 
     if (!fields.name || fields.name.trim().length === 0) {
         warnings.push(
@@ -253,6 +602,27 @@ function validateManifestFields(fields: ManifestFields, filePath?: string): Capa
         }
     }
 
+    if (fields.experimental !== undefined && parseBooleanField(fields.experimental) === undefined) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_EXPERIMENTAL_INVALID',
+                'CAPABILITY.md "experimental" should be either true or false.',
+                filePath,
+            ),
+        );
+    }
+
+    if (fields.agentPlugin !== undefined && parseBooleanField(fields.agentPlugin) === undefined) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_INVALID',
+                'CAPABILITY.md "agentPlugin" should be either true or false.',
+                filePath,
+                'error',
+            ),
+        );
+    }
+
     return warnings;
 }
 
@@ -280,19 +650,29 @@ export function parseCapabilityManifestContent(
     }
 
     const fields: ManifestFields = {
+        uid: parsed.fields.uid,
+        previousIds: parsed.fields.previousIds,
+        previousPaths: parsed.fields.previousPaths,
         name: parsed.fields.name,
         description: parsed.fields.description,
         license: parsed.fields.license,
+        experimental: parsed.fields.experimental,
+        agentPlugin: parsed.fields.agentPlugin,
     };
 
     warnings.push(...validateManifestFields(fields, manifestPath));
 
     return {
         id: capabilityId,
+        uid: fields.uid?.trim() || undefined,
+        previousIds: parseStringListField(fields.previousIds),
+        previousPaths: parseStringListField(fields.previousPaths),
         manifestPath,
         name: fields.name?.trim() || undefined,
         description: fields.description?.trim() || undefined,
         license: fields.license?.trim() || undefined,
+        experimental: parseBooleanField(fields.experimental),
+        agentPlugin: parseBooleanField(fields.agentPlugin),
         body: parsed.body,
         warnings,
     };
@@ -327,10 +707,58 @@ export function loadCapabilityManifestForLayer(
         };
     }
 
-    return parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
+    const manifest = parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
+    if (manifest.agentPlugin) {
+        const pluginResult = loadAgentPluginManifestForLayer(layerPath);
+        manifest.agentPluginManifest = pluginResult.metadata;
+        manifest.warnings.push(...pluginResult.warnings);
+    }
+
+    return manifest;
+}
+
+export function collectDuplicateCapabilityUidWarnings(
+    capabilities: CapabilityMetadata[],
+): CapabilityWarning[] {
+    const byUid = new Map<string, CapabilityMetadata[]>();
+    for (const capability of capabilities) {
+        const uid = capability.uid?.trim().toLowerCase();
+        if (!uid) {
+            continue;
+        }
+
+        const entries = byUid.get(uid) ?? [];
+        entries.push(capability);
+        byUid.set(uid, entries);
+    }
+
+    const warnings: CapabilityWarning[] = [];
+    for (const [uid, entries] of byUid) {
+        if (entries.length < 2) {
+            continue;
+        }
+
+        const locations = entries
+            .map((entry) => entry.manifestPath)
+            .sort((left, right) => left.localeCompare(right));
+
+        for (const entry of entries) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_UID_DUPLICATE',
+                    `CAPABILITY.md "uid" ${uid} is duplicated by ${locations.join(', ')}.`,
+                    entry.manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
+
+    return warnings;
 }
 
 export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
+    AGENT_PLUGIN_MANIFEST_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };

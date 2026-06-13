@@ -1,16 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { resolvePathFromWorkspace } from '@metaflow/engine';
-import type {
-    ExcludableArtifactType,
-    MetaFlowConfig,
-    ProfileConfig,
-    ProfileLayerOverride,
-} from '@metaflow/engine';
+import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@metaflow/engine';
+import type { MetaFlowConfig, ProfileConfig, ProfileLayerOverride } from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
+    skipBuiltInAutoApply?: boolean;
     skipRepoSync?: boolean;
+    skipSettingsInjection?: boolean;
+    preferStateConfig?: boolean;
+    nonInteractive?: boolean;
     forceDiscovery?: boolean;
     forceDiscoveryRepoId?: string;
 }
@@ -30,6 +29,14 @@ export type AiMetadataAutoApplyMode = 'off' | 'synchronize' | 'builtinLayer';
 export type FilesViewMode = 'unified' | 'repoTree';
 export type LayersViewMode = 'flat' | 'tree';
 
+export const DEFAULT_FILES_VIEW_MODE: FilesViewMode = 'unified';
+export const DEFAULT_LAYERS_VIEW_MODE: LayersViewMode = 'tree';
+
+export interface ManagedViewsState {
+    filesViewMode: FilesViewMode;
+    layersViewMode: LayersViewMode;
+}
+
 export const DEFAULT_PROFILE_ID = 'default';
 
 function toSlug(value: string): string {
@@ -37,8 +44,8 @@ function toSlug(value: string): string {
     return trimmed.replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'source';
 }
 
-export function isInjectionMode(value: unknown): value is 'settings' | 'synchronize' {
-    return value === 'settings' || value === 'synchronize';
+export function isInjectionMode(value: unknown): value is 'settings' | 'synchronize' | 'plugin' {
+    return value === 'settings' || value === 'synchronize' || value === 'plugin';
 }
 
 export function deriveRepoId(
@@ -77,9 +84,6 @@ export function ensureMultiRepoConfig(config: MetaFlowConfig): {
                 repoId: repo.id,
                 path: capability.path,
                 ...(capability.enabled !== undefined ? { enabled: capability.enabled } : {}),
-                ...(capability.excludedTypes !== undefined
-                    ? { excludedTypes: [...capability.excludedTypes] }
-                    : {}),
             })),
         );
 
@@ -227,9 +231,6 @@ function cloneProfileLayerOverride(override: ProfileLayerOverride): ProfileLayer
         repoId: override.repoId,
         path: normalizeLayerPath(override.path),
         ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-        ...(override.excludedTypes !== undefined
-            ? { excludedTypes: [...override.excludedTypes] }
-            : {}),
     };
 }
 
@@ -250,7 +251,6 @@ export function updateProfileLayerOverride(
     layerPath: string,
     mutation: {
         enabled?: boolean;
-        excludedTypes?: ExcludableArtifactType[];
     },
 ): ProfileLayerOverride {
     const normalizedPath = normalizeLayerPath(layerPath);
@@ -264,13 +264,7 @@ export function updateProfileLayerOverride(
         repoId,
         path: normalizedPath,
         ...(current?.enabled !== undefined ? { enabled: current.enabled } : {}),
-        ...(current?.excludedTypes !== undefined
-            ? { excludedTypes: [...current.excludedTypes] }
-            : {}),
         ...(mutation.enabled !== undefined ? { enabled: mutation.enabled } : {}),
-        ...(mutation.excludedTypes !== undefined
-            ? { excludedTypes: [...mutation.excludedTypes] }
-            : {}),
     };
 
     if (existingIndex >= 0) {
@@ -308,9 +302,6 @@ export function projectConfigForProfile(
             if (!override) {
                 return {
                     ...capability,
-                    ...(capability.excludedTypes !== undefined
-                        ? { excludedTypes: [...capability.excludedTypes] }
-                        : {}),
                     ...(capability.injection !== undefined
                         ? { injection: { ...capability.injection } }
                         : {}),
@@ -320,11 +311,6 @@ export function projectConfigForProfile(
             return {
                 ...capability,
                 ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-                ...(override.excludedTypes !== undefined
-                    ? { excludedTypes: [...override.excludedTypes] }
-                    : capability.excludedTypes !== undefined
-                      ? { excludedTypes: [...capability.excludedTypes] }
-                      : {}),
                 ...(capability.injection !== undefined
                     ? { injection: { ...capability.injection } }
                     : {}),
@@ -341,9 +327,6 @@ export function projectConfigForProfile(
         if (!override) {
             return {
                 ...layerSource,
-                ...(layerSource.excludedTypes !== undefined
-                    ? { excludedTypes: [...layerSource.excludedTypes] }
-                    : {}),
                 ...(layerSource.injection !== undefined
                     ? { injection: { ...layerSource.injection } }
                     : {}),
@@ -353,11 +336,6 @@ export function projectConfigForProfile(
         return {
             ...layerSource,
             ...(override.enabled !== undefined ? { enabled: override.enabled } : {}),
-            ...(override.excludedTypes !== undefined
-                ? { excludedTypes: [...override.excludedTypes] }
-                : layerSource.excludedTypes !== undefined
-                  ? { excludedTypes: [...layerSource.excludedTypes] }
-                  : {}),
             ...(layerSource.injection !== undefined
                 ? { injection: { ...layerSource.injection } }
                 : {}),
@@ -477,12 +455,23 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     }
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
+    const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown }).skipBuiltInAutoApply;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
+    const skipSettingsInjection = (arg as { skipSettingsInjection?: unknown })
+        .skipSettingsInjection;
+    const preferStateConfig = (arg as { preferStateConfig?: unknown }).preferStateConfig;
+    const nonInteractive = (arg as { nonInteractive?: unknown }).nonInteractive;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
+        skipBuiltInAutoApply:
+            typeof skipBuiltInAutoApply === 'boolean' ? skipBuiltInAutoApply : undefined,
         skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
+        skipSettingsInjection:
+            typeof skipSettingsInjection === 'boolean' ? skipSettingsInjection : undefined,
+        preferStateConfig: typeof preferStateConfig === 'boolean' ? preferStateConfig : undefined,
+        nonInteractive: typeof nonInteractive === 'boolean' ? nonInteractive : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,
         forceDiscoveryRepoId:
             typeof forceDiscoveryRepoId === 'string' ? forceDiscoveryRepoId : undefined,
@@ -524,11 +513,49 @@ export function extractRepoScopeOptions(arg: unknown): RepoScopeOptions {
 }
 
 export function normalizeFilesViewMode(value: unknown): FilesViewMode {
-    return value === 'repoTree' ? 'repoTree' : 'unified';
+    return value === 'repoTree' ? 'repoTree' : DEFAULT_FILES_VIEW_MODE;
 }
 
 export function normalizeLayersViewMode(value: unknown): LayersViewMode {
-    return value === 'tree' ? 'tree' : 'flat';
+    if (value === 'flat' || value === 'tree') {
+        return value;
+    }
+
+    return DEFAULT_LAYERS_VIEW_MODE;
+}
+
+export function readManagedViewsState(workspaceRoot?: string): ManagedViewsState {
+    if (!workspaceRoot) {
+        return {
+            filesViewMode: DEFAULT_FILES_VIEW_MODE,
+            layersViewMode: DEFAULT_LAYERS_VIEW_MODE,
+        };
+    }
+
+    const managedState = loadManagedState(workspaceRoot);
+    return {
+        filesViewMode: normalizeFilesViewMode(managedState.views?.filesViewMode),
+        layersViewMode: normalizeLayersViewMode(managedState.views?.layersViewMode),
+    };
+}
+
+export function writeManagedViewsState(
+    workspaceRoot: string,
+    patch: Partial<Record<keyof ManagedViewsState, unknown>>,
+): ManagedViewsState {
+    const managedState = loadManagedState(workspaceRoot);
+    const nextViews: ManagedViewsState = {
+        filesViewMode: normalizeFilesViewMode(
+            patch.filesViewMode ?? managedState.views?.filesViewMode,
+        ),
+        layersViewMode: normalizeLayersViewMode(
+            patch.layersViewMode ?? managedState.views?.layersViewMode,
+        ),
+    };
+
+    managedState.views = nextViews;
+    saveManagedState(workspaceRoot, managedState);
+    return nextViews;
 }
 
 export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAutoApplyMode {
@@ -545,16 +572,24 @@ export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAuto
 export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: string): string[] {
     const pruned: string[] = [];
 
-    if (config.layerSources && config.metadataRepos) {
-        const repoMap = new Map<string, string>();
+    const repoRoots = new Map<string, string>();
+    if (config.metadataRepos) {
         for (const repo of config.metadataRepos) {
             if (repo.enabled !== false) {
-                repoMap.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
+                repoRoots.set(repo.id, resolvePathFromWorkspace(workspaceRoot, repo.localPath));
             }
         }
+    }
+    if (config.metadataRepo) {
+        repoRoots.set(
+            'primary',
+            resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath),
+        );
+    }
 
+    if (config.layerSources && config.metadataRepos) {
         const kept = config.layerSources.filter((ls) => {
-            const repoRoot = repoMap.get(ls.repoId);
+            const repoRoot = repoRoots.get(ls.repoId);
             if (!repoRoot) {
                 return true;
             } // unknown repoId — leave for validator
@@ -568,6 +603,25 @@ export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: st
         config.layerSources = kept;
     }
 
+    if (config.metadataRepos) {
+        for (const repo of config.metadataRepos) {
+            const repoRoot = repoRoots.get(repo.id);
+            if (!repoRoot || !repo.capabilities) {
+                continue;
+            }
+
+            repo.capabilities = repo.capabilities.filter((capability) => {
+                const absPath = path.join(repoRoot, capability.path);
+                if (fs.existsSync(absPath)) {
+                    return true;
+                }
+
+                pruned.push(`${repo.id}/${capability.path}`);
+                return false;
+            });
+        }
+    }
+
     if (config.layers && config.metadataRepo) {
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
         const kept = config.layers.filter((layerPath) => {
@@ -579,6 +633,29 @@ export function pruneStaleLayerSources(config: MetaFlowConfig, workspaceRoot: st
             return true;
         });
         config.layers = kept;
+    }
+
+    if (config.profiles) {
+        for (const [profileId, profile] of Object.entries(config.profiles)) {
+            if (!profile.layerOverrides || profile.layerOverrides.length === 0) {
+                continue;
+            }
+
+            profile.layerOverrides = profile.layerOverrides.filter((override) => {
+                const repoRoot = repoRoots.get(override.repoId);
+                if (!repoRoot) {
+                    return true;
+                }
+
+                const absPath = path.join(repoRoot, override.path);
+                if (fs.existsSync(absPath)) {
+                    return true;
+                }
+
+                pruned.push(`profile:${profileId}:${override.repoId}/${override.path}`);
+                return false;
+            });
+        }
     }
 
     return pruned;

@@ -8,14 +8,31 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 
 ### Added
 
-- Capabilities tree folder checkboxes for branch-wide enable or disable operations in tree mode.
-- Browse-only artifact folders and files beneath Capabilities tree artifact rows, with friendly labels and metadata tooltips.
+- Plugin-based capability delivery for instructions, skills, and agents, so teams can package shared metadata as discoverable Copilot plugins instead of relying only on settings paths or synchronized files.
+- Guided capability authoring and plugin manifest maintenance, including commands to scaffold capability metadata, repair plugin manifests, and sweep a metadata repository for packaging issues.
+- Governance and diagnostics visibility for required capabilities, profile constraints, missing metadata sources, duplicate effective files, and plugin metadata problems, including a discoverable agent tool for reading the diagnostics snapshot.
+- Smoother metadata repository setup, including automatic migration for older preview configs and better support for local git-backed metadata repositories.
+- Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
+- Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
 
 ### Changed
 
+- New workspaces start with plugin-first defaults for instructions, skills, and agents, while prompts and hooks continue to use the delivery modes currently supported by the host.
+- Initializing MetaFlow now enables the bundled MetaFlow guidance automatically, so a fresh workspace has useful authoring guidance immediately after setup.
+- Injection choices can now be set globally, per metadata repository, or per capability, with workspace/user scope choices for settings-backed metadata.
+- Synchronized files can keep their original source-relative names when there is no naming conflict.
 - Capabilities tree folder rows now report deterministic mixed-branch state: checked means all descendants enabled, while unchecked covers partial and fully disabled branches.
+- Capabilities now enable or disable atomically; artifact folders under a capability are browse-only instead of partial activation toggles.
+- Capabilities and Effective Files view layouts now persist in `.metaflow/state.json` instead of VS Code settings, with hierarchical Capabilities and flat Effective Files as the defaults.
+- Built-in and configured repositories now behave more consistently in hierarchy, checkbox, refresh, and details workflows.
 
-## [0.1.0-preview.0] - 2026-03-03
+### Fixed
+
+- Tree search and filtering are more reliable in large capability and effective-file trees.
+- Plugin maintenance now avoids disturbing unrelated Copilot repository configuration, cleans up stale plugin roots during apply, and lets warning rows open the source file that needs attention.
+- Capability discovery and details refreshes are more stable for missing paths, CAPABILITY-only folders, built-in capability ordering, and toggle-driven updates.
+
+## [0.1.0] - 2026-03-03
 
 ### Added
 
