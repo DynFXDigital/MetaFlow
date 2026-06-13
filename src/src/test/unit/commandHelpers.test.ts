@@ -382,14 +382,14 @@ suite('Command Helpers', () => {
         assert.deepStrictEqual(
             extractRefreshCommandOptions({ skipRepoSync: true, nonInteractive: true }),
             {
-            skipAutoApply: undefined,
-            skipBuiltInAutoApply: undefined,
-            skipRepoSync: true,
-            skipSettingsInjection: undefined,
-            preferStateConfig: undefined,
-            nonInteractive: true,
-            forceDiscovery: undefined,
-            forceDiscoveryRepoId: undefined,
+                skipAutoApply: undefined,
+                skipBuiltInAutoApply: undefined,
+                skipRepoSync: true,
+                skipSettingsInjection: undefined,
+                preferStateConfig: undefined,
+                nonInteractive: true,
+                forceDiscovery: undefined,
+                forceDiscoveryRepoId: undefined,
             },
         );
 

@@ -118,19 +118,24 @@ suite('Command Execution', function () {
         return JSON.parse(JSON.stringify(value)) as T;
     }
 
+    function isIgnorableCleanupError(error: unknown): boolean {
+        const code = (error as NodeJS.ErrnoException | undefined)?.code;
+        return code === 'EPERM' || code === 'EBUSY' || code === 'ENOTEMPTY' || code === 'ENOENT';
+    }
+
     function chmodRecursive(targetPath: string): void {
-        if (!fs.existsSync(targetPath)) {
-            return;
-        }
-
-        const stat = fs.lstatSync(targetPath);
-        if (stat.isDirectory()) {
-            for (const entry of fs.readdirSync(targetPath)) {
-                chmodRecursive(path.join(targetPath, entry));
-            }
-        }
-
         try {
+            if (!fs.existsSync(targetPath)) {
+                return;
+            }
+
+            const stat = fs.lstatSync(targetPath);
+            if (stat.isDirectory()) {
+                for (const entry of fs.readdirSync(targetPath)) {
+                    chmodRecursive(path.join(targetPath, entry));
+                }
+            }
+
             fs.chmodSync(targetPath, 0o777);
         } catch {
             // Best-effort cleanup support for transient Windows file locks.
@@ -155,8 +160,7 @@ suite('Command Execution', function () {
         try {
             remove(targetPath);
         } catch (error: unknown) {
-            const code = (error as NodeJS.ErrnoException | undefined)?.code;
-            if (code !== 'EPERM' && code !== 'EBUSY' && code !== 'ENOTEMPTY') {
+            if (!isIgnorableCleanupError(error)) {
                 throw error;
             }
 
@@ -166,12 +170,7 @@ suite('Command Execution', function () {
             try {
                 fs.renameSync(targetPath, movedPath);
             } catch (renameError: unknown) {
-                const renameCode = (renameError as NodeJS.ErrnoException | undefined)?.code;
-                if (
-                    renameCode !== 'EPERM' &&
-                    renameCode !== 'EBUSY' &&
-                    renameCode !== 'ENOTEMPTY'
-                ) {
+                if (!isIgnorableCleanupError(renameError)) {
                     throw renameError;
                 }
                 return;
@@ -179,12 +178,7 @@ suite('Command Execution', function () {
             try {
                 remove(movedPath);
             } catch (secondError: unknown) {
-                const secondCode = (secondError as NodeJS.ErrnoException | undefined)?.code;
-                if (
-                    secondCode !== 'EPERM' &&
-                    secondCode !== 'EBUSY' &&
-                    secondCode !== 'ENOTEMPTY'
-                ) {
+                if (!isIgnorableCleanupError(secondError)) {
                     throw secondError;
                 }
             }
@@ -349,7 +343,7 @@ suite('Command Execution', function () {
         wsConfig: vscode.WorkspaceConfiguration,
     ): Record<string, unknown> | undefined {
         return cloneJson(
-            getScopedSettingValue<Record<string, unknown>>(wsConfig, 'metaflow.injection.modes'),
+            wsConfig.inspect<Record<string, unknown>>('metaflow.injection.modes')?.workspaceValue,
         );
     }
 
@@ -683,30 +677,7 @@ suite('Command Execution', function () {
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
-        const repoRoot = path.join(workspaceRoot, '.ai', 'settings-only-repo');
-        const layerInstructionsDir = path.join(repoRoot, 'settings-only', 'instructions');
-        removeDirectoryRecursive(repoRoot);
-        fs.mkdirSync(layerInstructionsDir, { recursive: true });
-        fs.writeFileSync(
-            path.join(layerInstructionsDir, 'settings-only.instructions.md'),
-            '# settings-only\n',
-            'utf-8',
-        );
-
-        const settingsOnlyConfig = {
-            metadataRepos: [{ id: 'settings', localPath: '.ai/settings-only-repo', enabled: true }],
-            layerSources: [{ repoId: 'settings', path: 'settings-only', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
-            profiles: {
-                default: {
-                    enable: ['**/*'],
-                },
-            },
-            activeProfile: 'default',
-            injection: {
-                instructions: 'settings',
-            },
-        };
+        const settingsOnlyConfig = createSettingsBackedWorkspaceConfig();
 
         const windowAny = vscode.window as unknown as {
             showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
@@ -788,7 +759,6 @@ suite('Command Execution', function () {
                 wsFolder,
             );
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            removeDirectoryRecursive(repoRoot);
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
