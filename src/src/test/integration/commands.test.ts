@@ -671,13 +671,34 @@ suite('Command Execution', function () {
         const priorAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const priorAiMetadataAutoApplyMode =
             metaflowConfig.inspect<string>('aiMetadataAutoApplyMode')?.workspaceValue;
-        const priorInjectionTarget =
-            metaflowConfig.inspect<string>('injection.target')?.workspaceValue;
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
-        const settingsOnlyConfig = createSettingsBackedWorkspaceConfig();
+        const repoRoot = path.join(workspaceRoot, '.ai', 'settings-only-repo');
+        const layerInstructionsDir = path.join(repoRoot, 'settings-only', 'instructions');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(layerInstructionsDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerInstructionsDir, 'settings-only.instructions.md'),
+            '# settings-only\n',
+            'utf-8',
+        );
+
+        const settingsOnlyConfig = {
+            metadataRepos: [{ id: 'settings', localPath: '.ai/settings-only-repo', enabled: true }],
+            layerSources: [{ repoId: 'settings', path: 'settings-only', enabled: true }],
+            filters: { include: ['**'], exclude: [] },
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+            injection: {
+                instructions: 'settings',
+            },
+        };
 
         const windowAny = vscode.window as unknown as {
             showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
@@ -692,27 +713,20 @@ suite('Command Execution', function () {
             return undefined;
         };
 
-        await updateConfigAndWait(
-            'chat.instructionsFilesLocations',
-            undefined,
-            vscode.ConfigurationTarget.Workspace,
-            wsFolder,
-        );
-        await updateConfigAndWait(
-            'metaflow.injection.target',
-            'workspace',
-            vscode.ConfigurationTarget.Workspace,
-            wsFolder,
-        );
-        await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
-        await metaflowConfig.update(
-            'aiMetadataAutoApplyMode',
-            'off',
-            vscode.ConfigurationTarget.Workspace,
-        );
-
         try {
             fs.writeFileSync(configPath, JSON.stringify(settingsOnlyConfig, null, 2), 'utf-8');
+            await updateConfigAndWait(
+                'chat.instructionsFilesLocations',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder,
+            );
+            await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+            await metaflowConfig.update(
+                'aiMetadataAutoApplyMode',
+                'off',
+                vscode.ConfigurationTarget.Workspace,
+            );
 
             await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
             applyMessages.length = 0;
@@ -752,13 +766,8 @@ suite('Command Execution', function () {
                 priorAiMetadataAutoApplyMode,
                 vscode.ConfigurationTarget.Workspace,
             );
-            await updateConfigAndWait(
-                'metaflow.injection.target',
-                priorInjectionTarget,
-                vscode.ConfigurationTarget.Workspace,
-                wsFolder,
-            );
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
