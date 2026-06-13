@@ -1,32 +1,32 @@
 {
-  "metadataRepos": [
-    {
-      "id": "primary",
-      "localPath": ".ai/ai-metadata",
-      "capabilities": [
-        {
-          "path": "company/core",
-          "enabled": false
-        },
-        {
-          "path": "standards/sdlc",
-          "enabled": true
-        }
-      ]
-    }
-  ],
-  "profiles": {
-    "default": {
-      "enable": [
-        "**/*"
-      ]
-    },
-    "review": {
-      "enable": [
-        "**/*"
-      ]
-    }
-  },
-  "activeProfile": "default",
-  "compatibilityVersion": 2
+	"metadataRepos": [
+		{
+			"id": "primary",
+			"localPath": ".ai/ai-metadata",
+			"capabilities": [
+				{
+					"path": "company/core",
+					"enabled": false
+				},
+				{
+					"path": "standards/sdlc",
+					"enabled": true
+				}
+			]
+		}
+	],
+	"profiles": {
+		"default": {
+			"enable": [
+				"**/*"
+			]
+		},
+		"review": {
+			"enable": [
+				"**/*"
+			]
+		}
+	},
+	"activeProfile": "default",
+	"compatibilityVersion": 2
 }

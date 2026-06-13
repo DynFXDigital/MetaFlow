@@ -44,6 +44,7 @@ type ExtensionPackageJson = {
 };
 
 const EXTENSION_ROOT = path.resolve(__dirname, '../../..');
+const EXTENSION_ENTRYPOINT = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
 
 suite('Extension Packaging Regression Guards', () => {
     test('multi-client VSIX install tasks pass a single comma-separated CLI list', () => {
@@ -121,7 +122,7 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(packageJson.main, './dist/extension.js');
     });
 
-    test('activation events only include the unified config location', () => {
+    test('activation events include config and MetaFlow view activation only', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -129,10 +130,35 @@ suite('Extension Packaging Regression Guards', () => {
 
         const activationEvents = packageJson.activationEvents ?? [];
         assert.ok(activationEvents.includes('workspaceContains:**/.metaflow/config.jsonc'));
+        assert.ok(activationEvents.includes('onView:metaflow-config'));
+        assert.ok(activationEvents.includes('onView:metaflow-profiles'));
+        assert.ok(activationEvents.includes('onView:metaflow-layers'));
+        assert.ok(activationEvents.includes('onView:metaflow-files'));
         assert.strictEqual(
             activationEvents.includes('onStartupFinished'),
             false,
             'Expected activation to stay scoped to MetaFlow workspaces instead of all startup sessions',
+        );
+    });
+
+    test('activation refresh loads tree views without startup prompts', () => {
+        const extensionSource = fs.readFileSync(EXTENSION_ENTRYPOINT, 'utf-8');
+
+        assert.match(
+            extensionSource,
+            /const activationRefreshOptions = \{ skipRepoSync: true, nonInteractive: true \};/,
+        );
+        assert.match(
+            extensionSource,
+            /await vscode\.commands\.executeCommand\('metaflow\.refresh', activationRefreshOptions\);/,
+        );
+        assert.match(
+            extensionSource,
+            /vscode\.workspace\.onDidChangeWorkspaceFolders\(\(event\) => \{[\s\S]*event\.added\.length === 0[\s\S]*vscode\.commands\.executeCommand\('metaflow\.refresh', activationRefreshOptions\);[\s\S]*\}\)/,
+        );
+        assert.match(
+            extensionSource,
+            /if \(!isTestMode\) \{\s+await vscode\.commands\.executeCommand\('metaflow\.offerGitRemotePromotion'\);\s+await vscode\.commands\.executeCommand\('metaflow\.offerGitIgnoreStateConfiguration'\);\s+\}/,
         );
     });
 

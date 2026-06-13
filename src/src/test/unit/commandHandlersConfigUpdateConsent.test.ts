@@ -22,7 +22,7 @@ suite('Command handler config update consent', () => {
         const refreshUpdateBlock = sourceSlice(
             source,
             'const shouldPersistConfig = autoAcceptRefreshUpdates',
-            'state.config = result.config;',
+            'state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);',
         );
 
         assert.match(
@@ -49,17 +49,21 @@ suite('Command handler config update consent', () => {
         const source = readCommandHandlersSource();
         const refreshOptionsBlock = sourceSlice(
             source,
-            'const refreshOptions = extractRefreshCommandOptions(arg);',
+            'const ws = getWorkspace({ showError: false });',
             'const pendingCapabilityPluginMetadataDirtyVersion',
         );
 
+        assert.match(
+            refreshOptionsBlock,
+            /state\.isLoading = false;\s+state\.onDidChange\.fire\(\);\s+return;/m,
+        );
         assert.match(refreshOptionsBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
         assert.match(refreshOptionsBlock, /refreshOptions\.nonInteractive === true/);
 
         const refreshUpdateBlock = sourceSlice(
             source,
             'const shouldPersistConfig = autoAcceptRefreshUpdates',
-            'if (shouldPersistConfig && capabilityRepairPreview) {'
+            'if (shouldPersistConfig && capabilityRepairPreview) {',
         );
         assert.match(refreshUpdateBlock, /autoAcceptRefreshUpdates\s+\? true/);
         assert.match(refreshUpdateBlock, /suppressRefreshUpdatePrompts\s+\? false/);
@@ -67,7 +71,7 @@ suite('Command handler config update consent', () => {
         const builtInRepairBlock = sourceSlice(
             source,
             'const shouldUpdateBuiltInState = autoAcceptRefreshUpdates',
-            'if (shouldUpdateBuiltInState) {'
+            'if (shouldUpdateBuiltInState) {',
         );
         assert.match(builtInRepairBlock, /autoAcceptRefreshUpdates\s+\? true/);
         assert.match(builtInRepairBlock, /suppressRefreshUpdatePrompts\s+\? false/);
@@ -81,7 +85,10 @@ suite('Command handler config update consent', () => {
             'const gitRepos = resolveGitBackedRepoSources',
         );
 
-        assert.match(refreshUpdateBlock, /if \(pendingRepairCount > 0\) \{\s+shouldAdvanceCapabilityIdentitySnapshot = false;/m);
+        assert.match(
+            refreshUpdateBlock,
+            /if \(pendingRepairCount > 0\) \{\s+shouldAdvanceCapabilityIdentitySnapshot = false;/m,
+        );
         assert.match(
             source,
             /if \(shouldAdvanceCapabilityIdentitySnapshot\) \{\s+saveCapabilityIdentitySnapshot\(projectedConfig, ws\.uri\.fsPath\);/m,
@@ -104,10 +111,7 @@ suite('Command handler config update consent', () => {
             builtInRepairBlock,
             /if \(shouldUpdateBuiltInState\) \{\s+state\.builtInCapability = await writeBuiltInCapabilityWorkspaceState\(/m,
         );
-        assert.match(
-            builtInRepairBlock,
-            /shouldAdvanceCapabilityIdentitySnapshot = false;/,
-        );
+        assert.match(builtInRepairBlock, /shouldAdvanceCapabilityIdentitySnapshot = false;/);
     });
 
     test('capability repair preview does not mutate loaded config before consent', () => {
@@ -123,5 +127,23 @@ suite('Command handler config update consent', () => {
             /const repairResult = applyCapabilityReferenceRepairs\(cloneConfig\(config\), resolutions\);/,
         );
         assert.doesNotMatch(previewHelper, /saveManagedState\(/);
+    });
+
+    test('refresh publishes loaded config before heavier refresh work', () => {
+        const source = readCommandHandlersSource();
+        const earlyPublishBlock = sourceSlice(
+            source,
+            'const discoveryResult = discoverAndPersistConfiguredRepoLayers(',
+            'let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;',
+        );
+
+        assert.match(earlyPublishBlock, /\{ enableDiscovery: true \},\s+\);/m);
+        assert.match(earlyPublishBlock, /state\.config = result\.config;/);
+        assert.match(earlyPublishBlock, /state\.configPath = result\.configPath;/);
+        assert.match(earlyPublishBlock, /state\.activeProfile = result\.config\.activeProfile;/);
+        assert.match(
+            earlyPublishBlock,
+            /state\.isLoading = false;\s+state\.onDidChange\.fire\(\);/m,
+        );
     });
 });

@@ -300,14 +300,28 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         return Boolean(control);
     }, STARTUP_TIMEOUT);
     assert.ok(control, 'MetaFlow activity bar entry not found');
+    let sideBar: SideBarView;
     try {
-        return (await control.openView()) as SideBarView;
+        sideBar = (await control.openView()) as SideBarView;
     } catch {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
         await dismissWelcomeOverlay();
         await sleep(300);
-        return (await control.openView()) as SideBarView;
+        sideBar = (await control.openView()) as SideBarView;
     }
+
+    // CI can render the contributed view containers before the activation-time
+    // refresh has populated tree state. Run the command explicitly once after
+    // opening the sidebar so tests wait on real data, not VS Code activation
+    // event ordering.
+    try {
+        await new Workbench().executeCommand('MetaFlow: Refresh');
+    } catch {
+        // If the command palette races command registration, the following
+        // section readiness wait still provides a useful failure point.
+    }
+
+    return sideBar;
 }
 
 /**
@@ -331,13 +345,7 @@ export async function expandSection(section: ViewSection): Promise<void> {
  */
 export async function getVisibleItemTexts(section: ViewSection): Promise<string[]> {
     const items = await section.getVisibleItems();
-    return Promise.all(
-        items.map((item) =>
-            (item as TreeItem)
-                .getText()
-                .catch(() => ''),
-        ),
-    );
+    return Promise.all(items.map((item) => (item as TreeItem).getText().catch(() => '')));
 }
 
 /**
@@ -378,13 +386,20 @@ export async function waitForSectionReady(
     timeoutMs = WAIT_TIMEOUT,
 ): Promise<void> {
     await expandSection(section);
+    let latestTexts: string[] = [];
     await waitFor(async () => {
-        const texts = await getVisibleItemTexts(section);
+        latestTexts = await getVisibleItemTexts(section);
         return (
-            texts.length > 0 &&
-            texts.every((t) => t.length > 0 && !t.includes('Loading'))
+            latestTexts.length > 0 &&
+            latestTexts.every((t) => t.length > 0 && !t.includes('Loading'))
         );
-    }, timeoutMs);
+    }, timeoutMs).catch(async (err: unknown) => {
+        const title = await section.getTitle().catch(() => '<unknown section>');
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+            `${message}; section "${title}" visible items: ${latestTexts.join(', ') || '<none>'}`,
+        );
+    });
     // Reveal nested children (tree-mode capability groups) so all leaves are findable.
     await expandAllItems(section);
 }
@@ -539,10 +554,7 @@ export async function dismissAllNotifications(workbench: Workbench): Promise<voi
 /**
  * Returns true if any currently visible notification message includes `fragment`.
  */
-export async function hasNotification(
-    workbench: Workbench,
-    fragment: string,
-): Promise<boolean> {
+export async function hasNotification(workbench: Workbench, fragment: string): Promise<boolean> {
     try {
         const notes = await workbench.getNotifications();
         for (const n of notes) {

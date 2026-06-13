@@ -298,10 +298,12 @@ interface ManagedSettingsState {
     managedPluginUris?: string[];
 }
 
-function getWorkspace(): vscode.WorkspaceFolder | undefined {
+function getWorkspace(options?: { showError?: boolean }): vscode.WorkspaceFolder | undefined {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
-        vscode.window.showErrorMessage('MetaFlow: No workspace folder open.');
+        if (options?.showError !== false) {
+            vscode.window.showErrorMessage('MetaFlow: No workspace folder open.');
+        }
         return undefined;
     }
 
@@ -423,6 +425,25 @@ function isPathWithin(candidatePath: string, rootPath: string): boolean {
     );
 }
 
+const copilotPluginSettingsUpdateQueues = new Map<string, Promise<void>>();
+
+async function enqueueCopilotPluginSettingsUpdate(
+    settingsPath: string,
+    update: () => Promise<void>,
+): Promise<void> {
+    const previous = copilotPluginSettingsUpdateQueues.get(settingsPath) ?? Promise.resolve();
+    const next = previous.then(update, update);
+    copilotPluginSettingsUpdateQueues.set(
+        settingsPath,
+        next.finally(() => {
+            if (copilotPluginSettingsUpdateQueues.get(settingsPath) === next) {
+                copilotPluginSettingsUpdateQueues.delete(settingsPath);
+            }
+        }),
+    );
+    await next;
+}
+
 function filterSettingsEligibleEffectiveFiles(
     effectiveFiles: EffectiveFile[],
     builtInCapability: BuiltInCapabilityRuntimeState,
@@ -454,6 +475,22 @@ async function updateManagedCopilotPluginSettings(
     nextManagedPluginUris: string[],
 ): Promise<void> {
     const settingsPath = getCopilotPluginSettingsPath(workspaceRoot);
+    await enqueueCopilotPluginSettingsUpdate(settingsPath, async () => {
+        await updateManagedCopilotPluginSettingsFile(
+            workspaceRoot,
+            settingsPath,
+            previousManagedPluginUris,
+            nextManagedPluginUris,
+        );
+    });
+}
+
+async function updateManagedCopilotPluginSettingsFile(
+    workspaceRoot: string,
+    settingsPath: string,
+    previousManagedPluginUris: string[],
+    nextManagedPluginUris: string[],
+): Promise<void> {
     const normalizedPrevious = normalizeManagedPluginUris(previousManagedPluginUris);
     const normalizedNext = normalizeManagedPluginUris(nextManagedPluginUris);
 
@@ -467,36 +504,39 @@ async function updateManagedCopilotPluginSettings(
         }
     }
 
+    let rewriteExistingFromScratch = false;
+
     const nextEnabledPlugins = (() => {
         const enabledPlugins: Record<string, boolean> = {};
 
         if (existing !== undefined) {
-            const parseErrors: jsonc.ParseError[] = [];
-            const parsed = jsonc.parse(existing, parseErrors, {
-                allowTrailingComma: true,
-                disallowComments: false,
-            });
+            if (existing.trim().length === 0) {
+                rewriteExistingFromScratch = true;
+            } else {
+                const parseErrors: jsonc.ParseError[] = [];
+                const parsed = jsonc.parse(existing, parseErrors, {
+                    allowTrailingComma: true,
+                    disallowComments: false,
+                });
 
-            if (parseErrors.length > 0) {
-                const first = parseErrors[0];
-                throw new Error(
-                    `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} could not be parsed near offset ${first.offset}.`,
-                );
-            }
-
-            if (
-                parsed !== undefined &&
-                (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-            ) {
-                throw new Error(
-                    `${COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH} must contain a top-level JSON object.`,
-                );
-            }
-
-            const parsedObject = (parsed ?? {}) as Record<string, unknown>;
-            if (isBooleanRecord(parsedObject.enabledPlugins)) {
-                for (const [pluginUri, enabled] of Object.entries(parsedObject.enabledPlugins)) {
-                    enabledPlugins[pluginUri] = enabled;
+                if (parseErrors.length > 0) {
+                    // This file is machine-local and fully managed for the enabledPlugins key.
+                    // Heal blank or truncated JSON instead of failing the entire refresh/apply path.
+                    rewriteExistingFromScratch = true;
+                } else if (
+                    parsed !== undefined &&
+                    (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+                ) {
+                    rewriteExistingFromScratch = true;
+                } else {
+                    const parsedObject = (parsed ?? {}) as Record<string, unknown>;
+                    if (isBooleanRecord(parsedObject.enabledPlugins)) {
+                        for (const [pluginUri, enabled] of Object.entries(
+                            parsedObject.enabledPlugins,
+                        )) {
+                            enabledPlugins[pluginUri] = enabled;
+                        }
+                    }
                 }
             }
         }
@@ -533,6 +573,18 @@ async function updateManagedCopilotPluginSettings(
             JSON.stringify({ enabledPlugins: nextEnabledPlugins }, null, 2) + '\n',
             'utf-8',
         );
+        return;
+    }
+
+    if (rewriteExistingFromScratch) {
+        const recoveredContent =
+            Object.keys(nextEnabledPlugins).length > 0
+                ? JSON.stringify({ enabledPlugins: nextEnabledPlugins }, null, 2) + '\n'
+                : '{}\n';
+
+        await ensureLocalGitExcludeEntry(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
+        await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+        await fsp.writeFile(settingsPath, recoveredContent, 'utf-8');
         return;
     }
 
@@ -5051,8 +5103,11 @@ export function registerCommands(
     // ── metaflow.refresh ───────────────────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
-            const ws = getWorkspace();
+            const ws = getWorkspace({ showError: false });
             if (!ws) {
+                logWarn('Refresh skipped: no workspace folder is open.');
+                state.isLoading = false;
+                state.onDidChange.fire();
                 return;
             }
 
@@ -5149,6 +5204,11 @@ export function registerCommands(
                     refreshOptions.forceDiscoveryRepoId,
                     { enableDiscovery: true },
                 );
+                state.config = result.config;
+                state.configPath = result.configPath;
+                state.activeProfile = result.config.activeProfile;
+                state.isLoading = false;
+                state.onDidChange.fire();
                 let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;
                 try {
                     capabilityRepairPreview = previewCapabilityIdentityDriftRepair(
@@ -5251,9 +5311,6 @@ export function registerCommands(
                         );
                     }
                 }
-                state.config = result.config;
-                state.configPath = result.configPath;
-                state.activeProfile = result.config.activeProfile;
                 state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
                 state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
                     context,

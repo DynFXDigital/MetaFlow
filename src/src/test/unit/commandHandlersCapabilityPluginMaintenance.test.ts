@@ -476,6 +476,37 @@ suite('Command handler capability plugin maintenance helpers', () => {
         }
     });
 
+    test('Copilot plugin settings updates are serialized per settings path', () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../../src/commands/commandHandlers.ts'),
+            'utf-8',
+        );
+
+        assert.match(
+            source,
+            /const copilotPluginSettingsUpdateQueues = new Map<string, Promise<void>>\(\);/,
+        );
+        assert.match(source, /async function enqueueCopilotPluginSettingsUpdate\(/);
+        assert.match(source, /const next = previous\.then\(update, update\);/);
+        assert.match(
+            source,
+            /await enqueueCopilotPluginSettingsUpdate\(settingsPath, async \(\) => \{/,
+        );
+    });
+
+    test('Copilot plugin settings updates recover from blank or malformed local JSON', () => {
+        const source = fs.readFileSync(
+            path.resolve(__dirname, '../../../src/commands/commandHandlers.ts'),
+            'utf-8',
+        );
+
+        assert.match(source, /let rewriteExistingFromScratch = false;/);
+        assert.match(source, /if \(existing\.trim\(\)\.length === 0\) \{/);
+        assert.match(source, /rewriteExistingFromScratch = true;/);
+        assert.match(source, /const recoveredContent =/);
+        assert.match(source, /: '\{\}\\n';/);
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({

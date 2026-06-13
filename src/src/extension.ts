@@ -616,14 +616,29 @@ export function activate(context: vscode.ExtensionContext): void {
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
-    if (!isTestMode) {
-        // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.
-        void (async () => {
-            await vscode.commands.executeCommand('metaflow.refresh');
+    const activationRefreshOptions = { skipRepoSync: true, nonInteractive: true };
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+            if (event.added.length === 0) {
+                return;
+            }
+            syncRepoUpdateSchedulerLifecycle();
+            void vscode.commands.executeCommand('metaflow.refresh', activationRefreshOptions);
+        }),
+    );
+
+    // Auto-refresh on activation so contributed TreeViews leave their loading state.
+    // Startup must never block on modal update prompts; test hosts also skip repo sync.
+    void (async () => {
+        await vscode.commands.executeCommand('metaflow.refresh', activationRefreshOptions);
+        if (!isTestMode) {
             await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
             await vscode.commands.executeCommand('metaflow.offerGitIgnoreStateConfiguration');
-        })();
+        }
+    })();
 
+    if (!isTestMode) {
         const schedulerLifecycle = createRepoUpdateSchedulerLifecycleController({
             workspaceHasConfig: workspaceHasMetaFlowConfig,
             createScheduler: () => {

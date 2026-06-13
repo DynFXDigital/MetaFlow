@@ -19,7 +19,7 @@
  * are downloaded on first run and reused thereafter.
  */
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +34,9 @@ const extestCli = require.resolve('vscode-extension-tester/out/cli.js');
 const STORAGE = '.vscode-test/gui';
 const EXTENSIONS = '.vscode-test/gui/extensions';
 const VSIX = 'metaflow-test.vsix';
+const TEST_WORKSPACE = 'test-workspace';
+const LIVE_CONFIG = path.join(srcRoot, TEST_WORKSPACE, '.metaflow', 'config.jsonc');
+const GOLDEN_CONFIG = path.join(srcRoot, TEST_WORKSPACE, '.metaflow', 'config.golden.jsonc');
 
 const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '6'));
 const prefixes = process.argv.slice(2);
@@ -49,6 +52,17 @@ function runExtest(args, label) {
     process.stdout.write(out);
     return { status: res.status ?? 1, out };
 }
+
+function seedGoldenConfig() {
+    mkdirSync(path.dirname(GOLDEN_CONFIG), { recursive: true });
+    copyFileSync(LIVE_CONFIG, GOLDEN_CONFIG);
+}
+
+function restoreLiveConfigFromGolden() {
+    copyFileSync(GOLDEN_CONFIG, LIVE_CONFIG);
+}
+
+seedGoldenConfig();
 
 // ── Setup: download VS Code + chromedriver (idempotent) and install the VSIX ──
 const setupSteps = [
@@ -87,17 +101,23 @@ let totalFail = 0;
 const failedBatches = [];
 
 for (const [idx, batch] of batches.entries()) {
+    restoreLiveConfigFromGolden();
     const files = batch.map((f) => path.posix.join('out/test/gui', f));
     const label = `batch ${idx + 1}/${batches.length}: ${batch.join(', ')}`;
     const { status, out } = runExtest(
         [
             'run-tests',
             ...files,
-            '-s', STORAGE,
-            '-e', EXTENSIONS,
-            '-r', 'test-workspace',
-            '-m', '.mocharc-gui.js',
-            '-o', '.vscode-test-gui-settings.json',
+            '-s',
+            STORAGE,
+            '-e',
+            EXTENSIONS,
+            '-r',
+            TEST_WORKSPACE,
+            '-m',
+            '.mocharc-gui.js',
+            '-o',
+            '.vscode-test-gui-settings.json',
         ],
         label,
     );
@@ -112,7 +132,7 @@ for (const [idx, batch] of batches.entries()) {
 
 console.log(
     `\n=== GUI batched summary: ${totalPass} passing, ${totalFail} failing ` +
-    `across ${batches.length} batch(es) of ${batchSize} ===`,
+        `across ${batches.length} batch(es) of ${batchSize} ===`,
 );
 if (failedBatches.length > 0) {
     console.log('Batches with failures:');

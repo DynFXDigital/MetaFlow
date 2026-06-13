@@ -28,7 +28,11 @@
     "theme": "dark"
   },
   "activationEvents": [
-    "workspaceContains:**/.metaflow/config.jsonc"
+    "workspaceContains:**/.metaflow/config.jsonc",
+    "onView:metaflow-config",
+    "onView:metaflow-profiles",
+    "onView:metaflow-layers",
+    "onView:metaflow-files"
   ],
   "main": "./dist/extension.js",
   "contributes": {
