@@ -1832,6 +1832,40 @@ describe('Engine: synchronizer advanced', () => {
         );
     });
 
+    it('planSynchronization fails when repo-wide copilot instructions would overwrite an unmanaged file', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.github'), { recursive: true });
+        fs.mkdirSync(path.join(tmpDir, '.github'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'copilot-instructions.md'),
+            '# Managed Instructions',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(tmpDir, '.github', 'copilot-instructions.md'),
+            '# User Instructions',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { instructions: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('copilot-instructions.md'));
+    });
+
     it('preview and apply fail with the same message when strategy change would remap managed files', () => {
         const files = setupAndApply();
         apply({ workspaceRoot: tmpDir, effectiveFiles: files, force: false });

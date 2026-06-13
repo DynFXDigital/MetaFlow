@@ -347,6 +347,54 @@ function getCopilotPluginSettingsPath(workspaceRoot: string): string {
     return path.join(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
 }
 
+export async function ensureLocalGitExcludeEntry(
+    workspaceRoot: string,
+    relativePath: string,
+): Promise<void> {
+    try {
+        const dotGitPath = path.join(workspaceRoot, '.git');
+        const dotGitStat = await fsp.stat(dotGitPath);
+        let gitDir = dotGitPath;
+
+        if (dotGitStat.isFile()) {
+            const dotGitContent = await fsp.readFile(dotGitPath, 'utf-8');
+            const gitDirLine = dotGitContent
+                .split(/\r?\n/)
+                .find((line) => line.toLowerCase().startsWith('gitdir:'));
+            const rawGitDir = gitDirLine?.slice('gitdir:'.length).trim();
+            if (!rawGitDir) {
+                return;
+            }
+            gitDir = path.isAbsolute(rawGitDir)
+                ? rawGitDir
+                : path.resolve(workspaceRoot, rawGitDir);
+        } else if (!dotGitStat.isDirectory()) {
+            return;
+        }
+
+        const excludePath = path.join(gitDir, 'info', 'exclude');
+        const normalizedEntry = relativePath.replace(/\\/g, '/');
+        const existing = await fsp.readFile(excludePath, 'utf-8').catch(() => '');
+        const hasEntry = existing
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .includes(normalizedEntry);
+        if (hasEntry) {
+            return;
+        }
+
+        const trailingNewline = existing.length === 0 || existing.endsWith('\n') ? '' : '\n';
+        await fsp.mkdir(path.dirname(excludePath), { recursive: true });
+        await fsp.writeFile(
+            excludePath,
+            `${existing}${trailingNewline}${normalizedEntry}\n`,
+            'utf-8',
+        );
+    } catch {
+        // Best-effort local ignore protection for machine-local Copilot plugin settings.
+    }
+}
+
 function normalizeManagedPluginUris(pluginUris: string[] | undefined): string[] {
     return Array.from(new Set((pluginUris ?? []).filter((value) => value.trim().length > 0))).sort(
         (left, right) => left.localeCompare(right),
@@ -478,6 +526,7 @@ async function updateManagedCopilotPluginSettings(
             return;
         }
 
+        await ensureLocalGitExcludeEntry(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
         await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
         await fsp.writeFile(
             settingsPath,
@@ -496,6 +545,7 @@ async function updateManagedCopilotPluginSettings(
     );
     const updated = jsonc.applyEdits(existing, edits);
 
+    await ensureLocalGitExcludeEntry(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
     await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
     await fsp.writeFile(settingsPath, updated, 'utf-8');
 }
@@ -3061,9 +3111,7 @@ function previewCapabilityIdentityDriftRepair(
     workspaceRoot: string,
 ): CapabilityIdentityDriftRepairPreview {
     const managedState = loadManagedState(workspaceRoot);
-    const lastKnownIndex = managedStateToCapabilityIdentityIndex(
-        managedState.capabilityIdentity,
-    );
+    const lastKnownIndex = managedStateToCapabilityIdentityIndex(managedState.capabilityIdentity);
     const currentIndex = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
     const resolutions = reconcileConfiguredCapabilityReferences(
         config,
@@ -3081,9 +3129,7 @@ function applyCapabilityIdentityDriftRepair(
     workspaceRoot: string,
     managedState: ReturnType<typeof loadManagedState>,
 ): ReturnType<typeof applyCapabilityReferenceRepairs> {
-    const lastKnownIndex = managedStateToCapabilityIdentityIndex(
-        managedState.capabilityIdentity,
-    );
+    const lastKnownIndex = managedStateToCapabilityIdentityIndex(managedState.capabilityIdentity);
     const currentIndex = buildCapabilityIdentityIndexFromConfig(config, workspaceRoot);
     const resolutions = reconcileConfiguredCapabilityReferences(
         config,
@@ -3098,10 +3144,7 @@ function applyCapabilityIdentityDriftRepair(
     return repairResult;
 }
 
-async function confirmConfigUpdate(
-    configPath: string,
-    reasons: string[],
-): Promise<boolean> {
+async function confirmConfigUpdate(configPath: string, reasons: string[]): Promise<boolean> {
     const detail = reasons.map((reason) => `- ${reason}`).join('\n');
     const selection = await vscode.window.showWarningMessage(
         'MetaFlow found updates for .metaflow/config.jsonc. Update the config file now?',
@@ -3148,9 +3191,7 @@ function previewBuiltInCapabilityStateDriftRepair(
     }
 
     const managedState = loadManagedState(workspaceRoot);
-    const lastKnownIndex = managedStateToCapabilityIdentityIndex(
-        managedState.capabilityIdentity,
-    );
+    const lastKnownIndex = managedStateToCapabilityIdentityIndex(managedState.capabilityIdentity);
     const currentIndex = buildCapabilityIdentityIndexFromConfig(lastKnownConfig, workspaceRoot);
     const staleReferenceConfig: MetaFlowConfig = {
         metadataRepos: [
@@ -4311,6 +4352,7 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     repoRoot: string,
     options: {
         repoId: string;
+        excludePatterns?: string[];
         marketplaceName?: string;
         ownerName?: string;
     },
@@ -4320,7 +4362,7 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     pluginCount: number;
     warnings: CapabilityWarning[];
 }> {
-    const layerPaths = discoverLayersInRepo(repoRoot).sort((left, right) =>
+    const layerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort((left, right) =>
         left.localeCompare(right),
     );
     const layers = layerPaths.map((layerPath) => {
@@ -4459,6 +4501,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
 
     const marketplaceResult = await maintainCapabilityPluginMarketplaceInRepo(repoRoot, {
         repoId: options.repoId,
+        excludePatterns: options.excludePatterns,
         marketplaceName: options.marketplaceName,
         ownerName: options.ownerName,
     });
@@ -5014,8 +5057,7 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
-            const autoAcceptRefreshUpdates =
-                context.extensionMode === vscode.ExtensionMode.Test;
+            const autoAcceptRefreshUpdates = context.extensionMode === vscode.ExtensionMode.Test;
             const suppressRefreshUpdatePrompts =
                 refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
             const pendingCapabilityPluginMetadataDirtyVersion =
@@ -5132,9 +5174,7 @@ export function registerCommands(
                         );
                     }
                     if (configNormalized) {
-                        pendingConfigUpdateReasons.push(
-                            'Normalize redundant layer path entries.',
-                        );
+                        pendingConfigUpdateReasons.push('Normalize redundant layer path entries.');
                     }
                     if (discoveryResult.totalAdded > 0) {
                         pendingConfigUpdateReasons.push(
@@ -5247,9 +5287,7 @@ export function registerCommands(
                         ? true
                         : suppressRefreshUpdatePrompts
                           ? false
-                          : await confirmBuiltInCapabilityStateUpdate(
-                                builtInRepairPreview.repairs,
-                            );
+                          : await confirmBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
                     if (shouldUpdateBuiltInState) {
                         state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
                             context,

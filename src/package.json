@@ -872,7 +872,7 @@
     "prepackage:pre": "node -e \"require('fs').mkdirSync('artifacts',{recursive:true})\"",
     "package:pre": "vsce package --pre-release --no-dependencies --out artifacts/",
     "pretest:gui": "npm run compile && npm run bundle:dev && npm run package:gui",
-    "test:gui": "extest setup-and-run 'out/test/gui/**/*.test.js' -s .vscode-test/gui -f test-workspace --vsix metaflow-test.vsix",
+    "test:gui": "node ./scripts/run-gui-batched.mjs",
     "test:gui:xvfb": "xvfb-run -a npm run test:gui",
     "pretest:gui:batched": "npm run compile && npm run bundle:dev && npm run package:gui",
     "test:gui:batched": "node ./scripts/run-gui-batched.mjs",

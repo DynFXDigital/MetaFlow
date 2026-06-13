@@ -450,7 +450,8 @@ export function activate(context: vscode.ExtensionContext): void {
                         contextValue === 'configRepoSourceLocalGit' ||
                         contextValue === 'configRepoSourceBuiltin' ||
                         contextValue === 'configRepoSourceGit' ||
-                        contextValue === 'configRepoSourceGitBehind')
+                        contextValue === 'configRepoSourceGitBehind' ||
+                        contextValue === 'configRepoSourceGitAhead')
                 ) {
                     await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                         repoId,

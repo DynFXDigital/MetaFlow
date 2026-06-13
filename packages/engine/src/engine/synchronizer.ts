@@ -204,11 +204,11 @@ function formatSynchronizationPlanningError(
 
     for (const collision of collisions) {
         const sources = collision.contenders
-            .map((entry) => formatSourceLabel(entry.sourceRelativePath, entry.sourceLayer, entry.sourceRepo))
+            .map((entry) =>
+                formatSourceLabel(entry.sourceRelativePath, entry.sourceLayer, entry.sourceRepo),
+            )
             .join(' ; ');
-        lines.push(
-            `- Output path collision at ${collision.destinationRelativePath}: ${sources}`,
-        );
+        lines.push(`- Output path collision at ${collision.destinationRelativePath}: ${sources}`);
     }
 
     for (const conflict of unmanagedConflicts) {
@@ -302,13 +302,24 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
 
     remapConflicts.sort(
         (left, right) =>
-            formatSourceLabel(left.sourceRelativePath, left.sourceLayer, left.sourceRepo).localeCompare(
+            formatSourceLabel(
+                left.sourceRelativePath,
+                left.sourceLayer,
+                left.sourceRepo,
+            ).localeCompare(
                 formatSourceLabel(right.sourceRelativePath, right.sourceLayer, right.sourceRepo),
             ) || left.trackedRelativePath.localeCompare(right.trackedRelativePath),
     );
 
     const unmanagedConflicts: UnmanagedDestinationConflict[] = [];
-    if (fileNamingStrategy === 'original-unless-conflict' || strategyByLayer !== undefined) {
+    const hasRepoWideCopilotInstructions = synchronizedFiles.some((entry) =>
+        isRepoWideCopilotInstructionsFile(entry.file),
+    );
+    if (
+        fileNamingStrategy === 'original-unless-conflict' ||
+        strategyByLayer !== undefined ||
+        hasRepoWideCopilotInstructions
+    ) {
         for (const entry of [...synchronizedFiles].sort(comparePlannedFiles)) {
             const drift = checkDrift(
                 options.workspaceRoot,
@@ -318,8 +329,12 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
             );
             if (
                 drift.status === 'untracked' &&
-                resolveEffectiveFileNamingStrategy(entry.file, fileNamingStrategy, strategyByLayer) ===
-                    'original-unless-conflict'
+                (resolveEffectiveFileNamingStrategy(
+                    entry.file,
+                    fileNamingStrategy,
+                    strategyByLayer,
+                ) === 'original-unless-conflict' ||
+                    isRepoWideCopilotInstructionsFile(entry.file))
             ) {
                 unmanagedConflicts.push({
                     destinationRelativePath: entry.destinationRelativePath,

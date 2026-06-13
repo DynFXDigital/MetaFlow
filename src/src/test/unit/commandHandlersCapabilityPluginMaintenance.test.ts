@@ -457,6 +457,25 @@ suite('Command handler capability plugin maintenance helpers', () => {
         });
     });
 
+    test('ensureLocalGitExcludeEntry records machine-local Copilot plugin settings in git info exclude', async () => {
+        const { ensureLocalGitExcludeEntry } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-local-exclude-'));
+        try {
+            fs.mkdirSync(path.join(repoRoot, '.git', 'info'), { recursive: true });
+
+            await ensureLocalGitExcludeEntry(repoRoot, '.github/copilot/settings.local.json');
+            await ensureLocalGitExcludeEntry(repoRoot, '.github/copilot/settings.local.json');
+
+            const entries = fs
+                .readFileSync(path.join(repoRoot, '.git', 'info', 'exclude'), 'utf-8')
+                .split(/\r?\n/)
+                .filter(Boolean);
+            assert.deepStrictEqual(entries, ['.github/copilot/settings.local.json']);
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({
@@ -787,6 +806,64 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.deepStrictEqual(
                 marketplace.plugins?.map((plugin) => plugin.name),
                 ['first', 'second-capability'],
+            );
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainAllCapabilityPluginMetadataInRepo excludes marketplace plugins from excluded paths', async () => {
+        const { maintainAllCapabilityPluginMetadataInRepo } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-excludes-'));
+        try {
+            const publicCapability = path.join(repoRoot, 'capabilities', 'public');
+            const privateCapability = path.join(repoRoot, 'capabilities', 'private');
+            fs.mkdirSync(publicCapability, { recursive: true });
+            fs.mkdirSync(privateCapability, { recursive: true });
+
+            for (const [capabilityRoot, name] of [
+                [publicCapability, 'Public Capability'],
+                [privateCapability, 'Private Capability'],
+            ] as const) {
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'CAPABILITY.md'),
+                    [
+                        '---',
+                        `name: ${name}`,
+                        'description: Test capability',
+                        'agentPlugin: true',
+                        '---',
+                    ].join('\n'),
+                    'utf-8',
+                );
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'plugin.json'),
+                    JSON.stringify(
+                        {
+                            name: name.toLowerCase().replace(/\s+/g, '-'),
+                            version: '1.0.0',
+                            description: 'Test plugin',
+                            metaflow: { pluginHosts: ['github-copilot'] },
+                        },
+                        null,
+                        2,
+                    ) + '\n',
+                    'utf-8',
+                );
+            }
+
+            const result = await maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
+                repoId: 'example-repo',
+                excludePatterns: ['capabilities/private'],
+            });
+
+            assert.strictEqual(result.marketplacePluginCount, 1);
+            const marketplace = JSON.parse(fs.readFileSync(result.marketplacePath, 'utf-8')) as {
+                plugins?: Array<{ name?: string }>;
+            };
+            assert.deepStrictEqual(
+                marketplace.plugins?.map((plugin) => plugin.name),
+                ['public-capability'],
             );
         } finally {
             fs.rmSync(repoRoot, { recursive: true, force: true });
