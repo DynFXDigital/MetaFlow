@@ -2024,33 +2024,25 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 element.repoId,
                 mode,
             );
-            if (mode === 'tree' && repoEntries.some((entry) => entry.normalizedPath === '')) {
-                if (element.repoId === BUILT_IN_CAPABILITY_REPO_ID) {
-                    return this.trackChildren(repoChildren, element);
-                }
-
-                const rootLayer = repoChildren.find((child) => child.pathKey === '(root)');
-                if (rootLayer) {
-                    return this.trackChildren([rootLayer], element);
-                }
-            }
-
             return this.trackChildren(repoChildren, element);
         }
 
         if (element instanceof LayerItem) {
-            const parentPath = element.pathKey === '(root)' ? '' : element.pathKey || '';
+            const isRootLayerNode = element.pathKey === '(root)';
+            const parentPath = isRootLayerNode ? '' : element.pathKey || '';
             const repoEntries = element.repoId
                 ? entries.filter((entry) => entry.repoId === element.repoId)
                 : entries.filter((entry) => entry.repoId === undefined);
 
             // Branch nodes stay structural; leaf capability nodes expose artifact-type browse rows.
-            const folderChildren = this.getTreeChildrenForPrefix(
-                repoEntries,
-                parentPath,
-                element.repoId,
-                mode,
-            ).filter((child) => child.pathKey !== '(root)');
+            const folderChildren = isRootLayerNode
+                ? []
+                : this.getTreeChildrenForPrefix(
+                      repoEntries,
+                      parentPath,
+                      element.repoId,
+                      mode,
+                  ).filter((child) => child.pathKey !== '(root)');
 
             if (typeof element.layerIndex === 'number' && mode === 'tree') {
                 const builtInRootLayer =

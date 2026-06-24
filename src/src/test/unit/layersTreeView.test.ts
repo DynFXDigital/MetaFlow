@@ -2219,7 +2219,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-SEA-01b: tree branch nodes do not mix artifact browse rows with capability folders', () => {
+    test('LTV-SEA-01b: tree keeps root metadata separate from top-level capability folders', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
@@ -2244,16 +2244,30 @@ suite('LayersTreeView – artifact-type children', () => {
         );
 
         const repoItem = provider.getChildren()[0];
-        const rootItem = provider.getChildren(repoItem)[0];
+        const repoChildren = provider.getChildren(repoItem);
+        assert.deepStrictEqual(
+            repoChildren.map((item) => String(item.label)),
+            ['root', 'capabilities'],
+            'root should be a repo-level metadata node, not the parent of every capability folder',
+        );
+
+        const rootItem = repoChildren.find((item) => String(item.label) === 'root');
+        assert.ok(rootItem, 'root layer should be reachable');
         const rootChildren = provider.getChildren(rootItem);
 
         assert.deepStrictEqual(
             rootChildren.map((item) => String(item.label)),
-            ['capabilities'],
-            'root should show capability folders, not raw artifact browse rows',
+            ['instructions', 'prompts', 'agents', 'skills'],
+            'root should show only repo-level artifact browse rows',
+        );
+        assert.ok(
+            rootChildren.every((item) => String(item.contextValue).startsWith('layerArtifactType:')),
+            'root children should be artifact browse rows',
         );
 
-        const capabilitiesChildren = provider.getChildren(rootChildren[0]);
+        const capabilitiesItem = repoChildren.find((item) => String(item.label) === 'capabilities');
+        assert.ok(capabilitiesItem, 'capabilities folder should be a root sibling');
+        const capabilitiesChildren = provider.getChildren(capabilitiesItem);
         const devtoolsItem = capabilitiesChildren.find((item) => String(item.label) === 'devtools');
         assert.ok(devtoolsItem, 'devtools branch should be reachable');
         const toolingItem = provider
