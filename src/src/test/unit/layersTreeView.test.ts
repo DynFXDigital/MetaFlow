@@ -2327,39 +2327,27 @@ suite('LayersTreeView – artifact-type children', () => {
 
         provider.setSearchQuery('developer');
 
-        const roots = provider.getChildren();
-        assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
-        assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
-
-        const repoChildren = provider.getChildren(roots[0]);
         assert.deepStrictEqual(
-            repoChildren.map((item) => String(item.label)),
-            ['capabilities'],
-        );
-        assert.strictEqual(repoChildren[0].collapsibleState, 2, 'capabilities should auto-expand');
-
-        const capabilityFolders = provider.getChildren(repoChildren[0]);
-        assert.deepStrictEqual(
-            capabilityFolders.map((item) => String(item.label)),
-            ['devtools'],
-            'non-matching capability folders should be hidden',
-        );
-        assert.strictEqual(capabilityFolders[0].collapsibleState, 2, 'ancestor should auto-expand');
-
-        const capabilityMatches = provider.getChildren(capabilityFolders[0]);
-        assert.deepStrictEqual(
-            capabilityMatches.map((item) => String(item.label)),
+            provider.getChildren().map((item) => String(item.label)),
             ['Developer Tooling'],
+            'only matching capability rows should remain visible',
         );
         assert.strictEqual(
-            capabilityMatches[0].collapsibleState,
-            1,
-            'matching capability should not be pre-expanded into artifact rows',
+            provider.getChildren()[0].collapsibleState,
+            0,
+            'matching capability should not be expandable into artifact rows while filtered',
         );
         assert.deepStrictEqual(
-            provider.getChildren(capabilityMatches[0]).map((item) => String(item.label)),
+            provider.getChildren(provider.getChildren()[0]).map((item) => String(item.label)),
             [],
             'capabilities search should not reveal artifact rows under matching capabilities',
+        );
+
+        provider.setSearchQuery('service');
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['Runtime Service'],
+            'previous matching capabilities should be removed as the query changes',
         );
 
         provider.setSearchQuery('instructions');
