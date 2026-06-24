@@ -8116,6 +8116,11 @@ export function registerCommands(
 
             writeManagedViewsState(ws.uri.fsPath, { filesViewMode: nextMode });
             await vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', nextMode);
+            try {
+                await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
+            } catch {
+                // Tests and partial activation hosts may not have registered the tree refresh hook.
+            }
             logInfo(`Effective Files view mode set to: ${nextMode}`);
         }),
     );
@@ -8133,6 +8138,11 @@ export function registerCommands(
 
             writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
             await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
+            try {
+                await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
+            } catch {
+                // Tests and partial activation hosts may not have registered the tree refresh hook.
+            }
             logInfo(`Layers view mode set to: ${nextMode}`);
         }),
     );

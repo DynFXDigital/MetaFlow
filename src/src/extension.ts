@@ -31,7 +31,12 @@ import {
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
 import { isBuiltInCapabilityActive } from './builtInCapability';
-import { extractLayerPath, extractRepoId, readManagedViewsState } from './commands/commandHelpers';
+import {
+    extractLayerPath,
+    extractRepoId,
+    readManagedViewsState,
+    writeManagedViewsState,
+} from './commands/commandHelpers';
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
@@ -44,10 +49,6 @@ type LayersViewMode = 'flat' | 'tree';
 
 type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
-};
-
-type NativeFindTreeProvider<T extends vscode.TreeItem> = SearchPreparedTreeProvider<T> & {
-    setNativeFindActive(value: boolean): void;
 };
 
 function getContextValue(item: vscode.TreeItem): string {
@@ -218,48 +219,27 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
-async function openNativeFindTreeFilter<T extends vscode.TreeItem>(
-    viewId: string,
-    provider: NativeFindTreeProvider<T>,
+async function openLayersTreeFilter<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: LayersTreeViewProvider & SearchPreparedTreeProvider<T>,
 ): Promise<void> {
-    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
-
-    try {
-        await vscode.commands.executeCommand(`${viewId}.focus`);
-    } catch {
-        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot) {
+        const currentMode = readManagedViewsState(workspaceRoot).layersViewMode;
+        if (currentMode !== 'flat') {
+            writeManagedViewsState(workspaceRoot, { layersViewMode: 'flat' });
+            await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', 'flat');
+            provider.refresh();
+        }
     }
 
-    provider.setNativeFindActive(true);
-    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', true);
-    await vscode.commands.executeCommand('list.find');
-}
-
-async function closeNativeFindTreeFilter<T extends vscode.TreeItem>(
-    viewId: string,
-    provider: NativeFindTreeProvider<T>,
-): Promise<void> {
-    try {
-        await vscode.commands.executeCommand('list.closeFind');
-    } catch {
-        // The find widget may already be closed when focus has returned to the tree.
-    }
-
-    provider.setNativeFindActive(false);
-    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
-
-    try {
-        await vscode.commands.executeCommand(`${viewId}.focus`);
-    } catch {
-        // Fall back to the current sidebar focus when the generated focus command is unavailable.
-    }
+    await openTreeViewFilter('metaflow-layers', treeView, provider);
 }
 
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
-    void vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -319,6 +299,13 @@ export function activate(context: vscode.ExtensionContext): void {
         filesTreeViewProvider.refresh();
         layersTreeViewProvider.refresh();
     };
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.refreshManagedViewModeContext',
+            syncManagedViewModeContext,
+        ),
+    );
 
     syncManagedViewModeContext();
     vscode.commands.executeCommand('setContext', 'metaflow.hasGitBackedRepo', false);
@@ -392,10 +379,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
-        }),
-        vscode.commands.registerCommand('metaflow.closeLayersFilter', async () => {
-            await closeNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
+            await openLayersTreeFilter(layersTreeView, layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
