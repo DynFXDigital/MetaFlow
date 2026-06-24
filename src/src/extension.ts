@@ -235,6 +235,12 @@ async function clearNativeFindTreeFilter<T extends vscode.TreeItem>(
     viewId: string,
     provider: NativeFindTreeProvider<T>,
 ): Promise<void> {
+    try {
+        await vscode.commands.executeCommand('list.closeFind');
+    } catch {
+        // Some hosts may not have a focused list find widget when clearing from the title action.
+    }
+
     provider.setNativeFindActive(false);
     await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
 
