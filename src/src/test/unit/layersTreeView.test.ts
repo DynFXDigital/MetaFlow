@@ -2292,29 +2292,81 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(provider.getStagedExpandPlan(), { stageOne: [], stageTwo: [] });
     });
 
-    test('LTV-SCH-01: tree search keeps only matching artifact branches and expands ancestors', () => {
+    test('LTV-SCH-01: tree search keeps matching capabilities without expanding artifact rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+                { repoId: 'repo1', path: 'capabilities/runtime/service' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/tooling': { name: 'Developer Tooling' },
+            'repo1/capabilities/runtime/service': { name: 'Runtime Service' },
+        };
         const provider = new LayersTreeViewProvider(
-            makeState(config, ALL_TYPES_FILES),
+            makeState(
+                config,
+                [
+                    makeEffectiveFile(
+                        'instructions/tooling.md',
+                        'repo1',
+                        'capabilities/devtools/tooling',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/service.md',
+                        'repo1',
+                        'capabilities/runtime/service',
+                    ),
+                ],
+                capabilityByLayer,
+            ),
             () => 'tree',
         );
 
-        provider.setSearchQuery('prompts');
+        provider.setSearchQuery('developer');
 
         const roots = provider.getChildren();
         assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
         assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
 
         const repoChildren = provider.getChildren(roots[0]);
-        assert.strictEqual(repoChildren.length, 1, 'expected a single visible layer');
-        assert.strictEqual(repoChildren[0].contextValue, 'layer');
-        assert.strictEqual(repoChildren[0].collapsibleState, 2, 'layer should auto-expand');
-
-        const layerChildren = provider.getChildren(repoChildren[0]);
         assert.deepStrictEqual(
-            layerChildren.map((item) => String(item.label)),
-            ['prompts'],
+            repoChildren.map((item) => String(item.label)),
+            ['capabilities'],
+        );
+        assert.strictEqual(repoChildren[0].collapsibleState, 2, 'capabilities should auto-expand');
+
+        const capabilityFolders = provider.getChildren(repoChildren[0]);
+        assert.deepStrictEqual(
+            capabilityFolders.map((item) => String(item.label)),
+            ['devtools'],
+            'non-matching capability folders should be hidden',
+        );
+        assert.strictEqual(capabilityFolders[0].collapsibleState, 2, 'ancestor should auto-expand');
+
+        const capabilityMatches = provider.getChildren(capabilityFolders[0]);
+        assert.deepStrictEqual(
+            capabilityMatches.map((item) => String(item.label)),
+            ['Developer Tooling'],
+        );
+        assert.strictEqual(
+            capabilityMatches[0].collapsibleState,
+            1,
+            'matching capability should not be pre-expanded into artifact rows',
+        );
+        assert.deepStrictEqual(
+            provider.getChildren(capabilityMatches[0]).map((item) => String(item.label)),
+            [],
+            'capabilities search should not reveal artifact rows under matching capabilities',
+        );
+
+        provider.setSearchQuery('instructions');
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'artifact-only matches should not keep non-matching capabilities visible',
         );
     });
 });
