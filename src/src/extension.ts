@@ -46,9 +46,8 @@ type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
 };
 
-type ProviderFilteredTreeProvider<T extends vscode.TreeItem> = SearchPreparedTreeProvider<T> & {
-    getSearchQuery(): string | undefined;
-    setSearchQuery(value: string | undefined): void;
+type NativeFindTreeProvider<T extends vscode.TreeItem> = SearchPreparedTreeProvider<T> & {
+    setNativeFindActive(value: boolean): void;
 };
 
 function getContextValue(item: vscode.TreeItem): string {
@@ -215,10 +214,9 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
-async function openProviderTreeFilter<T extends vscode.TreeItem>(
+async function openNativeFindTreeFilter<T extends vscode.TreeItem>(
     viewId: string,
-    provider: ProviderFilteredTreeProvider<T>,
-    title: string,
+    provider: NativeFindTreeProvider<T>,
 ): Promise<void> {
     await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
 
@@ -228,34 +226,30 @@ async function openProviderTreeFilter<T extends vscode.TreeItem>(
         // Fall back to the current sidebar focus when the generated focus command is unavailable.
     }
 
-    const input = vscode.window.createInputBox();
-    const disposables: vscode.Disposable[] = [];
-    input.title = title;
-    input.placeholder = 'Type to filter';
-    input.value = provider.getSearchQuery() ?? '';
-    disposables.push(
-        input.onDidChangeValue((value) => {
-            provider.setSearchQuery(value);
-        }),
-        input.onDidAccept(() => {
-            input.hide();
-        }),
-        input.onDidHide(() => {
-            provider.setSearchQuery(undefined);
-            for (const disposable of disposables) {
-                disposable.dispose();
-            }
-            input.dispose();
-        }),
-    );
-    provider.setSearchQuery(input.value);
-    input.show();
+    provider.setNativeFindActive(true);
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', true);
+    await vscode.commands.executeCommand('list.find');
+}
+
+async function clearNativeFindTreeFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    provider: NativeFindTreeProvider<T>,
+): Promise<void> {
+    provider.setNativeFindActive(false);
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
 }
 
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
+    void vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -388,11 +382,10 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openProviderTreeFilter(
-                'metaflow-layers',
-                layersTreeViewProvider,
-                'Filter Capabilities',
-            );
+            await openNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.clearLayersFilter', async () => {
+            await clearNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
