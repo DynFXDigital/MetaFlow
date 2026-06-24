@@ -59,6 +59,15 @@ const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'agents',
     'skills',
 ]);
+const RESERVED_LAYER_TERMINAL_SEGMENTS = new Set<string>([
+    ...KNOWN_ARTIFACT_TYPES,
+    'hooks',
+    'chatmodes',
+    '.github',
+    '.agents',
+    '.claude',
+    '.codex',
+]);
 
 interface ParsedMetadata {
     fields?: Record<string, string>;
@@ -173,6 +182,17 @@ function pathStartsWith(candidate: string, prefix: string): boolean {
         normalizedCandidate === normalizedPrefix ||
         normalizedCandidate.startsWith(`${normalizedPrefix}/`)
     );
+}
+
+function isReservedArtifactContainerLayerPath(layerPath: string): boolean {
+    const normalized = normalizeRelativePath(layerPath);
+    if (normalized === '.') {
+        return false;
+    }
+
+    const segments = normalized.split('/').filter(Boolean);
+    const terminalSegment = segments[segments.length - 1];
+    return RESERVED_LAYER_TERMINAL_SEGMENTS.has(terminalSegment);
 }
 
 function toDisplayTitleFromSlug(value: string): string {
@@ -1393,6 +1413,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 const layerId = `${ls.repoId}/${ls.path}`;
                 const capability = capabilityByLayer.get(this.normalizeLayerId(layerId));
                 const normalizedPath = this.normalizeLayerPath(ls.path);
+                if (isReservedArtifactContainerLayerPath(normalizedPath)) {
+                    return acc;
+                }
                 const summary = this.state.treeSummaryCache
                     ? this.summarizePath(ls.repoId, normalizedPath)
                     : undefined;
@@ -1435,6 +1458,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 const normalizedLayerId = this.normalizeLayerId(layer);
                 const capability = capabilityByLayer.get(normalizedLayerId);
                 const normalizedPath = this.normalizeLayerPath(layer);
+                if (isReservedArtifactContainerLayerPath(normalizedPath)) {
+                    return acc;
+                }
                 const summary = this.state.treeSummaryCache
                     ? this.summarizePath('primary', normalizedPath)
                     : undefined;
@@ -2018,8 +2044,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 ? entries.filter((entry) => entry.repoId === element.repoId)
                 : entries.filter((entry) => entry.repoId === undefined);
 
-            // A node can be both a concrete layer (has layerIndex) and a folder with child layers.
-            // In that case, expose both descendants and artifact-type browse rows.
+            // Branch nodes stay structural; leaf capability nodes expose artifact-type browse rows.
             const folderChildren = this.getTreeChildrenForPrefix(
                 repoEntries,
                 parentPath,
@@ -2040,7 +2065,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     return this.trackChildren(artifactChildren, element);
                 }
 
-                return this.trackChildren([...folderChildren, ...artifactChildren], element);
+                return this.trackChildren(
+                    folderChildren.length > 0 ? folderChildren : artifactChildren,
+                    element,
+                );
             }
 
             return this.trackChildren(folderChildren, element);

@@ -374,6 +374,10 @@ function isKnownArtifactPath(relativePath: string): boolean {
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
 }
 
+function isKnownArtifactRootDirectory(directoryName: string): boolean {
+    return KNOWN_ARTIFACT_ROOTS.has(directoryName);
+}
+
 /**
  * Discover layer directories in a repository by finding directories
  * that directly contain known artifact roots.
@@ -438,6 +442,9 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         for (const entry of entries) {
             const fullPath = path.join(currentDir, entry.name);
             if (getEntryKind(entry, fullPath) !== 'directory') {
+                continue;
+            }
+            if (isKnownArtifactRootDirectory(entry.name)) {
                 continue;
             }
             if (entry.name.startsWith('.') && entry.name !== '.github') {

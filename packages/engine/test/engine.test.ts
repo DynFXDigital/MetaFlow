@@ -450,6 +450,31 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/empty-capability']);
     });
 
+    it('does not discover artifact roots as standalone layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
+        fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoRoot, 'prompts'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'agents'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'skills', 'review-skill'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'real-capability'), {
+            recursive: true,
+        });
+        fs.writeFileSync(path.join(repoRoot, 'CAPABILITY.md'), '# Root Capability');
+        fs.writeFileSync(
+            path.join(repoRoot, 'instructions', 'nested-capability', 'CAPABILITY.md'),
+            '# Not a discovered layer',
+        );
+        fs.writeFileSync(
+            path.join(repoRoot, 'capabilities', 'real-capability', 'CAPABILITY.md'),
+            '# Real Capability',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['.', 'capabilities/real-capability']);
+    });
+
     it('classifies deprecated chatmodes as Synchronized-only', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
