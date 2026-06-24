@@ -273,6 +273,11 @@
         "icon": "$(search)"
       },
       {
+        "command": "metaflow.clearLayersFilter",
+        "title": "MetaFlow: Clear Capabilities Filter",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "metaflow.collapseAllFiles",
         "title": "Collapse",
         "icon": "$(collapse-all)"
@@ -450,7 +455,12 @@
         },
         {
           "command": "metaflow.openLayersFilter",
-          "when": "view == metaflow-layers",
+          "when": "view == metaflow-layers && !metaflow.layersNativeFilterActive",
+          "group": "navigation@3"
+        },
+        {
+          "command": "metaflow.clearLayersFilter",
+          "when": "view == metaflow-layers && metaflow.layersNativeFilterActive",
           "group": "navigation@3"
         },
         {

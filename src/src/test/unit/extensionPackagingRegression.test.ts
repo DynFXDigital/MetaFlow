@@ -330,12 +330,20 @@ suite('Extension Packaging Regression Guards', () => {
         const layersFilterCommand = commands.find(
             (entry) => entry.command === 'metaflow.openLayersFilter',
         );
+        const layersClearFilterCommand = commands.find(
+            (entry) => entry.command === 'metaflow.clearLayersFilter',
+        );
         const filesFilterCommand = commands.find(
             (entry) => entry.command === 'metaflow.openFilesFilter',
         );
 
         assert.ok(layersFilterCommand, 'Expected metaflow.openLayersFilter command contribution');
         assert.strictEqual(layersFilterCommand?.icon, '$(search)');
+        assert.ok(
+            layersClearFilterCommand,
+            'Expected metaflow.clearLayersFilter command contribution',
+        );
+        assert.strictEqual(layersClearFilterCommand?.icon, '$(clear-all)');
         assert.ok(filesFilterCommand, 'Expected metaflow.openFilesFilter command contribution');
         assert.strictEqual(filesFilterCommand?.icon, '$(search)');
 
@@ -344,9 +352,17 @@ suite('Extension Packaging Regression Guards', () => {
             titleMenuEntries.some(
                 (entry) =>
                     entry.command === 'metaflow.openLayersFilter' &&
-                    entry.when === 'view == metaflow-layers',
+                    entry.when === 'view == metaflow-layers && !metaflow.layersNativeFilterActive',
             ),
             'Expected filter action in the Capabilities view title menu',
+        );
+        assert.ok(
+            titleMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.clearLayersFilter' &&
+                    entry.when === 'view == metaflow-layers && metaflow.layersNativeFilterActive',
+            ),
+            'Expected clear filter action in the Capabilities view title menu',
         );
         assert.ok(
             titleMenuEntries.some(
