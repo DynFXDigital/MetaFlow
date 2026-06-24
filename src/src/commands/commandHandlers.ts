@@ -313,6 +313,16 @@ function getWorkspace(): vscode.WorkspaceFolder | undefined {
     );
 }
 
+function getManagedViewWorkspace(): vscode.WorkspaceFolder | undefined {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+        vscode.window.showErrorMessage('MetaFlow: No workspace folder open.');
+        return undefined;
+    }
+
+    return folders[0];
+}
+
 function readManagedSettingsState(context: vscode.ExtensionContext): ManagedSettingsState {
     const raw = context.workspaceState.get<unknown>(SETTINGS_INJECTION_STATE_KEY);
     if (!raw || typeof raw !== 'object') {
@@ -8106,7 +8116,7 @@ export function registerCommands(
     // ── metaflow.toggleFilesViewMode ───────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleFilesViewMode', async () => {
-            const ws = getWorkspace();
+            const ws = getManagedViewWorkspace();
             if (!ws) {
                 return;
             }
@@ -8125,10 +8135,45 @@ export function registerCommands(
         }),
     );
 
+    async function setLayersViewMode(ws: vscode.WorkspaceFolder, nextMode: LayersViewMode): Promise<void> {
+        writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
+        await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
+        try {
+            await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
+        } catch {
+            // Tests and partial activation hosts may not have registered the tree refresh hook.
+        }
+        logInfo(`Layers view mode set to: ${nextMode}`);
+    }
+
+    // ── metaflow.showLayersFlatMode ────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.showLayersFlatMode', async () => {
+            const ws = getManagedViewWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            await setLayersViewMode(ws, 'flat');
+        }),
+    );
+
+    // ── metaflow.showLayersTreeMode ────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.showLayersTreeMode', async () => {
+            const ws = getManagedViewWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            await setLayersViewMode(ws, 'tree');
+        }),
+    );
+
     // ── metaflow.toggleLayersViewMode ──────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleLayersViewMode', async () => {
-            const ws = getWorkspace();
+            const ws = getManagedViewWorkspace();
             if (!ws) {
                 return;
             }
@@ -8136,14 +8181,7 @@ export function registerCommands(
             const currentMode = readManagedViewsState(ws.uri.fsPath).layersViewMode;
             const nextMode: LayersViewMode = currentMode === 'flat' ? 'tree' : 'flat';
 
-            writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
-            await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
-            try {
-                await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
-            } catch {
-                // Tests and partial activation hosts may not have registered the tree refresh hook.
-            }
-            logInfo(`Layers view mode set to: ${nextMode}`);
+            await setLayersViewMode(ws, nextMode);
         }),
     );
 
