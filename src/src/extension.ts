@@ -219,6 +219,37 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
+function waitForTreeViewRefresh(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 150));
+}
+
+let layersFindModeForcedToFilter = false;
+
+async function forceLayersFindModeToFilter(): Promise<void> {
+    const defaultFindMode = vscode.workspace
+        .getConfiguration('workbench.list')
+        .get<string>('defaultFindMode', 'highlight');
+
+    if (defaultFindMode === 'filter' || layersFindModeForcedToFilter) {
+        return;
+    }
+
+    await vscode.commands.executeCommand('list.toggleFindMode');
+    layersFindModeForcedToFilter = true;
+}
+
+async function focusFirstTreeItem<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    const firstItem = provider.getChildren()[0];
+    if (!firstItem) {
+        return;
+    }
+
+    await treeView.reveal(firstItem, { focus: true, select: false, expand: false });
+}
+
 async function openLayersTreeFilter<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: LayersTreeViewProvider & SearchPreparedTreeProvider<T>,
@@ -233,7 +264,31 @@ async function openLayersTreeFilter<T extends vscode.TreeItem>(
         }
     }
 
-    await openTreeViewFilter('metaflow-layers', treeView, provider);
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand('metaflow-layers.focus');
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    await waitForTreeViewRefresh();
+
+    try {
+        await vscode.commands.executeCommand('workbench.actions.treeView.metaflow-layers.collapseAll');
+    } catch {
+        // Some VS Code hosts may not expose generated collapse-all commands.
+    }
+
+    await waitForTreeViewRefresh();
+    await focusFirstTreeItem(treeView, provider).catch((error: unknown) => {
+        logWarn(`MetaFlow: Tree search focus failed: ${String(error)}`);
+    });
+    await waitForTreeViewRefresh();
+    await vscode.commands.executeCommand('list.focusFirst');
+    await waitForTreeViewRefresh();
+    await forceLayersFindModeToFilter();
+    await vscode.commands.executeCommand('list.find');
 }
 
 // ── Activation ─────────────────────────────────────────────────────

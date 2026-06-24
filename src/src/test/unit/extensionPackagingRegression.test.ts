@@ -493,7 +493,8 @@ suite('Extension Packaging Regression Guards', () => {
             titleMenuEntries
                 .filter((entry) =>
                     [
-                        'metaflow.toggleLayersViewMode',
+                        'metaflow.showLayersFlatMode',
+                        'metaflow.showLayersTreeMode',
                         'metaflow.collapseAllLayers',
                         'metaflow.expandAllLayers',
                     ].includes(entry.command),
@@ -510,7 +511,11 @@ suite('Extension Packaging Regression Guards', () => {
             filesEntries.get('metaflow.expandAllFiles'),
         );
         assert.strictEqual(
-            layersEntries.get('metaflow.toggleLayersViewMode'),
+            layersEntries.get('metaflow.showLayersFlatMode'),
+            filesEntries.get('metaflow.toggleFilesViewMode'),
+        );
+        assert.strictEqual(
+            layersEntries.get('metaflow.showLayersTreeMode'),
             filesEntries.get('metaflow.toggleFilesViewMode'),
         );
     });

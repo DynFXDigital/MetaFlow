@@ -258,6 +258,16 @@
         "icon": "$(list-tree)"
       },
       {
+        "command": "metaflow.showLayersTreeMode",
+        "title": "MetaFlow: Show Capabilities Tree View",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "metaflow.showLayersFlatMode",
+        "title": "MetaFlow: Show Capabilities Flat View",
+        "icon": "$(list-flat)"
+      },
+      {
         "command": "metaflow.collapseAllLayers",
         "title": "Collapse",
         "icon": "$(collapse-all)"
@@ -454,8 +464,13 @@
           "group": "navigation@3"
         },
         {
-          "command": "metaflow.toggleLayersViewMode",
-          "when": "view == metaflow-layers",
+          "command": "metaflow.showLayersFlatMode",
+          "when": "view == metaflow-layers && metaflow.layersViewMode == tree",
+          "group": "navigation@5"
+        },
+        {
+          "command": "metaflow.showLayersTreeMode",
+          "when": "view == metaflow-layers && metaflow.layersViewMode == flat",
           "group": "navigation@5"
         },
         {
