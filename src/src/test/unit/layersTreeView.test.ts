@@ -1005,7 +1005,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(labels, ['instructions', 'skills']);
     });
 
-    test('LTV-AT-11: mixed layer/folder node shows descendant layers and artifact browse rows', () => {
+    test('LTV-AT-11: mixed layer/folder node prefers descendant layers over artifact browse rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
@@ -1029,10 +1029,17 @@ suite('LayersTreeView – artifact-type children', () => {
         const capabilitiesChildren = provider.getChildren(capabilitiesNode);
         const childLabels = capabilitiesChildren.map((c) => String(c.label));
 
-        assert.ok(childLabels.includes('devtools'), 'should include descendant layer folder');
-        assert.ok(
-            childLabels.includes('instructions'),
-            'should include artifact type from capabilities layer',
+        assert.deepStrictEqual(
+            childLabels,
+            ['devtools'],
+            'branch layer should show descendant capability folders only',
+        );
+
+        const [devtoolsNode] = capabilitiesChildren;
+        assert.deepStrictEqual(
+            provider.getChildren(devtoolsNode).map((c) => String(c.label)),
+            ['prompts'],
+            'leaf layer should still show artifact browse rows',
         );
     });
 
@@ -2209,6 +2216,54 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.ok(
             !plan.stageOne.concat(plan.stageTwo).some((item) => String(item.label) === 'skills'),
             'skill folders should never be auto-expanded by the staged plan',
+        );
+    });
+
+    test('LTV-SEA-01b: tree branch nodes do not mix artifact browse rows with capability folders', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: '.' },
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+            ],
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [
+                makeEffectiveFile('instructions/a.md', 'repo1', '.'),
+                makeEffectiveFile('prompts/b.md', 'repo1', '.'),
+                makeEffectiveFile('agents/c.md', 'repo1', '.'),
+                makeEffectiveFile('skills/d.md', 'repo1', '.'),
+                makeEffectiveFile(
+                    'instructions/tooling.md',
+                    'repo1',
+                    'capabilities/devtools/tooling',
+                ),
+            ]),
+            () => 'tree',
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const rootItem = provider.getChildren(repoItem)[0];
+        const rootChildren = provider.getChildren(rootItem);
+
+        assert.deepStrictEqual(
+            rootChildren.map((item) => String(item.label)),
+            ['capabilities'],
+            'root should show capability folders, not raw artifact browse rows',
+        );
+
+        const capabilitiesChildren = provider.getChildren(rootChildren[0]);
+        const devtoolsItem = capabilitiesChildren.find((item) => String(item.label) === 'devtools');
+        assert.ok(devtoolsItem, 'devtools branch should be reachable');
+        const toolingItem = provider
+            .getChildren(devtoolsItem)
+            .find((item) => String(item.label) === 'tooling');
+        assert.ok(toolingItem, 'leaf capability should be reachable');
+        assert.deepStrictEqual(
+            provider.getChildren(toolingItem).map((item) => String(item.label)),
+            ['instructions'],
+            'leaf capability should still expose artifact browse rows',
         );
     });
 
