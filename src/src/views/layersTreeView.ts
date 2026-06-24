@@ -838,6 +838,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     private readonly parsedMetadataByPath = new Map<string, ParsedMetadata | null>();
     private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
     private searchQuery: string | undefined;
+    private nativeFindActive = false;
     private searchVersion = 0;
 
     constructor(
@@ -870,6 +871,23 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     getSearchQuery(): string | undefined {
         return this.searchQuery;
+    }
+
+    setNativeFindActive(value: boolean): void {
+        if (this.nativeFindActive === value) {
+            return;
+        }
+
+        this.nativeFindActive = value;
+        if (value) {
+            this.searchQuery = undefined;
+        }
+        this.searchVersion += 1;
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    isNativeFindActive(): boolean {
+        return this.nativeFindActive;
     }
 
     getTreeItem(element: LayerTreeItem): vscode.TreeItem {
@@ -963,7 +981,20 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return !(element instanceof LayerItem && typeof element.layerIndex === 'number');
     }
 
-    private getFlatTreeSearchMatches(element?: LayerTreeItem): LayerTreeItem[] {
+    private prepareNativeFindCandidate<T extends LayerTreeItem>(element: T): T {
+        element.description = undefined;
+        element.tooltip = undefined;
+        element.accessibilityInformation = {
+            label: String(element.label ?? ''),
+            role: element.accessibilityInformation?.role,
+        };
+        return element;
+    }
+
+    private getFlatTreeSearchMatches(
+        element?: LayerTreeItem,
+        options: { nativeFind?: boolean } = {},
+    ): LayerTreeItem[] {
         const matches: LayerTreeItem[] = [];
         for (const child of this.getChildrenCore(element)) {
             if (child instanceof ArtifactTypeLayerItem) {
@@ -977,11 +1008,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 if (typeof child.id === 'string' && child.id.length > 0) {
                     child.id = `${child.id}|search:${this.searchVersion}`;
                 }
-                matches.push(child);
+                matches.push(options.nativeFind ? this.prepareNativeFindCandidate(child) : child);
             }
 
             if (canDescend) {
-                matches.push(...this.getFlatTreeSearchMatches(child));
+                matches.push(...this.getFlatTreeSearchMatches(child, options));
             }
         }
 
@@ -989,6 +1020,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     private getSearchFilteredChildren(element?: LayerTreeItem): LayerTreeItem[] {
+        if (this.nativeFindActive && this.modeResolver() === 'tree') {
+            return element
+                ? []
+                : this.trackChildren(
+                      this.getFlatTreeSearchMatches(undefined, { nativeFind: true }),
+                      undefined,
+                  );
+        }
+
         if (this.searchQuery && this.modeResolver() === 'tree') {
             return element ? [] : this.trackChildren(this.getFlatTreeSearchMatches(), undefined);
         }
@@ -2215,7 +2255,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
-        return this.searchQuery ? this.getSearchFilteredChildren(element) : this.getChildrenCore(element);
+        return this.searchQuery || this.nativeFindActive
+            ? this.getSearchFilteredChildren(element)
+            : this.getChildrenCore(element);
     }
 
     getExpandAllStrategy(): ExpandAllStrategy {

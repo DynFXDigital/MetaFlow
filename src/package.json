@@ -836,6 +836,11 @@
         "when": "sideBarFocus && focusedView == 'metaflow-layers'"
       },
       {
+        "command": "metaflow.closeLayersFilter",
+        "key": "escape",
+        "when": "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive"
+      },
+      {
         "command": "metaflow.openFilesFilter",
         "key": "ctrl+f",
         "mac": "cmd+f",

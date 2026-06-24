@@ -111,6 +111,7 @@ type LayersTreeViewModule = {
         };
         getParent(element: MockLayerTreeItem): MockLayerTreeItem | undefined;
         setSearchQuery(value: string | undefined): void;
+        setNativeFindActive(value: boolean): void;
     };
 };
 
@@ -2355,6 +2356,72 @@ suite('LayersTreeView – artifact-type children', () => {
             provider.getChildren().map((item) => String(item.label)),
             [],
             'artifact-only matches should not keep non-matching capabilities visible',
+        );
+    });
+
+    test('LTV-SCH-02: native find mode exposes label-only flat capability candidates', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+                { repoId: 'repo1', path: 'capabilities/runtime/service' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/tooling': { name: 'Developer Tooling' },
+            'repo1/capabilities/runtime/service': { name: 'Runtime Service' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                config,
+                [
+                    makeEffectiveFile(
+                        'instructions/tooling.md',
+                        'repo1',
+                        'capabilities/devtools/tooling',
+                    ),
+                    makeEffectiveFile(
+                        'skills/service/SKILL.md',
+                        'repo1',
+                        'capabilities/runtime/service',
+                    ),
+                ],
+                capabilityByLayer,
+            ),
+            () => 'tree',
+        );
+
+        provider.setNativeFindActive(true);
+
+        const candidates = provider.getChildren();
+        assert.deepStrictEqual(
+            candidates.map((item) => String(item.label)),
+            ['Developer Tooling', 'Runtime Service'],
+            'native find should receive only flat capability candidates',
+        );
+        assert.ok(
+            candidates.every(
+                (item) =>
+                    item.collapsibleState === mockVscode.TreeItemCollapsibleState.None,
+            ),
+            'native find candidates should not expand into artifact rows',
+        );
+        assert.ok(
+            candidates.every((item) => item.description === undefined && item.tooltip === undefined),
+            'native find candidates should not expose metadata descriptions as match text',
+        );
+        assert.deepStrictEqual(
+            provider.getChildren(candidates[0]).map((item) => String(item.label)),
+            [],
+            'native find candidates should not expose children',
+        );
+
+        provider.setNativeFindActive(false);
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['CoreMeta'],
+            'clearing native find mode should restore the normal tree',
         );
     });
 
