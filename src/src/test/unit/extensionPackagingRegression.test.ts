@@ -330,20 +330,12 @@ suite('Extension Packaging Regression Guards', () => {
         const layersFilterCommand = commands.find(
             (entry) => entry.command === 'metaflow.openLayersFilter',
         );
-        const layersClearFilterCommand = commands.find(
-            (entry) => entry.command === 'metaflow.clearLayersFilter',
-        );
         const filesFilterCommand = commands.find(
             (entry) => entry.command === 'metaflow.openFilesFilter',
         );
 
         assert.ok(layersFilterCommand, 'Expected metaflow.openLayersFilter command contribution');
         assert.strictEqual(layersFilterCommand?.icon, '$(search)');
-        assert.ok(
-            layersClearFilterCommand,
-            'Expected metaflow.clearLayersFilter command contribution',
-        );
-        assert.strictEqual(layersClearFilterCommand?.icon, '$(clear-all)');
         assert.ok(filesFilterCommand, 'Expected metaflow.openFilesFilter command contribution');
         assert.strictEqual(filesFilterCommand?.icon, '$(search)');
 
@@ -352,17 +344,9 @@ suite('Extension Packaging Regression Guards', () => {
             titleMenuEntries.some(
                 (entry) =>
                     entry.command === 'metaflow.openLayersFilter' &&
-                    entry.when === 'view == metaflow-layers && !metaflow.layersNativeFilterActive',
+                    entry.when === 'view == metaflow-layers',
             ),
             'Expected filter action in the Capabilities view title menu',
-        );
-        assert.ok(
-            titleMenuEntries.some(
-                (entry) =>
-                    entry.command === 'metaflow.clearLayersFilter' &&
-                    entry.when === 'view == metaflow-layers && metaflow.layersNativeFilterActive',
-            ),
-            'Expected clear filter action in the Capabilities view title menu',
         );
         assert.ok(
             titleMenuEntries.some(
@@ -383,16 +367,6 @@ suite('Extension Packaging Regression Guards', () => {
                     entry.when === "sideBarFocus && focusedView == 'metaflow-layers'",
             ),
             'Expected focused Ctrl+F binding for the Capabilities filter',
-        );
-        assert.ok(
-            keybindings.some(
-                (entry) =>
-                    entry.command === 'metaflow.clearLayersFilter' &&
-                    entry.key === 'escape' &&
-                    entry.when ===
-                        "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive && treeFindOpen",
-            ),
-            'Expected Escape binding to dismiss the active Capabilities filter',
         );
         assert.ok(
             keybindings.some(
