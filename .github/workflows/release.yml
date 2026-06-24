@@ -134,8 +134,9 @@ jobs:
             find artifacts -maxdepth 3 -type f
             exit 1
           fi
-          echo "vsix_path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
-          echo "Downloaded VSIX: $VSIX_PATH"
+          ABS_VSIX_PATH="$GITHUB_WORKSPACE/$VSIX_PATH"
+          echo "vsix_path=$ABS_VSIX_PATH" >> "$GITHUB_OUTPUT"
+          echo "Downloaded VSIX: $ABS_VSIX_PATH"
 
       - name: Detect publish targets
         id: targets
