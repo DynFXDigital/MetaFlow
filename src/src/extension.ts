@@ -55,6 +55,10 @@ function isArtifactTypeNode(item: vscode.TreeItem): boolean {
     return contextValue === 'artifactTypeFolder' || contextValue.startsWith('layerArtifactType:');
 }
 
+function isConcreteCapabilityNode(item: vscode.TreeItem): boolean {
+    return getContextValue(item) === 'layer';
+}
+
 function isCapabilitySearchBoundary(
     item: vscode.TreeItem,
     children: readonly vscode.TreeItem[],
@@ -147,6 +151,12 @@ async function revealSearchBranches<T extends vscode.TreeItem>(
             continue;
         }
 
+        if (isConcreteCapabilityNode(child)) {
+            await treeView.reveal(child, { expand: 1, select: true, focus: true });
+            await vscode.commands.executeCommand('list.collapse');
+            continue;
+        }
+
         await treeView.reveal(child, { expand: 1, select: false, focus: false });
 
         const children = provider.getChildren(child);
@@ -194,11 +204,10 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
         // Fall back to the current sidebar focus when the generated focus command is unavailable.
     }
 
-    await vscode.commands.executeCommand('list.find');
-
-    void prepareTreeViewFilter(treeView, provider).catch((error: unknown) => {
+    await prepareTreeViewFilter(treeView, provider).catch((error: unknown) => {
         logWarn(`MetaFlow: Tree search preload failed: ${String(error)}`);
     });
+    await vscode.commands.executeCommand('list.find');
 }
 
 // ── Activation ─────────────────────────────────────────────────────
