@@ -124,6 +124,19 @@ jobs:
           name: ${{ needs.verify.outputs.vsix_name }}
           path: artifacts
 
+      - name: Resolve downloaded VSIX path
+        id: downloaded_vsix
+        shell: bash
+        run: |
+          VSIX_PATH="$(find artifacts -name '*.vsix' | head -1)"
+          if [ -z "$VSIX_PATH" ]; then
+            echo "No VSIX found after artifact download."
+            find artifacts -maxdepth 3 -type f
+            exit 1
+          fi
+          echo "vsix_path=$VSIX_PATH" >> "$GITHUB_OUTPUT"
+          echo "Downloaded VSIX: $VSIX_PATH"
+
       - name: Detect publish targets
         id: targets
         shell: bash
@@ -149,7 +162,7 @@ jobs:
           [ "${{ inputs.channel }}" = "prerelease" ] && PRE_FLAG="--pre-release"
           npm exec --workspace src vsce -- publish \
             $PRE_FLAG \
-            --packagePath "artifacts/${{ needs.verify.outputs.vsix_name }}" \
+            --packagePath "${{ steps.downloaded_vsix.outputs.vsix_path }}" \
             --skip-duplicate \
             -p "$VSCE_PAT"
 
@@ -162,7 +175,7 @@ jobs:
           PRE_FLAG=""
           [ "${{ inputs.channel }}" = "prerelease" ] && PRE_FLAG="--pre-release"
           npx ovsx publish \
-            "artifacts/${{ needs.verify.outputs.vsix_name }}" \
+            "${{ steps.downloaded_vsix.outputs.vsix_path }}" \
             $PRE_FLAG \
             --skip-duplicate \
             -p "$OVSX_PAT"
@@ -189,7 +202,7 @@ jobs:
           TAG="${{ needs.verify.outputs.tag }}"
           EXTRA=""
           [ "${{ inputs.channel }}" = "prerelease" ] && EXTRA="--prerelease"
-          VSIX_PATH="artifacts/${{ needs.verify.outputs.vsix_name }}"
+          VSIX_PATH="${{ steps.downloaded_vsix.outputs.vsix_path }}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$VSIX_PATH" --clobber
           else
