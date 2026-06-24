@@ -989,7 +989,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             }
 
             const canDescend = this.canSearchDescendInto(child);
-            if (this.matchesSearch(child)) {
+            const isCapability = child instanceof LayerItem && typeof child.layerIndex === 'number';
+            if (isCapability && this.matchesSearch(child)) {
                 child.collapsibleState = vscode.TreeItemCollapsibleState.None;
                 if (typeof child.id === 'string' && child.id.length > 0) {
                     child.id = `${child.id}|search:${this.searchVersion}`;

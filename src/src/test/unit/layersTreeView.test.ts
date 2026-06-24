@@ -2397,15 +2397,8 @@ suite('LayersTreeView – artifact-type children', () => {
         const visibleLabels = provider.getChildren().map((item) => String(item.label));
         assert.deepStrictEqual(
             visibleLabels,
-            [
-                'CoreMeta',
-                'capabilities',
-                'devtools',
-                'Developer Tooling',
-                'runtime',
-                'Runtime Service',
-            ],
-            'native find should receive a flat list instead of a nested hierarchy',
+            ['Developer Tooling', 'Runtime Service'],
+            'native find should receive a flat capability list instead of a nested hierarchy',
         );
         assert.ok(
             provider.getChildren().every(
