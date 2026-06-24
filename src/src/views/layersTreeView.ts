@@ -963,14 +963,33 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return !(element instanceof LayerItem && typeof element.layerIndex === 'number');
     }
 
+    private getFlatTreeSearchMatches(element?: LayerTreeItem): LayerTreeItem[] {
+        const matches: LayerTreeItem[] = [];
+        for (const child of this.getChildrenCore(element)) {
+            if (child instanceof ArtifactTypeLayerItem) {
+                continue;
+            }
+
+            const canDescend = this.canSearchDescendInto(child);
+            if (this.matchesSearch(child)) {
+                child.collapsibleState = vscode.TreeItemCollapsibleState.None;
+                if (typeof child.id === 'string' && child.id.length > 0) {
+                    child.id = `${child.id}|search:${this.searchVersion}`;
+                }
+                matches.push(child);
+            }
+
+            if (canDescend) {
+                matches.push(...this.getFlatTreeSearchMatches(child));
+            }
+        }
+
+        return matches;
+    }
+
     private getSearchFilteredChildren(element?: LayerTreeItem): LayerTreeItem[] {
-        if (
-            this.searchQuery &&
-            this.modeResolver() === 'tree' &&
-            element instanceof LayerItem &&
-            typeof element.layerIndex === 'number'
-        ) {
-            return [];
+        if (this.searchQuery && this.modeResolver() === 'tree') {
+            return element ? [] : this.trackChildren(this.getFlatTreeSearchMatches(), undefined);
         }
 
         const children = this.getChildrenCore(element);

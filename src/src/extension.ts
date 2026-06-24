@@ -46,6 +46,11 @@ type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
 };
 
+type ProviderFilteredTreeProvider<T extends vscode.TreeItem> = SearchPreparedTreeProvider<T> & {
+    getSearchQuery(): string | undefined;
+    setSearchQuery(value: string | undefined): void;
+};
+
 function getContextValue(item: vscode.TreeItem): string {
     return typeof item.contextValue === 'string' ? item.contextValue : '';
 }
@@ -210,6 +215,43 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
+async function openProviderTreeFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    provider: ProviderFilteredTreeProvider<T>,
+    title: string,
+): Promise<void> {
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    const input = vscode.window.createInputBox();
+    const disposables: vscode.Disposable[] = [];
+    input.title = title;
+    input.placeholder = 'Type to filter';
+    input.value = provider.getSearchQuery() ?? '';
+    disposables.push(
+        input.onDidChangeValue((value) => {
+            provider.setSearchQuery(value);
+        }),
+        input.onDidAccept(() => {
+            input.hide();
+        }),
+        input.onDidHide(() => {
+            provider.setSearchQuery(undefined);
+            for (const disposable of disposables) {
+                disposable.dispose();
+            }
+            input.dispose();
+        }),
+    );
+    provider.setSearchQuery(input.value);
+    input.show();
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -346,7 +388,11 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openTreeViewFilter('metaflow-layers', layersTreeView, layersTreeViewProvider);
+            await openProviderTreeFilter(
+                'metaflow-layers',
+                layersTreeViewProvider,
+                'Filter Capabilities',
+            );
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
