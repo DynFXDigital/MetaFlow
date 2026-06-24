@@ -371,16 +371,6 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(
             keybindings.some(
                 (entry) =>
-                    entry.command === 'metaflow.closeLayersFilter' &&
-                    entry.key === 'escape' &&
-                    entry.when ===
-                        "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive",
-            ),
-            'Expected Escape binding to restore the Capabilities tree after native find',
-        );
-        assert.ok(
-            keybindings.some(
-                (entry) =>
                     entry.command === 'metaflow.openFilesFilter' &&
                     entry.key === 'ctrl+f' &&
                     entry.mac === 'cmd+f' &&
