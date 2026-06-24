@@ -951,7 +951,28 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return element;
     }
 
+    private canSearchDescendInto(element: LayerTreeItem): boolean {
+        if (element.collapsibleState === vscode.TreeItemCollapsibleState.None) {
+            return false;
+        }
+
+        if (this.modeResolver() !== 'tree') {
+            return true;
+        }
+
+        return !(element instanceof LayerItem && typeof element.layerIndex === 'number');
+    }
+
     private getSearchFilteredChildren(element?: LayerTreeItem): LayerTreeItem[] {
+        if (
+            this.searchQuery &&
+            this.modeResolver() === 'tree' &&
+            element instanceof LayerItem &&
+            typeof element.layerIndex === 'number'
+        ) {
+            return [];
+        }
+
         const children = this.getChildrenCore(element);
         if (!this.searchQuery) {
             return children;
@@ -959,9 +980,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
         return children.filter((child) => {
             const descendantMatches =
-                child.collapsibleState === vscode.TreeItemCollapsibleState.None
-                    ? []
-                    : this.getSearchFilteredChildren(child);
+                this.canSearchDescendInto(child) ? this.getSearchFilteredChildren(child) : [];
             const include = this.matchesSearch(child) || descendantMatches.length > 0;
 
             if (include && descendantMatches.length > 0) {
