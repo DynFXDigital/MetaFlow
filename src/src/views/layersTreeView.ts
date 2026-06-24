@@ -838,7 +838,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     private readonly parsedMetadataByPath = new Map<string, ParsedMetadata | null>();
     private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
     private searchQuery: string | undefined;
-    private nativeFindActive = false;
     private searchVersion = 0;
 
     constructor(
@@ -871,23 +870,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     getSearchQuery(): string | undefined {
         return this.searchQuery;
-    }
-
-    setNativeFindActive(value: boolean): void {
-        if (this.nativeFindActive === value) {
-            return;
-        }
-
-        this.nativeFindActive = value;
-        if (value) {
-            this.searchQuery = undefined;
-        }
-        this.searchVersion += 1;
-        this._onDidChangeTreeData.fire(undefined);
-    }
-
-    isNativeFindActive(): boolean {
-        return this.nativeFindActive;
     }
 
     getTreeItem(element: LayerTreeItem): vscode.TreeItem {
@@ -1007,10 +989,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     private getSearchFilteredChildren(element?: LayerTreeItem): LayerTreeItem[] {
-        if (this.nativeFindActive && this.modeResolver() === 'tree') {
-            return element ? [] : this.trackChildren(this.getFlatTreeSearchMatches(), undefined);
-        }
-
         if (this.searchQuery && this.modeResolver() === 'tree') {
             return element ? [] : this.trackChildren(this.getFlatTreeSearchMatches(), undefined);
         }
@@ -2237,9 +2215,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
-        return this.searchQuery || this.nativeFindActive
-            ? this.getSearchFilteredChildren(element)
-            : this.getChildrenCore(element);
+        return this.searchQuery ? this.getSearchFilteredChildren(element) : this.getChildrenCore(element);
     }
 
     getExpandAllStrategy(): ExpandAllStrategy {

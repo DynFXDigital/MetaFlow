@@ -111,7 +111,6 @@ type LayersTreeViewModule = {
         };
         getParent(element: MockLayerTreeItem): MockLayerTreeItem | undefined;
         setSearchQuery(value: string | undefined): void;
-        setNativeFindActive(value: boolean): void;
     };
 };
 
@@ -2359,64 +2358,4 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-SCH-02: native find mode exposes a flat capability search surface', () => {
-        const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = {
-            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
-            layerSources: [
-                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
-                { repoId: 'repo1', path: 'capabilities/runtime/service' },
-            ],
-        };
-        const capabilityByLayer = {
-            'repo1/capabilities/devtools/tooling': { name: 'Developer Tooling' },
-            'repo1/capabilities/runtime/service': { name: 'Runtime Service' },
-        };
-        const provider = new LayersTreeViewProvider(
-            makeState(
-                config,
-                [
-                    makeEffectiveFile(
-                        'instructions/tooling.md',
-                        'repo1',
-                        'capabilities/devtools/tooling',
-                    ),
-                    makeEffectiveFile(
-                        'skills/service/SKILL.md',
-                        'repo1',
-                        'capabilities/runtime/service',
-                    ),
-                ],
-                capabilityByLayer,
-            ),
-            () => 'tree',
-        );
-
-        provider.setNativeFindActive(true);
-
-        const visibleLabels = provider.getChildren().map((item) => String(item.label));
-        assert.deepStrictEqual(
-            visibleLabels,
-            ['Developer Tooling', 'Runtime Service'],
-            'native find should receive a flat capability list instead of a nested hierarchy',
-        );
-        assert.ok(
-            provider.getChildren().every(
-                (item) =>
-                    item.collapsibleState === mockVscode.TreeItemCollapsibleState.None,
-            ),
-            'native find candidates should not expand into artifact rows',
-        );
-        assert.ok(
-            !visibleLabels.includes('instructions') && !visibleLabels.includes('skills'),
-            'native find should not expose artifact directory rows in the Capabilities view',
-        );
-
-        provider.setNativeFindActive(false);
-        assert.deepStrictEqual(
-            provider.getChildren().map((item) => String(item.label)),
-            ['CoreMeta'],
-            'clearing native find should restore the normal tree root',
-        );
-    });
 });

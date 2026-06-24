@@ -273,11 +273,6 @@
         "icon": "$(search)"
       },
       {
-        "command": "metaflow.clearLayersFilter",
-        "title": "MetaFlow: Clear Capabilities Filter",
-        "icon": "$(clear-all)"
-      },
-      {
         "command": "metaflow.collapseAllFiles",
         "title": "Collapse",
         "icon": "$(collapse-all)"
@@ -455,12 +450,7 @@
         },
         {
           "command": "metaflow.openLayersFilter",
-          "when": "view == metaflow-layers && !metaflow.layersNativeFilterActive",
-          "group": "navigation@3"
-        },
-        {
-          "command": "metaflow.clearLayersFilter",
-          "when": "view == metaflow-layers && metaflow.layersNativeFilterActive",
+          "when": "view == metaflow-layers",
           "group": "navigation@3"
         },
         {
@@ -844,11 +834,6 @@
         "key": "ctrl+f",
         "mac": "cmd+f",
         "when": "sideBarFocus && focusedView == 'metaflow-layers'"
-      },
-      {
-        "command": "metaflow.clearLayersFilter",
-        "key": "escape",
-        "when": "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive && treeFindOpen"
       },
       {
         "command": "metaflow.openFilesFilter",
