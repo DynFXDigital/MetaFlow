@@ -46,6 +46,10 @@ type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
 };
 
+type NativeFindTreeProvider<T extends vscode.TreeItem> = SearchPreparedTreeProvider<T> & {
+    setNativeFindActive(value: boolean): void;
+};
+
 function getContextValue(item: vscode.TreeItem): string {
     return typeof item.contextValue === 'string' ? item.contextValue : '';
 }
@@ -214,10 +218,48 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
+async function openNativeFindTreeFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    provider: NativeFindTreeProvider<T>,
+): Promise<void> {
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    provider.setNativeFindActive(true);
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', true);
+    await vscode.commands.executeCommand('list.find');
+}
+
+async function closeNativeFindTreeFilter<T extends vscode.TreeItem>(
+    viewId: string,
+    provider: NativeFindTreeProvider<T>,
+): Promise<void> {
+    try {
+        await vscode.commands.executeCommand('list.closeFind');
+    } catch {
+        // The find widget may already be closed when focus has returned to the tree.
+    }
+
+    provider.setNativeFindActive(false);
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
+
+    try {
+        await vscode.commands.executeCommand(`${viewId}.focus`);
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+}
+
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
+    void vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -350,7 +392,10 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openTreeViewFilter('metaflow-layers', layersTreeView, layersTreeViewProvider);
+            await openNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.closeLayersFilter', async () => {
+            await closeNativeFindTreeFilter('metaflow-layers', layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
