@@ -4541,7 +4541,9 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         changedCount: changedResults.length,
         unchangedCount: unchangedResults.length,
         failureCount: failures.length,
-        changedCapabilities: changedResults.map((result) => result.capabilityDirectoryPath),
+        changedCapabilities: changedResults.map((result) =>
+            toRepoRelativeLayerPath(repoRoot, result.capabilityDirectoryPath),
+        ),
         failures,
         marketplacePath: marketplaceResult.marketplacePath,
         marketplaceChanged: marketplaceResult.changed,
