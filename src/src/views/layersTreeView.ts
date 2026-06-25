@@ -1531,6 +1531,31 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return [];
     }
 
+    private shouldShowFlatEntry(entry: LayerEntry, entries: LayerEntry[]): boolean {
+        if (entry.capability) {
+            return true;
+        }
+
+        const entryRepoId = entry.repoId ?? 'primary';
+        const hasDescendantEntries = entries.some((candidate) => {
+            if (candidate === entry) {
+                return false;
+            }
+
+            if ((candidate.repoId ?? 'primary') !== entryRepoId) {
+                return false;
+            }
+
+            if (entry.normalizedPath === '') {
+                return candidate.normalizedPath !== '';
+            }
+
+            return candidate.normalizedPath.startsWith(`${entry.normalizedPath}/`);
+        });
+
+        return !hasDescendantEntries;
+    }
+
     private getLayerAvailability(
         layerIndex: number,
         repoId?: string,
@@ -2010,7 +2035,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 return [];
             }
 
-            return entries.map(
+            return entries.filter((entry) => this.shouldShowFlatEntry(entry, entries)).map(
                 (entry) =>
                     new LayerItem(entry.label, entry.enabled, entry.layerIndex, {
                         itemId: buildLayerTreeItemId(

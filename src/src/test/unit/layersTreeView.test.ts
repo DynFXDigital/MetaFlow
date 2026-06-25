@@ -1929,6 +1929,28 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-NF-02b: flat mode hides grouping-only branch directories with descendant capabilities', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'general/devtools' },
+                { repoId: 'repo1', path: 'general/devtools/dev-tools' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/general/devtools/dev-tools': { id: 'dev-tools', name: 'Dev Tools' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        const labels = provider.getChildren().map((item) => String(item.label));
+
+        assert.deepStrictEqual(labels, ['Dev Tools']);
+    });
+
     test('LTV-NF-03: tree mode – leaf node uses capability name as label', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
