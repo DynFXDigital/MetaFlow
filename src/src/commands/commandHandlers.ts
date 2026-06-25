@@ -4440,6 +4440,24 @@ function toRepoRelativeLayerPath(repoRoot: string, capabilityDirectoryPath: stri
     return path.relative(repoRoot, absolutePath).replace(/\\/g, '/');
 }
 
+function hasCapabilityManifestAtPath(repoRoot: string, layerPath: string): boolean {
+    const manifestPath = path.join(repoRoot, layerPath, 'CAPABILITY.md');
+    try {
+        return fs.statSync(manifestPath).isFile();
+    } catch {
+        return false;
+    }
+}
+
+function discoverCapabilityDirectoryPathsInRepo(
+    repoRoot: string,
+    excludePatterns: string[] = [],
+): string[] {
+    return discoverLayersInRepo(repoRoot, excludePatterns).filter((layerPath) =>
+        hasCapabilityManifestAtPath(repoRoot, layerPath),
+    );
+}
+
 export function collectCapabilityPluginMaintenanceWarningMessages(options: {
     repoRoot: string;
     failures: CapabilityPluginMaintenanceFailure[];
@@ -4480,7 +4498,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
             ? options.capabilityDirectoryPaths.map((capabilityDirectoryPath) =>
                   toRepoRelativeLayerPath(repoRoot, capabilityDirectoryPath),
               )
-            : discoverLayersInRepo(repoRoot, options.excludePatterns)
+            : discoverCapabilityDirectoryPathsInRepo(repoRoot, options.excludePatterns)
     ).sort((left, right) => left.localeCompare(right));
 
     const changedResults: Array<
@@ -8009,9 +8027,10 @@ export function registerCommands(
                 }
 
                 const repoRoot = resolvePathFromWorkspace(ws.uri.fsPath, repo.localPath);
-                const layerPaths = discoverLayersInRepo(repoRoot, repo.discover?.exclude).sort(
-                    (left, right) => left.localeCompare(right),
-                );
+                const layerPaths = discoverCapabilityDirectoryPathsInRepo(
+                    repoRoot,
+                    repo.discover?.exclude,
+                ).sort((left, right) => left.localeCompare(right));
                 if (layerPaths.length === 0) {
                     vscode.window.showInformationMessage(
                         `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
