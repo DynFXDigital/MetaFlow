@@ -1069,6 +1069,38 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(provider.getParent(devtoolsNode), capabilitiesNode);
     });
 
+    test('LTV-S-06: tree search descends through mixed capability nodes to matching descendants', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities' },
+                { repoId: 'repo1', path: 'capabilities/devtools' },
+            ],
+        };
+        const files = [
+            makeEffectiveFile('instructions/root.md', 'repo1', 'capabilities'),
+            makeEffectiveFile('prompts/devtools.md', 'repo1', 'capabilities/devtools'),
+        ];
+        const capabilityByLayer = {
+            'repo1/capabilities': { id: 'capabilities', name: 'Capabilities Root' },
+            'repo1/capabilities/devtools': { id: 'devtools', name: 'Developer Tools' },
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, files, capabilityByLayer),
+            () => 'tree',
+        );
+
+        provider.setSearchQuery('developer');
+
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['Developer Tools'],
+            'search should surface the descendant capability under a mixed parent node',
+        );
+    });
+
     test('LTV-AT-12: single-repo tree mode shows artifact-type children for layer nodes', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {

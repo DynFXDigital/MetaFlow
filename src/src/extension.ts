@@ -223,21 +223,6 @@ function waitForTreeViewRefresh(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, 150));
 }
 
-let layersFindModeForcedToFilter = false;
-
-async function forceLayersFindModeToFilter(): Promise<void> {
-    const defaultFindMode = vscode.workspace
-        .getConfiguration('workbench.list')
-        .get<string>('defaultFindMode', 'highlight');
-
-    if (defaultFindMode === 'filter' || layersFindModeForcedToFilter) {
-        return;
-    }
-
-    await vscode.commands.executeCommand('list.toggleFindMode');
-    layersFindModeForcedToFilter = true;
-}
-
 async function focusFirstTreeItem<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: SearchPreparedTreeProvider<T>,
@@ -287,7 +272,6 @@ async function openLayersTreeFilter<T extends vscode.TreeItem>(
     await waitForTreeViewRefresh();
     await vscode.commands.executeCommand('list.focusFirst');
     await waitForTreeViewRefresh();
-    await forceLayersFindModeToFilter();
     await vscode.commands.executeCommand('list.find');
 }
 

@@ -354,6 +354,14 @@ interface LayerEntry {
     };
 }
 
+function buildLayerEntryRepoKey(entry: LayerEntry): string {
+    return entry.repoId ?? 'primary';
+}
+
+function buildLayerEntryPathKey(repoId: string, normalizedPath: string): string {
+    return `${repoId}:${normalizedPath}`;
+}
+
 interface LayerAvailability {
     repoEnabled: boolean;
     layerEnabled: boolean;
@@ -960,7 +968,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return true;
         }
 
-        return !(element instanceof LayerItem && typeof element.layerIndex === 'number');
+        if (!(element instanceof LayerItem) || typeof element.layerIndex !== 'number') {
+            return true;
+        }
+
+        return this.getChildrenCore(element).some((child) => !(child instanceof ArtifactTypeLayerItem));
     }
 
     private getFlatTreeSearchMatches(element?: LayerTreeItem): LayerTreeItem[] {
@@ -1531,29 +1543,34 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return [];
     }
 
-    private shouldShowFlatEntry(entry: LayerEntry, entries: LayerEntry[]): boolean {
+    private buildFlatModeDescendantKeySet(entries: LayerEntry[]): Set<string> {
+        const keys = new Set<string>();
+
+        for (const entry of entries) {
+            const repoKey = buildLayerEntryRepoKey(entry);
+            const segments = entry.normalizedPath.split('/').filter(Boolean);
+
+            if (segments.length === 0) {
+                continue;
+            }
+
+            keys.add(buildLayerEntryPathKey(repoKey, ''));
+            for (let index = 1; index < segments.length; index += 1) {
+                keys.add(buildLayerEntryPathKey(repoKey, segments.slice(0, index).join('/')));
+            }
+        }
+
+        return keys;
+    }
+
+    private shouldShowFlatEntry(entry: LayerEntry, descendantKeySet: Set<string>): boolean {
         if (entry.capability) {
             return true;
         }
 
-        const entryRepoId = entry.repoId ?? 'primary';
-        const hasDescendantEntries = entries.some((candidate) => {
-            if (candidate === entry) {
-                return false;
-            }
-
-            if ((candidate.repoId ?? 'primary') !== entryRepoId) {
-                return false;
-            }
-
-            if (entry.normalizedPath === '') {
-                return candidate.normalizedPath !== '';
-            }
-
-            return candidate.normalizedPath.startsWith(`${entry.normalizedPath}/`);
-        });
-
-        return !hasDescendantEntries;
+        return !descendantKeySet.has(
+            buildLayerEntryPathKey(buildLayerEntryRepoKey(entry), entry.normalizedPath),
+        );
     }
 
     private getLayerAvailability(
@@ -2035,7 +2052,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 return [];
             }
 
-            return entries.filter((entry) => this.shouldShowFlatEntry(entry, entries)).map(
+            const descendantKeySet = this.buildFlatModeDescendantKeySet(entries);
+
+            return entries.filter((entry) => this.shouldShowFlatEntry(entry, descendantKeySet)).map(
                 (entry) =>
                     new LayerItem(entry.label, entry.enabled, entry.layerIndex, {
                         itemId: buildLayerTreeItemId(
