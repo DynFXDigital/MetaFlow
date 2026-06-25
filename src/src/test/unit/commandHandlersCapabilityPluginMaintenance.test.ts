@@ -869,4 +869,61 @@ suite('Command handler capability plugin maintenance helpers', () => {
             fs.rmSync(repoRoot, { recursive: true, force: true });
         }
     });
+
+    test('maintainAllCapabilityPluginMetadataInRepo ignores grouping folders and repo-root metadata without CAPABILITY.md', async () => {
+        const { maintainAllCapabilityPluginMetadataInRepo } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-grouping-'));
+        try {
+            fs.mkdirSync(path.join(repoRoot, '.github', 'instructions'), { recursive: true });
+            fs.writeFileSync(
+                path.join(repoRoot, '.github', 'instructions', 'root.instructions.md'),
+                'root instructions\n',
+                'utf-8',
+            );
+
+            const groupingDir = path.join(repoRoot, 'capabilities', 'group');
+            const firstCapability = path.join(groupingDir, 'first');
+            const secondCapability = path.join(groupingDir, 'second');
+            fs.mkdirSync(firstCapability, { recursive: true });
+            fs.mkdirSync(secondCapability, { recursive: true });
+
+            for (const [capabilityRoot, name] of [
+                [firstCapability, 'First Capability'],
+                [secondCapability, 'Second Capability'],
+            ] as const) {
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'CAPABILITY.md'),
+                    [
+                        '---',
+                        `name: ${name}`,
+                        'description: Test capability',
+                        'agentPlugin: true',
+                        '---',
+                    ].join('\n'),
+                    'utf-8',
+                );
+            }
+
+            const result = await maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
+                repoId: 'example-repo',
+            });
+
+            assert.strictEqual(result.scannedCount, 2);
+            assert.strictEqual(result.failureCount, 0);
+            assert.deepStrictEqual(result.changedCapabilities, [
+                'capabilities/group/first',
+                'capabilities/group/second',
+            ]);
+
+            const marketplace = JSON.parse(fs.readFileSync(result.marketplacePath, 'utf-8')) as {
+                plugins?: Array<{ source?: string }>;
+            };
+            assert.deepStrictEqual(
+                marketplace.plugins?.map((plugin) => plugin.source),
+                ['./capabilities/group/first', './capabilities/group/second'],
+            );
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
 });
