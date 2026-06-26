@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.3.1
+
+### Patch Changes
+
+- Prepare the 0.3.1 prerelease with capability search and plugin metadata maintenance fixes.
+
 ## 0.3.0
 
 ### Minor Changes

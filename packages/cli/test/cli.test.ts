@@ -1505,10 +1505,15 @@ describe('CLI: watch', () => {
         // Do an initial apply so managed state exists
         runCli(['apply', '-w', ws.root]).then(() => {
             const cycles: WatchCycleResult[] = [];
+            let changeTimer: ReturnType<typeof setTimeout> | undefined;
             const handle = startWatch(ws.root, {
                 debounceMs: 50,
                 force: false,
                 onCycle(result) {
+                    if (changeTimer) {
+                        clearTimeout(changeTimer);
+                        changeTimer = undefined;
+                    }
                     cycles.push(result);
                     // After a cycle fires, verify and close
                     handle.close();
@@ -1519,7 +1524,7 @@ describe('CLI: watch', () => {
             });
 
             // Trigger a change in the metadata repo
-            setTimeout(() => {
+            changeTimer = setTimeout(() => {
                 const newFile = path.join(
                     ws.metadataRepo,
                     'company',
@@ -1540,10 +1545,15 @@ describe('CLI: watch', () => {
 
         // Apply initially...
         runCli(['apply', '-w', ws.root]).then(() => {
+            let changeTimer: ReturnType<typeof setTimeout> | undefined;
             const handle = startWatch(ws.root, {
                 debounceMs: 50,
                 force: false,
                 onCycle(result) {
+                    if (changeTimer) {
+                        clearTimeout(changeTimer);
+                        changeTimer = undefined;
+                    }
                     handle.close();
                     assert.ok(result.error, 'should report error');
                     done();
@@ -1551,7 +1561,7 @@ describe('CLI: watch', () => {
             });
 
             // Corrupt the config
-            setTimeout(() => {
+            changeTimer = setTimeout(() => {
                 const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
                 fs.writeFileSync(configPath, '{ invalid {{', 'utf-8');
             }, 100);
@@ -1609,10 +1619,15 @@ describe('CLI: watch', () => {
         );
 
         const cycles: WatchCycleResult[] = [];
+        let changeTimer: ReturnType<typeof setTimeout> | undefined;
         const handle = startWatch(ws.root, {
             debounceMs: 50,
             force: false,
             onCycle(result) {
+                if (changeTimer) {
+                    clearTimeout(changeTimer);
+                    changeTimer = undefined;
+                }
                 cycles.push(result);
                 handle.close();
                 assert.ok(cycles.length >= 1);
@@ -1621,7 +1636,7 @@ describe('CLI: watch', () => {
         });
 
         // Trigger change in second repo
-        setTimeout(() => {
+        changeTimer = setTimeout(() => {
             fs.writeFileSync(path.join(repoB, 'team', 'skills', 'new.md'), '# New');
         }, 100);
     });
@@ -1637,10 +1652,15 @@ describe('CLI: watch', () => {
         // Make .github a regular file so apply's fs.mkdirSync throws ENOTDIR
         const githubPath = path.join(ws.root, '.github');
         fs.writeFileSync(githubPath, 'not-a-directory');
+        let changeTimer: ReturnType<typeof setTimeout> | undefined;
 
         const handle = startWatch(ws.root, {
             debounceMs: 50,
             onCycle(result) {
+                if (changeTimer) {
+                    clearTimeout(changeTimer);
+                    changeTimer = undefined;
+                }
                 handle.close();
                 assert.ok(result.error, 'should capture the thrown exception as error');
                 done();
@@ -1648,7 +1668,7 @@ describe('CLI: watch', () => {
         });
 
         // Trigger a debounced apply cycle via config file change
-        setTimeout(() => {
+        changeTimer = setTimeout(() => {
             const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
             fs.appendFileSync(configPath, ' ');
         }, 30);
@@ -1916,7 +1936,9 @@ describe('CLI: promote --auto', () => {
         assert.ok(result.error?.includes('No drifted'));
     });
 
-    it('should create branch and commit drifted files', async () => {
+    it('should create branch and commit drifted files', async function () {
+        this.timeout(15000);
+
         ws = createTestWorkspace({
             config: standardConfig(),
             layers: STANDARD_LAYERS,

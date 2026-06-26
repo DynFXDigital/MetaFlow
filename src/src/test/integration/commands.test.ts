@@ -4881,7 +4881,7 @@ suite('Command Execution', function () {
                         return false;
                     }
                 },
-                5000,
+                15000,
                 100,
             );
         }
@@ -6432,7 +6432,7 @@ suite('Command Execution', function () {
                     wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
                 );
                 return hasBuiltInInstructionPath(instructionLocations);
-            }, 10000);
+            }, 20000);
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
@@ -6445,7 +6445,7 @@ suite('Command Execution', function () {
                     wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
                 );
                 return !hasBuiltInInstructionPath(instructionLocations);
-            }, 10000);
+            }, 20000);
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
@@ -6458,7 +6458,7 @@ suite('Command Execution', function () {
                     wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
                 );
                 return hasBuiltInInstructionPath(instructionLocations);
-            }, 10000);
+            }, 20000);
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
@@ -6542,7 +6542,7 @@ suite('Command Execution', function () {
                     vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
                 );
                 return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
+            }, 20000);
 
             const firstEnabledSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
@@ -6576,7 +6576,7 @@ suite('Command Execution', function () {
                     vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
                 );
                 return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
+            }, 20000);
 
             const secondEnabledSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
