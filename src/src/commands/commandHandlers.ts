@@ -152,6 +152,7 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
+const AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY = 'autoAcceptRefreshUpdates';
 const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
     '.github',
     'copilot',
@@ -5087,7 +5088,13 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
-            const autoAcceptRefreshUpdates = context.extensionMode === vscode.ExtensionMode.Test;
+            const autoAcceptRefreshUpdatesInTests =
+                context.extensionMode === vscode.ExtensionMode.Test;
+            const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
+            const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
+            const autoAcceptRefreshUpdates =
+                autoAcceptRefreshUpdatesInTests ||
+                workspaceConfig.get<boolean>(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false);
             const suppressRefreshUpdatePrompts =
                 refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
             const pendingCapabilityPluginMetadataDirtyVersion =
@@ -5171,8 +5178,6 @@ export function registerCommands(
                     : governanceResult.errors.map(cloneConfigError);
                 state.governanceCompliance = undefined;
                 const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-                const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
-                const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
                 const discoveryResult = discoverAndPersistConfiguredRepoLayers(
                     result.config,
                     ws.uri.fsPath,

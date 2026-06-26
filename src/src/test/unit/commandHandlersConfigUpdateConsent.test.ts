@@ -54,6 +54,10 @@ suite('Command handler config update consent', () => {
         );
 
         assert.match(refreshOptionsBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
+        assert.match(
+            refreshOptionsBlock,
+            /workspaceConfig\.get<boolean>\(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false\)/,
+        );
         assert.match(refreshOptionsBlock, /refreshOptions\.nonInteractive === true/);
 
         const refreshUpdateBlock = sourceSlice(
@@ -71,6 +75,24 @@ suite('Command handler config update consent', () => {
         );
         assert.match(builtInRepairBlock, /autoAcceptRefreshUpdates\s+\? true/);
         assert.match(builtInRepairBlock, /suppressRefreshUpdatePrompts\s+\? false/);
+    });
+
+    test('workspace setting can auto-accept refresh updates outside test mode', () => {
+        const source = readCommandHandlersSource();
+        const refreshOptionsBlock = sourceSlice(
+            source,
+            'const refreshOptions = extractRefreshCommandOptions(arg);',
+            'const pendingCapabilityPluginMetadataDirtyVersion',
+        );
+
+        assert.match(
+            refreshOptionsBlock,
+            /const autoAcceptRefreshUpdates =\s+autoAcceptRefreshUpdatesInTests \|\|\s+workspaceConfig\.get<boolean>\(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false\);/m,
+        );
+        assert.match(
+            refreshOptionsBlock,
+            /const suppressRefreshUpdatePrompts =\s+refreshOptions\.nonInteractive === true && !autoAcceptRefreshUpdates;/m,
+        );
     });
 
     test('declining capability repair preserves the previous identity snapshot', () => {
