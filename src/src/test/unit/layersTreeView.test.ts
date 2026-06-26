@@ -1005,7 +1005,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(labels, ['instructions', 'skills']);
     });
 
-    test('LTV-AT-11: mixed layer/folder node shows descendant layers and artifact browse rows', () => {
+    test('LTV-AT-11: mixed layer/folder node prefers descendant layers over artifact browse rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
@@ -1029,10 +1029,17 @@ suite('LayersTreeView – artifact-type children', () => {
         const capabilitiesChildren = provider.getChildren(capabilitiesNode);
         const childLabels = capabilitiesChildren.map((c) => String(c.label));
 
-        assert.ok(childLabels.includes('devtools'), 'should include descendant layer folder');
-        assert.ok(
-            childLabels.includes('instructions'),
-            'should include artifact type from capabilities layer',
+        assert.deepStrictEqual(
+            childLabels,
+            ['devtools'],
+            'branch layer should show descendant capability folders only',
+        );
+
+        const [devtoolsNode] = capabilitiesChildren;
+        assert.deepStrictEqual(
+            provider.getChildren(devtoolsNode).map((c) => String(c.label)),
+            ['prompts'],
+            'leaf layer should still show artifact browse rows',
         );
     });
 
@@ -1060,6 +1067,38 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(String(devtoolsNode.label), 'devtools');
         assert.strictEqual(provider.getParent(capabilitiesNode), repoItem);
         assert.strictEqual(provider.getParent(devtoolsNode), capabilitiesNode);
+    });
+
+    test('LTV-S-06: tree search descends through mixed capability nodes to matching descendants', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities' },
+                { repoId: 'repo1', path: 'capabilities/devtools' },
+            ],
+        };
+        const files = [
+            makeEffectiveFile('instructions/root.md', 'repo1', 'capabilities'),
+            makeEffectiveFile('prompts/devtools.md', 'repo1', 'capabilities/devtools'),
+        ];
+        const capabilityByLayer = {
+            'repo1/capabilities': { id: 'capabilities', name: 'Capabilities Root' },
+            'repo1/capabilities/devtools': { id: 'devtools', name: 'Developer Tools' },
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, files, capabilityByLayer),
+            () => 'tree',
+        );
+
+        provider.setSearchQuery('developer');
+
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['Developer Tools'],
+            'search should surface the descendant capability under a mixed parent node',
+        );
     });
 
     test('LTV-AT-12: single-repo tree mode shows artifact-type children for layer nodes', () => {
@@ -1922,6 +1961,28 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-NF-02b: flat mode hides grouping-only branch directories with descendant capabilities', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'general/devtools' },
+                { repoId: 'repo1', path: 'general/devtools/dev-tools' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/general/devtools/dev-tools': { id: 'dev-tools', name: 'Dev Tools' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        const labels = provider.getChildren().map((item) => String(item.label));
+
+        assert.deepStrictEqual(labels, ['Dev Tools']);
+    });
+
     test('LTV-NF-03: tree mode – leaf node uses capability name as label', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
@@ -2212,6 +2273,70 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-SEA-01b: tree keeps root metadata separate from top-level capability folders', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: '.' },
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+            ],
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [
+                makeEffectiveFile('instructions/a.md', 'repo1', '.'),
+                makeEffectiveFile('prompts/b.md', 'repo1', '.'),
+                makeEffectiveFile('agents/c.md', 'repo1', '.'),
+                makeEffectiveFile('skills/d.md', 'repo1', '.'),
+                makeEffectiveFile(
+                    'instructions/tooling.md',
+                    'repo1',
+                    'capabilities/devtools/tooling',
+                ),
+            ]),
+            () => 'tree',
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const repoChildren = provider.getChildren(repoItem);
+        assert.deepStrictEqual(
+            repoChildren.map((item) => String(item.label)),
+            ['root', 'capabilities'],
+            'root should be a repo-level metadata node, not the parent of every capability folder',
+        );
+
+        const rootItem = repoChildren.find((item) => String(item.label) === 'root');
+        assert.ok(rootItem, 'root layer should be reachable');
+        const rootChildren = provider.getChildren(rootItem);
+
+        assert.deepStrictEqual(
+            rootChildren.map((item) => String(item.label)),
+            ['instructions', 'prompts', 'agents', 'skills'],
+            'root should show only repo-level artifact browse rows',
+        );
+        assert.ok(
+            rootChildren.every((item) =>
+                String(item.contextValue).startsWith('layerArtifactType:'),
+            ),
+            'root children should be artifact browse rows',
+        );
+
+        const capabilitiesItem = repoChildren.find((item) => String(item.label) === 'capabilities');
+        assert.ok(capabilitiesItem, 'capabilities folder should be a root sibling');
+        const capabilitiesChildren = provider.getChildren(capabilitiesItem);
+        const devtoolsItem = capabilitiesChildren.find((item) => String(item.label) === 'devtools');
+        assert.ok(devtoolsItem, 'devtools branch should be reachable');
+        const toolingItem = provider
+            .getChildren(devtoolsItem)
+            .find((item) => String(item.label) === 'tooling');
+        assert.ok(toolingItem, 'leaf capability should be reachable');
+        assert.deepStrictEqual(
+            provider.getChildren(toolingItem).map((item) => String(item.label)),
+            ['instructions'],
+            'leaf capability should still expose artifact browse rows',
+        );
+    });
+
     test('LTV-SEA-02: flat mode keeps recursive expand behavior', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const provider = new LayersTreeViewProvider(
@@ -2223,29 +2348,69 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.deepStrictEqual(provider.getStagedExpandPlan(), { stageOne: [], stageTwo: [] });
     });
 
-    test('LTV-SCH-01: tree search keeps only matching artifact branches and expands ancestors', () => {
+    test('LTV-SCH-01: tree search keeps matching capabilities without expanding artifact rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
-        const config = makeMultiRepoConfig();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+                { repoId: 'repo1', path: 'capabilities/runtime/service' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/tooling': { name: 'Developer Tooling' },
+            'repo1/capabilities/runtime/service': { name: 'Runtime Service' },
+        };
         const provider = new LayersTreeViewProvider(
-            makeState(config, ALL_TYPES_FILES),
+            makeState(
+                config,
+                [
+                    makeEffectiveFile(
+                        'instructions/tooling.md',
+                        'repo1',
+                        'capabilities/devtools/tooling',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/service.md',
+                        'repo1',
+                        'capabilities/runtime/service',
+                    ),
+                ],
+                capabilityByLayer,
+            ),
             () => 'tree',
         );
 
-        provider.setSearchQuery('prompts');
+        provider.setSearchQuery('developer');
 
-        const roots = provider.getChildren();
-        assert.strictEqual(roots.length, 1, 'expected a single visible repo root');
-        assert.strictEqual(roots[0].collapsibleState, 2, 'repo root should auto-expand');
-
-        const repoChildren = provider.getChildren(roots[0]);
-        assert.strictEqual(repoChildren.length, 1, 'expected a single visible layer');
-        assert.strictEqual(repoChildren[0].contextValue, 'layer');
-        assert.strictEqual(repoChildren[0].collapsibleState, 2, 'layer should auto-expand');
-
-        const layerChildren = provider.getChildren(repoChildren[0]);
         assert.deepStrictEqual(
-            layerChildren.map((item) => String(item.label)),
-            ['prompts'],
+            provider.getChildren().map((item) => String(item.label)),
+            ['Developer Tooling'],
+            'only matching capability rows should remain visible',
+        );
+        assert.strictEqual(
+            provider.getChildren()[0].collapsibleState,
+            0,
+            'matching capability should not be expandable into artifact rows while filtered',
+        );
+        assert.deepStrictEqual(
+            provider.getChildren(provider.getChildren()[0]).map((item) => String(item.label)),
+            [],
+            'capabilities search should not reveal artifact rows under matching capabilities',
+        );
+
+        provider.setSearchQuery('service');
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['Runtime Service'],
+            'previous matching capabilities should be removed as the query changes',
+        );
+
+        provider.setSearchQuery('instructions');
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'artifact-only matches should not keep non-matching capabilities visible',
         );
     });
 });

@@ -313,6 +313,16 @@ function getWorkspace(): vscode.WorkspaceFolder | undefined {
     );
 }
 
+function getManagedViewWorkspace(): vscode.WorkspaceFolder | undefined {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+        vscode.window.showErrorMessage('MetaFlow: No workspace folder open.');
+        return undefined;
+    }
+
+    return folders[0];
+}
+
 function readManagedSettingsState(context: vscode.ExtensionContext): ManagedSettingsState {
     const raw = context.workspaceState.get<unknown>(SETTINGS_INJECTION_STATE_KEY);
     if (!raw || typeof raw !== 'object') {
@@ -4430,6 +4440,24 @@ function toRepoRelativeLayerPath(repoRoot: string, capabilityDirectoryPath: stri
     return path.relative(repoRoot, absolutePath).replace(/\\/g, '/');
 }
 
+function hasCapabilityManifestAtPath(repoRoot: string, layerPath: string): boolean {
+    const manifestPath = path.join(repoRoot, layerPath, 'CAPABILITY.md');
+    try {
+        return fs.statSync(manifestPath).isFile();
+    } catch {
+        return false;
+    }
+}
+
+function discoverCapabilityDirectoryPathsInRepo(
+    repoRoot: string,
+    excludePatterns: string[] = [],
+): string[] {
+    return discoverLayersInRepo(repoRoot, excludePatterns).filter((layerPath) =>
+        hasCapabilityManifestAtPath(repoRoot, layerPath),
+    );
+}
+
 export function collectCapabilityPluginMaintenanceWarningMessages(options: {
     repoRoot: string;
     failures: CapabilityPluginMaintenanceFailure[];
@@ -4470,7 +4498,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
             ? options.capabilityDirectoryPaths.map((capabilityDirectoryPath) =>
                   toRepoRelativeLayerPath(repoRoot, capabilityDirectoryPath),
               )
-            : discoverLayersInRepo(repoRoot, options.excludePatterns)
+            : discoverCapabilityDirectoryPathsInRepo(repoRoot, options.excludePatterns)
     ).sort((left, right) => left.localeCompare(right));
 
     const changedResults: Array<
@@ -4513,7 +4541,9 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         changedCount: changedResults.length,
         unchangedCount: unchangedResults.length,
         failureCount: failures.length,
-        changedCapabilities: changedResults.map((result) => result.capabilityDirectoryPath),
+        changedCapabilities: changedResults.map((result) =>
+            toRepoRelativeLayerPath(repoRoot, result.capabilityDirectoryPath),
+        ),
         failures,
         marketplacePath: marketplaceResult.marketplacePath,
         marketplaceChanged: marketplaceResult.changed,
@@ -7999,9 +8029,10 @@ export function registerCommands(
                 }
 
                 const repoRoot = resolvePathFromWorkspace(ws.uri.fsPath, repo.localPath);
-                const layerPaths = discoverLayersInRepo(repoRoot, repo.discover?.exclude).sort(
-                    (left, right) => left.localeCompare(right),
-                );
+                const layerPaths = discoverCapabilityDirectoryPathsInRepo(
+                    repoRoot,
+                    repo.discover?.exclude,
+                ).sort((left, right) => left.localeCompare(right));
                 if (layerPaths.length === 0) {
                     vscode.window.showInformationMessage(
                         `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
@@ -8106,7 +8137,7 @@ export function registerCommands(
     // ── metaflow.toggleFilesViewMode ───────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleFilesViewMode', async () => {
-            const ws = getWorkspace();
+            const ws = getManagedViewWorkspace();
             if (!ws) {
                 return;
             }
@@ -8116,14 +8147,57 @@ export function registerCommands(
 
             writeManagedViewsState(ws.uri.fsPath, { filesViewMode: nextMode });
             await vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', nextMode);
+            try {
+                await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
+            } catch {
+                // Tests and partial activation hosts may not have registered the tree refresh hook.
+            }
             logInfo(`Effective Files view mode set to: ${nextMode}`);
+        }),
+    );
+
+    async function setLayersViewMode(
+        ws: vscode.WorkspaceFolder,
+        nextMode: LayersViewMode,
+    ): Promise<void> {
+        writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
+        await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
+        try {
+            await vscode.commands.executeCommand('metaflow.refreshManagedViewModeContext');
+        } catch {
+            // Tests and partial activation hosts may not have registered the tree refresh hook.
+        }
+        logInfo(`Layers view mode set to: ${nextMode}`);
+    }
+
+    // ── metaflow.showLayersFlatMode ────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.showLayersFlatMode', async () => {
+            const ws = getManagedViewWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            await setLayersViewMode(ws, 'flat');
+        }),
+    );
+
+    // ── metaflow.showLayersTreeMode ────────────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.showLayersTreeMode', async () => {
+            const ws = getManagedViewWorkspace();
+            if (!ws) {
+                return;
+            }
+
+            await setLayersViewMode(ws, 'tree');
         }),
     );
 
     // ── metaflow.toggleLayersViewMode ──────────────────────────────
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.toggleLayersViewMode', async () => {
-            const ws = getWorkspace();
+            const ws = getManagedViewWorkspace();
             if (!ws) {
                 return;
             }
@@ -8131,9 +8205,7 @@ export function registerCommands(
             const currentMode = readManagedViewsState(ws.uri.fsPath).layersViewMode;
             const nextMode: LayersViewMode = currentMode === 'flat' ? 'tree' : 'flat';
 
-            writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
-            await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
-            logInfo(`Layers view mode set to: ${nextMode}`);
+            await setLayersViewMode(ws, nextMode);
         }),
     );
 

@@ -31,7 +31,12 @@ import {
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
 import { isBuiltInCapabilityActive } from './builtInCapability';
-import { extractLayerPath, extractRepoId, readManagedViewsState } from './commands/commandHelpers';
+import {
+    extractLayerPath,
+    extractRepoId,
+    readManagedViewsState,
+    writeManagedViewsState,
+} from './commands/commandHelpers';
 import { CapabilityDetailsPanelManager } from './views/capabilityDetailsPanel';
 import { createRepoUpdateScheduler } from './repoUpdateScheduler';
 import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedulerLifecycle';
@@ -53,6 +58,10 @@ function getContextValue(item: vscode.TreeItem): string {
 function isArtifactTypeNode(item: vscode.TreeItem): boolean {
     const contextValue = getContextValue(item);
     return contextValue === 'artifactTypeFolder' || contextValue.startsWith('layerArtifactType:');
+}
+
+function isConcreteCapabilityNode(item: vscode.TreeItem): boolean {
+    return getContextValue(item) === 'layer';
 }
 
 function isCapabilitySearchBoundary(
@@ -147,6 +156,10 @@ async function revealSearchBranches<T extends vscode.TreeItem>(
             continue;
         }
 
+        if (isConcreteCapabilityNode(child)) {
+            continue;
+        }
+
         await treeView.reveal(child, { expand: 1, select: false, focus: false });
 
         const children = provider.getChildren(child);
@@ -175,9 +188,15 @@ async function collapseBranch<T extends vscode.TreeItem>(
 }
 
 async function prepareTreeViewFilter<T extends vscode.TreeItem>(
+    viewId: string,
     treeView: vscode.TreeView<T>,
     provider: SearchPreparedTreeProvider<T>,
 ): Promise<void> {
+    try {
+        await vscode.commands.executeCommand(`workbench.actions.treeView.${viewId}.collapseAll`);
+    } catch {
+        // Some VS Code hosts may not expose generated collapse-all commands.
+    }
     await revealSearchBranches(treeView, provider);
 }
 
@@ -194,11 +213,66 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
         // Fall back to the current sidebar focus when the generated focus command is unavailable.
     }
 
-    await vscode.commands.executeCommand('list.find');
-
-    void prepareTreeViewFilter(treeView, provider).catch((error: unknown) => {
+    await prepareTreeViewFilter(viewId, treeView, provider).catch((error: unknown) => {
         logWarn(`MetaFlow: Tree search preload failed: ${String(error)}`);
     });
+    await vscode.commands.executeCommand('list.find');
+}
+
+function waitForTreeViewRefresh(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 150));
+}
+
+async function focusFirstTreeItem<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    const firstItem = provider.getChildren()[0];
+    if (!firstItem) {
+        return;
+    }
+
+    await treeView.reveal(firstItem, { focus: true, select: false, expand: false });
+}
+
+async function openLayersTreeFilter<T extends vscode.TreeItem>(
+    treeView: vscode.TreeView<T>,
+    provider: LayersTreeViewProvider & SearchPreparedTreeProvider<T>,
+): Promise<void> {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot) {
+        const currentMode = readManagedViewsState(workspaceRoot).layersViewMode;
+        if (currentMode !== 'flat') {
+            writeManagedViewsState(workspaceRoot, { layersViewMode: 'flat' });
+            await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', 'flat');
+            provider.refresh();
+        }
+    }
+
+    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+
+    try {
+        await vscode.commands.executeCommand('metaflow-layers.focus');
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
+
+    await waitForTreeViewRefresh();
+
+    try {
+        await vscode.commands.executeCommand('workbench.actions.treeView.metaflow-layers.collapseAll');
+    } catch {
+        // Some VS Code hosts may not expose generated collapse-all commands.
+    }
+
+    await waitForTreeViewRefresh();
+    await focusFirstTreeItem(treeView, provider).catch((error: unknown) => {
+        logWarn(`MetaFlow: Tree search focus failed: ${String(error)}`);
+    });
+    await waitForTreeViewRefresh();
+    await vscode.commands.executeCommand('list.focusFirst');
+    await waitForTreeViewRefresh();
+    await vscode.commands.executeCommand('list.find');
 }
 
 // ── Activation ─────────────────────────────────────────────────────
@@ -264,6 +338,13 @@ export function activate(context: vscode.ExtensionContext): void {
         filesTreeViewProvider.refresh();
         layersTreeViewProvider.refresh();
     };
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.refreshManagedViewModeContext',
+            syncManagedViewModeContext,
+        ),
+    );
 
     syncManagedViewModeContext();
     vscode.commands.executeCommand('setContext', 'metaflow.hasGitBackedRepo', false);
@@ -337,7 +418,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openTreeViewFilter('metaflow-layers', layersTreeView, layersTreeViewProvider);
+            await openLayersTreeFilter(layersTreeView, layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);
