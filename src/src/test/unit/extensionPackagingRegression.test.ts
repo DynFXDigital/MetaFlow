@@ -37,6 +37,8 @@ type ExtensionPackageJson = {
                 {
                     default?: unknown;
                     enum?: string[];
+                    type?: string;
+                    description?: string;
                 }
             >;
         };
@@ -200,6 +202,26 @@ suite('Extension Packaging Regression Guards', () => {
         );
         assert.strictEqual(intervalSetting?.default, 'daily');
         assert.deepStrictEqual(intervalSetting?.enum, ['hourly', 'daily', 'weekly', 'monthly']);
+    });
+
+    test('refresh update auto-accept setting stays explicit and default-off', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const setting =
+            packageJson.contributes?.configuration?.properties?.[
+                'metaflow.autoAcceptRefreshUpdates'
+            ];
+        assert.ok(setting, 'Expected metaflow.autoAcceptRefreshUpdates setting to be contributed');
+        assert.strictEqual(setting?.type, 'boolean');
+        assert.strictEqual(setting?.default, false);
+        assert.match(
+            setting?.description ?? '',
+            /without confirmation prompts/i,
+            'Expected refresh update auto-accept setting description to explain prompt bypass behavior',
+        );
     });
 
     test('repo update commands are contributed for the command palette', () => {
