@@ -1,7 +1,7 @@
 name: Release Extension
 
-# Merging to main proves source quality; releasing is an explicit deployment decision.
-# Trigger this manually once the version PR has merged and main is at the correct version.
+# Releasing is an explicit deployment decision.
+# Trigger this manually once the version PR has merged on the correct lane and that branch is at the intended version.
 on:
   workflow_dispatch:
     inputs:
@@ -29,6 +29,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       vsix_name: ${{ steps.vsix.outputs.vsix_name }}
+      branch_name: ${{ steps.branch.outputs.branch_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -40,6 +41,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
+
+      - name: Resolve branch name
+        id: branch
+        shell: bash
+        run: |
+          BRANCH_NAME="${GITHUB_REF_NAME}"
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          echo "Running release workflow from branch $BRANCH_NAME"
 
       - name: Install dependencies
         run: npm ci
@@ -53,6 +62,36 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION on channel ${{ inputs.channel }}"
+
+      - name: Enforce branch and version lane rules
+        shell: bash
+        run: |
+          BRANCH_NAME="${{ steps.branch.outputs.branch_name }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          MINOR="$(echo "$VERSION" | cut -d. -f2)"
+
+          if [ "${{ inputs.channel }}" = "prerelease" ]; then
+            if [ "$BRANCH_NAME" != "prerelease" ]; then
+              echo "Prerelease publishes must run from the prerelease branch, not $BRANCH_NAME."
+              exit 1
+            fi
+            if [ $((MINOR % 2)) -ne 1 ]; then
+              echo "Prerelease publishes require an odd minor version; got $VERSION."
+              exit 1
+            fi
+          else
+            case "$BRANCH_NAME" in
+              main|release/*) ;;
+              *)
+                echo "Stable publishes must run from main or release/*, not $BRANCH_NAME."
+                exit 1
+                ;;
+            esac
+            if [ $((MINOR % 2)) -ne 0 ]; then
+              echo "Stable publishes require an even minor version; got $VERSION."
+              exit 1
+            fi
+          fi
 
       - name: Quick gate
         run: npm run gate:quick

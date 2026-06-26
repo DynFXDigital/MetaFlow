@@ -5,17 +5,37 @@
 VS Code Marketplace does not support semver prerelease suffixes (`1.2.3-beta.1` style).
 Use even/odd minor versions instead:
 
-| Lane | Minor | Example |
-|------|-------|---------|
-| Stable | Even | `0.2.0`, `0.2.1`, `0.4.0` |
-| Prerelease | Odd | `0.3.0`, `0.3.1` |
+- Stable lane: even minor versions such as `0.2.0`, `0.2.1`, and `0.4.0`
+- Prerelease lane: odd minor versions such as `0.3.0` and `0.3.1`
 
 The `--pre-release` flag on `vsce package` and `vsce publish` marks the extension as prerelease
 in the Marketplace UI. The version number alone is not enough.
 
-## Normal release cycle
+## Branch model
 
-### 1. Add a changeset (in your feature branch)
+- `main` is the stable branch. Publish even-minor stable releases from `main` only.
+- `prerelease` is a temporary convergence branch for odd-minor preview releases.
+- Create `prerelease` from `main` only when you have release-ready work worth previewing.
+- Merge preview-bound `feature/*` and `fix/*` branches into `prerelease` while that lane is active.
+- Before shipping a stable even-minor release, merge `prerelease` back into `main` so both branches point at the same release commit.
+- After the stable release ships, delete `prerelease` until the next preview cycle starts.
+
+## Release cycle
+
+### 1. Start a prerelease cycle when needed
+
+Create `prerelease` from the current `main` tip only when you have new work ready for preview distribution.
+
+```powershell
+git checkout main
+git pull
+git checkout -b prerelease
+git push -u origin prerelease
+```
+
+Keep `main` stable while the cycle is active. Merge release-ready feature work into `prerelease`, not `main`.
+
+### 2. Add a changeset (in your feature branch)
 
 ```powershell
 npm run changeset
@@ -24,28 +44,58 @@ npm run changeset
 Choose bump type: `patch` for fixes, `minor` for features, `major` for breaking changes.
 Commit the generated `.changeset/*.md` file with your changes.
 
-### 2. Merge to main
+### 3. Merge to the active release lane
 
-When your feature branch PR merges, the **Version Packages** workflow
+When your feature branch PR merges into `prerelease` during a preview cycle, or into `main`
+when no preview cycle is active, the **Version Packages** workflow
 (`.github/workflows/version-packages.yml`) automatically opens a PR titled
 `chore(release): version packages`.
 
 Review and merge that PR. It bumps `src/package.json`, `packages/engine/package.json`,
 and `packages/cli/package.json` in lockstep, and updates `CHANGELOG.md`.
 
-### 3. Publish
+### 4. Publish prereleases from `prerelease`
 
-Once the version PR is merged and `main` is green, go to:
+Once the version PR is merged and `prerelease` is green, go to:
 
-**Actions → Release Extension → Run workflow**
+`Actions -> Release Extension -> Run workflow`
 
 Inputs:
 
-| Input | Value |
-|-------|-------|
-| `channel` | `stable` (even minor) or `prerelease` (odd minor) |
+| Input     | Value        |
+| --------- | ------------ |
+| `channel` | `prerelease` |
+
+Run prerelease publishes from the `prerelease` branch only. The workflow rejects prerelease
+publishes from any other branch and also verifies that the version has an odd minor number.
+
+### 5. Converge back to `main` for stable release
+
+When the preview cycle is ready to ship as a stable release:
+
+1. Prepare the final even-minor version on `prerelease`.
+2. Merge `prerelease` back into `main`.
+3. Confirm `main` and `prerelease` point at the same release commit.
+4. Publish the stable release from `main`.
+5. Delete `prerelease` after the stable release ships.
+
+Stable publishes run from `main` only. The workflow rejects stable publishes from `prerelease`
+and verifies that the version has an even minor number.
+
+### 6. Publish stable
+
+Once the convergence merge is on `main` and `main` is green, go to:
+
+`Actions -> Release Extension -> Run workflow`
+
+Inputs:
+
+| Input     | Value    |
+| --------- | -------- |
+| `channel` | `stable` |
 
 The workflow:
+
 1. Runs the full gate (quick + integration)
 2. Packages the VSIX with the appropriate channel flag
 3. Waits for manual approval via the GitHub Environment (`production` or `prerelease`)
@@ -54,6 +104,13 @@ The workflow:
 6. Creates the GitHub Release with the VSIX attached
 
 The tag is created **after** publish succeeds, so a failed gate never leaves a dangling tag.
+
+## Branch invariants enforced by automation
+
+- `prerelease` channel releases must run from the `prerelease` branch.
+- `prerelease` channel releases must use an odd minor version.
+- `stable` channel releases must run from `main` or a `release/*` hotfix branch.
+- `stable` channel releases must use an even minor version.
 
 ## Package scripts
 
@@ -67,10 +124,10 @@ npm run package:pre      # build prerelease VSIX → src/artifacts/
 
 ## Prerelease vs stable packaging
 
-| Script | vsce flag | Marketplace lane |
-|--------|-----------|-----------------|
-| `package:stable` | (none) | Stable |
-| `package:pre` | `--pre-release` | Prerelease |
+| Script           | vsce flag       | Marketplace lane |
+| ---------------- | --------------- | ---------------- |
+| `package:stable` | (none)          | Stable           |
+| `package:pre`    | `--pre-release` | Prerelease       |
 
 Users opt into the prerelease lane through the extension install UI in VS Code.
 Both channels share the same extension identity (`dynfxdigital.metaflow-ai`).
@@ -81,19 +138,19 @@ Both channels share the same extension identity (`dynfxdigital.metaflow-ai`).
 
 Create two environments in repository Settings → Environments:
 
-| Environment name | Used for |
-|-----------------|----------|
-| `production` | Stable channel releases |
-| `prerelease` | Prerelease channel releases |
+| Environment name | Used for                    |
+| ---------------- | --------------------------- |
+| `production`     | Stable channel releases     |
+| `prerelease`     | Prerelease channel releases |
 
 Add required reviewers to each environment for a manual approval gate before publish.
 
 ### Secrets
 
-| Secret | Source |
-|--------|--------|
+| Secret     | Source                                                           |
+| ---------- | ---------------------------------------------------------------- |
 | `VSCE_PAT` | Azure DevOps personal access token, `Marketplace (Manage)` scope |
-| `OVSX_PAT` | Open VSX token from `https://open-vsx.org/user-settings/tokens` |
+| `OVSX_PAT` | Open VSX token from `https://open-vsx.org/user-settings/tokens`  |
 
 Keep secrets only in GitHub Actions secrets. Never commit tokens or paste them in issues/PRs.
 Rotate immediately if exposure is suspected.
@@ -107,8 +164,10 @@ A valid token without publisher membership is not sufficient.
 
 1. Create a `release/vX.Y.Z` branch from the last stable tag.
 2. Apply the minimal fix. Run the gate.
-3. Merge back to the release branch and trigger the publish workflow from that branch.
+3. Trigger the stable publish workflow from that branch.
 4. Cherry-pick the fix to `main`.
+
+Hotfix branches publish stable releases only. Do not use a `release/*` branch for prerelease distribution.
 
 ## Dependency and artifact hardening
 
