@@ -700,7 +700,9 @@ function buildArtifactTypeContextValue(artifactType: CapabilityArtifactType): st
     return `layerArtifactType:${artifactType}`;
 }
 
-function formatArtifactTypeCountLabel(counts: ArtifactSummaryCounts | undefined): string | undefined {
+function formatArtifactTypeCountLabel(
+    counts: ArtifactSummaryCounts | undefined,
+): string | undefined {
     if (!counts) {
         return undefined;
     }
@@ -972,7 +974,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             return true;
         }
 
-        return this.getChildrenCore(element).some((child) => !(child instanceof ArtifactTypeLayerItem));
+        return this.getChildrenCore(element).some(
+            (child) => !(child instanceof ArtifactTypeLayerItem),
+        );
     }
 
     private getFlatTreeSearchMatches(element?: LayerTreeItem): LayerTreeItem[] {
@@ -1011,8 +1015,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         return children.filter((child) => {
-            const descendantMatches =
-                this.canSearchDescendInto(child) ? this.getSearchFilteredChildren(child) : [];
+            const descendantMatches = this.canSearchDescendInto(child)
+                ? this.getSearchFilteredChildren(child)
+                : [];
             const include = this.matchesSearch(child) || descendantMatches.length > 0;
 
             if (include && descendantMatches.length > 0) {
@@ -1939,9 +1944,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         const layerRepoId = layerSource?.repoId ?? 'primary';
         const layerPath = layerSource?.path ?? singleLayerPath ?? '.';
         const normalizedLayerPath = normalizeRelativePath(layerPath);
-        const layerId = layerSource
-            ? `${layerRepoId}/${layerPath}`
-            : singleLayerPath!;
+        const layerId = layerSource ? `${layerRepoId}/${layerPath}` : singleLayerPath!;
         const normalizedLayerId = this.normalizeLayerId(layerId);
 
         const result = new Set<CapabilityArtifactType>();
@@ -2054,49 +2057,51 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
             const descendantKeySet = this.buildFlatModeDescendantKeySet(entries);
 
-            return entries.filter((entry) => this.shouldShowFlatEntry(entry, descendantKeySet)).map(
-                (entry) =>
-                    new LayerItem(entry.label, entry.enabled, entry.layerIndex, {
-                        itemId: buildLayerTreeItemId(
-                            'layer',
-                            'flat',
-                            entry.repoId,
-                            entry.normalizedPath || '.',
-                        ),
-                        repoId: entry.repoId,
-                        repoLabel: entry.repoLabel,
-                        showRepoLabelInDescription: true,
-                        repoDisabled: entry.repoDisabled,
-                        toggleable: entry.toggleable,
-                        hasChildren: false,
-                        path: entry.normalizedPath || '(root)',
-                        layerPath: entry.normalizedPath || '.',
-                        showPathInDescription: true,
-                        capabilityName: entry.capability?.name,
-                        capabilityId: entry.capability?.id,
-                        capabilityDescription: entry.capability?.description,
-                        capabilityLicense: entry.capability?.license,
-                        capabilityExperimental: entry.capability?.experimental,
-                        summary: this.summarizePath(
-                            entry.repoId ?? 'primary',
-                            entry.normalizedPath || '.',
-                        ),
-                        scopeSummary: summarizeLayerInstructionScope(
-                            this.state.treeSummaryCache,
-                            entry.repoId ?? 'primary',
-                            entry.normalizedPath || '.',
-                        ),
-                        governance: buildCapabilityGovernanceProjection(
-                            entry.repoId,
-                            entry.normalizedPath || '.',
-                            {
-                                governanceContract: this.state.governanceContract,
-                                governanceContractErrors: this.state.governanceContractErrors,
-                                governanceCompliance: this.state.governanceCompliance,
-                            },
-                        ),
-                    }),
-            );
+            return entries
+                .filter((entry) => this.shouldShowFlatEntry(entry, descendantKeySet))
+                .map(
+                    (entry) =>
+                        new LayerItem(entry.label, entry.enabled, entry.layerIndex, {
+                            itemId: buildLayerTreeItemId(
+                                'layer',
+                                'flat',
+                                entry.repoId,
+                                entry.normalizedPath || '.',
+                            ),
+                            repoId: entry.repoId,
+                            repoLabel: entry.repoLabel,
+                            showRepoLabelInDescription: true,
+                            repoDisabled: entry.repoDisabled,
+                            toggleable: entry.toggleable,
+                            hasChildren: false,
+                            path: entry.normalizedPath || '(root)',
+                            layerPath: entry.normalizedPath || '.',
+                            showPathInDescription: true,
+                            capabilityName: entry.capability?.name,
+                            capabilityId: entry.capability?.id,
+                            capabilityDescription: entry.capability?.description,
+                            capabilityLicense: entry.capability?.license,
+                            capabilityExperimental: entry.capability?.experimental,
+                            summary: this.summarizePath(
+                                entry.repoId ?? 'primary',
+                                entry.normalizedPath || '.',
+                            ),
+                            scopeSummary: summarizeLayerInstructionScope(
+                                this.state.treeSummaryCache,
+                                entry.repoId ?? 'primary',
+                                entry.normalizedPath || '.',
+                            ),
+                            governance: buildCapabilityGovernanceProjection(
+                                entry.repoId,
+                                entry.normalizedPath || '.',
+                                {
+                                    governanceContract: this.state.governanceContract,
+                                    governanceContractErrors: this.state.governanceContractErrors,
+                                    governanceCompliance: this.state.governanceCompliance,
+                                },
+                            ),
+                        }),
+                );
         }
 
         if (element instanceof LayerRepoItem) {
@@ -2259,7 +2264,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     getChildren(element?: LayerTreeItem): LayerTreeItem[] {
-        return this.searchQuery ? this.getSearchFilteredChildren(element) : this.getChildrenCore(element);
+        return this.searchQuery
+            ? this.getSearchFilteredChildren(element)
+            : this.getChildrenCore(element);
     }
 
     getExpandAllStrategy(): ExpandAllStrategy {

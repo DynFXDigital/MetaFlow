@@ -8156,7 +8156,10 @@ export function registerCommands(
         }),
     );
 
-    async function setLayersViewMode(ws: vscode.WorkspaceFolder, nextMode: LayersViewMode): Promise<void> {
+    async function setLayersViewMode(
+        ws: vscode.WorkspaceFolder,
+        nextMode: LayersViewMode,
+    ): Promise<void> {
         writeManagedViewsState(ws.uri.fsPath, { layersViewMode: nextMode });
         await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', nextMode);
         try {

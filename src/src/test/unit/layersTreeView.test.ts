@@ -2315,7 +2315,9 @@ suite('LayersTreeView – artifact-type children', () => {
             'root should show only repo-level artifact browse rows',
         );
         assert.ok(
-            rootChildren.every((item) => String(item.contextValue).startsWith('layerArtifactType:')),
+            rootChildren.every((item) =>
+                String(item.contextValue).startsWith('layerArtifactType:'),
+            ),
             'root children should be artifact browse rows',
         );
 
@@ -2411,5 +2413,4 @@ suite('LayersTreeView – artifact-type children', () => {
             'artifact-only matches should not keep non-matching capabilities visible',
         );
     });
-
 });
