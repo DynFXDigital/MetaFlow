@@ -219,8 +219,8 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(setting?.default, false);
         assert.match(
             setting?.description ?? '',
-            /without confirmation prompts/i,
-            'Expected refresh update auto-accept setting description to explain prompt bypass behavior',
+            /enabled from the refresh prompt itself/i,
+            'Expected refresh update auto-accept setting description to explain popup opt-in behavior',
         );
     });
 
