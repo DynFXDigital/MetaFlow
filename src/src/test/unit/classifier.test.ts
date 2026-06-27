@@ -69,6 +69,19 @@ suite('classifier', () => {
             assert.strictEqual(classifySingle('AGENTS.md', undefined), 'synchronized');
             assert.strictEqual(classifySingle('AGENTS.override.md', undefined), 'synchronized');
         });
+
+        test('Codex project config files remain synchronized', () => {
+            assert.strictEqual(classifySingle('.codex/config.toml', undefined), 'synchronized');
+            assert.strictEqual(classifySingle('.codex/hooks.json', undefined), 'synchronized');
+            assert.strictEqual(
+                classifySingle('.codex/rules/release.rules', undefined),
+                'synchronized',
+            );
+            assert.strictEqual(
+                classifySingle('.codex/agents/reviewer.toml', undefined),
+                'synchronized',
+            );
+        });
     });
 
     suite('injection config override', () => {
@@ -153,6 +166,17 @@ suite('classifier', () => {
             );
             assert.strictEqual(
                 classifySingle('AGENTS.override.md', { instructions: 'settings' }),
+                'synchronized',
+            );
+        });
+
+        test('Codex project config files ignore injection overrides', () => {
+            assert.strictEqual(
+                classifySingle('.codex/agents/reviewer.toml', { agents: 'plugin' }),
+                'synchronized',
+            );
+            assert.strictEqual(
+                classifySingle('.codex/hooks.json', { hooks: 'settings' }),
                 'synchronized',
             );
         });

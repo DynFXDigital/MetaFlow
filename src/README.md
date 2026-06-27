@@ -109,6 +109,8 @@ Codex support is separate from VS Code and GitHub Copilot plugin mode.
 - Applying those files writes them to workspace-root `.agents/skills/**`, not `.github/.agents/**`, and does not add MetaFlow filename prefixes.
 - Existing unmanaged `.agents/skills/**` files block the apply plan before overwrite.
 - Managed Codex skill files participate in drift detection and clean safety.
+- Root `AGENTS.md` and `AGENTS.override.md` files are recognized as Codex project instructions and synchronize to the consuming repository root with the same unmanaged-destination and drift protection.
+- `.codex/**` files, including `config.toml`, hooks, rules, and custom agent definitions, synchronize root-relative without inline MetaFlow provenance comments; managed state remains the provenance source for drift and clean safety.
 - Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's current `plugin.json` maintenance commands are for GitHub Copilot agent plugins.
 - Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow's generated `.github/plugin/marketplace.json` remains scoped to GitHub Copilot plugin discovery.
 

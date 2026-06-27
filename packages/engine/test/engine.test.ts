@@ -1374,6 +1374,16 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.ok(discovered.includes('project-guidance'));
     });
 
+    it('discovers layers that only contain Codex project config files', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'codex-policy');
+        fs.mkdirSync(path.join(layerRoot, '.codex'), { recursive: true });
+        fs.writeFileSync(path.join(layerRoot, '.codex', 'config.toml'), 'sandbox_mode = "workspace-write"\n');
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('codex-policy'));
+    });
+
     it('skips runtime discovery when resolve option disables discovery', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
@@ -1965,6 +1975,85 @@ describe('Engine: synchronizer advanced', () => {
 
         assert.ok(message.includes('Unmanaged destination already exists'));
         assert.ok(message.includes('AGENTS.md'));
+    });
+
+    it('discovers and synchronizes Codex project config without inline provenance', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.codex', 'rules'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.codex', 'config.toml'),
+            'sandbox_mode = "workspace-write"\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.codex', 'rules', 'release.rules'),
+            'deny command "git push"\n',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { agents: 'plugin', hooks: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const configFile = fileMap.get('.codex/config.toml');
+        assert.ok(configFile, 'Codex project config should be retained');
+        assert.strictEqual(configFile?.classification, 'synchronized');
+        assert.strictEqual(
+            toSynchronizedRelativePath(configFile as EffectiveFile),
+            '.codex/config.toml',
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/config.toml'));
+        assert.ok(result.written.includes('.codex/rules/release.rules'));
+
+        const writtenConfig = fs.readFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'utf-8');
+        assert.strictEqual(writtenConfig, 'sandbox_mode = "workspace-write"\n');
+        assert.ok(!writtenConfig.includes('metaflow:provenance'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', '.codex', 'config.toml')));
+
+        fs.writeFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'sandbox_mode = "read-only"\n');
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === '.codex/config.toml')?.status,
+            'drifted',
+        );
+    });
+
+    it('planSynchronization fails when Codex project config would overwrite unmanaged root files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.codex'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.codex', 'config.toml'),
+            'sandbox_mode = "workspace-write"\n',
+            'utf-8',
+        );
+        fs.mkdirSync(path.join(tmpDir, '.codex'), { recursive: true });
+        fs.writeFileSync(path.join(tmpDir, '.codex', 'config.toml'), '# user-owned', 'utf-8');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('.codex/config.toml'));
     });
 
     it('discovers and synchronizes Codex repository skills to root .agents', () => {

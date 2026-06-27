@@ -23,7 +23,11 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
-import { isCodexProjectInstructionPath, isCodexRepositorySkillPath } from './codexPaths';
+import {
+    isCodexProjectConfigPath,
+    isCodexProjectInstructionPath,
+    isCodexRepositorySkillPath,
+} from './codexPaths';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -376,6 +380,9 @@ function isKnownArtifactPath(relativePath: string): boolean {
     if (isCodexRepositorySkillPath(relativePath)) {
         return true;
     }
+    if (isCodexProjectConfigPath(relativePath)) {
+        return true;
+    }
 
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
@@ -443,6 +450,8 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             childNames,
             currentDir,
         );
+        const hasCodexProjectConfig =
+            childNames.has('.codex') && hasCodexProjectConfigDir(path.join(currentDir, '.codex'));
         const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
         if (
@@ -450,6 +459,7 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             hasGithubArtifacts ||
             hasCodexRepositorySkills ||
             hasCodexProjectInstructions ||
+            hasCodexProjectConfig ||
             hasCapabilityManifest
         ) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
@@ -501,6 +511,31 @@ function hasCodexRepositorySkillsDir(agentsDirPath: string): boolean {
     const candidate = path.join(agentsDirPath, 'skills');
     try {
         return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+function hasCodexProjectConfigDir(codexDirPath: string): boolean {
+    try {
+        if (!fs.existsSync(codexDirPath) || !fs.statSync(codexDirPath).isDirectory()) {
+            return false;
+        }
+
+        const entries = fs.readdirSync(codexDirPath, { withFileTypes: true });
+        for (const entry of entries) {
+            const fullPath = path.join(codexDirPath, entry.name);
+            if (getEntryKind(entry, fullPath) === 'file') {
+                return true;
+            }
+            if (
+                getEntryKind(entry, fullPath) === 'directory' &&
+                hasCodexProjectConfigDir(fullPath)
+            ) {
+                return true;
+            }
+        }
+        return false;
     } catch {
         return false;
     }

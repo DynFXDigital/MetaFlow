@@ -18,7 +18,11 @@
 
 import { InjectionConfig, LayerSource } from '../config/configSchema';
 import { normalizeInputPath } from '../config/configPathUtils';
-import { isCodexProjectInstructionPath, isCodexRepositorySkillPath } from './codexPaths';
+import {
+    isCodexProjectConfigPath,
+    isCodexProjectInstructionPath,
+    isCodexRepositorySkillPath,
+} from './codexPaths';
 import { ArtifactClassification, EffectiveFile } from './types';
 
 /** Default classification rules per artifact type directory prefix. */
@@ -120,6 +124,9 @@ export function classifySingle(
         return 'synchronized';
     }
     if (isCodexRepositorySkillPath(normalized)) {
+        return 'synchronized';
+    }
+    if (isCodexProjectConfigPath(normalized)) {
         return 'synchronized';
     }
 

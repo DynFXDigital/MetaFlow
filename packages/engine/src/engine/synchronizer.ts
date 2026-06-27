@@ -20,7 +20,7 @@ import {
     createEmptyState,
 } from './managedState';
 import { checkDrift } from './driftDetector';
-import { isCodexRootRelativeSynchronizedPath } from './codexPaths';
+import { isCodexRootRelativeSynchronizedPath, usesInlineProvenanceHeader } from './codexPaths';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
@@ -456,7 +456,7 @@ export interface ApplyResult {
 }
 
 /**
- * Apply synchronization: write classified files with provenance.
+ * Apply synchronization: write classified files with managed-state provenance.
  */
 export function apply(options: ApplyOptions): ApplyResult {
     const plan = loadSynchronizationPlan(options);
@@ -504,8 +504,9 @@ export function apply(options: ApplyOptions): ApplyResult {
             contentHash,
         };
 
-        const header = generateProvenanceHeader(provenance);
-        const fullContent = synchronizedBody + '\n' + header;
+        const fullContent = usesInlineProvenanceHeader(relPath)
+            ? synchronizedBody + '\n' + generateProvenanceHeader(provenance)
+            : synchronizedBody;
 
         // Write file
         const destPath = resolveSynchronizedDestinationPath(

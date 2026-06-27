@@ -270,6 +270,60 @@ suite('synchronization engine', () => {
         assert.ok(message.includes('AGENTS.md'));
     });
 
+    test('Codex project config synchronizes without inline provenance', () => {
+        const codexConfigPath = '.codex/config.toml';
+        const configBody = 'sandbox_mode = "workspace-write"\n';
+        const files = [makeEffectiveFile(codexConfigPath, configBody)];
+
+        const changes = preview(tmpDir, files, outputDir);
+        assert.strictEqual(changes[0].relativePath, codexConfigPath);
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(result.written.includes(codexConfigPath));
+
+        const rootConfigPath = path.join(tmpDir, '.codex', 'config.toml');
+        const written = fs.readFileSync(rootConfigPath, 'utf-8');
+        assert.strictEqual(written, configBody);
+        assert.ok(!written.includes('metaflow:provenance'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, outputDir, '.codex', 'config.toml')));
+
+        const state = loadManagedState(tmpDir);
+        assert.strictEqual(state.files[codexConfigPath]?.sourceRelativePath, codexConfigPath);
+
+        fs.writeFileSync(rootConfigPath, 'sandbox_mode = "read-only"\n', 'utf-8');
+        const reapplyResult = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(reapplyResult.skipped.includes(codexConfigPath));
+
+        const cleanResult = clean(tmpDir, outputDir);
+        assert.ok(cleanResult.skipped.includes(codexConfigPath));
+    });
+
+    test('Codex project config rejects unmanaged root destinations', () => {
+        const codexConfigPath = '.codex/config.toml';
+        const files = [makeEffectiveFile(codexConfigPath, 'sandbox_mode = "workspace-write"\n')];
+        fs.mkdirSync(path.join(tmpDir, '.codex'), { recursive: true });
+        fs.writeFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'user-owned file', 'utf-8');
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes(codexConfigPath));
+    });
+
     test('Codex repository skills synchronize to root .agents/skills path', () => {
         const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
         const files = [makeEffectiveFile(codexSkillPath, '# Codex Metadata')];

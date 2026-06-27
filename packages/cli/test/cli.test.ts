@@ -510,6 +510,45 @@ describe('CLI: apply', () => {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         assert.ok(state.files['AGENTS.md'], 'state should track root Codex project instructions');
     });
+
+    it('should synchronize Codex project config without inline provenance', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.codex/config.toml',
+                        content: 'sandbox_mode = "workspace-write"\n',
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes('.codex/config.toml'));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+
+        const rootConfigPath = path.join(ws.root, '.codex', 'config.toml');
+        assert.ok(
+            fs.existsSync(rootConfigPath),
+            'Codex project config should be synchronized at repo root',
+        );
+        assert.ok(
+            !fs.existsSync(path.join(ws.root, '.github', '.codex', 'config.toml')),
+            'Codex project config should not be nested under .github',
+        );
+
+        const written = fs.readFileSync(rootConfigPath, 'utf-8');
+        assert.strictEqual(written, 'sandbox_mode = "workspace-write"\n');
+        assert.ok(!written.includes('metaflow:provenance'));
+
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        assert.ok(state.files['.codex/config.toml'], 'state should track Codex project config');
+    });
 });
 
 // ── Drift detection + promote ──────────────────────────────────────

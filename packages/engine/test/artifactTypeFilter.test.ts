@@ -43,6 +43,10 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('AGENTS.override.md'), 'instructions');
     });
 
+    it('ATF-01e4: Codex project config agent paths return agents', () => {
+        assert.strictEqual(getArtifactType('.codex/agents/reviewer.toml'), 'agents');
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });

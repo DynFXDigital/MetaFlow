@@ -7,7 +7,11 @@
  * Pure TypeScript — no VS Code imports.
  */
 
-import { isCodexProjectInstructionPath, isCodexRepositorySkillPath } from './codexPaths';
+import {
+    isCodexProjectConfigPath,
+    isCodexProjectInstructionPath,
+    isCodexRepositorySkillPath,
+} from './codexPaths';
 
 export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
 
@@ -30,6 +34,9 @@ export function getArtifactType(relativePath: string): ArtifactType {
     }
     if (isCodexRepositorySkillPath(posix)) {
         return 'skills';
+    }
+    if (isCodexProjectConfigPath(posix) && posix.startsWith('.codex/agents/')) {
+        return 'agents';
     }
 
     const firstSegment = posix.split('/')[0] ?? '';
