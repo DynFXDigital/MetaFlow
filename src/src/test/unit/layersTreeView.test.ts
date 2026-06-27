@@ -2552,4 +2552,56 @@ suite('LayersTreeView – artifact-type children', () => {
             'artifact-only matches should not keep non-matching capabilities visible',
         );
     });
+
+    test('LTV-SCH-02: tree search omits disabled repository and layer matches', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [
+                { id: 'repo1', name: 'CoreMeta', localPath: '/repo1' },
+                { id: 'repo2', name: 'PausedMeta', localPath: '/repo2', enabled: false },
+            ],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/active' },
+                { repoId: 'repo2', path: 'capabilities/devtools/disabled-repo' },
+                { repoId: 'repo1', path: 'capabilities/devtools/disabled-layer', enabled: false },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/active': { name: 'Active Tooling' },
+            'repo2/capabilities/devtools/disabled-repo': { name: 'Disabled Repo Tooling' },
+            'repo1/capabilities/devtools/disabled-layer': { name: 'Disabled Layer Tooling' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                config,
+                [
+                    makeEffectiveFile(
+                        'instructions/active.md',
+                        'repo1',
+                        'capabilities/devtools/active',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/disabled-repo.md',
+                        'repo2',
+                        'capabilities/devtools/disabled-repo',
+                    ),
+                    makeEffectiveFile(
+                        'instructions/disabled-layer.md',
+                        'repo1',
+                        'capabilities/devtools/disabled-layer',
+                    ),
+                ],
+                capabilityByLayer,
+            ),
+            () => 'tree',
+        );
+
+        provider.setSearchQuery('tooling');
+
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            ['Active Tooling'],
+            'search should only surface active capability matches',
+        );
+    });
 });

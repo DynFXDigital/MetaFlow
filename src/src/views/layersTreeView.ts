@@ -955,6 +955,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return this.getSearchableText(element).includes(this.searchQuery);
     }
 
+    private shouldIncludeDirectSearchMatch(element: LayerTreeItem): boolean {
+        if (!(element instanceof LayerItem) || typeof element.layerIndex !== 'number') {
+            return true;
+        }
+
+        const availability = this.getLayerAvailability(element.layerIndex, element.repoId);
+        return availability?.repoEnabled !== false && availability?.layerEnabled !== false;
+    }
+
     private applySearchPresentation<T extends LayerTreeItem>(element: T): T {
         if (element.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
             element.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
@@ -994,7 +1003,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
             const canDescend = this.canSearchDescendInto(child);
             const isCapability = child instanceof LayerItem && typeof child.layerIndex === 'number';
-            if (isCapability && this.matchesSearch(child)) {
+            if (
+                isCapability &&
+                this.shouldIncludeDirectSearchMatch(child) &&
+                this.matchesSearch(child)
+            ) {
                 child.collapsibleState = vscode.TreeItemCollapsibleState.None;
                 if (typeof child.id === 'string' && child.id.length > 0) {
                     child.id = `${child.id}|search:${this.searchVersion}`;
@@ -1024,7 +1037,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const descendantMatches = this.canSearchDescendInto(child)
                 ? this.getSearchFilteredChildren(child)
                 : [];
-            const include = this.matchesSearch(child) || descendantMatches.length > 0;
+            const include =
+                (this.shouldIncludeDirectSearchMatch(child) && this.matchesSearch(child)) ||
+                descendantMatches.length > 0;
 
             if (include && descendantMatches.length > 0) {
                 this.applySearchPresentation(child);
