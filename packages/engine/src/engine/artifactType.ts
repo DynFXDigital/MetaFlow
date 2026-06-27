@@ -7,9 +7,9 @@
  * Pure TypeScript — no VS Code imports.
  */
 
-export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
+export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
 
-const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skills']);
+const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skills', 'hooks']);
 
 /**
  * Classify a relative file path into an artifact-type bucket.

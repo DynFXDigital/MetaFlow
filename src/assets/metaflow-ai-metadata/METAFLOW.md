@@ -10,6 +10,7 @@ This repository contains the built-in MetaFlow metadata shipped with the extensi
 Its contents provide:
 
 - guidance for authoring MetaFlow configuration constructs
+- prompt-injection and authority-boundary guardrails for agent-facing metadata
 - a metadata-authoring directory with separate built-in capabilities for GitHub Copilot, Claude Code, and Codex metadata authoring guidance
 - workflows for reconciling repository-local metadata with linked or candidate shared metadata repositories
 - review workflows for reusable MetaFlow capabilities

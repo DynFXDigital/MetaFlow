@@ -18,16 +18,25 @@ export type {
     CapabilityReferenceRepairResult,
     ConfiguredCapabilityReference,
 } from './capabilityIdentity';
-export {
-    buildAgentPluginCatalog,
-    buildCapabilityPluginMarketplaceManifest,
-} from './pluginCatalog';
+export { buildAgentPluginCatalog, buildCapabilityPluginMarketplaceManifest } from './pluginCatalog';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyFilters } from './filterEngine';
 export { applyProfile } from './profileEngine';
 export { getArtifactType } from './artifactType';
 export type { ArtifactType } from './artifactType';
+export {
+    getPromptInjectionRulePack,
+    isPromptInjectionTargetPath,
+    scanPromptInjectionContent,
+} from './promptInjectionScanner';
+export type {
+    PromptInjectionFinding,
+    PromptInjectionRuleDefinition,
+    PromptInjectionRuleId,
+    PromptInjectionScanOptions,
+    PromptInjectionSeverity,
+} from './promptInjectionScanner';
 export { classifyFiles, classifySingle, resolveFileInjection } from './classifier';
 export { matchesGlob, matchesAnyGlob } from './globMatcher';
 export {

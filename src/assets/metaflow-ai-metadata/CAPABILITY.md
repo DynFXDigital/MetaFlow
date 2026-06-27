@@ -1,7 +1,7 @@
 ---
 uid: d7da7ee3-4ccf-42e8-a23f-c61e321ec612
 name: MetaFlow
-description: MetaFlow construct guidance, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
+description: MetaFlow construct guidance, prompt-injection-resistant metadata guardrails, linked-metadata reconciliation workflows, and capability review assets help repositories govern reusable metadata layers.
 license: MIT
 ---
 
@@ -14,6 +14,7 @@ Provide a small built-in MetaFlow metadata layer that works out of the box in th
 ## Scope
 
 - Guidance for authoring MetaFlow configuration constructs under `.metaflow/`.
+- Guardrails for keeping capability metadata resilient to prompt injection and authority-confusion attacks.
 - A review skill for assessing reusable MetaFlow capabilities and promotion readiness.
 - A reconciliation workflow for comparing repository-local metadata against linked or candidate shared metadata repositories.
 - Guidance for capability composition that prefers optional adjacent workflows over hard dependencies.

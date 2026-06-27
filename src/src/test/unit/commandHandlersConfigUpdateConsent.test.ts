@@ -21,7 +21,7 @@ suite('Command handler config update consent', () => {
         const source = readCommandHandlersSource();
         const refreshUpdateBlock = sourceSlice(
             source,
-            'const shouldPersistConfig = autoAcceptRefreshUpdates',
+            'const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates',
             'state.config = result.config;',
         );
 
@@ -38,9 +38,10 @@ suite('Command handler config update consent', () => {
 
         const confirmHelper = sourceSlice(
             source,
-            'async function confirmConfigUpdate(',
+            'async function decideConfigUpdate(',
             'interface BuiltInCapabilityStateRepair',
         );
+        assert.match(confirmHelper, /AUTO_ACCEPT_REFRESH_UPDATES_ACTION/);
         assert.match(confirmHelper, /'Open Config'/);
         assert.match(confirmHelper, /'Later'/);
     });
@@ -54,23 +55,89 @@ suite('Command handler config update consent', () => {
         );
 
         assert.match(refreshOptionsBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
+        assert.match(
+            refreshOptionsBlock,
+            /workspaceConfig\.get<boolean>\(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false\)/,
+        );
         assert.match(refreshOptionsBlock, /refreshOptions\.nonInteractive === true/);
 
         const refreshUpdateBlock = sourceSlice(
             source,
-            'const shouldPersistConfig = autoAcceptRefreshUpdates',
-            'if (shouldPersistConfig && capabilityRepairPreview) {'
+            'const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates',
+            'if (shouldPersistConfig && capabilityRepairPreview) {',
         );
-        assert.match(refreshUpdateBlock, /autoAcceptRefreshUpdates\s+\? true/);
-        assert.match(refreshUpdateBlock, /suppressRefreshUpdatePrompts\s+\? false/);
+        assert.match(
+            refreshUpdateBlock,
+            /autoAcceptRefreshUpdates\s*\?\s*\{ shouldPersist: true, rememberPreference: false \}/,
+        );
+        assert.match(
+            refreshUpdateBlock,
+            /suppressRefreshUpdatePrompts\s*\?\s*\{ shouldPersist: false, rememberPreference: false \}/,
+        );
 
         const builtInRepairBlock = sourceSlice(
             source,
-            'const shouldUpdateBuiltInState = autoAcceptRefreshUpdates',
-            'if (shouldUpdateBuiltInState) {'
+            'const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates',
+            'if (shouldUpdateBuiltInState) {',
         );
-        assert.match(builtInRepairBlock, /autoAcceptRefreshUpdates\s+\? true/);
-        assert.match(builtInRepairBlock, /suppressRefreshUpdatePrompts\s+\? false/);
+        assert.match(
+            builtInRepairBlock,
+            /autoAcceptRefreshUpdates\s*\?\s*\{ shouldPersist: true, rememberPreference: false \}/,
+        );
+        assert.match(
+            builtInRepairBlock,
+            /suppressRefreshUpdatePrompts\s*\?\s*\{ shouldPersist: false, rememberPreference: false \}/,
+        );
+    });
+
+    test('workspace setting can auto-accept refresh updates outside test mode', () => {
+        const source = readCommandHandlersSource();
+        const refreshOptionsBlock = sourceSlice(
+            source,
+            'const refreshOptions = extractRefreshCommandOptions(arg);',
+            'const pendingCapabilityPluginMetadataDirtyVersion',
+        );
+
+        assert.match(
+            refreshOptionsBlock,
+            /let autoAcceptRefreshUpdates =\s+autoAcceptRefreshUpdatesInTests \|\|\s+workspaceConfig\.get<boolean>\(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false\);/m,
+        );
+        assert.match(
+            refreshOptionsBlock,
+            /const suppressRefreshUpdatePrompts =\s+refreshOptions\.nonInteractive === true && !autoAcceptRefreshUpdates;/m,
+        );
+    });
+
+    test('popup can persist auto-accept preference for future refreshes', () => {
+        const source = readCommandHandlersSource();
+        const refreshUpdateBlock = sourceSlice(
+            source,
+            'const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates',
+            'if (shouldPersistConfig && capabilityRepairPreview) {',
+        );
+
+        assert.match(
+            refreshUpdateBlock,
+            /await decideConfigUpdate\(result\.configPath, pendingConfigUpdateReasons\)/,
+        );
+        assert.match(
+            refreshUpdateBlock,
+            /if \(configUpdateDecision\.rememberPreference\) \{\s+await persistAutoAcceptRefreshUpdatesPreference\(workspaceConfig\);\s+autoAcceptRefreshUpdates = true;/m,
+        );
+
+        const builtInRepairBlock = sourceSlice(
+            source,
+            'const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates',
+            'if (shouldUpdateBuiltInState) {',
+        );
+        assert.match(
+            builtInRepairBlock,
+            /await decideBuiltInCapabilityStateUpdate\(\s*builtInRepairPreview\.repairs,\s*\)/m,
+        );
+        assert.match(
+            builtInRepairBlock,
+            /if \(builtInUpdateDecision\.rememberPreference\) \{\s+await persistAutoAcceptRefreshUpdatesPreference\(workspaceConfig\);\s+autoAcceptRefreshUpdates = true;/m,
+        );
     });
 
     test('declining capability repair preserves the previous identity snapshot', () => {
@@ -81,7 +148,10 @@ suite('Command handler config update consent', () => {
             'const gitRepos = resolveGitBackedRepoSources',
         );
 
-        assert.match(refreshUpdateBlock, /if \(pendingRepairCount > 0\) \{\s+shouldAdvanceCapabilityIdentitySnapshot = false;/m);
+        assert.match(
+            refreshUpdateBlock,
+            /if \(pendingRepairCount > 0\) \{\s+shouldAdvanceCapabilityIdentitySnapshot = false;/m,
+        );
         assert.match(
             source,
             /if \(shouldAdvanceCapabilityIdentitySnapshot\) \{\s+saveCapabilityIdentitySnapshot\(projectedConfig, ws\.uri\.fsPath\);/m,
@@ -98,16 +168,13 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             builtInRepairBlock,
-            /const shouldUpdateBuiltInState = autoAcceptRefreshUpdates[\s\S]*await confirmBuiltInCapabilityStateUpdate\(/,
+            /const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates[\s\S]*await decideBuiltInCapabilityStateUpdate\(/,
         );
         assert.match(
             builtInRepairBlock,
-            /if \(shouldUpdateBuiltInState\) \{\s+state\.builtInCapability = await writeBuiltInCapabilityWorkspaceState\(/m,
+            /const shouldUpdateBuiltInState = builtInUpdateDecision\.shouldPersist;[\s\S]*if \(shouldUpdateBuiltInState\) \{\s+state\.builtInCapability = await writeBuiltInCapabilityWorkspaceState\(/m,
         );
-        assert.match(
-            builtInRepairBlock,
-            /shouldAdvanceCapabilityIdentitySnapshot = false;/,
-        );
+        assert.match(builtInRepairBlock, /shouldAdvanceCapabilityIdentitySnapshot = false;/);
     });
 
     test('capability repair preview does not mutate loaded config before consent', () => {

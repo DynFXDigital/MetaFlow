@@ -9,7 +9,7 @@ import {
 } from '@metaflow/engine';
 import {
     InstructionScopeSummary,
-    summarizeLayerInstructionScope,
+    summarizeLayerContentInstructionScope,
     TreeSummaryCache,
 } from '../treeSummary';
 
@@ -25,13 +25,14 @@ import { projectConfigForProfile } from './commandHelpers';
 import { buildCapabilityGovernanceProjection, type GovernanceUiState } from '../governanceSignals';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 
-type DetailArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'other';
+type DetailArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
 
 const DETAIL_ARTIFACT_ORDER: DetailArtifactType[] = [
     'instructions',
     'prompts',
     'agents',
     'skills',
+    'hooks',
     'other',
 ];
 
@@ -378,7 +379,7 @@ export async function loadCapabilityDetailModel(
               formatWarning(warning.code, warning.message, warning.severity),
           )
         : ['[CAPABILITY_MANIFEST_MISSING] CAPABILITY.md was not found at the layer root.'];
-    const instructionScopeSummary = summarizeLayerInstructionScope(
+    const instructionScopeSummary = summarizeLayerContentInstructionScope(
         treeSummaryCache,
         target.repoId,
         target.layerPath,
@@ -396,14 +397,14 @@ export async function loadCapabilityDetailModel(
         license: manifest?.license?.trim(),
         experimental: manifest?.experimental,
         agentPlugin: manifest?.agentPlugin,
-                agentPluginManifest: manifest?.agentPluginManifest
+        agentPluginManifest: manifest?.agentPluginManifest
             ? {
-                                    pluginJsonPath: manifest.agentPluginManifest.pluginJsonPath,
-                                    name: manifest.agentPluginManifest.name,
-                                    version: manifest.agentPluginManifest.version,
-                                    description: manifest.agentPluginManifest.description,
-                                    pluginHosts: manifest.agentPluginManifest.pluginHosts,
-                                    minimumMetaflowVersion: manifest.agentPluginManifest.minimumMetaflowVersion,
+                  pluginJsonPath: manifest.agentPluginManifest.pluginJsonPath,
+                  name: manifest.agentPluginManifest.name,
+                  version: manifest.agentPluginManifest.version,
+                  description: manifest.agentPluginManifest.description,
+                  pluginHosts: manifest.agentPluginManifest.pluginHosts,
+                  minimumMetaflowVersion: manifest.agentPluginManifest.minimumMetaflowVersion,
               }
             : undefined,
         layerId: target.layerId,

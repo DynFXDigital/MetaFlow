@@ -702,6 +702,12 @@
           "order": 2,
           "description": "Automatically apply overlay when configuration changes"
         },
+        "metaflow.autoAcceptRefreshUpdates": {
+          "type": "boolean",
+          "default": false,
+          "order": 2.5,
+          "description": "Automatically persist refresh-driven config and built-in capability selection updates without confirmation prompts; can also be enabled from the refresh prompt itself"
+        },
         "metaflow.aiMetadataAutoApplyMode": {
           "type": "string",
           "default": "off",

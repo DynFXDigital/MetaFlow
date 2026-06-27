@@ -15,6 +15,8 @@ import {
     summarizeArtifactPrefix,
     summarizeDisplayInstructionScope,
     summarizeDisplayPrefix,
+    summarizeLayerContentInstructionScope,
+    summarizeLayerContents,
     summarizeLayerInstructionScope,
     summarizeLayerPrefix,
     summarizeProfileInstructionScope,
@@ -150,6 +152,90 @@ suite('treeSummary', () => {
         assert.strictEqual(leanSummary.byType.agents.available, 1);
     });
 
+    test('summarizeLayerContents isolates root metadata from nested capabilities', async () => {
+        const repoRoot = path.join(workspaceRoot, '.ai', 'repo-meta');
+        const rootInstructions = path.join(repoRoot, '.github', 'instructions');
+        const nestedInstructions = path.join(
+            repoRoot,
+            'capabilities',
+            'devtools',
+            '.github',
+            'instructions',
+        );
+        fs.mkdirSync(rootInstructions, { recursive: true });
+        fs.mkdirSync(nestedInstructions, { recursive: true });
+        fs.writeFileSync(
+            path.join(rootInstructions, 'root.instructions.md'),
+            ['---', 'name: Root policy', 'applyTo: "src/root/**"', '---', '', 'root'].join(
+                '\n',
+            ),
+        );
+        fs.writeFileSync(
+            path.join(nestedInstructions, 'nested.instructions.md'),
+            ['---', 'name: Nested policy', 'applyTo: "**/*"', '---', '', 'nested'].join('\n'),
+        );
+
+        const activeFiles: EffectiveFile[] = [
+            {
+                relativePath: 'instructions/root.instructions.md',
+                sourcePath: path.join(rootInstructions, 'root.instructions.md'),
+                sourceLayer: 'primary/.',
+                sourceRepo: repoRoot,
+                classification: 'settings',
+            },
+            {
+                relativePath: 'instructions/nested.instructions.md',
+                sourcePath: path.join(nestedInstructions, 'nested.instructions.md'),
+                sourceLayer: 'primary/capabilities/devtools',
+                sourceRepo: repoRoot,
+                classification: 'settings',
+            },
+        ];
+
+        const cache = await buildTreeSummaryCache(
+            {
+                metadataRepos: [{ id: 'primary', localPath: '.ai/repo-meta', enabled: true }],
+                layerSources: [
+                    { repoId: 'primary', path: '.', enabled: true },
+                    { repoId: 'primary', path: 'capabilities/devtools', enabled: true },
+                ],
+                profiles: { default: {} },
+                activeProfile: 'default',
+            },
+            workspaceRoot,
+            activeFiles,
+            activeFiles,
+            {
+                enabled: false,
+                layerEnabled: true,
+                synchronizedFiles: [],
+                sourceRoot: undefined,
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            },
+        );
+
+        const rootSummary = summarizeLayerContents(cache, 'primary', '.');
+        assert.strictEqual(rootSummary.totalActive, 1);
+        assert.strictEqual(rootSummary.totalAvailable, 1);
+
+        const nestedSummary = summarizeLayerContents(cache, 'primary', 'capabilities/devtools');
+        assert.strictEqual(nestedSummary.totalActive, 1);
+        assert.strictEqual(nestedSummary.totalAvailable, 1);
+
+        const rootScope = summarizeLayerContentInstructionScope(cache, 'primary', '.');
+        assert.strictEqual(rootScope.inspectedCount, 1);
+        assert.strictEqual(rootScope.highRiskCount, 0);
+
+        const nestedScope = summarizeLayerContentInstructionScope(
+            cache,
+            'primary',
+            'capabilities/devtools',
+        );
+        assert.strictEqual(nestedScope.inspectedCount, 1);
+        assert.strictEqual(nestedScope.highRiskCount, 1);
+    });
+
     test('buildTreeSummaryCache honors provided per-profile effective files for layerOverride-driven summaries', async () => {
         const repoRoot = path.join(workspaceRoot, '.ai', 'repo-meta');
         const coreRoot = path.join(repoRoot, 'company', 'core');
@@ -190,12 +276,7 @@ suite('treeSummary', () => {
 
         const baselineInstruction: EffectiveFile = {
             relativePath: 'instructions/baseline.instructions.md',
-            sourcePath: path.join(
-                coreRoot,
-                '.github',
-                'instructions',
-                'baseline.instructions.md',
-            ),
+            sourcePath: path.join(coreRoot, '.github', 'instructions', 'baseline.instructions.md'),
             sourceLayer: 'primary/company/core',
             sourceRepo: repoRoot,
             classification: 'settings',
@@ -395,6 +476,7 @@ suite('treeSummary', () => {
                 prompts: { active: 0, available: 1 },
                 agents: { active: 0, available: 1 },
                 skills: { active: 1, available: 1 },
+                hooks: { active: 0, available: 0 },
             },
         };
 
@@ -409,6 +491,7 @@ suite('treeSummary', () => {
             'Prompts: 0/1 active',
             'Agents: 0/1 active',
             'Skills: 1/1 active',
+            'Hooks: 0/0 active',
         ]);
     });
 

@@ -152,6 +152,8 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
+const AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY = 'autoAcceptRefreshUpdates';
+const AUTO_ACCEPT_REFRESH_UPDATES_ACTION = 'Always Update Automatically';
 const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
     '.github',
     'copilot',
@@ -3154,12 +3156,21 @@ function applyCapabilityIdentityDriftRepair(
     return repairResult;
 }
 
-async function confirmConfigUpdate(configPath: string, reasons: string[]): Promise<boolean> {
+interface RefreshUpdateDecision {
+    shouldPersist: boolean;
+    rememberPreference: boolean;
+}
+
+async function decideConfigUpdate(
+    configPath: string,
+    reasons: string[],
+): Promise<RefreshUpdateDecision> {
     const detail = reasons.map((reason) => `- ${reason}`).join('\n');
     const selection = await vscode.window.showWarningMessage(
         'MetaFlow found updates for .metaflow/config.jsonc. Update the config file now?',
         { modal: true, detail },
         'Update Config',
+        AUTO_ACCEPT_REFRESH_UPDATES_ACTION,
         'Open Config',
         'Later',
     );
@@ -3167,10 +3178,14 @@ async function confirmConfigUpdate(configPath: string, reasons: string[]): Promi
     if (selection === 'Open Config') {
         const doc = await vscode.workspace.openTextDocument(configPath);
         await vscode.window.showTextDocument(doc);
-        return false;
+        return { shouldPersist: false, rememberPreference: false };
     }
 
-    return selection === 'Update Config';
+    if (selection === AUTO_ACCEPT_REFRESH_UPDATES_ACTION) {
+        return { shouldPersist: true, rememberPreference: true };
+    }
+
+    return { shouldPersist: selection === 'Update Config', rememberPreference: false };
 }
 
 interface BuiltInCapabilityStateRepair {
@@ -3246,9 +3261,9 @@ function previewBuiltInCapabilityStateDriftRepair(
     return { repairs, layerStates: nextLayerStates };
 }
 
-async function confirmBuiltInCapabilityStateUpdate(
+async function decideBuiltInCapabilityStateUpdate(
     repairs: BuiltInCapabilityStateRepair[],
-): Promise<boolean> {
+): Promise<RefreshUpdateDecision> {
     const detail = repairs
         .map((repair) => `- ${repair.oldPath} -> ${repair.newPath} (${repair.matchReason})`)
         .join('\n');
@@ -3256,10 +3271,26 @@ async function confirmBuiltInCapabilityStateUpdate(
         'MetaFlow found built-in capability selections that point to moved bundled metadata. Update those selections now?',
         { modal: true, detail },
         'Update Selections',
+        AUTO_ACCEPT_REFRESH_UPDATES_ACTION,
         'Later',
     );
 
-    return selection === 'Update Selections';
+    if (selection === AUTO_ACCEPT_REFRESH_UPDATES_ACTION) {
+        return { shouldPersist: true, rememberPreference: true };
+    }
+
+    return { shouldPersist: selection === 'Update Selections', rememberPreference: false };
+}
+
+async function persistAutoAcceptRefreshUpdatesPreference(
+    workspaceConfig: vscode.WorkspaceConfiguration,
+): Promise<void> {
+    await workspaceConfig.update(
+        AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY,
+        true,
+        vscode.ConfigurationTarget.Workspace,
+    );
+    logInfo('Enabled metaflow.autoAcceptRefreshUpdates for this workspace.');
 }
 
 function saveCapabilityIdentitySnapshot(config: MetaFlowConfig, workspaceRoot: string): void {
@@ -5087,7 +5118,13 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
-            const autoAcceptRefreshUpdates = context.extensionMode === vscode.ExtensionMode.Test;
+            const autoAcceptRefreshUpdatesInTests =
+                context.extensionMode === vscode.ExtensionMode.Test;
+            const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
+            const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
+            let autoAcceptRefreshUpdates =
+                autoAcceptRefreshUpdatesInTests ||
+                workspaceConfig.get<boolean>(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false);
             const suppressRefreshUpdatePrompts =
                 refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
             const pendingCapabilityPluginMetadataDirtyVersion =
@@ -5171,8 +5208,6 @@ export function registerCommands(
                     : governanceResult.errors.map(cloneConfigError);
                 state.governanceCompliance = undefined;
                 const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-                const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
-                const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
                 const discoveryResult = discoverAndPersistConfiguredRepoLayers(
                     result.config,
                     ws.uri.fsPath,
@@ -5219,14 +5254,16 @@ export function registerCommands(
                         );
                     }
 
-                    const shouldPersistConfig = autoAcceptRefreshUpdates
-                        ? true
+                    const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
+                        ? { shouldPersist: true, rememberPreference: false }
                         : suppressRefreshUpdatePrompts
-                          ? false
-                          : await confirmConfigUpdate(
-                                result.configPath,
-                                pendingConfigUpdateReasons,
-                            );
+                          ? { shouldPersist: false, rememberPreference: false }
+                          : await decideConfigUpdate(result.configPath, pendingConfigUpdateReasons);
+                    if (configUpdateDecision.rememberPreference) {
+                        await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
+                        autoAcceptRefreshUpdates = true;
+                    }
+                    const shouldPersistConfig = configUpdateDecision.shouldPersist;
 
                     if (shouldPersistConfig && capabilityRepairPreview) {
                         capabilityRepairPreview.repairResult = applyCapabilityIdentityDriftRepair(
@@ -5313,11 +5350,18 @@ export function registerCommands(
                     projectedConfigForBuiltInRepair,
                 );
                 if (builtInRepairPreview.repairs.length > 0) {
-                    const shouldUpdateBuiltInState = autoAcceptRefreshUpdates
-                        ? true
+                    const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
+                        ? { shouldPersist: true, rememberPreference: false }
                         : suppressRefreshUpdatePrompts
-                          ? false
-                          : await confirmBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
+                          ? { shouldPersist: false, rememberPreference: false }
+                          : await decideBuiltInCapabilityStateUpdate(
+                                builtInRepairPreview.repairs,
+                            );
+                    if (builtInUpdateDecision.rememberPreference) {
+                        await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
+                        autoAcceptRefreshUpdates = true;
+                    }
+                    const shouldUpdateBuiltInState = builtInUpdateDecision.shouldPersist;
                     if (shouldUpdateBuiltInState) {
                         state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
                             context,

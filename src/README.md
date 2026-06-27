@@ -99,7 +99,7 @@ Supported injection modes are:
 
 `plugin` mode is now the default for `instructions`, `skills`, and `agents`. `prompts` still need `settings` or `synchronize`, and `hooks` still need `settings`, because the current Copilot plugin loader path does not consume those MetaFlow artifact directories directly.
 
-> **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses *desired* state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
+> **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses _desired_ state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
@@ -193,14 +193,15 @@ description: Shared repository-level metadata for this workspace.
 
 ## Settings
 
-| Setting                            | Default | Description                                                                                                                                  |
-| ---------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `metaflow.enabled`                 | `true`  | Enable/disable the extension                                                                                                                 |
-| `metaflow.autoApply`               | `true`  | Auto-apply on config change (recommended)                                                                                                    |
-| `metaflow.aiMetadataAutoApplyMode` | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer` |
-| `metaflow.logLevel`                | `info`  | Log verbosity (debug/info/warn/error)                                                                                                        |
-| `metaflow.hooksEnabled`            | `true`  | Enable Copilot hooks injection                                                                                                               |
-| `metaflow.repoUpdateCheckInterval` | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                      |
+| Setting                             | Default | Description                                                                                                                                  |
+| ----------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `metaflow.enabled`                  | `true`  | Enable/disable the extension                                                                                                                 |
+| `metaflow.autoApply`                | `true`  | Auto-apply on config change (recommended)                                                                                                    |
+| `metaflow.autoAcceptRefreshUpdates` | `false` | Skip refresh-time confirmation prompts and persist discovered config or built-in capability repair updates automatically; can also be enabled from the refresh prompt itself |
+| `metaflow.aiMetadataAutoApplyMode`  | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer` |
+| `metaflow.logLevel`                 | `info`  | Log verbosity (debug/info/warn/error)                                                                                                        |
+| `metaflow.hooksEnabled`             | `true`  | Enable Copilot hooks injection                                                                                                               |
+| `metaflow.repoUpdateCheckInterval`  | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                      |
 
 ## Managed State
 

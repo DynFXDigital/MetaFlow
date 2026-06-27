@@ -30,6 +30,10 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/skills/s/SKILL.md'), 'skills');
     });
 
+    it('ATF-01ea: hooks path returns hooks', () => {
+        assert.strictEqual(getArtifactType('.github/hooks/prompt-injection-guard.json'), 'hooks');
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });
@@ -42,4 +46,3 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github\\instructions\\foo.md'), 'instructions');
     });
 });
-

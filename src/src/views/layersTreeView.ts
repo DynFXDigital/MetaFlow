@@ -37,6 +37,9 @@ import {
     getInstructionScopeTooltipLines,
     getSummaryTooltipLines,
     InstructionScopeSummary,
+    matchesLayerContentPath,
+    summarizeLayerContentInstructionScope,
+    summarizeLayerContents,
     summarizeLayerInstructionScope,
     summarizeLayerPrefix,
     summarizeRepoInstructionScope,
@@ -58,6 +61,7 @@ const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'prompts',
     'agents',
     'skills',
+    'hooks',
 ]);
 const RESERVED_LAYER_TERMINAL_SEGMENTS = new Set<string>([
     ...KNOWN_ARTIFACT_TYPES,
@@ -275,6 +279,7 @@ const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
     prompts: 'settings',
     agents: 'plugin',
     skills: 'plugin',
+    hooks: 'settings',
 };
 
 function normalizeInjectionPath(layerPath: string): string {
@@ -444,7 +449,12 @@ class LayerRepoItem extends vscode.TreeItem {
             governance?: RepoGovernanceProjection;
         },
     ) {
-        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        super(
+            label,
+            repoDisabled
+                ? vscode.TreeItemCollapsibleState.None
+                : vscode.TreeItemCollapsibleState.Collapsed,
+        );
         this.id = buildLayerTreeItemId('repo', 'tree', repoId, '.');
         this.contextValue = 'layerRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
@@ -694,6 +704,7 @@ const ARTIFACT_TYPE_ORDER: CapabilityArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'hooks',
 ];
 
 function buildArtifactTypeContextValue(artifactType: CapabilityArtifactType): string {
@@ -949,6 +960,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return this.getSearchableText(element).includes(this.searchQuery);
     }
 
+    private shouldIncludeDirectSearchMatch(element: LayerTreeItem): boolean {
+        if (!(element instanceof LayerItem) || typeof element.layerIndex !== 'number') {
+            return true;
+        }
+
+        const availability = this.getLayerAvailability(element.layerIndex, element.repoId);
+        return availability?.repoEnabled !== false && availability?.layerEnabled !== false;
+    }
+
     private applySearchPresentation<T extends LayerTreeItem>(element: T): T {
         if (element.collapsibleState !== vscode.TreeItemCollapsibleState.None) {
             element.collapsibleState = vscode.TreeItemCollapsibleState.Expanded;
@@ -988,7 +1008,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
             const canDescend = this.canSearchDescendInto(child);
             const isCapability = child instanceof LayerItem && typeof child.layerIndex === 'number';
-            if (isCapability && this.matchesSearch(child)) {
+            if (
+                isCapability &&
+                this.shouldIncludeDirectSearchMatch(child) &&
+                this.matchesSearch(child)
+            ) {
                 child.collapsibleState = vscode.TreeItemCollapsibleState.None;
                 if (typeof child.id === 'string' && child.id.length > 0) {
                     child.id = `${child.id}|search:${this.searchVersion}`;
@@ -1018,7 +1042,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             const descendantMatches = this.canSearchDescendInto(child)
                 ? this.getSearchFilteredChildren(child)
                 : [];
-            const include = this.matchesSearch(child) || descendantMatches.length > 0;
+            const include =
+                (this.shouldIncludeDirectSearchMatch(child) && this.matchesSearch(child)) ||
+                descendantMatches.length > 0;
 
             if (include && descendantMatches.length > 0) {
                 this.applySearchPresentation(child);
@@ -1127,7 +1153,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     (record: TreeSummaryRecord) =>
                         record.repoId === layerRepoId &&
                         record.artifactType === artifactType &&
-                        pathStartsWith(record.repoRelativePath, normalizedLayerPath),
+                        matchesLayerContentPath(record.repoRelativePath, normalizedLayerPath),
                 )
                 .map((record: TreeSummaryRecord) => ({
                     artifactPath: normalizeRelativePath(record.artifactPath),
@@ -1569,6 +1595,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     private shouldShowFlatEntry(entry: LayerEntry, descendantKeySet: Set<string>): boolean {
+        if (entry.repoDisabled) {
+            return false;
+        }
+
         if (entry.capability) {
             return true;
         }
@@ -1639,6 +1669,24 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private summarizePath(repoId: string | undefined, layerPath: string): ArtifactSummary {
         return summarizeLayerPrefix(this.state.treeSummaryCache, repoId ?? 'primary', layerPath);
+    }
+
+    private summarizeConcreteLayer(
+        repoId: string | undefined,
+        layerPath: string,
+    ): ArtifactSummary {
+        return summarizeLayerContents(this.state.treeSummaryCache, repoId ?? 'primary', layerPath);
+    }
+
+    private summarizeConcreteLayerInstructionScope(
+        repoId: string | undefined,
+        layerPath: string,
+    ): InstructionScopeSummary {
+        return summarizeLayerContentInstructionScope(
+            this.state.treeSummaryCache,
+            repoId ?? 'primary',
+            layerPath,
+        );
     }
 
     private getRepoMetadataById(): Map<string, { name?: string; description?: string }> {
@@ -1821,6 +1869,21 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     typeof matchingEntry?.layerIndex === 'number'
                         ? undefined
                         : this.getDirectoryManifestMetadata(folderSourcePath);
+                const layerSummary =
+                    typeof matchingEntry?.layerIndex === 'number'
+                        ? this.summarizeConcreteLayer(itemRepoId ?? 'primary', node.path || '.')
+                        : this.summarizePath(itemRepoId ?? 'primary', node.path || '.');
+                const scopeSummary =
+                    typeof matchingEntry?.layerIndex === 'number'
+                        ? this.summarizeConcreteLayerInstructionScope(
+                              itemRepoId ?? 'primary',
+                              node.path || '.',
+                          )
+                        : summarizeLayerInstructionScope(
+                              this.state.treeSummaryCache,
+                              itemRepoId ?? 'primary',
+                              node.path || '.',
+                          );
                 const displayLabel =
                     typeof matchingEntry?.layerIndex === 'number'
                         ? node.label
@@ -1846,12 +1909,8 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityLicense: matchingEntry?.capability?.license,
                         capabilityExperimental: matchingEntry?.capability?.experimental,
                         folderDescription: directoryMetadata?.description,
-                        summary: this.summarizePath(itemRepoId ?? 'primary', node.path || '.'),
-                        scopeSummary: summarizeLayerInstructionScope(
-                            this.state.treeSummaryCache,
-                            itemRepoId ?? 'primary',
-                            node.path || '.',
-                        ),
+                        summary: layerSummary,
+                        scopeSummary,
                         branchToggleSummary,
                         governance:
                             typeof matchingEntry?.layerIndex === 'number'
@@ -1880,6 +1939,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 mode === 'tree' &&
                 typeof rootEntry.layerIndex === 'number' &&
                 this.getActiveTypesForLayer(rootEntry.layerIndex).size > 0;
+            const rootHasDirectFiles =
+                typeof rootEntry.layerIndex === 'number' &&
+                this.hasDirectEffectiveFilesForLayer(rootEntry.layerIndex);
+            const shouldShowRoot =
+                typeof rootEntry.layerIndex !== 'number' ||
+                mode !== 'tree' ||
+                rootHasArtifactChildren ||
+                rootHasDirectFiles ||
+                rootEntry.capability !== undefined;
             const rootRepoId = rootEntry.repoId ?? repoId;
             const rootItemId = buildLayerTreeItemId(
                 typeof rootEntry.layerIndex === 'number' ? 'layer' : 'folder',
@@ -1887,38 +1955,48 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 rootRepoId,
                 '.',
             );
-            folderAndLayerItems.unshift(
-                new LayerItem(rootLabel, rootEntry.enabled, rootEntry.layerIndex, {
-                    itemId: rootItemId,
-                    repoId: rootRepoId,
-                    repoLabel: rootEntry.repoLabel,
-                    showRepoLabelInDescription: false,
-                    repoDisabled: rootEntry.repoDisabled,
-                    toggleable: rootEntry.toggleable,
-                    hasChildren: rootHasDescendantLayers || rootHasArtifactChildren,
-                    path: '(root)',
-                    layerPath: '.',
-                    showPathInDescription: false,
-                    capabilityName: rootEntry.capability?.name,
-                    capabilityId: rootEntry.capability?.id,
-                    capabilityDescription: rootEntry.capability?.description,
-                    capabilityLicense: rootEntry.capability?.license,
-                    summary: this.summarizePath(rootRepoId ?? 'primary', '.'),
-                    scopeSummary: summarizeLayerInstructionScope(
-                        this.state.treeSummaryCache,
-                        rootRepoId ?? 'primary',
-                        '.',
-                    ),
-                    governance:
-                        typeof rootEntry.layerIndex === 'number'
-                            ? buildCapabilityGovernanceProjection(rootRepoId, '.', {
-                                  governanceContract: this.state.governanceContract,
-                                  governanceContractErrors: this.state.governanceContractErrors,
-                                  governanceCompliance: this.state.governanceCompliance,
-                              })
-                            : undefined,
-                }),
-            );
+            if (shouldShowRoot) {
+                const rootSummary =
+                    typeof rootEntry.layerIndex === 'number'
+                        ? this.summarizeConcreteLayer(rootRepoId ?? 'primary', '.')
+                        : this.summarizePath(rootRepoId ?? 'primary', '.');
+                const rootScopeSummary =
+                    typeof rootEntry.layerIndex === 'number'
+                        ? this.summarizeConcreteLayerInstructionScope(rootRepoId ?? 'primary', '.')
+                        : summarizeLayerInstructionScope(
+                              this.state.treeSummaryCache,
+                              rootRepoId ?? 'primary',
+                              '.',
+                          );
+                folderAndLayerItems.unshift(
+                    new LayerItem(rootLabel, rootEntry.enabled, rootEntry.layerIndex, {
+                        itemId: rootItemId,
+                        repoId: rootRepoId,
+                        repoLabel: rootEntry.repoLabel,
+                        showRepoLabelInDescription: false,
+                        repoDisabled: rootEntry.repoDisabled,
+                        toggleable: rootEntry.toggleable,
+                        hasChildren: rootHasDescendantLayers || rootHasArtifactChildren,
+                        path: '(root)',
+                        layerPath: '.',
+                        showPathInDescription: false,
+                        capabilityName: rootEntry.capability?.name,
+                        capabilityId: rootEntry.capability?.id,
+                        capabilityDescription: rootEntry.capability?.description,
+                        capabilityLicense: rootEntry.capability?.license,
+                        summary: rootSummary,
+                        scopeSummary: rootScopeSummary,
+                        governance:
+                            typeof rootEntry.layerIndex === 'number'
+                                ? buildCapabilityGovernanceProjection(rootRepoId, '.', {
+                                      governanceContract: this.state.governanceContract,
+                                      governanceContractErrors: this.state.governanceContractErrors,
+                                      governanceCompliance: this.state.governanceCompliance,
+                                  })
+                                : undefined,
+                    }),
+                );
+            }
         }
 
         return folderAndLayerItems;
@@ -1959,12 +2037,34 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         for (const record of this.state.treeSummaryCache?.availableRecords ?? []) {
             if (
                 record.repoId === layerRepoId &&
-                pathStartsWith(record.repoRelativePath, normalizedLayerPath)
+                matchesLayerContentPath(record.repoRelativePath, normalizedLayerPath)
             ) {
                 result.add(record.artifactType);
             }
         }
         return result;
+    }
+
+    private hasDirectEffectiveFilesForLayer(layerIndex: number): boolean {
+        const config = this.getProjectedConfig();
+        if (!config) {
+            return false;
+        }
+
+        const layerSource = config.layerSources?.[layerIndex];
+        const singleLayerPath = config.layers?.[layerIndex];
+        if (!layerSource && typeof singleLayerPath !== 'string') {
+            return false;
+        }
+
+        const layerId = layerSource
+            ? `${layerSource.repoId}/${layerSource.path}`
+            : (singleLayerPath ?? '.');
+        const normalizedLayerId = this.normalizeLayerId(layerId);
+
+        return (this.state.effectiveFiles as EffectiveFile[]).some(
+            (file) => this.normalizeLayerId(file.sourceLayer || '') === normalizedLayerId,
+        );
     }
 
     /**
@@ -2009,7 +2109,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
               );
         const layerPath = layerSource?.path ?? singleLayerPath;
         const layerRepoId = layerSource?.repoId ?? repoId ?? 'primary';
-        const layerSummary = summarizeLayerPrefix(
+        const layerSummary = summarizeLayerContents(
             this.state.treeSummaryCache,
             layerRepoId,
             layerPath ?? '.',
@@ -2082,12 +2182,11 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             capabilityDescription: entry.capability?.description,
                             capabilityLicense: entry.capability?.license,
                             capabilityExperimental: entry.capability?.experimental,
-                            summary: this.summarizePath(
+                            summary: this.summarizeConcreteLayer(
                                 entry.repoId ?? 'primary',
                                 entry.normalizedPath || '.',
                             ),
-                            scopeSummary: summarizeLayerInstructionScope(
-                                this.state.treeSummaryCache,
+                            scopeSummary: this.summarizeConcreteLayerInstructionScope(
                                 entry.repoId ?? 'primary',
                                 entry.normalizedPath || '.',
                             ),
@@ -2105,6 +2204,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof LayerRepoItem) {
+            if (element.checkboxState === vscode.TreeItemCheckboxState.Unchecked) {
+                return [];
+            }
+
             const repoEntries = entries.filter((entry) => entry.repoId === element.repoId);
             const repoChildren = this.getTreeChildrenForPrefix(
                 repoEntries,
@@ -2224,7 +2327,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 new Set(
                     entries
                         .map((entry) => entry.repoId)
-                        .filter((id): id is string => typeof id === 'string'),
+                        .filter(
+                            (id): id is string =>
+                                typeof id === 'string' && repoDisabled.get(id) !== true,
+                        ),
                 ),
             );
             return this.trackChildren(
