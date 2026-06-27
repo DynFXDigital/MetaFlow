@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ManagedState, computeContentHash } from './managedState';
 import { stripProvenanceHeader } from './provenanceHeader';
+import { isCodexRepositorySkillPath } from './codexPaths';
 
 /** Drift classification for a single file. */
 export type DriftStatus = 'in-sync' | 'drifted' | 'missing' | 'untracked';
@@ -20,6 +21,10 @@ export interface DriftResult {
     status: DriftStatus;
     currentHash?: string;
     expectedHash?: string;
+}
+
+function resolveDriftOutputDir(outputDir: string, relativePath: string): string {
+    return isCodexRepositorySkillPath(relativePath) ? '' : outputDir;
 }
 
 /**
@@ -38,7 +43,11 @@ export function checkDrift(
     state: ManagedState,
 ): DriftResult {
     const fileState = state.files[relativePath];
-    const fullPath = path.join(workspaceRoot, outputDir, relativePath);
+    const fullPath = path.join(
+        workspaceRoot,
+        resolveDriftOutputDir(outputDir, relativePath),
+        relativePath,
+    );
 
     if (!fileState) {
         // Not tracked in managed state

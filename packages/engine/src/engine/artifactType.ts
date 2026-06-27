@@ -7,6 +7,8 @@
  * Pure TypeScript — no VS Code imports.
  */
 
+import { isCodexRepositorySkillPath } from './codexPaths';
+
 export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
 
 const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skills', 'hooks']);
@@ -22,6 +24,9 @@ export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
     if (posix === 'copilot-instructions.md') {
         return 'instructions';
+    }
+    if (isCodexRepositorySkillPath(posix)) {
+        return 'skills';
     }
 
     const firstSegment = posix.split('/')[0] ?? '';

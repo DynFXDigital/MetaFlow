@@ -227,6 +227,82 @@ suite('synchronization engine', () => {
         );
     });
 
+    test('Codex repository skills synchronize to root .agents/skills path', () => {
+        const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
+        const files = [makeEffectiveFile(codexSkillPath, '# Codex Metadata')];
+
+        const changes = preview(tmpDir, files, outputDir);
+        assert.strictEqual(changes[0].relativePath, codexSkillPath);
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(result.written.includes(codexSkillPath));
+        assert.ok(
+            fs.existsSync(path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md')),
+        );
+        assert.ok(
+            !fs.existsSync(
+                path.join(tmpDir, outputDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            ),
+        );
+
+        const state = loadManagedState(tmpDir);
+        assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, codexSkillPath);
+
+        fs.writeFileSync(
+            path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            'local edit',
+            'utf-8',
+        );
+        const reapplyResult = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(reapplyResult.skipped.includes(codexSkillPath));
+
+        const cleanResult = clean(tmpDir, outputDir);
+        assert.ok(cleanResult.skipped.includes(codexSkillPath));
+        apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+            force: true,
+        });
+        const cleanAfterRestore = clean(tmpDir, outputDir);
+        assert.ok(cleanAfterRestore.removed.includes(codexSkillPath));
+        assert.ok(
+            !fs.existsSync(path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md')),
+        );
+    });
+
+    test('Codex repository skills reject unmanaged root destinations', () => {
+        const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
+        const files = [makeEffectiveFile(codexSkillPath, '# Codex Metadata')];
+        fs.mkdirSync(path.join(tmpDir, '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            'user-owned file',
+            'utf-8',
+        );
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes(codexSkillPath));
+    });
+
     test('preview and apply report the same remap conflict when changing strategies', () => {
         const files = [makeEffectiveFile('skills/nested/guide.md', '# Guide')];
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });

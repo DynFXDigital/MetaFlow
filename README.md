@@ -93,6 +93,17 @@ MetaFlow includes a bundled starter capability so you can try the workflow befor
 - Bundled authoring instructions stay narrowly scoped; the built-in set does not rely on exact `applyTo: "**"` injections.
 - Externalize the patterns that work into a shared team or organization metadata repository.
 
+## Codex Support
+
+MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin alias.
+
+- Codex repository skills are authored under `.agents/skills/**` in a capability and synchronize to the same root-relative `.agents/skills/**` path in the consuming workspace.
+- Codex skill files remain synchronized metadata even when the workspace uses plugin mode for Copilot `skills/**` artifacts.
+- Existing unmanaged `.agents/skills/**` destinations are protected from accidental overwrite, and managed Codex skill files use the same drift-aware apply and clean behavior as other synchronized files.
+- `AGENTS.md`, `.codex/**`, hooks, rules, and other root policy files are not automatically materialized until format-safe provenance and unmanaged-destination controls are implemented for those surfaces.
+- Codex plugins use `.codex-plugin/plugin.json`; GitHub Copilot agent plugins use capability-root `plugin.json`.
+- Codex plugin marketplaces use `.agents/plugins/marketplace.json`; GitHub Copilot marketplace generation uses `.github/plugin/marketplace.json`.
+
 ## Capability Plugin Metadata
 
 MetaFlow can also treat a capability as an agent-plugin-compatible manifest when the capability opts in explicitly.

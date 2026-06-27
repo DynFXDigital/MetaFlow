@@ -23,6 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
+import { isCodexRepositorySkillPath } from './codexPaths';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -369,6 +370,9 @@ function isKnownArtifactPath(relativePath: string): boolean {
     if (KNOWN_GITHUB_ROOT_FILES.has(relativePath)) {
         return true;
     }
+    if (isCodexRepositorySkillPath(relativePath)) {
+        return true;
+    }
 
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
@@ -429,9 +433,17 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         );
         const hasGithubArtifacts =
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
+        const hasCodexRepositorySkills =
+            childNames.has('.agents') &&
+            hasCodexRepositorySkillsDir(path.join(currentDir, '.agents'));
         const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
-        if (hasArtifactAtRoot || hasGithubArtifacts || hasCapabilityManifest) {
+        if (
+            hasArtifactAtRoot ||
+            hasGithubArtifacts ||
+            hasCodexRepositorySkills ||
+            hasCapabilityManifest
+        ) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
             const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
             if (!matchesAnyExclude(layerPath, excludePatterns)) {
@@ -459,6 +471,15 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
 
     walk(repoRoot);
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
+}
+
+function hasCodexRepositorySkillsDir(agentsDirPath: string): boolean {
+    const candidate = path.join(agentsDirPath, 'skills');
+    try {
+        return fs.existsSync(candidate) && fs.statSync(candidate).isDirectory();
+    } catch {
+        return false;
+    }
 }
 
 function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string): boolean {

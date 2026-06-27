@@ -20,6 +20,7 @@ import {
     createEmptyState,
 } from './managedState';
 import { checkDrift } from './driftDetector';
+import { isCodexRepositorySkillPath } from './codexPaths';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
@@ -145,6 +146,26 @@ function isChatmodesFile(file: EffectiveFile): boolean {
 
 function isRepoWideCopilotInstructionsFile(file: EffectiveFile): boolean {
     return normalizeRelativePath(file.relativePath) === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH;
+}
+
+function isRootRelativeSynchronizedPath(relativePath: string): boolean {
+    return isCodexRepositorySkillPath(relativePath);
+}
+
+function resolveSynchronizedOutputDir(outputDir: string, relativePath: string): string {
+    return isRootRelativeSynchronizedPath(relativePath) ? '' : outputDir;
+}
+
+function resolveSynchronizedDestinationPath(
+    workspaceRoot: string,
+    outputDir: string,
+    relativePath: string,
+): string {
+    return path.join(
+        workspaceRoot,
+        resolveSynchronizedOutputDir(outputDir, relativePath),
+        relativePath,
+    );
 }
 
 function resolveEffectiveFileNamingStrategy(
@@ -315,10 +336,14 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
     const hasRepoWideCopilotInstructions = synchronizedFiles.some((entry) =>
         isRepoWideCopilotInstructionsFile(entry.file),
     );
+    const hasRootRelativeSynchronizedFiles = synchronizedFiles.some((entry) =>
+        isRootRelativeSynchronizedPath(entry.destinationRelativePath),
+    );
     if (
         fileNamingStrategy === 'original-unless-conflict' ||
         strategyByLayer !== undefined ||
-        hasRepoWideCopilotInstructions
+        hasRepoWideCopilotInstructions ||
+        hasRootRelativeSynchronizedFiles
     ) {
         for (const entry of [...synchronizedFiles].sort(comparePlannedFiles)) {
             const drift = checkDrift(
@@ -334,11 +359,12 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
                     fileNamingStrategy,
                     strategyByLayer,
                 ) === 'original-unless-conflict' ||
-                    isRepoWideCopilotInstructionsFile(entry.file))
+                    isRepoWideCopilotInstructionsFile(entry.file) ||
+                    isRootRelativeSynchronizedPath(entry.destinationRelativePath))
             ) {
                 unmanagedConflicts.push({
                     destinationRelativePath: entry.destinationRelativePath,
-                    fullPath: path.join(
+                    fullPath: resolveSynchronizedDestinationPath(
                         options.workspaceRoot,
                         outputDir,
                         entry.destinationRelativePath,
@@ -369,6 +395,9 @@ export function toSynchronizedRelativePath(
     const normalizedPath = normalizeRelativePath(file.relativePath);
     if (isRepoWideCopilotInstructionsFile(file)) {
         return REPO_WIDE_COPILOT_INSTRUCTIONS_PATH;
+    }
+    if (isRootRelativeSynchronizedPath(normalizedPath)) {
+        return normalizedPath;
     }
 
     if (resolveFileNamingStrategy(fileNamingStrategy) === 'original-unless-conflict') {
@@ -431,7 +460,6 @@ export interface ApplyResult {
  */
 export function apply(options: ApplyOptions): ApplyResult {
     const plan = loadSynchronizationPlan(options);
-    const outPath = path.join(options.workspaceRoot, plan.outputDir);
     const state = plan.state;
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
 
@@ -480,7 +508,11 @@ export function apply(options: ApplyOptions): ApplyResult {
         const fullContent = synchronizedBody + '\n' + header;
 
         // Write file
-        const destPath = path.join(outPath, relPath);
+        const destPath = resolveSynchronizedDestinationPath(
+            options.workspaceRoot,
+            plan.outputDir,
+            relPath,
+        );
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.writeFileSync(destPath, fullContent, 'utf-8');
         result.written.push(relPath);
@@ -500,7 +532,11 @@ export function apply(options: ApplyOptions): ApplyResult {
         if (!currentFiles.has(trackedPath)) {
             const drift = checkDrift(options.workspaceRoot, plan.outputDir, trackedPath, state);
             if (drift.status === 'in-sync' || drift.status === 'missing') {
-                const fullPath = path.join(outPath, trackedPath);
+                const fullPath = resolveSynchronizedDestinationPath(
+                    options.workspaceRoot,
+                    plan.outputDir,
+                    trackedPath,
+                );
                 if (fs.existsSync(fullPath)) {
                     fs.unlinkSync(fullPath);
                 }
@@ -524,14 +560,13 @@ export function apply(options: ApplyOptions): ApplyResult {
  */
 export function clean(workspaceRoot: string, outputDir?: string): ApplyResult {
     const outDir = outputDir ?? DEFAULT_OUTPUT_DIR;
-    const outPath = path.join(workspaceRoot, outDir);
     const state = loadManagedState(workspaceRoot);
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
 
     for (const relPath of Object.keys(state.files)) {
         const drift = checkDrift(workspaceRoot, outDir, relPath, state);
         if (drift.status === 'in-sync' || drift.status === 'missing') {
-            const fullPath = path.join(outPath, relPath);
+            const fullPath = resolveSynchronizedDestinationPath(workspaceRoot, outDir, relPath);
             if (fs.existsSync(fullPath)) {
                 fs.unlinkSync(fullPath);
             }

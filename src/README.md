@@ -101,6 +101,17 @@ Supported injection modes are:
 
 > **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses _desired_ state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
 
+### Codex-native metadata
+
+Codex support is separate from VS Code and GitHub Copilot plugin mode.
+
+- Capability files under `.agents/skills/**` are recognized as Codex repository skills.
+- Applying those files writes them to workspace-root `.agents/skills/**`, not `.github/.agents/**`, and does not add MetaFlow filename prefixes.
+- Existing unmanaged `.agents/skills/**` files block the apply plan before overwrite.
+- Managed Codex skill files participate in drift detection and clean safety.
+- Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's current `plugin.json` maintenance commands are for GitHub Copilot agent plugins.
+- Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow's generated `.github/plugin/marketplace.json` remains scoped to GitHub Copilot plugin discovery.
+
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
 After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo row's injection policy menu or `metaflow.aiMetadataAutoApplyMode=synchronize` when you need to change the policy after setup.

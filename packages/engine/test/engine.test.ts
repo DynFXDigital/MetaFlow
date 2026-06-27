@@ -1327,6 +1327,41 @@ describe('Engine: overlay multi-repo resolution', () => {
                 'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/.codex',
             ),
         );
+
+        const config: MetaFlowConfig = {
+            metadataRepos: [
+                { id: 'company', localPath: 'repos/company', discover: { enabled: true } },
+            ],
+            layerSources: [],
+        };
+        const layers = resolveLayers(config, tmpDir);
+        const layer = layers.find((candidate) =>
+            candidate.layerId.endsWith(
+                'capabilities/agentic-development/metadata-authoring/codex-metadata-authoring',
+            ),
+        );
+        assert.ok(layer, 'capability should be resolved as a layer');
+        assert.ok(
+            layer!.files.some(
+                (file) => file.relativePath === '.agents/skills/codex-metadata/SKILL.md',
+            ),
+            'Codex repository skill should be retained in the capability file set',
+        );
+    });
+
+    it('discovers layers that only contain Codex repository skills', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'codex-only');
+        fs.mkdirSync(path.join(layerRoot, '.agents', 'skills', 'repo-guidance'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(layerRoot, '.agents', 'skills', 'repo-guidance', 'SKILL.md'),
+            '# Repo Guidance',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('codex-only'));
     });
 
     it('skips runtime discovery when resolve option disables discovery', () => {
@@ -1855,6 +1890,99 @@ describe('Engine: synchronizer advanced', () => {
             drift.find((entry) => entry.relativePath === 'copilot-instructions.md')?.status,
             'drifted',
         );
+    });
+
+    it('discovers and synchronizes Codex repository skills to root .agents', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
+        fs.mkdirSync(path.join(repoDir, 'core', '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            '# Codex Metadata',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { skills: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const file = fileMap.get(codexSkillPath);
+        assert.ok(file, 'Codex repository skill should be retained');
+        assert.strictEqual(file?.classification, 'synchronized');
+        assert.strictEqual(toSynchronizedRelativePath(file as EffectiveFile), codexSkillPath);
+
+        const pending = preview(tmpDir, files);
+        assert.ok(pending.some((change) => change.relativePath === codexSkillPath));
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes(codexSkillPath));
+        assert.ok(
+            fs.existsSync(path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md')),
+        );
+        assert.ok(
+            !fs.existsSync(
+                path.join(tmpDir, '.github', '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            ),
+        );
+
+        fs.writeFileSync(
+            path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            'local edit',
+        );
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === codexSkillPath)?.status,
+            'drifted',
+        );
+
+        const cleanResult = clean(tmpDir);
+        assert.ok(cleanResult.skipped.includes(codexSkillPath));
+    });
+
+    it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
+        fs.mkdirSync(path.join(repoDir, 'core', '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(tmpDir, '.agents', 'skills', 'codex-metadata'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            '# Managed Skill',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(tmpDir, '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            '# User Skill',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes(codexSkillPath));
     });
 
     it('planSynchronization fails when repo-wide copilot instructions would overwrite an unmanaged file', () => {

@@ -34,6 +34,10 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/hooks/prompt-injection-guard.json'), 'hooks');
     });
 
+    it('ATF-01e2: Codex repository skill path returns skills', () => {
+        assert.strictEqual(getArtifactType('.agents/skills/codex-metadata/SKILL.md'), 'skills');
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });

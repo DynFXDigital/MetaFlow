@@ -57,6 +57,13 @@ suite('classifier', () => {
                 'plugin',
             );
         });
+
+        test('Codex repository skills remain synchronized', () => {
+            assert.strictEqual(
+                classifySingle('.agents/skills/codex-metadata/SKILL.md', undefined),
+                'synchronized',
+            );
+        });
     });
 
     suite('injection config override', () => {
@@ -119,6 +126,17 @@ suite('classifier', () => {
         test('chatmodes ignore settings override and remain synchronized', () => {
             assert.strictEqual(
                 classifySingle('chatmodes/legacy.chatmode.md', { chatmodes: 'settings' }),
+                'synchronized',
+            );
+        });
+
+        test('Codex repository skills ignore skills injection overrides', () => {
+            assert.strictEqual(
+                classifySingle('.agents/skills/codex-metadata/SKILL.md', { skills: 'plugin' }),
+                'synchronized',
+            );
+            assert.strictEqual(
+                classifySingle('.agents/skills/codex-metadata/SKILL.md', { skills: 'settings' }),
                 'synchronized',
             );
         });

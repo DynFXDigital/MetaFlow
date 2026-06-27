@@ -436,6 +436,45 @@ describe('CLI: apply', () => {
         const contentAfterSecond = fs.readFileSync(skillPath, 'utf-8');
         assert.ok(contentAfterSecond.includes('# Testing Skill'));
     });
+
+    it('should synchronize Codex repository skills to root .agents/skills', async () => {
+        const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: codexSkillPath,
+                        content: '# Codex Metadata\nCodex repository guidance.',
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes(codexSkillPath));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+
+        const rootSkillPath = path.join(ws.root, '.agents', 'skills', 'codex-metadata', 'SKILL.md');
+        assert.ok(fs.existsSync(rootSkillPath), 'Codex skill should be synchronized at repo root');
+        assert.ok(
+            !fs.existsSync(
+                path.join(ws.root, '.github', '.agents', 'skills', 'codex-metadata', 'SKILL.md'),
+            ),
+            'Codex skill should not be nested under .github',
+        );
+
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        assert.ok(state.files[codexSkillPath], 'state should track the root Codex skill');
+
+        const cleanResult = await runCli(['clean', '-w', ws.root]);
+        assert.strictEqual(cleanResult.exitCode, 0);
+        assert.ok(!fs.existsSync(rootSkillPath), 'clean should remove the managed Codex skill');
+    });
 });
 
 // ── Drift detection + promote ──────────────────────────────────────
