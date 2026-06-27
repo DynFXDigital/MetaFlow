@@ -130,9 +130,9 @@ export function createCapabilityPluginMetadataScheduler(
             }
         }
 
-        if (result.changedCount > 0 || result.marketplaceChanged) {
+        if (result.changedCount > 0 || result.marketplaceChanged || result.codexMarketplaceChanged) {
             logInfo(
-                `Capability plugin metadata auto-maintained for ${target.repoId}: ${result.changedCount} capabilities changed, marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'}.`,
+                `Capability plugin metadata auto-maintained for ${target.repoId}: ${result.changedCount} capabilities changed, Copilot marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'}, Codex marketplace ${result.codexMarketplaceChanged ? 'updated' : 'up to date'}.`,
             );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }

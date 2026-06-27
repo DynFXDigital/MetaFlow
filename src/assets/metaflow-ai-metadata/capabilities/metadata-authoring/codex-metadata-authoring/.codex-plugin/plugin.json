@@ -1,0 +1,6 @@
+{
+  "name": "codex-metadata-authoring",
+  "version": "0.1.0",
+  "description": "Standards and workflows support authoring, reviewing, and maintaining OpenAI Codex metadata constructs.",
+  "skills": "./.agents/skills/"
+}

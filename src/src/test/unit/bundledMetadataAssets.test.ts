@@ -144,6 +144,7 @@ suite('bundled metadata assets', () => {
 
         const codexRoot = path.join(capabilityRoot, 'codex-metadata-authoring');
         const codexNativePaths = [
+            '.codex-plugin/plugin.json',
             '.codex/config.toml',
             '.codex/agents/codex-metadata-authoring-steward.toml',
             '.agents/skills/codex-metadata/SKILL.md',

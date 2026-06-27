@@ -43,6 +43,39 @@ export interface CapabilityPluginMarketplaceManifestResult {
     warnings: CapabilityWarning[];
 }
 
+export interface CodexPluginMarketplacePluginEntry {
+    name: string;
+    source: {
+        source: 'local';
+        path: string;
+    };
+    policy: {
+        installation: 'AVAILABLE';
+        authentication: 'ON_INSTALL';
+    };
+    category: string;
+    interface?: {
+        displayName?: string;
+        description?: string;
+    };
+}
+
+export interface CodexPluginMarketplaceManifest {
+    name: string;
+    plugins: CodexPluginMarketplacePluginEntry[];
+}
+
+export interface CodexPluginMarketplaceManifestOptions {
+    repoRoot: string;
+    marketplaceName: string;
+    category?: string;
+}
+
+export interface CodexPluginMarketplaceManifestResult {
+    manifest: CodexPluginMarketplaceManifest;
+    warnings: CapabilityWarning[];
+}
+
 function hasCapabilityErrors(capability: CapabilityMetadata | undefined): boolean {
     return (capability?.warnings ?? []).some(
         (warning) => (warning.severity ?? 'warning') === 'error',
@@ -88,6 +121,35 @@ function toMarketplaceSourceWarning(
         code: 'CAPABILITY_AGENT_PLUGIN_MARKETPLACE_MANIFEST_OUTSIDE_REPO',
         message:
             `Capability plugin "${pluginName}" is outside the repository root "${repoRoot}" and cannot be included in the generated marketplace manifest.`,
+        filePath: pluginJsonPath,
+        severity: 'error',
+    };
+}
+
+function toCodexMarketplaceSourceWarning(
+    pluginName: string,
+    pluginJsonPath: string,
+    repoRoot: string,
+): CapabilityWarning {
+    return {
+        code: 'CAPABILITY_CODEX_PLUGIN_MARKETPLACE_MANIFEST_OUTSIDE_REPO',
+        message:
+            `Capability plugin "${pluginName}" is outside the repository root "${repoRoot}" and cannot be included in the generated Codex marketplace manifest.`,
+        filePath: pluginJsonPath,
+        severity: 'error',
+    };
+}
+
+function toCodexMarketplacePluginDuplicateWarning(
+    pluginName: string,
+    pluginJsonPath: string,
+    conflictingPluginNames: string[],
+): CapabilityWarning {
+    return {
+        code: 'CAPABILITY_CODEX_PLUGIN_MARKETPLACE_PLUGIN_DUPLICATE',
+        message:
+            `Generated Codex marketplace plugin name "${pluginName}" collides for multiple capability plugin manifests: ` +
+            conflictingPluginNames.join(', '),
         filePath: pluginJsonPath,
         severity: 'error',
     };
@@ -269,6 +331,100 @@ export function buildCapabilityPluginMarketplaceManifest(
             },
             plugins,
             ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+        },
+        warnings,
+    };
+}
+
+export function buildCodexPluginMarketplaceManifest(
+    entries: CapabilityPluginCatalogEntry[],
+    options: CodexPluginMarketplaceManifestOptions,
+): CodexPluginMarketplaceManifestResult {
+    const warnings: CapabilityWarning[] = [];
+    const candidatePlugins = entries.map((entry) => {
+        const sourcePath = toMarketplacePluginSource(options.repoRoot, entry.pluginJsonPath);
+        if (!sourcePath) {
+            warnings.push(
+                toCodexMarketplaceSourceWarning(
+                    entry.pluginName,
+                    entry.pluginJsonPath,
+                    options.repoRoot,
+                ),
+            );
+            return undefined;
+        }
+
+        return {
+            pluginName: entry.pluginName,
+            pluginJsonPath: entry.pluginJsonPath,
+            plugin: {
+                name: entry.pluginName,
+                source: {
+                    source: 'local',
+                    path: sourcePath,
+                },
+                policy: {
+                    installation: 'AVAILABLE',
+                    authentication: 'ON_INSTALL',
+                },
+                category: options.category?.trim() || 'Productivity',
+                interface: {
+                    displayName: entry.displayName,
+                    ...(entry.description ? { description: entry.description } : {}),
+                },
+            } satisfies CodexPluginMarketplacePluginEntry,
+        };
+    });
+
+    const groupedByPluginName = new Map<
+        string,
+        Array<
+            NonNullable<typeof candidatePlugins[number]>
+        >
+    >();
+    for (const candidate of candidatePlugins) {
+        if (!candidate) {
+            continue;
+        }
+
+        const grouped = groupedByPluginName.get(candidate.plugin.name) ?? [];
+        grouped.push(candidate);
+        groupedByPluginName.set(candidate.plugin.name, grouped);
+    }
+
+    const plugins: CodexPluginMarketplacePluginEntry[] = [];
+    for (const [pluginName, grouped] of groupedByPluginName) {
+        if (grouped.length > 1) {
+            const conflictingPluginNames = grouped
+                .map((candidate) => candidate.pluginName)
+                .sort((left, right) => left.localeCompare(right));
+            for (const candidate of grouped) {
+                warnings.push(
+                    toCodexMarketplacePluginDuplicateWarning(
+                        pluginName,
+                        candidate.pluginJsonPath,
+                        conflictingPluginNames,
+                    ),
+                );
+            }
+            continue;
+        }
+
+        plugins.push(grouped[0].plugin);
+    }
+
+    plugins.sort((left, right) => left.name.localeCompare(right.name));
+
+    const normalizedMarketplaceName = options.marketplaceName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+    return {
+        manifest: {
+            name: normalizedMarketplaceName || 'metaflow-codex-marketplace',
+            plugins,
         },
         warnings,
     };

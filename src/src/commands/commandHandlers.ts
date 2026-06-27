@@ -36,6 +36,7 @@ import {
     buildEffectiveFileMap,
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    buildCodexPluginMarketplaceManifest,
     resolvePathFromWorkspace,
     applyFilters,
     applyProfile,
@@ -4464,6 +4465,104 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     };
 }
 
+export function buildMaintainedCodexPluginManifestJson(options: {
+    capabilityName: string;
+    capabilityDescription?: string;
+    capabilityDirectoryPath: string;
+    capabilityDirectoryName: string;
+    pluginPackageRawText: string;
+    existingRawText?: string;
+}): { content: string; changed: boolean } {
+    let pluginPackage: Record<string, unknown>;
+    try {
+        const parsed = JSON.parse(options.pluginPackageRawText) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('plugin.json must contain a top-level JSON object.');
+        }
+        pluginPackage = parsed as Record<string, unknown>;
+    } catch (error) {
+        throw new Error(`plugin.json could not be parsed: ${(error as Error).message}`);
+    }
+
+    let codexPluginObject: Record<string, unknown> = {};
+    const existingRawText = options.existingRawText;
+    if (typeof existingRawText === 'string') {
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(existingRawText) as unknown;
+        } catch (error) {
+            throw new Error(
+                `.codex-plugin/plugin.json could not be parsed: ${(error as Error).message}`,
+            );
+        }
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('.codex-plugin/plugin.json must contain a top-level JSON object.');
+        }
+
+        codexPluginObject = { ...(parsed as Record<string, unknown>) };
+    }
+
+    const defaultPluginName =
+        sanitizeCapabilityPluginName(options.capabilityDirectoryName) || 'capability';
+    const packageName =
+        typeof pluginPackage.name === 'string' && pluginPackage.name.trim().length > 0
+            ? sanitizeCapabilityPluginName(pluginPackage.name)
+            : undefined;
+    const currentName =
+        typeof codexPluginObject.name === 'string' && codexPluginObject.name.trim().length > 0
+            ? sanitizeCapabilityPluginName(codexPluginObject.name)
+            : undefined;
+    codexPluginObject.name = currentName || packageName || defaultPluginName;
+
+    const packageVersion =
+        typeof pluginPackage.version === 'string' && isLikelySemverVersion(pluginPackage.version)
+            ? pluginPackage.version.trim()
+            : undefined;
+    const currentVersion =
+        typeof codexPluginObject.version === 'string' &&
+        isLikelySemverVersion(codexPluginObject.version)
+            ? codexPluginObject.version.trim()
+            : undefined;
+    codexPluginObject.version = currentVersion ?? packageVersion ?? '0.1.0';
+
+    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
+    const packageDescription =
+        typeof pluginPackage.description === 'string' &&
+        pluginPackage.description.trim().length > 0
+            ? pluginPackage.description.trim()
+            : undefined;
+    const currentDescription =
+        typeof codexPluginObject.description === 'string' &&
+        codexPluginObject.description.trim().length > 0
+            ? codexPluginObject.description.trim()
+            : undefined;
+    codexPluginObject.description =
+        currentDescription ??
+        packageDescription ??
+        options.capabilityDescription?.trim() ??
+        `${normalizedCapabilityName} Codex plugin for MetaFlow capability consumers.`;
+
+    const hasCodexSkills = fs.existsSync(
+        path.join(options.capabilityDirectoryPath, '.agents', 'skills'),
+    );
+    if (
+        hasCodexSkills &&
+        !(
+            typeof codexPluginObject.skills === 'string' &&
+            codexPluginObject.skills.trim().length > 0
+        )
+    ) {
+        codexPluginObject.skills = './.agents/skills/';
+    }
+
+    const nextContent = `${JSON.stringify(codexPluginObject, null, 2)}\n`;
+    return {
+        content: nextContent,
+        changed: existingRawText !== nextContent,
+    };
+}
+
 export async function maintainCapabilityPluginMetadataInDirectory(
     capabilityDirectoryPath: string,
 ): Promise<{
@@ -4471,8 +4570,10 @@ export async function maintainCapabilityPluginMetadataInDirectory(
     capabilityName: string;
     manifestPath: string;
     pluginJsonPath: string;
+    codexPluginJsonPath: string;
     manifestChanged: boolean;
     pluginJsonChanged: boolean;
+    codexPluginJsonChanged: boolean;
 }> {
     const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
     if (!fs.existsSync(manifestPath)) {
@@ -4501,11 +4602,32 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         existingRawText: existingPluginJsonRawText,
     });
 
+    const codexPluginJsonPath = path.join(
+        capabilityDirectoryPath,
+        '.codex-plugin',
+        'plugin.json',
+    );
+    const existingCodexPluginJsonRawText = fs.existsSync(codexPluginJsonPath)
+        ? await fsp.readFile(codexPluginJsonPath, 'utf-8')
+        : undefined;
+    const codexPluginUpdate = buildMaintainedCodexPluginManifestJson({
+        capabilityName,
+        capabilityDescription,
+        capabilityDirectoryPath,
+        capabilityDirectoryName: path.basename(capabilityDirectoryPath),
+        pluginPackageRawText: pluginUpdate.content,
+        existingRawText: existingCodexPluginJsonRawText,
+    });
+
     if (manifestUpdate.changed) {
         await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
     }
     if (pluginUpdate.changed) {
         await fsp.writeFile(pluginJsonPath, pluginUpdate.content, 'utf-8');
+    }
+    if (codexPluginUpdate.changed) {
+        await fsp.mkdir(path.dirname(codexPluginJsonPath), { recursive: true });
+        await fsp.writeFile(codexPluginJsonPath, codexPluginUpdate.content, 'utf-8');
     }
 
     return {
@@ -4513,8 +4635,10 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityName,
         manifestPath,
         pluginJsonPath,
+        codexPluginJsonPath,
         manifestChanged: manifestUpdate.changed,
         pluginJsonChanged: pluginUpdate.changed,
+        codexPluginJsonChanged: codexPluginUpdate.changed,
     };
 }
 
@@ -4573,6 +4697,64 @@ export async function maintainCapabilityPluginMarketplaceInRepo(
     };
 }
 
+export async function maintainCodexPluginMarketplaceInRepo(
+    repoRoot: string,
+    options: {
+        repoId: string;
+        excludePatterns?: string[];
+        marketplaceName?: string;
+        category?: string;
+    },
+): Promise<{
+    marketplacePath: string;
+    changed: boolean;
+    pluginCount: number;
+    warnings: CapabilityWarning[];
+}> {
+    const layerPaths = discoverLayersInRepo(repoRoot, options.excludePatterns).sort((left, right) =>
+        left.localeCompare(right),
+    );
+    const layers = layerPaths.map((layerPath) => {
+        const capabilityDirectoryPath = path.join(repoRoot, layerPath);
+        const capabilityId = path.basename(capabilityDirectoryPath);
+        return {
+            layerId: `${options.repoId}/${layerPath.replace(/\\/g, '/')}`,
+            repoId: options.repoId,
+            files: [],
+            capability: loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId),
+        };
+    });
+
+    const agentPluginCatalog = buildAgentPluginCatalog(layers);
+    const codexReadyEntries = agentPluginCatalog.entries.filter((entry) =>
+        fs.existsSync(path.join(path.dirname(entry.pluginJsonPath), '.codex-plugin', 'plugin.json')),
+    );
+    const marketplace = buildCodexPluginMarketplaceManifest(codexReadyEntries, {
+        repoRoot,
+        marketplaceName: options.marketplaceName?.trim() || options.repoId,
+        category: options.category,
+    });
+
+    const marketplacePath = path.join(repoRoot, '.agents', 'plugins', 'marketplace.json');
+    const nextContent = `${JSON.stringify(marketplace.manifest, null, 2)}\n`;
+    const existingContent = fs.existsSync(marketplacePath)
+        ? await fsp.readFile(marketplacePath, 'utf-8')
+        : undefined;
+    const changed = existingContent !== nextContent;
+
+    if (changed) {
+        await fsp.mkdir(path.dirname(marketplacePath), { recursive: true });
+        await fsp.writeFile(marketplacePath, nextContent, 'utf-8');
+    }
+
+    return {
+        marketplacePath,
+        changed,
+        pluginCount: marketplace.manifest.plugins.length,
+        warnings: [...agentPluginCatalog.warnings, ...marketplace.warnings],
+    };
+}
+
 export interface CapabilityPluginMaintenanceFailure {
     layerPath: string;
     message: string;
@@ -4590,6 +4772,9 @@ export interface CapabilityPluginMaintenanceResult {
     marketplacePath: string;
     marketplaceChanged: boolean;
     marketplacePluginCount: number;
+    codexMarketplacePath: string;
+    codexMarketplaceChanged: boolean;
+    codexMarketplacePluginCount: number;
     warnings: CapabilityWarning[];
 }
 
@@ -4674,7 +4859,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
             const result = await maintainCapabilityPluginMetadataInDirectory(
                 path.join(repoRoot, layerPath),
             );
-            if (result.manifestChanged || result.pluginJsonChanged) {
+            if (result.manifestChanged || result.pluginJsonChanged || result.codexPluginJsonChanged) {
                 changedResults.push(result);
             } else {
                 unchangedResults.push(result);
@@ -4693,6 +4878,11 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         marketplaceName: options.marketplaceName,
         ownerName: options.ownerName,
     });
+    const codexMarketplaceResult = await maintainCodexPluginMarketplaceInRepo(repoRoot, {
+        repoId: options.repoId,
+        excludePatterns: options.excludePatterns,
+        marketplaceName: options.marketplaceName,
+    });
 
     return {
         repoId: options.repoId,
@@ -4708,7 +4898,10 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         marketplacePath: marketplaceResult.marketplacePath,
         marketplaceChanged: marketplaceResult.changed,
         marketplacePluginCount: marketplaceResult.pluginCount,
-        warnings: marketplaceResult.warnings,
+        codexMarketplacePath: codexMarketplaceResult.marketplacePath,
+        codexMarketplaceChanged: codexMarketplaceResult.changed,
+        codexMarketplacePluginCount: codexMarketplaceResult.pluginCount,
+        warnings: [...marketplaceResult.warnings, ...codexMarketplaceResult.warnings],
     };
 }
 

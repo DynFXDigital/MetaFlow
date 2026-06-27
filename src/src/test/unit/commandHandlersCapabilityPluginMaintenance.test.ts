@@ -855,6 +855,86 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
     });
 
+    test('buildMaintainedCodexPluginManifestJson creates a Codex plugin manifest from plugin metadata', () => {
+        const { buildMaintainedCodexPluginManifestJson } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-codex-plugin-json-'));
+        try {
+            fs.mkdirSync(path.join(tempRoot, '.agents', 'skills', 'demo'), { recursive: true });
+
+            const result = buildMaintainedCodexPluginManifestJson({
+                capabilityName: 'Demo Capability',
+                capabilityDescription: 'Demo capability description.',
+                capabilityDirectoryPath: tempRoot,
+                capabilityDirectoryName: 'demo-capability',
+                pluginPackageRawText:
+                    JSON.stringify({
+                        name: 'demo-capability',
+                        version: '1.2.3',
+                        description: 'Copilot package description.',
+                    }) + '\n',
+            });
+
+            const parsed = JSON.parse(result.content) as {
+                name?: string;
+                version?: string;
+                description?: string;
+                skills?: string;
+            };
+            assert.strictEqual(parsed.name, 'demo-capability');
+            assert.strictEqual(parsed.version, '1.2.3');
+            assert.strictEqual(parsed.description, 'Copilot package description.');
+            assert.strictEqual(parsed.skills, './.agents/skills/');
+            assert.strictEqual(result.changed, true);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('buildMaintainedCodexPluginManifestJson preserves existing Codex-only fields', () => {
+        const { buildMaintainedCodexPluginManifestJson } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-codex-plugin-preserve-'));
+        try {
+            const result = buildMaintainedCodexPluginManifestJson({
+                capabilityName: 'Demo Capability',
+                capabilityDirectoryPath: tempRoot,
+                capabilityDirectoryName: 'demo-capability',
+                pluginPackageRawText:
+                    JSON.stringify({
+                        name: 'demo-capability',
+                        version: '1.2.3',
+                        description: 'Package description.',
+                    }) + '\n',
+                existingRawText:
+                    JSON.stringify(
+                        {
+                            name: 'custom-codex-plugin',
+                            version: '2.0.0',
+                            description: 'Custom Codex description.',
+                            skills: './skills/',
+                            mcp: './mcp.json',
+                        },
+                        null,
+                        2,
+                    ) + '\n',
+            });
+
+            const parsed = JSON.parse(result.content) as {
+                name?: string;
+                version?: string;
+                description?: string;
+                skills?: string;
+                mcp?: string;
+            };
+            assert.strictEqual(parsed.name, 'custom-codex-plugin');
+            assert.strictEqual(parsed.version, '2.0.0');
+            assert.strictEqual(parsed.description, 'Custom Codex description.');
+            assert.strictEqual(parsed.skills, './skills/');
+            assert.strictEqual(parsed.mcp, './mcp.json');
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
     test('maintainCapabilityPluginMetadataInDirectory creates missing plugin data for one capability directory', async () => {
         const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-'));
@@ -875,6 +955,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
             const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
             assert.strictEqual(result.manifestChanged, true);
             assert.strictEqual(result.pluginJsonChanged, true);
+            assert.strictEqual(result.codexPluginJsonChanged, true);
 
             const manifestText = fs.readFileSync(path.join(tempRoot, 'CAPABILITY.md'), 'utf-8');
             assert.ok(manifestText.includes('agentPlugin: true'));
@@ -891,6 +972,16 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual(pluginJson.agents, '.github/agents');
             assert.strictEqual(pluginJson.rules, '.github/instructions');
             assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
+
+            const codexPluginJson = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, '.codex-plugin', 'plugin.json'), 'utf-8'),
+            ) as {
+                name?: string;
+                version?: string;
+                description?: string;
+            };
+            assert.strictEqual(codexPluginJson.name, pluginJson.name);
+            assert.strictEqual(codexPluginJson.version, '0.1.0');
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -932,10 +1023,25 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 ) + '\n',
                 'utf-8',
             );
+            fs.mkdirSync(path.join(tempRoot, '.codex-plugin'), { recursive: true });
+            fs.writeFileSync(
+                path.join(tempRoot, '.codex-plugin', 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'custom-demo-capability',
+                        version: '1.2.3',
+                        description: 'Demo capability plugin',
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
 
             const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
             assert.strictEqual(result.manifestChanged, false);
             assert.strictEqual(result.pluginJsonChanged, false);
+            assert.strictEqual(result.codexPluginJsonChanged, false);
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -1047,6 +1153,109 @@ suite('Command handler capability plugin maintenance helpers', () => {
         }
     });
 
+    test('maintainCodexPluginMarketplaceInRepo writes .agents/plugins/marketplace.json for Codex-ready capabilities', async () => {
+        const { maintainCodexPluginMarketplaceInRepo } = loadCommandHandlers();
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-codex-marketplace-'));
+        try {
+            const firstCapability = path.join(repoRoot, 'capabilities', 'first');
+            const secondCapability = path.join(repoRoot, 'capabilities', 'second');
+            fs.mkdirSync(path.join(firstCapability, '.codex-plugin'), { recursive: true });
+            fs.mkdirSync(secondCapability, { recursive: true });
+
+            for (const [capabilityRoot, name, pluginName] of [
+                [firstCapability, 'First Capability', 'example-first'],
+                [secondCapability, 'Second Capability', 'example-second'],
+            ] as const) {
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'CAPABILITY.md'),
+                    [
+                        '---',
+                        `name: ${name}`,
+                        `${name === 'First Capability' ? 'description: First description' : 'description: Second description'}`,
+                        'agentPlugin: true',
+                        '---',
+                    ].join('\n'),
+                    'utf-8',
+                );
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'plugin.json'),
+                    JSON.stringify(
+                        {
+                            name: pluginName,
+                            version: '1.2.3',
+                            description: `${name} package description`,
+                            metaflow: {
+                                pluginHosts: ['github-copilot'],
+                                minimumMetaflowVersion: '^0.1.0',
+                            },
+                        },
+                        null,
+                        2,
+                    ) + '\n',
+                    'utf-8',
+                );
+            }
+
+            fs.writeFileSync(
+                path.join(firstCapability, '.codex-plugin', 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'example-first',
+                        version: '1.2.3',
+                        description: 'First Codex package',
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+
+            const firstRun = await maintainCodexPluginMarketplaceInRepo(repoRoot, {
+                repoId: 'example-repo',
+            });
+
+            assert.strictEqual(firstRun.changed, true);
+            assert.strictEqual(firstRun.pluginCount, 1);
+            assert.deepStrictEqual(firstRun.warnings, []);
+            assert.strictEqual(
+                firstRun.marketplacePath,
+                path.join(repoRoot, '.agents', 'plugins', 'marketplace.json'),
+            );
+
+            const marketplace = JSON.parse(fs.readFileSync(firstRun.marketplacePath, 'utf-8')) as {
+                name?: string;
+                plugins?: Array<{
+                    name?: string;
+                    source?: { source?: string; path?: string };
+                    policy?: { installation?: string; authentication?: string };
+                    category?: string;
+                    interface?: { displayName?: string; description?: string };
+                }>;
+            };
+
+            assert.strictEqual(marketplace.name, 'example-repo');
+            assert.deepStrictEqual(marketplace.plugins, [
+                {
+                    name: 'example-first',
+                    source: { source: 'local', path: './capabilities/first' },
+                    policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+                    category: 'Productivity',
+                    interface: {
+                        displayName: 'First Capability',
+                        description: 'First description',
+                    },
+                },
+            ]);
+
+            const secondRun = await maintainCodexPluginMarketplaceInRepo(repoRoot, {
+                repoId: 'example-repo',
+            });
+            assert.strictEqual(secondRun.changed, false);
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
     test('maintainAllCapabilityPluginMetadataInRepo updates dirty capabilities and marketplace together', async () => {
         const { maintainAllCapabilityPluginMetadataInRepo } = loadCommandHandlers();
         const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-all-'));
@@ -1100,6 +1309,8 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual(result.failureCount, 0);
             assert.strictEqual(result.marketplaceChanged, true);
             assert.strictEqual(result.marketplacePluginCount, 2);
+            assert.strictEqual(result.codexMarketplaceChanged, true);
+            assert.strictEqual(result.codexMarketplacePluginCount, 1);
             assert.ok(
                 fs
                     .readFileSync(path.join(firstCapability, 'CAPABILITY.md'), 'utf-8')
@@ -1114,6 +1325,24 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 marketplace.plugins?.map((plugin) => plugin.name),
                 ['first', 'second-capability'],
             );
+
+            const codexMarketplace = JSON.parse(
+                fs.readFileSync(result.codexMarketplacePath, 'utf-8'),
+            ) as {
+                plugins?: Array<{ name?: string; source?: { path?: string } }>;
+            };
+            assert.deepStrictEqual(codexMarketplace.plugins, [
+                {
+                    name: 'first',
+                    source: { source: 'local', path: './capabilities/first' },
+                    policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+                    category: 'Productivity',
+                    interface: {
+                        displayName: 'First Capability',
+                        description: 'First description',
+                    },
+                },
+            ]);
         } finally {
             fs.rmSync(repoRoot, { recursive: true, force: true });
         }

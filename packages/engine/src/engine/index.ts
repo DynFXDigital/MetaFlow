@@ -18,7 +18,21 @@ export type {
     CapabilityReferenceRepairResult,
     ConfiguredCapabilityReference,
 } from './capabilityIdentity';
-export { buildAgentPluginCatalog, buildCapabilityPluginMarketplaceManifest } from './pluginCatalog';
+export {
+    buildAgentPluginCatalog,
+    buildCapabilityPluginMarketplaceManifest,
+    buildCodexPluginMarketplaceManifest,
+} from './pluginCatalog';
+export type {
+    CapabilityPluginMarketplaceManifest,
+    CapabilityPluginMarketplaceManifestOptions,
+    CapabilityPluginMarketplacePluginEntry,
+    CapabilityPluginMarketplaceManifestResult,
+    CodexPluginMarketplaceManifest,
+    CodexPluginMarketplaceManifestOptions,
+    CodexPluginMarketplaceManifestResult,
+    CodexPluginMarketplacePluginEntry,
+} from './pluginCatalog';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyFilters } from './filterEngine';

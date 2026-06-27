@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    buildCodexPluginMarketplaceManifest,
     LayerContent,
 } from '../src/index';
 
@@ -222,5 +223,82 @@ describe('pluginCatalog', () => {
 
         assert.deepStrictEqual(result.warnings, []);
         assert.strictEqual(result.manifest.plugins[0]?.source, './');
+    });
+
+    it('builds a Codex marketplace manifest with local source entries', () => {
+        const catalog = buildAgentPluginCatalog([
+            makeLayer('repo/review/first', 'repo', 'example-first'),
+            makeLayer('repo/review/second', 'repo', 'example-second'),
+        ]);
+
+        const result = buildCodexPluginMarketplaceManifest(catalog.entries, {
+            repoRoot: '/workspace/repo',
+            marketplaceName: 'Example Repo',
+        });
+
+        assert.deepStrictEqual(result.warnings, []);
+        assert.deepStrictEqual(result.manifest, {
+            name: 'example-repo',
+            plugins: [
+                {
+                    name: 'example-first',
+                    source: {
+                        source: 'local',
+                        path: './review/first',
+                    },
+                    policy: {
+                        installation: 'AVAILABLE',
+                        authentication: 'ON_INSTALL',
+                    },
+                    category: 'Productivity',
+                    interface: {
+                        displayName: 'Capability repo/review/first',
+                        description: 'Description for repo/review/first',
+                    },
+                },
+                {
+                    name: 'example-second',
+                    source: {
+                        source: 'local',
+                        path: './review/second',
+                    },
+                    policy: {
+                        installation: 'AVAILABLE',
+                        authentication: 'ON_INSTALL',
+                    },
+                    category: 'Productivity',
+                    interface: {
+                        displayName: 'Capability repo/review/second',
+                        description: 'Description for repo/review/second',
+                    },
+                },
+            ],
+        });
+    });
+
+    it('warns when a Codex marketplace entry lives outside the repository root', () => {
+        const result = buildCodexPluginMarketplaceManifest(
+            [
+                {
+                    pluginName: 'outside-plugin',
+                    version: '1.0.0',
+                    displayName: 'Outside Plugin',
+                    capabilityId: 'outside',
+                    layerId: 'other/outside',
+                    repoId: 'other',
+                    manifestPath: '/elsewhere/outside/CAPABILITY.md',
+                    pluginJsonPath: '/elsewhere/outside/plugin.json',
+                    pluginHosts: ['github-copilot'],
+                },
+            ],
+            { repoRoot: '/workspace/repo', marketplaceName: 'Example Repo' },
+        );
+
+        assert.deepStrictEqual(result.manifest.plugins, []);
+        assert.strictEqual(result.warnings.length, 1);
+        assert.strictEqual(
+            result.warnings[0].code,
+            'CAPABILITY_CODEX_PLUGIN_MARKETPLACE_MANIFEST_OUTSIDE_REPO',
+        );
     });
 });

@@ -113,8 +113,8 @@ MetaFlow can also treat a capability as an agent-plugin-compatible manifest when
 - Place a `plugin.json` file beside `CAPABILITY.md` at the capability root.
 - MetaFlow validates the embedded plugin manifest and surfaces errors or warnings in the normal Problems and diagnostics flows.
 - Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.
-- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin manifest fields for an existing capability without replacing unrelated `plugin.json` content.
-- Use `MetaFlow: Maintain All Capability Plugin Metadata` to sweep every capability directory in a selected metadata repository and backfill missing plugin data in one pass.
+- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin manifest fields for an existing capability without replacing unrelated `plugin.json` or `.codex-plugin/plugin.json` content.
+- Use `MetaFlow: Maintain All Capability Plugin Metadata` to sweep every capability directory in a selected metadata repository and backfill missing Copilot and Codex plugin data in one pass.
 
 The maintained plugin manifest contract currently expects:
 
@@ -128,7 +128,9 @@ The maintained plugin manifest contract currently expects:
 - `metaflow.pluginHosts`: an array of supported consumers such as `github-copilot`
 - `metaflow.minimumMetaflowVersion`: the minimum MetaFlow version range expected by the plugin manifest
 
-MetaFlow also builds a normalized internal plugin catalog from valid capability plugin manifests and can generate `.github/plugin/marketplace.json` from those manifests for discovery surfaces.
+MetaFlow also builds a normalized internal plugin catalog from valid capability plugin manifests and can generate both `.github/plugin/marketplace.json` and `.agents/plugins/marketplace.json` from those manifests for host-native discovery surfaces.
+
+For Codex plugin packaging, MetaFlow maintains `.codex-plugin/plugin.json` beside the capability's `CAPABILITY.md` and `plugin.json`. The generated Codex manifest preserves existing Codex-only fields, reuses stable package identity from the capability plugin metadata, and points `skills` at `./.agents/skills/` when the capability includes Codex repository skills. The generated Codex marketplace uses repo-root `.agents/plugins/marketplace.json` entries with local `source.path` values that point back to Codex-ready capability folders.
 
 Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, and `agents` to `plugin`, while `prompts` and `hooks` remain settings-backed until the host consumes those artifact types through plugin discovery.
 
@@ -153,6 +155,7 @@ Current scope:
 - `prompts` remain `settings` or `synchronize` because Copilot plugin discovery does not consume MetaFlow prompt directories directly
 - `hooks` remain `settings` because the current plugin discovery path does not consume MetaFlow hook directories directly
 - `plugin.json` must exist at the capability root and should be kept in sync with `CAPABILITY.md`
+- Codex-ready capability plugin folders must include `.codex-plugin/plugin.json`; MetaFlow can generate it and the repo `.agents/plugins/marketplace.json` catalog from maintained capability metadata
 
 ## Where to go next
 

@@ -111,8 +111,8 @@ Codex support is separate from VS Code and GitHub Copilot plugin mode.
 - Managed Codex skill files participate in drift detection and clean safety.
 - Root `AGENTS.md` and `AGENTS.override.md` files are recognized as Codex project instructions and synchronize to the consuming repository root with the same unmanaged-destination and drift protection.
 - `.codex/**` files, including `config.toml`, hooks, rules, and custom agent definitions, synchronize root-relative without inline MetaFlow provenance comments; managed state remains the provenance source for drift and clean safety.
-- Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's current `plugin.json` maintenance commands are for GitHub Copilot agent plugins.
-- Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow's generated `.github/plugin/marketplace.json` remains scoped to GitHub Copilot plugin discovery.
+- Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's capability plugin maintenance commands generate that manifest separately from the GitHub Copilot `plugin.json`.
+- Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow generates that marketplace separately from `.github/plugin/marketplace.json` so Codex and GitHub Copilot discovery stay host-native.
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
