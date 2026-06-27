@@ -449,7 +449,12 @@ class LayerRepoItem extends vscode.TreeItem {
             governance?: RepoGovernanceProjection;
         },
     ) {
-        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        super(
+            label,
+            repoDisabled
+                ? vscode.TreeItemCollapsibleState.None
+                : vscode.TreeItemCollapsibleState.Collapsed,
+        );
         this.id = buildLayerTreeItemId('repo', 'tree', repoId, '.');
         this.contextValue = 'layerRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
@@ -1590,6 +1595,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     }
 
     private shouldShowFlatEntry(entry: LayerEntry, descendantKeySet: Set<string>): boolean {
+        if (entry.repoDisabled) {
+            return false;
+        }
+
         if (entry.capability) {
             return true;
         }
@@ -2195,6 +2204,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof LayerRepoItem) {
+            if (element.checkboxState === vscode.TreeItemCheckboxState.Unchecked) {
+                return [];
+            }
+
             const repoEntries = entries.filter((entry) => entry.repoId === element.repoId);
             const repoChildren = this.getTreeChildrenForPrefix(
                 repoEntries,
@@ -2314,7 +2327,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 new Set(
                     entries
                         .map((entry) => entry.repoId)
-                        .filter((id): id is string => typeof id === 'string'),
+                        .filter(
+                            (id): id is string =>
+                                typeof id === 'string' && repoDisabled.get(id) !== true,
+                        ),
                 ),
             );
             return this.trackChildren(

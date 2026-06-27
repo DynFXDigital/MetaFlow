@@ -410,7 +410,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-03b: repo item tooltip shows repository status', () => {
+    test('LTV-AT-03b: disabled repo is hidden from the capabilities root', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: false }],
@@ -421,20 +421,10 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
-        const [repoItem] = provider.getChildren();
-
-        assert.strictEqual(
-            extractTooltipText(repoItem.tooltip),
-            joinTooltip('**repo1**', [
-                'Status: disabled',
-                'Repository ID: `repo1`',
-                'Root: `/repo1`',
-                'Instructions: 0/0 active',
-                'Prompts: 0/0 active',
-                'Agents: 0/0 active',
-                'Skills: 0/0 active',
-                'Hooks: 0/0 active',
-            ]),
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'disabled repositories should not show a root row in the Capabilities view',
         );
     });
 
@@ -737,7 +727,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-08b: repo-disabled layer remains browseable and marks artifact nodes accordingly', () => {
+    test('LTV-AT-08b: repo-disabled source is omitted from the capabilities tree', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: false }],
@@ -748,31 +738,10 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
-        const [repoItem] = provider.getChildren();
-        const [layerItem] = provider.getChildren(repoItem);
-        assert.strictEqual(
-            layerItem.collapsibleState,
-            1,
-            'repo-disabled layer should stay collapsible when artifact content exists',
-        );
-
-        const children = provider.getChildren(layerItem);
-        const instructionsItem = children.find((child) => String(child.label) === 'instructions');
-        assert.ok(
-            instructionsItem,
-            'repo-disabled layer should still expose artifact-type children',
-        );
-        assert.strictEqual(instructionsItem?.description, '(0, plugin, repo disabled)');
-        assert.strictEqual(
-            extractTooltipText(instructionsItem?.tooltip),
-            joinTooltip('**Artifact Type**: instructions', [
-                'Status: available in this capability',
-                'Capability status: enabled',
-                'Repository status: disabled',
-                'Injection: plugin (built-in default)',
-                'Repository: `repo1`',
-                'Layer: `.`',
-            ]),
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'repo-disabled source should not show a repo root or capabilities until re-enabled',
         );
     });
 
@@ -2171,7 +2140,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-NF-07: repo-disabled layer shows capability name with disabled in description', () => {
+    test('LTV-NF-07: flat mode omits repo-disabled capabilities', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: false }],
@@ -2185,19 +2154,14 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'flat',
         );
 
-        const [layerItem] = provider.getChildren();
-        assert.strictEqual(String(layerItem.label), 'Developer Tools');
-        assert.ok(
-            String(layerItem.description).includes('capabilities/devtools'),
-            `description should include path, got: ${layerItem.description}`,
-        );
-        assert.ok(
-            String(layerItem.description).includes('repo disabled'),
-            `description should indicate repo disabled, got: ${layerItem.description}`,
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'flat mode should treat a disabled repo as an override that hides its capabilities',
         );
     });
 
-    test('LTV-NF-08: tree mode – repo-disabled layer omits redundant path in description', () => {
+    test('LTV-NF-08: tree mode omits disabled repo roots from capabilities', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: false }],
@@ -2211,15 +2175,51 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
-        const repoItem = provider.getChildren()[0];
-        const capabilitiesFolder = provider.getChildren(repoItem)[0];
-        const leafNode = provider.getChildren(capabilitiesFolder)[0];
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => String(item.label)),
+            [],
+            'tree mode should not show the disabled repo root in the capabilities area',
+        );
+    });
 
-        assert.strictEqual(String(leafNode.label), 'Developer Tools');
-        assert.strictEqual(
-            String(leafNode.description),
-            '(0/0, repo disabled)',
-            `tree-mode description should keep status but omit path and repo label, got: ${leafNode.description}`,
+    test('LTV-NF-09: repo re-enable restores remembered layer check states', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/active': { name: 'Active Tooling' },
+            'repo1/capabilities/devtools/inactive': { name: 'Inactive Tooling' },
+        };
+        const layerSources = [
+            { repoId: 'repo1', path: 'capabilities/devtools/active', enabled: true },
+            { repoId: 'repo1', path: 'capabilities/devtools/inactive', enabled: false },
+        ];
+        const disabledConfig = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: false }],
+            layerSources,
+        };
+        const enabledConfig = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: true }],
+            layerSources,
+        };
+
+        const disabledProvider = new LayersTreeViewProvider(
+            makeState(disabledConfig, [], capabilityByLayer),
+            () => 'flat',
+        );
+        assert.deepStrictEqual(
+            disabledProvider.getChildren().map((item) => String(item.label)),
+            [],
+            'disabled repo should temporarily hide all flat-mode capabilities',
+        );
+
+        const enabledProvider = new LayersTreeViewProvider(
+            makeState(enabledConfig, [], capabilityByLayer),
+            () => 'flat',
+        );
+        const restoredLayers = enabledProvider.getChildren();
+        assert.deepStrictEqual(
+            restoredLayers.map((item) => `${String(item.label)}:${item.checkboxState}`),
+            ['Active Tooling:1', 'Inactive Tooling:0'],
+            're-enabling the repo should reveal the previous per-layer checked states',
         );
     });
 
