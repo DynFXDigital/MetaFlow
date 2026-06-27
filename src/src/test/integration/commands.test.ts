@@ -40,6 +40,7 @@ suite('Command Execution', function () {
         }
 
         removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'codex-plugin-maintain-repo'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
     }
 
@@ -5973,6 +5974,134 @@ suite('Command Execution', function () {
             );
         } finally {
             windowAny.showInformationMessage = originalInfo;
+        }
+    });
+
+    test('maintainAllCapabilityPluginMetadata writes Codex plugin marketplace through command path', async function () {
+        this.timeout(20000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.ai', 'codex-plugin-maintain-repo');
+        const capabilityRoot = path.join(repoRoot, 'capabilities', 'codex-e2e');
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(capabilityRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Codex E2E',
+                'description: Codex command-path packaging coverage.',
+                '---',
+                '',
+                '# Codex E2E',
+                '',
+            ].join('\n'),
+            'utf-8',
+        );
+        fs.mkdirSync(path.join(capabilityRoot, '.agents', 'skills', 'codex-e2e'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(capabilityRoot, '.agents', 'skills', 'codex-e2e', 'SKILL.md'),
+            [
+                '---',
+                'name: codex-e2e',
+                'description: Exercise Codex package generation from the command path.',
+                '---',
+                '',
+                'Exercise Codex package generation.',
+                '',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const codexCommandConfig = {
+            compatibilityVersion: 2,
+            metadataRepos: [
+                {
+                    id: 'codex-command',
+                    localPath: '.ai/codex-plugin-maintain-repo',
+                    enabled: true,
+                    capabilities: [{ path: 'capabilities/codex-e2e', enabled: true }],
+                },
+            ],
+            filters: { include: ['**'], exclude: [] },
+            profiles: { default: { enable: ['**/*'] } },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const infoMessages: string[] = [];
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (typeof message === 'string') {
+                infoMessages.push(message);
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(codexCommandConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const result = (await vscode.commands.executeCommand(
+                'metaflow.maintainAllCapabilityPluginMetadata',
+                { repoId: 'codex-command' },
+            )) as {
+                changedCount?: number;
+                marketplaceChanged?: boolean;
+                codexMarketplaceChanged?: boolean;
+                codexMarketplacePluginCount?: number;
+                codexMarketplacePath?: string;
+            };
+
+            assert.ok(result.changedCount, 'Command should update capability plugin metadata');
+            assert.strictEqual(result.marketplaceChanged, true);
+            assert.strictEqual(result.codexMarketplaceChanged, true);
+            assert.strictEqual(result.codexMarketplacePluginCount, 1);
+
+            const codexPluginPath = path.join(capabilityRoot, '.codex-plugin', 'plugin.json');
+            assert.ok(
+                fs.existsSync(codexPluginPath),
+                'Command should write .codex-plugin/plugin.json',
+            );
+            const codexPlugin = JSON.parse(fs.readFileSync(codexPluginPath, 'utf-8')) as {
+                name?: string;
+                skills?: string;
+            };
+            assert.strictEqual(codexPlugin.name, 'codex-e2e');
+            assert.strictEqual(codexPlugin.skills, './.agents/skills/');
+
+            assert.ok(result.codexMarketplacePath, 'Command should report Codex marketplace path');
+            const codexMarketplace = JSON.parse(
+                fs.readFileSync(result.codexMarketplacePath!, 'utf-8'),
+            ) as {
+                plugins?: Array<{ name?: string; source?: { source?: string; path?: string } }>;
+            };
+            assert.deepStrictEqual(codexMarketplace.plugins, [
+                {
+                    name: 'codex-e2e',
+                    source: { source: 'local', path: './capabilities/codex-e2e' },
+                    policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+                    category: 'Productivity',
+                    interface: {
+                        displayName: 'Codex E2E',
+                        description: 'Codex command-path packaging coverage.',
+                    },
+                },
+            ]);
+            assert.ok(
+                infoMessages.some((message) => message.includes('Codex marketplace updated')),
+                'Command should report Codex marketplace maintenance in the completion message',
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 

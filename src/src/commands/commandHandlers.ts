@@ -8438,6 +8438,15 @@ export function registerCommands(
                     preserveFocus: true,
                 });
 
+                const codexPluginJsonDoc = await vscode.workspace.openTextDocument(
+                    result.codexPluginJsonPath,
+                );
+                await vscode.window.showTextDocument(codexPluginJsonDoc, {
+                    viewColumn: vscode.ViewColumn.Beside,
+                    preview: true,
+                    preserveFocus: true,
+                });
+
                 const manifestDoc = await vscode.workspace.openTextDocument(result.manifestPath);
                 await vscode.window.showTextDocument(manifestDoc, {
                     preview: false,
@@ -8445,17 +8454,19 @@ export function registerCommands(
                 });
 
                 vscode.window.showInformationMessage(
-                    `MetaFlow: ${result.manifestChanged ? 'Updated' : 'Checked'} ${result.manifestPath} and ${result.pluginJsonChanged ? 'updated' : 'checked'} ${result.pluginJsonPath} for capability plugin compatibility.`,
+                    `MetaFlow: ${result.manifestChanged ? 'Updated' : 'Checked'} ${result.manifestPath}, ${result.pluginJsonChanged ? 'updated' : 'checked'} ${result.pluginJsonPath}, and ${result.codexPluginJsonChanged ? 'updated' : 'checked'} ${result.codexPluginJsonPath} for capability plugin compatibility.`,
                 );
 
                 return {
                     manifestPath: result.manifestPath,
                     pluginJsonPath: result.pluginJsonPath,
+                    codexPluginJsonPath: result.codexPluginJsonPath,
                     capabilityDirectoryPath: result.capabilityDirectoryPath,
                     capabilityName: result.capabilityName,
                     guidancePath: fs.existsSync(guidancePath) ? guidancePath : undefined,
                     manifestChanged: result.manifestChanged,
                     pluginJsonChanged: result.pluginJsonChanged,
+                    codexPluginJsonChanged: result.codexPluginJsonChanged,
                 };
             },
         ),
@@ -8499,67 +8510,47 @@ export function registerCommands(
                 }
 
                 const repoRoot = resolvePathFromWorkspace(ws.uri.fsPath, repo.localPath);
-                const layerPaths = discoverCapabilityDirectoryPathsInRepo(
+                const capabilityPaths = discoverCapabilityDirectoryPathsInRepo(
                     repoRoot,
                     repo.discover?.exclude,
-                ).sort((left, right) => left.localeCompare(right));
-                if (layerPaths.length === 0) {
+                );
+                if (capabilityPaths.length === 0) {
                     vscode.window.showInformationMessage(
                         `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
                     );
                     return;
                 }
 
-                const changedResults: Array<
-                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
-                > = [];
-                const unchangedResults: Array<
-                    Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>
-                > = [];
-                const failures: Array<{ layerPath: string; message: string }> = [];
-
-                await vscode.window.withProgress(
+                const result = await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
                         title: 'MetaFlow: Maintaining capability plugin metadata',
                         cancellable: false,
                     },
                     async (progress) => {
-                        for (let index = 0; index < layerPaths.length; index += 1) {
-                            const layerPath = layerPaths[index];
-                            progress.report({
-                                message: `${index + 1}/${layerPaths.length}: ${layerPath}`,
-                                increment: 100 / layerPaths.length,
-                            });
-
-                            try {
-                                const result = await maintainCapabilityPluginMetadataInDirectory(
-                                    path.join(repoRoot, layerPath),
-                                );
-                                if (result.manifestChanged || result.pluginJsonChanged) {
-                                    changedResults.push(result);
-                                } else {
-                                    unchangedResults.push(result);
-                                }
-                            } catch (error: unknown) {
-                                failures.push({
-                                    layerPath,
-                                    message: error instanceof Error ? error.message : String(error),
-                                });
-                            }
-                        }
+                        progress.report({ message: `${capabilityPaths.length} capabilities` });
+                        return maintainAllCapabilityPluginMetadataInRepo(repoRoot, {
+                            repoId,
+                            excludePatterns: repo.discover?.exclude,
+                            marketplaceName: repo.name || repoId,
+                            ownerName: repo.name,
+                        });
                     },
                 );
 
-                if (changedResults.length > 0) {
+                if (
+                    result.changedCount > 0 ||
+                    result.marketplaceChanged ||
+                    result.codexMarketplaceChanged
+                ) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipRepoSync: true,
                     });
                 }
 
-                if (failures.length > 0) {
+                if (result.failureCount > 0 || result.warnings.length > 0) {
                     showOutputChannel();
-                    for (const failure of failures) {
+                    for (const failure of result.failures) {
                         logWarn(
                             `MetaFlow: Failed to maintain plugin metadata for ${failure.layerPath}. ${failure.message}`,
                         );
@@ -8569,8 +8560,8 @@ export function registerCommands(
                         state.capabilityWarnings,
                         collectCapabilityPluginMaintenanceWarningMessages({
                             repoRoot,
-                            failures,
-                            warnings: [],
+                            failures: result.failures,
+                            warnings: result.warnings,
                         }),
                     );
                     if (warningsChanged) {
@@ -8579,26 +8570,19 @@ export function registerCommands(
                 }
 
                 const summary =
-                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
-                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
+                    `MetaFlow: Checked ${result.scannedCount} capability director${result.scannedCount === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `${result.changedCount} changed, ${result.unchangedCount} already up to date, ${result.failureCount} failed. ` +
+                    `Copilot marketplace ${result.marketplaceChanged ? 'updated' : 'checked'} (${result.marketplacePluginCount} plugins); ` +
+                    `Codex marketplace ${result.codexMarketplaceChanged ? 'updated' : 'checked'} (${result.codexMarketplacePluginCount} plugins).`;
 
-                if (failures.length > 0) {
+                if (result.failureCount > 0) {
                     vscode.window.showWarningMessage(summary);
                 } else {
                     vscode.window.showInformationMessage(summary);
                 }
 
                 return {
-                    repoId,
-                    repoRoot,
-                    scannedCount: layerPaths.length,
-                    changedCount: changedResults.length,
-                    unchangedCount: unchangedResults.length,
-                    failureCount: failures.length,
-                    changedCapabilities: changedResults.map(
-                        (result) => result.capabilityDirectoryPath,
-                    ),
-                    failures,
+                    ...result,
                 };
             },
         ),
