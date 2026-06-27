@@ -227,6 +227,49 @@ suite('synchronization engine', () => {
         );
     });
 
+    test('Codex project instructions synchronize to root AGENTS.md path', () => {
+        const files = [makeEffectiveFile('AGENTS.md', '# Repository Guidance')];
+
+        const changes = preview(tmpDir, files, outputDir);
+        assert.strictEqual(changes[0].relativePath, 'AGENTS.md');
+
+        const result = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(result.written.includes('AGENTS.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, 'AGENTS.md')));
+        assert.ok(!fs.existsSync(path.join(tmpDir, outputDir, 'AGENTS.md')));
+
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), 'local edit', 'utf-8');
+        const reapplyResult = apply({
+            workspaceRoot: tmpDir,
+            outputDir,
+            effectiveFiles: files,
+        });
+        assert.ok(reapplyResult.skipped.includes('AGENTS.md'));
+
+        const cleanResult = clean(tmpDir, outputDir);
+        assert.ok(cleanResult.skipped.includes('AGENTS.md'));
+    });
+
+    test('Codex project instructions reject unmanaged root destinations', () => {
+        const files = [makeEffectiveFile('AGENTS.md', '# Repository Guidance')];
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), 'user-owned file', 'utf-8');
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+            }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('AGENTS.md'));
+    });
+
     test('Codex repository skills synchronize to root .agents/skills path', () => {
         const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
         const files = [makeEffectiveFile(codexSkillPath, '# Codex Metadata')];

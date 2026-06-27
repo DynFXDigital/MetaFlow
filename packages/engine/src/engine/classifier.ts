@@ -18,7 +18,7 @@
 
 import { InjectionConfig, LayerSource } from '../config/configSchema';
 import { normalizeInputPath } from '../config/configPathUtils';
-import { isCodexRepositorySkillPath } from './codexPaths';
+import { isCodexProjectInstructionPath, isCodexRepositorySkillPath } from './codexPaths';
 import { ArtifactClassification, EffectiveFile } from './types';
 
 /** Default classification rules per artifact type directory prefix. */
@@ -116,6 +116,9 @@ export function classifySingle(
     injection: InjectionConfig | undefined,
 ): ArtifactClassification {
     const normalized = relativePath.replace(/\\/g, '/');
+    if (isCodexProjectInstructionPath(normalized)) {
+        return 'synchronized';
+    }
     if (isCodexRepositorySkillPath(normalized)) {
         return 'synchronized';
     }

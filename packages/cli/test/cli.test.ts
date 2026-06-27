@@ -475,6 +475,41 @@ describe('CLI: apply', () => {
         assert.strictEqual(cleanResult.exitCode, 0);
         assert.ok(!fs.existsSync(rootSkillPath), 'clean should remove the managed Codex skill');
     });
+
+    it('should synchronize Codex project instructions to root AGENTS.md', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'AGENTS.md',
+                        content: '# Repository Guidance\nCodex project instructions.',
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes('AGENTS.md'));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+
+        const rootGuidancePath = path.join(ws.root, 'AGENTS.md');
+        assert.ok(
+            fs.existsSync(rootGuidancePath),
+            'Codex project instructions should be synchronized at repo root',
+        );
+        assert.ok(
+            !fs.existsSync(path.join(ws.root, '.github', 'AGENTS.md')),
+            'Codex project instructions should not be nested under .github',
+        );
+
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        assert.ok(state.files['AGENTS.md'], 'state should track root Codex project instructions');
+    });
 });
 
 // ── Drift detection + promote ──────────────────────────────────────

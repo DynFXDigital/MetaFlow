@@ -20,7 +20,7 @@ import {
     createEmptyState,
 } from './managedState';
 import { checkDrift } from './driftDetector';
-import { isCodexRepositorySkillPath } from './codexPaths';
+import { isCodexRootRelativeSynchronizedPath } from './codexPaths';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
@@ -149,7 +149,7 @@ function isRepoWideCopilotInstructionsFile(file: EffectiveFile): boolean {
 }
 
 function isRootRelativeSynchronizedPath(relativePath: string): boolean {
-    return isCodexRepositorySkillPath(relativePath);
+    return isCodexRootRelativeSynchronizedPath(relativePath);
 }
 
 function resolveSynchronizedOutputDir(outputDir: string, relativePath: string): string {

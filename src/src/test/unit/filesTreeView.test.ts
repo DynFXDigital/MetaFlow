@@ -1125,6 +1125,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(getArtifactType('.github/skills/s/SKILL.md'), 'skills');
         assert.strictEqual(getArtifactType('.github/hooks/prompt-injection-guard.json'), 'hooks');
         assert.strictEqual(getArtifactType('.agents/skills/codex-metadata/SKILL.md'), 'skills');
+        assert.strictEqual(getArtifactType('AGENTS.md'), 'instructions');
         assert.strictEqual(getArtifactType('unknown/something.json'), 'other');
         assert.strictEqual(getArtifactType('settings.json'), 'other');
     });

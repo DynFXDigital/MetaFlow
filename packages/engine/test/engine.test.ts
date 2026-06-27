@@ -1364,6 +1364,16 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.ok(discovered.includes('codex-only'));
     });
 
+    it('discovers layers that only contain Codex project instructions', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'project-guidance');
+        fs.mkdirSync(layerRoot, { recursive: true });
+        fs.writeFileSync(path.join(layerRoot, 'AGENTS.md'), '# Repository Guidance');
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('project-guidance'));
+    });
+
     it('skips runtime discovery when resolve option disables discovery', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         fs.mkdirSync(path.join(repoRoot, 'base', 'chatmodes'), { recursive: true });
@@ -1890,6 +1900,71 @@ describe('Engine: synchronizer advanced', () => {
             drift.find((entry) => entry.relativePath === 'copilot-instructions.md')?.status,
             'drifted',
         );
+    });
+
+    it('discovers and synchronizes Codex project instructions to root AGENTS.md', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'AGENTS.md'), '# Repository Guidance');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: { instructions: 'settings' },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const file = fileMap.get('AGENTS.md');
+        assert.ok(file, 'Codex project instructions should be retained');
+        assert.strictEqual(file?.classification, 'synchronized');
+        assert.strictEqual(toSynchronizedRelativePath(file as EffectiveFile), 'AGENTS.md');
+
+        const pending = preview(tmpDir, files);
+        assert.ok(pending.some((change) => change.relativePath === 'AGENTS.md'));
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('AGENTS.md'));
+        assert.ok(fs.existsSync(path.join(tmpDir, 'AGENTS.md')));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'AGENTS.md')));
+
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), 'local edit');
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === 'AGENTS.md')?.status,
+            'drifted',
+        );
+    });
+
+    it('planSynchronization fails when Codex project instructions would overwrite unmanaged root files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', 'AGENTS.md'),
+            '# Managed Guidance',
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), '# User Guidance', 'utf-8');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const message = captureErrorMessage(() =>
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        );
+
+        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('AGENTS.md'));
     });
 
     it('discovers and synchronizes Codex repository skills to root .agents', () => {

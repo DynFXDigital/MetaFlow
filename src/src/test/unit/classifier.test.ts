@@ -64,6 +64,11 @@ suite('classifier', () => {
                 'synchronized',
             );
         });
+
+        test('Codex project instructions remain synchronized', () => {
+            assert.strictEqual(classifySingle('AGENTS.md', undefined), 'synchronized');
+            assert.strictEqual(classifySingle('AGENTS.override.md', undefined), 'synchronized');
+        });
     });
 
     suite('injection config override', () => {
@@ -137,6 +142,17 @@ suite('classifier', () => {
             );
             assert.strictEqual(
                 classifySingle('.agents/skills/codex-metadata/SKILL.md', { skills: 'settings' }),
+                'synchronized',
+            );
+        });
+
+        test('Codex project instructions ignore instructions injection overrides', () => {
+            assert.strictEqual(
+                classifySingle('AGENTS.md', { instructions: 'plugin' }),
+                'synchronized',
+            );
+            assert.strictEqual(
+                classifySingle('AGENTS.override.md', { instructions: 'settings' }),
                 'synchronized',
             );
         });

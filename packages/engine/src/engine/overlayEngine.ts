@@ -23,7 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
-import { isCodexRepositorySkillPath } from './codexPaths';
+import { isCodexProjectInstructionPath, isCodexRepositorySkillPath } from './codexPaths';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -370,6 +370,9 @@ function isKnownArtifactPath(relativePath: string): boolean {
     if (KNOWN_GITHUB_ROOT_FILES.has(relativePath)) {
         return true;
     }
+    if (isCodexProjectInstructionPath(relativePath)) {
+        return true;
+    }
     if (isCodexRepositorySkillPath(relativePath)) {
         return true;
     }
@@ -436,12 +439,17 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         const hasCodexRepositorySkills =
             childNames.has('.agents') &&
             hasCodexRepositorySkillsDir(path.join(currentDir, '.agents'));
+        const hasCodexProjectInstructions = hasCodexProjectInstructionFile(
+            childNames,
+            currentDir,
+        );
         const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
         if (
             hasArtifactAtRoot ||
             hasGithubArtifacts ||
             hasCodexRepositorySkills ||
+            hasCodexProjectInstructions ||
             hasCapabilityManifest
         ) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
@@ -471,6 +479,22 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
 
     walk(repoRoot);
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
+}
+
+function hasCodexProjectInstructionFile(childNames: Set<string>, currentDir: string): boolean {
+    for (const fileName of ['AGENTS.md', 'AGENTS.override.md']) {
+        if (!childNames.has(fileName)) {
+            continue;
+        }
+        try {
+            if (fs.statSync(path.join(currentDir, fileName)).isFile()) {
+                return true;
+            }
+        } catch {
+            continue;
+        }
+    }
+    return false;
 }
 
 function hasCodexRepositorySkillsDir(agentsDirPath: string): boolean {

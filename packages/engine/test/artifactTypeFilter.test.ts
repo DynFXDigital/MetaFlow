@@ -38,6 +38,11 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.agents/skills/codex-metadata/SKILL.md'), 'skills');
     });
 
+    it('ATF-01e3: Codex project instruction paths return instructions', () => {
+        assert.strictEqual(getArtifactType('AGENTS.md'), 'instructions');
+        assert.strictEqual(getArtifactType('AGENTS.override.md'), 'instructions');
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });

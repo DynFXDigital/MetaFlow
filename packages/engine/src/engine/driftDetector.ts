@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ManagedState, computeContentHash } from './managedState';
 import { stripProvenanceHeader } from './provenanceHeader';
-import { isCodexRepositorySkillPath } from './codexPaths';
+import { isCodexRootRelativeSynchronizedPath } from './codexPaths';
 
 /** Drift classification for a single file. */
 export type DriftStatus = 'in-sync' | 'drifted' | 'missing' | 'untracked';
@@ -24,7 +24,7 @@ export interface DriftResult {
 }
 
 function resolveDriftOutputDir(outputDir: string, relativePath: string): string {
-    return isCodexRepositorySkillPath(relativePath) ? '' : outputDir;
+    return isCodexRootRelativeSynchronizedPath(relativePath) ? '' : outputDir;
 }
 
 /**
