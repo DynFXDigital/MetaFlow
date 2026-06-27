@@ -2346,6 +2346,136 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-SEA-01c: root layer counts stay scoped to repo-root metadata', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: '.' },
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+            ],
+        };
+        const treeSummaryCache = {
+            ...makeEmptyTreeSummaryCache(),
+            availableRecords: [
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath: '.github/instructions/root.instructions.md',
+                    displayPath: 'instructions/root.instructions.md',
+                    artifactPath: 'root.instructions.md',
+                    absolutePath: '/repo1/.github/instructions/root.instructions.md',
+                },
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath:
+                        'capabilities/devtools/tooling/.github/instructions/tooling.instructions.md',
+                    displayPath: 'capabilities/devtools/tooling/instructions/tooling.instructions.md',
+                    artifactPath: 'tooling.instructions.md',
+                    absolutePath:
+                        '/repo1/capabilities/devtools/tooling/.github/instructions/tooling.instructions.md',
+                },
+            ],
+            currentActiveRecords: [
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath: '.github/instructions/root.instructions.md',
+                    displayPath: 'instructions/root.instructions.md',
+                    artifactPath: 'root.instructions.md',
+                    absolutePath: '/repo1/.github/instructions/root.instructions.md',
+                },
+                {
+                    repoId: 'repo1',
+                    artifactType: 'instructions',
+                    repoRelativePath:
+                        'capabilities/devtools/tooling/.github/instructions/tooling.instructions.md',
+                    displayPath: 'capabilities/devtools/tooling/instructions/tooling.instructions.md',
+                    artifactPath: 'tooling.instructions.md',
+                    absolutePath:
+                        '/repo1/capabilities/devtools/tooling/.github/instructions/tooling.instructions.md',
+                },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                config,
+                [
+                    makeEffectiveFile('instructions/root.instructions.md', 'repo1', '.'),
+                    makeEffectiveFile(
+                        'instructions/tooling.instructions.md',
+                        'repo1',
+                        'capabilities/devtools/tooling',
+                    ),
+                ],
+                {},
+                undefined,
+                {},
+                treeSummaryCache,
+            ),
+            () => 'tree',
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const rootItem = provider
+            .getChildren(repoItem)
+            .find((item) => String(item.label) === 'root');
+        assert.ok(rootItem, 'root layer should be reachable');
+        assert.strictEqual(String(rootItem?.description), '(1/1)');
+
+        const instructionsItem = provider
+            .getChildren(rootItem!)
+            .find((item) => String(item.label) === 'instructions');
+        assert.ok(instructionsItem, 'root instructions node should exist');
+        assert.strictEqual(String(instructionsItem?.description), '(1/1, plugin)');
+
+        const capabilitiesItem = provider
+            .getChildren(repoItem)
+            .find((item) => String(item.label) === 'capabilities');
+        assert.ok(capabilitiesItem, 'capabilities branch should be reachable');
+        const devtoolsItem = provider
+            .getChildren(capabilitiesItem!)
+            .find((item) => String(item.label) === 'devtools');
+        assert.ok(devtoolsItem, 'devtools branch should be reachable');
+        const toolingItem = provider
+            .getChildren(devtoolsItem!)
+            .find((item) => String(item.label) === 'tooling');
+        assert.ok(toolingItem, 'tooling capability should be reachable');
+        assert.strictEqual(String(toolingItem?.description), '(1/1)');
+    });
+
+    test('LTV-SEA-01d: tree omits root when the repo root has no metadata files', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: '.' },
+                { repoId: 'repo1', path: 'capabilities/devtools/tooling' },
+            ],
+        };
+
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [
+                makeEffectiveFile(
+                    'instructions/tooling.instructions.md',
+                    'repo1',
+                    'capabilities/devtools/tooling',
+                ),
+            ]),
+            () => 'tree',
+        );
+
+        const repoItem = provider.getChildren()[0];
+        const repoChildren = provider.getChildren(repoItem);
+        assert.deepStrictEqual(
+            repoChildren.map((item) => String(item.label)),
+            ['capabilities'],
+            'empty root layer should be hidden when only descendant capabilities have metadata',
+        );
+    });
+
     test('LTV-SEA-02: flat mode keeps recursive expand behavior', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const provider = new LayersTreeViewProvider(

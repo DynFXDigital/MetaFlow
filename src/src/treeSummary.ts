@@ -326,6 +326,40 @@ function pathStartsWith(candidate: string, prefix: string): boolean {
     );
 }
 
+function isLayerArtifactRemainder(segments: string[]): boolean {
+    if (segments.length === 0) {
+        return false;
+    }
+
+    if (segments[0] === '.github') {
+        return segments.length > 1 && isKnownArtifactType(segments[1]);
+    }
+
+    return isKnownArtifactType(segments[0]);
+}
+
+export function matchesLayerContentPath(candidate: string, layerPath: string): boolean {
+    const normalizedCandidate = normalizeRelativePath(candidate);
+    const normalizedLayerPath = normalizeRelativePath(layerPath);
+    const candidateSegments = normalizedCandidate.split('/').filter((segment) => segment !== '.');
+    const layerSegments =
+        normalizedLayerPath === '.'
+            ? []
+            : normalizedLayerPath.split('/').filter((segment) => segment !== '.');
+
+    if (layerSegments.length > candidateSegments.length) {
+        return false;
+    }
+
+    for (let index = 0; index < layerSegments.length; index += 1) {
+        if (candidateSegments[index] !== layerSegments[index]) {
+            return false;
+        }
+    }
+
+    return isLayerArtifactRemainder(candidateSegments.slice(layerSegments.length));
+}
+
 function isPathWithin(targetPath: string, parentPath: string): boolean {
     const normalizedTarget = path.normalize(targetPath);
     const normalizedParent = path.normalize(parentPath);
@@ -791,6 +825,29 @@ export function summarizeLayerPrefix(
     );
 }
 
+export function summarizeLayerContents(
+    cache: TreeSummaryCache | undefined,
+    repoId: string | undefined,
+    layerPath: string,
+): ArtifactSummary {
+    if (!cache || !repoId) {
+        return createEmptySummary();
+    }
+
+    return summarize(
+        cache.currentActiveRecords.filter(
+            (record) =>
+                record.repoId === repoId &&
+                matchesLayerContentPath(record.repoRelativePath, layerPath),
+        ),
+        cache.availableRecords.filter(
+            (record) =>
+                record.repoId === repoId &&
+                matchesLayerContentPath(record.repoRelativePath, layerPath),
+        ),
+    );
+}
+
 export function summarizeDisplayPrefix(
     cache: TreeSummaryCache | undefined,
     repoId: string | undefined,
@@ -880,6 +937,25 @@ export function summarizeLayerInstructionScope(
             (record) =>
                 record.repoId === repoId &&
                 pathStartsWith(record.repoRelativePath, normalizedPrefix),
+        ),
+    );
+}
+
+export function summarizeLayerContentInstructionScope(
+    cache: TreeSummaryCache | undefined,
+    repoId: string | undefined,
+    layerPath: string,
+): InstructionScopeSummary {
+    if (!repoId) {
+        return createEmptyInstructionScopeSummary();
+    }
+
+    return summarizeInstructionScopeRecords(
+        filterInstructionScopeRecords(
+            cache,
+            (record) =>
+                record.repoId === repoId &&
+                matchesLayerContentPath(record.repoRelativePath, layerPath),
         ),
     );
 }

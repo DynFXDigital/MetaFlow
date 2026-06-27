@@ -9,7 +9,7 @@ import {
 } from '@metaflow/engine';
 import {
     InstructionScopeSummary,
-    summarizeLayerInstructionScope,
+    summarizeLayerContentInstructionScope,
     TreeSummaryCache,
 } from '../treeSummary';
 
@@ -379,7 +379,7 @@ export async function loadCapabilityDetailModel(
               formatWarning(warning.code, warning.message, warning.severity),
           )
         : ['[CAPABILITY_MANIFEST_MISSING] CAPABILITY.md was not found at the layer root.'];
-    const instructionScopeSummary = summarizeLayerInstructionScope(
+    const instructionScopeSummary = summarizeLayerContentInstructionScope(
         treeSummaryCache,
         target.repoId,
         target.layerPath,
