@@ -80,8 +80,21 @@ type FilesViewMode = 'unified' | 'repoTree';
 // ArtifactType and getArtifactType are imported from @metaflow/engine.
 export type { ArtifactType } from '@metaflow/engine';
 
-const KNOWN_TYPES: ReadonlySet<string> = new Set(['instructions', 'prompts', 'agents', 'skills']);
-const TYPE_ORDER: ArtifactType[] = ['instructions', 'prompts', 'agents', 'skills', 'other'];
+const KNOWN_TYPES: ReadonlySet<string> = new Set([
+    'instructions',
+    'prompts',
+    'agents',
+    'skills',
+    'hooks',
+]);
+const TYPE_ORDER: ArtifactType[] = [
+    'instructions',
+    'prompts',
+    'agents',
+    'skills',
+    'hooks',
+    'other',
+];
 
 const toPosixPath = (value: string): string => value.replace(/\\/g, '/');
 const isPathWithin = (targetPath: string, parentPath: string): boolean => {

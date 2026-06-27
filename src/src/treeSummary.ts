@@ -18,6 +18,7 @@ export const SUMMARY_ARTIFACT_ORDER: SummaryArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'hooks',
 ];
 
 export interface ArtifactSummaryCounts {
@@ -119,6 +120,7 @@ function createEmptySummary(): ArtifactSummary {
             prompts: EMPTY_SUMMARY_COUNTS(),
             agents: EMPTY_SUMMARY_COUNTS(),
             skills: EMPTY_SUMMARY_COUNTS(),
+            hooks: EMPTY_SUMMARY_COUNTS(),
         },
     };
 }
@@ -147,6 +149,7 @@ function cloneSummary(summary: ArtifactSummary): ArtifactSummary {
             prompts: { ...summary.byType.prompts },
             agents: { ...summary.byType.agents },
             skills: { ...summary.byType.skills },
+            hooks: { ...summary.byType.hooks },
         },
     };
 }

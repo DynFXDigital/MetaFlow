@@ -190,12 +190,7 @@ suite('treeSummary', () => {
 
         const baselineInstruction: EffectiveFile = {
             relativePath: 'instructions/baseline.instructions.md',
-            sourcePath: path.join(
-                coreRoot,
-                '.github',
-                'instructions',
-                'baseline.instructions.md',
-            ),
+            sourcePath: path.join(coreRoot, '.github', 'instructions', 'baseline.instructions.md'),
             sourceLayer: 'primary/company/core',
             sourceRepo: repoRoot,
             classification: 'settings',
@@ -395,6 +390,7 @@ suite('treeSummary', () => {
                 prompts: { active: 0, available: 1 },
                 agents: { active: 0, available: 1 },
                 skills: { active: 1, available: 1 },
+                hooks: { active: 0, available: 0 },
             },
         };
 
@@ -409,6 +405,7 @@ suite('treeSummary', () => {
             'Prompts: 0/1 active',
             'Agents: 0/1 active',
             'Skills: 1/1 active',
+            'Hooks: 0/0 active',
         ]);
     });
 

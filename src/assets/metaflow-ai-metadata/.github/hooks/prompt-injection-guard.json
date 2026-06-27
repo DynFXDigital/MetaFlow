@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "node .github/hooks/scripts/prompt-injection-guard.mjs",
+        "timeoutSec": 2
+      }
+    ]
+  }
+}

@@ -58,6 +58,7 @@ const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'prompts',
     'agents',
     'skills',
+    'hooks',
 ]);
 const RESERVED_LAYER_TERMINAL_SEGMENTS = new Set<string>([
     ...KNOWN_ARTIFACT_TYPES,
@@ -275,6 +276,7 @@ const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
     prompts: 'settings',
     agents: 'plugin',
     skills: 'plugin',
+    hooks: 'settings',
 };
 
 function normalizeInjectionPath(layerPath: string): string {
@@ -694,6 +696,7 @@ const ARTIFACT_TYPE_ORDER: CapabilityArtifactType[] = [
     'prompts',
     'agents',
     'skills',
+    'hooks',
 ];
 
 function buildArtifactTypeContextValue(artifactType: CapabilityArtifactType): string {

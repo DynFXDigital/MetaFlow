@@ -269,6 +269,7 @@ suite('ConfigTreeView', () => {
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
                     'Skills: 0/0 active',
+                    'Hooks: 0/0 active',
                 ],
                 '*Shared Copilot Pack providing reusable AI coding agent capabilities.*',
             ),
@@ -340,6 +341,7 @@ suite('ConfigTreeView', () => {
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
                     'Skills: 0/0 active',
+                    'Hooks: 0/0 active',
                 ],
                 '*Bundled MetaFlow metadata repository containing instructions, prompts, agents, and skills.*',
             ),
@@ -724,7 +726,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'folder');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**workspace**\n\nStatus: disabled  \nLocal path: `.`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+            '**workspace**\n\nStatus: disabled  \nLocal path: `.`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
         assert.strictEqual(provider.getChildren(repoItem).length, 0);
         assert.strictEqual(provider.getTreeItem(repoItem), repoItem);
@@ -755,7 +757,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'source-control');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**local-git**\n\nStatus: enabled  \nLocal path: `local-git`  \nSource control: local git repository  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+            '**local-git**\n\nStatus: enabled  \nLocal path: `local-git`  \nSource control: local git repository  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
     });
 
@@ -793,7 +795,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'arrow-down');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**team**\n\nStatus: enabled  \nLocal path: `team`  \nRemote URL: `https://github.com/example/team.git`  \nSync status: Updates available upstream  \nTracking branch: `origin/main`  \nAhead/Behind: 1/2  \nLast checked: 2026-03-13T00:00:00.000Z  \nError: fetch failed  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+            '**team**\n\nStatus: enabled  \nLocal path: `team`  \nRemote URL: `https://github.com/example/team.git`  \nSync status: Updates available upstream  \nTracking branch: `origin/main`  \nAhead/Behind: 1/2  \nLast checked: 2026-03-13T00:00:00.000Z  \nError: fetch failed  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
         assert.deepStrictEqual(repoItem.accessibilityInformation, {
             label: 'team enabled',
@@ -935,7 +937,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(repoItem.description, '/external/team-metadata (0/0)');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**Shared Metadata**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active',
+            '**Shared Metadata**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
     });
 
