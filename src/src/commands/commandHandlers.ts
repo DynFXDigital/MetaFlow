@@ -4117,7 +4117,8 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
         '',
         '## Non-Goals',
         '',
-        '- List adjacent concerns this capability does not own.',
+        '- List 2 to 4 plausible adjacent responsibilities this capability intentionally does not own.',
+        '- Keep these boundaries inside the same workflow or problem space; avoid unrelated disclaimer bullets.',
         '',
     ].join('\n');
 }
