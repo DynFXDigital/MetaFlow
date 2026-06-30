@@ -912,7 +912,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             );
         }
 
-        this._onDidChangeTreeData.fire(undefined);
+        // Do not force a tree rebuild for every click. VS Code already updates the
+        // clicked checkbox optimistically; the pending map is here so later refreshes
+        // do not redraw stale persisted state over the user's latest interaction.
     }
 
     getPendingCapabilityCheckboxSequence(): number {
