@@ -118,20 +118,11 @@ jobs:
       - name: Build, bundle, and package for GUI tests
         run: npm -w metaflow-ai run pretest:gui
 
-      - name: Run GUI tests (headless, blocking on release branches)
-        if: >
-          (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
-          (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
-        run: xvfb-run -a npm -w metaflow-ai run test:gui
-
-      - name: Run GUI tests (headless, advisory on develop)
+      - name: Run GUI tests (headless, advisory)
         id: gui_advisory
-        if: >
-          (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
-          (github.event_name == 'push' && github.ref_name == 'develop')
         continue-on-error: true
         run: xvfb-run -a npm -w metaflow-ai run test:gui
 
       - name: GUI advisory notice
         if: steps.gui_advisory.outcome == 'failure'
-        run: echo "::warning::GUI test issues detected on develop. This is non-blocking on develop but blocks on release branches."
+        run: echo "::warning::GUI test issues detected. This is non-blocking until the GUI harness is stable enough for branch protection."

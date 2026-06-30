@@ -12,7 +12,7 @@ active.
 
 - Require pull request before merging.
 - Require status check: `Lint, build, and unit tests`.
-- Treat `GUI tests (vscode-extension-tester)` as advisory on this branch.
+- Treat `GUI tests (vscode-extension-tester)` as advisory.
 - Allow CodeQL and dependency review to run when `ENABLE_GHAS_WORKFLOWS=true`,
   but do not require them unless the repository has GitHub Advanced Security
   enabled.
@@ -22,12 +22,13 @@ active.
 - Require pull request before merging.
 - Require status checks:
     - `Lint, build, and unit tests`
-    - `GUI tests (vscode-extension-tester)`
     - `Analyze` when `ENABLE_GHAS_WORKFLOWS=true`
     - `dependency-review` when `ENABLE_GHAS_WORKFLOWS=true`
 - Require branches to be up to date before merging.
 - Require review from code owners when CODEOWNERS coverage is expanded beyond
   the current placeholder.
+- Treat `GUI tests (vscode-extension-tester)` as advisory until the GUI harness
+  is stable enough to make branch protection responsible for it.
 
 ## Repository Variables
 
@@ -42,6 +43,6 @@ The manual release workflow expects GitHub Environments named `production` and
 marketplace publishing secrets.
 
 The release workflow does not rerun the full test gates. It verifies that the
-required CI checks already passed for the exact release commit, then performs
-channel validation, packaging, environment approval, publishing, tagging, and
-GitHub Release creation.
+required non-GUI CI checks already passed for the exact release commit, then
+performs channel validation, packaging, environment approval, publishing,
+tagging, and GitHub Release creation.

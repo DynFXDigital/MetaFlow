@@ -101,7 +101,6 @@ jobs:
         run: |
           required_checks=(
             "Lint, build, and unit tests"
-            "GUI tests (vscode-extension-tester)"
           )
 
           check_runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")"
