@@ -6,6 +6,7 @@ import type { MetaFlowConfig, ProfileConfig, ProfileLayerOverride } from '@metaf
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
     skipBuiltInAutoApply?: boolean;
+    skipConfigMaintenance?: boolean;
     skipRepoSync?: boolean;
     skipSettingsInjection?: boolean;
     skipLoadingState?: boolean;
@@ -458,6 +459,8 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
 
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
     const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown }).skipBuiltInAutoApply;
+    const skipConfigMaintenance = (arg as { skipConfigMaintenance?: unknown })
+        .skipConfigMaintenance;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
     const skipSettingsInjection = (arg as { skipSettingsInjection?: unknown })
         .skipSettingsInjection;
@@ -471,6 +474,8 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
         skipBuiltInAutoApply:
             typeof skipBuiltInAutoApply === 'boolean' ? skipBuiltInAutoApply : undefined,
+        skipConfigMaintenance:
+            typeof skipConfigMaintenance === 'boolean' ? skipConfigMaintenance : undefined,
         skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
         skipSettingsInjection:
             typeof skipSettingsInjection === 'boolean' ? skipSettingsInjection : undefined,

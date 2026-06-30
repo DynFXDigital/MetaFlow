@@ -5344,115 +5344,123 @@ export function registerCommands(
                     ? []
                     : governanceResult.errors.map(cloneConfigError);
                 state.governanceCompliance = undefined;
-                const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-                const discoveryResult = discoverAndPersistConfiguredRepoLayers(
-                    result.config,
-                    ws.uri.fsPath,
-                    refreshOptions.forceDiscoveryRepoId,
-                    { enableDiscovery: true },
-                );
-                let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;
-                try {
-                    capabilityRepairPreview = previewCapabilityIdentityDriftRepair(
+                let shouldAdvanceCapabilityIdentitySnapshot = true;
+                if (!refreshOptions.skipConfigMaintenance) {
+                    const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
+                    const discoveryResult = discoverAndPersistConfiguredRepoLayers(
                         result.config,
                         ws.uri.fsPath,
+                        refreshOptions.forceDiscoveryRepoId,
+                        { enableDiscovery: true },
                     );
-                } catch (err: unknown) {
-                    const message = err instanceof Error ? err.message : String(err);
-                    logWarn(`Capability identity drift repair skipped: ${message}`);
-                }
-                let shouldAdvanceCapabilityIdentitySnapshot = true;
-                if (
-                    (result.migrated ||
-                        configNormalized ||
-                        discoveryResult.totalAdded > 0 ||
-                        (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
-                    result.configPath
-                ) {
-                    const pendingConfigUpdateReasons: string[] = [];
-                    if (result.migrated) {
-                        pendingConfigUpdateReasons.push(
-                            'Migrate existing config to the current MetaFlow format.',
-                        );
-                    }
-                    if (configNormalized) {
-                        pendingConfigUpdateReasons.push('Normalize redundant layer path entries.');
-                    }
-                    if (discoveryResult.totalAdded > 0) {
-                        pendingConfigUpdateReasons.push(
-                            `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
-                        );
-                    }
-                    const pendingRepairCount =
-                        capabilityRepairPreview?.repairResult.repaired.length ?? 0;
-                    if (pendingRepairCount > 0) {
-                        pendingConfigUpdateReasons.push(
-                            `Heal ${pendingRepairCount} stale capability reference(s) after metadata moved.`,
-                        );
-                    }
-
-                    const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
-                        ? { shouldPersist: true, rememberPreference: false }
-                        : suppressRefreshUpdatePrompts
-                          ? { shouldPersist: false, rememberPreference: false }
-                          : await decideConfigUpdate(result.configPath, pendingConfigUpdateReasons);
-                    if (configUpdateDecision.rememberPreference) {
-                        await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
-                        autoAcceptRefreshUpdates = true;
-                    }
-                    const shouldPersistConfig = configUpdateDecision.shouldPersist;
-
-                    if (shouldPersistConfig && capabilityRepairPreview) {
-                        capabilityRepairPreview.repairResult = applyCapabilityIdentityDriftRepair(
+                    let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;
+                    try {
+                        capabilityRepairPreview = previewCapabilityIdentityDriftRepair(
                             result.config,
                             ws.uri.fsPath,
-                            capabilityRepairPreview.managedState,
                         );
+                    } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        logWarn(`Capability identity drift repair skipped: ${message}`);
                     }
-
-                    if (shouldPersistConfig) {
-                        await persistConfig(result.configPath, result.config, state);
-                    } else {
-                        logInfo(
-                            'Skipped writing pending .metaflow/config.jsonc updates after user selection.',
-                        );
+                    if (
+                        (result.migrated ||
+                            configNormalized ||
+                            discoveryResult.totalAdded > 0 ||
+                            (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
+                        result.configPath
+                    ) {
+                        const pendingConfigUpdateReasons: string[] = [];
+                        if (result.migrated) {
+                            pendingConfigUpdateReasons.push(
+                                'Migrate existing config to the current MetaFlow format.',
+                            );
+                        }
+                        if (configNormalized) {
+                            pendingConfigUpdateReasons.push(
+                                'Normalize redundant layer path entries.',
+                            );
+                        }
+                        if (discoveryResult.totalAdded > 0) {
+                            pendingConfigUpdateReasons.push(
+                                `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
+                            );
+                        }
+                        const pendingRepairCount =
+                            capabilityRepairPreview?.repairResult.repaired.length ?? 0;
                         if (pendingRepairCount > 0) {
-                            shouldAdvanceCapabilityIdentitySnapshot = false;
+                            pendingConfigUpdateReasons.push(
+                                `Heal ${pendingRepairCount} stale capability reference(s) after metadata moved.`,
+                            );
                         }
-                    }
 
-                    if (shouldPersistConfig && result.migrated) {
-                        for (const message of result.migrationMessages ?? []) {
-                            logInfo(message);
+                        const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
+                            ? { shouldPersist: true, rememberPreference: false }
+                            : suppressRefreshUpdatePrompts
+                              ? { shouldPersist: false, rememberPreference: false }
+                              : await decideConfigUpdate(
+                                    result.configPath,
+                                    pendingConfigUpdateReasons,
+                                );
+                        if (configUpdateDecision.rememberPreference) {
+                            await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
+                            autoAcceptRefreshUpdates = true;
                         }
-                        void vscode.window.showInformationMessage(
-                            getConfigMigrationNoticeMessage(),
-                        );
-                    }
-                    if (shouldPersistConfig && configNormalized) {
-                        logInfo(
-                            'Normalized layer paths in config (removed redundant .github suffix entries).',
-                        );
-                    }
-                    if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
-                        const rescannedScope =
-                            discoveryResult.rescannedRepoIds.length > 1
-                                ? `${discoveryResult.rescannedRepoIds.length} repositories`
-                                : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
-                        logInfo(
-                            `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
-                        );
-                    }
-                    for (const repair of shouldPersistConfig
-                        ? (capabilityRepairPreview?.repairResult.repaired ?? [])
-                        : []) {
-                        const scope =
-                            repair.source === 'profiles.layerOverrides' && repair.profileId
-                                ? `${repair.repoId}/${repair.oldPath} in profile ${repair.profileId}`
-                                : `${repair.repoId}/${repair.oldPath}`;
-                        logInfo(
-                            `Repaired capability reference ${scope} -> ${repair.newPath} (${repair.matchReason}).`,
-                        );
+                        const shouldPersistConfig = configUpdateDecision.shouldPersist;
+
+                        if (shouldPersistConfig && capabilityRepairPreview) {
+                            capabilityRepairPreview.repairResult =
+                                applyCapabilityIdentityDriftRepair(
+                                    result.config,
+                                    ws.uri.fsPath,
+                                    capabilityRepairPreview.managedState,
+                                );
+                        }
+
+                        if (shouldPersistConfig) {
+                            await persistConfig(result.configPath, result.config, state);
+                        } else {
+                            logInfo(
+                                'Skipped writing pending .metaflow/config.jsonc updates after user selection.',
+                            );
+                            if (pendingRepairCount > 0) {
+                                shouldAdvanceCapabilityIdentitySnapshot = false;
+                            }
+                        }
+
+                        if (shouldPersistConfig && result.migrated) {
+                            for (const message of result.migrationMessages ?? []) {
+                                logInfo(message);
+                            }
+                            void vscode.window.showInformationMessage(
+                                getConfigMigrationNoticeMessage(),
+                            );
+                        }
+                        if (shouldPersistConfig && configNormalized) {
+                            logInfo(
+                                'Normalized layer paths in config (removed redundant .github suffix entries).',
+                            );
+                        }
+                        if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
+                            const rescannedScope =
+                                discoveryResult.rescannedRepoIds.length > 1
+                                    ? `${discoveryResult.rescannedRepoIds.length} repositories`
+                                    : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
+                            logInfo(
+                                `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
+                            );
+                        }
+                        for (const repair of shouldPersistConfig
+                            ? (capabilityRepairPreview?.repairResult.repaired ?? [])
+                            : []) {
+                            const scope =
+                                repair.source === 'profiles.layerOverrides' && repair.profileId
+                                    ? `${repair.repoId}/${repair.oldPath} in profile ${repair.profileId}`
+                                    : `${repair.repoId}/${repair.oldPath}`;
+                            logInfo(
+                                `Repaired capability reference ${scope} -> ${repair.newPath} (${repair.matchReason}).`,
+                            );
+                        }
                     }
                 }
                 state.config = result.config;

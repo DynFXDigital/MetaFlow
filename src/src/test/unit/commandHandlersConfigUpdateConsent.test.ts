@@ -108,6 +108,24 @@ suite('Command handler config update consent', () => {
         );
     });
 
+    test('refresh can skip config maintenance for MetaFlow-originated state updates', () => {
+        const source = readCommandHandlersSource();
+        const maintenanceBlock = sourceSlice(
+            source,
+            'let shouldAdvanceCapabilityIdentitySnapshot = true;',
+            'state.config = result.config;',
+        );
+
+        assert.match(
+            maintenanceBlock,
+            /if \(!refreshOptions\.skipConfigMaintenance\) \{/,
+        );
+        assert.match(maintenanceBlock, /normalizeAndDeduplicateLayerPaths\(result\.config\)/);
+        assert.match(maintenanceBlock, /discoverAndPersistConfiguredRepoLayers\(/);
+        assert.match(maintenanceBlock, /previewCapabilityIdentityDriftRepair\(/);
+        assert.match(maintenanceBlock, /await persistConfig\(result\.configPath, result\.config, state\)/);
+    });
+
     test('popup can persist auto-accept preference for future refreshes', () => {
         const source = readCommandHandlersSource();
         const refreshUpdateBlock = sourceSlice(
@@ -118,7 +136,7 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             refreshUpdateBlock,
-            /await decideConfigUpdate\(result\.configPath, pendingConfigUpdateReasons\)/,
+            /await decideConfigUpdate\(\s*result\.configPath,\s*pendingConfigUpdateReasons,\s*\)/m,
         );
         assert.match(
             refreshUpdateBlock,

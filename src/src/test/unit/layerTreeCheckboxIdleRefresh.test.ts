@@ -112,6 +112,7 @@ suite('Layer tree checkbox idle refresh', () => {
 
         assert.deepStrictEqual(receivedOptions, {
             skipRepoSync: true,
+            skipConfigMaintenance: true,
             preferStateConfig: true,
             skipLoadingState: true,
             skipStateChangeEvent: true,

@@ -2,6 +2,7 @@ export const LAYER_TREE_CHECKBOX_REFRESH_IDLE_MS = 3000;
 
 export const LAYER_TREE_CHECKBOX_IDLE_REFRESH_OPTIONS = {
     skipRepoSync: true,
+    skipConfigMaintenance: true,
     preferStateConfig: true,
     skipLoadingState: true,
     skipStateChangeEvent: true,
