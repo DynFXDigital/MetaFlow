@@ -498,16 +498,57 @@ export function activate(context: vscode.ExtensionContext): void {
     };
 
     let pendingLayerTreeCheckboxMutation = Promise.resolve();
+    let pendingLayerTreeCheckboxMutationGeneration = 0;
     let pendingLayerTreeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
     let pendingLayerTreeRefreshClearSequence = 0;
+    let deferredLayerTreeRefreshClearSequence = 0;
+    let layerTreeCheckboxRefreshRunning = false;
 
     const enqueueLayerTreeCheckboxMutation = (mutation: () => Promise<void>): Promise<void> => {
+        pendingLayerTreeCheckboxMutationGeneration += 1;
         const run = pendingLayerTreeCheckboxMutation.then(mutation, mutation);
         pendingLayerTreeCheckboxMutation = run.then(
             () => undefined,
             () => undefined,
         );
         return run;
+    };
+
+    const runLayerTreeCheckboxRefresh = (clearThroughSequence: number): void => {
+        if (layerTreeCheckboxRefreshRunning) {
+            deferredLayerTreeRefreshClearSequence = Math.max(
+                deferredLayerTreeRefreshClearSequence,
+                clearThroughSequence,
+            );
+            return;
+        }
+
+        layerTreeCheckboxRefreshRunning = true;
+        void (async () => {
+            try {
+                let observedGeneration: number;
+                do {
+                    observedGeneration = pendingLayerTreeCheckboxMutationGeneration;
+                    await pendingLayerTreeCheckboxMutation;
+                } while (observedGeneration !== pendingLayerTreeCheckboxMutationGeneration);
+
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                    preferStateConfig: true,
+                });
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Layer tree checkbox refresh failed: ${message}`);
+            } finally {
+                layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
+                layerTreeCheckboxRefreshRunning = false;
+                if (deferredLayerTreeRefreshClearSequence > 0) {
+                    const deferredClearSequence = deferredLayerTreeRefreshClearSequence;
+                    deferredLayerTreeRefreshClearSequence = 0;
+                    runLayerTreeCheckboxRefresh(deferredClearSequence);
+                }
+            }
+        })();
     };
 
     const scheduleLayerTreeCheckboxRefresh = (clearThroughSequence: number): void => {
@@ -523,20 +564,7 @@ export function activate(context: vscode.ExtensionContext): void {
             pendingLayerTreeRefreshClearSequence = 0;
             pendingLayerTreeRefreshTimer = undefined;
 
-            void (async () => {
-                try {
-                    await pendingLayerTreeCheckboxMutation;
-                    await vscode.commands.executeCommand('metaflow.refresh', {
-                        skipRepoSync: true,
-                        preferStateConfig: true,
-                    });
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    logWarn(`Layer tree checkbox refresh failed: ${message}`);
-                } finally {
-                    layersTreeViewProvider.clearPendingCapabilityCheckboxStates(sequenceToClear);
-                }
-            })();
+            runLayerTreeCheckboxRefresh(sequenceToClear);
         });
     };
 
