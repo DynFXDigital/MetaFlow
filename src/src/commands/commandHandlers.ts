@@ -5355,9 +5355,7 @@ export function registerCommands(
                         ? { shouldPersist: true, rememberPreference: false }
                         : suppressRefreshUpdatePrompts
                           ? { shouldPersist: false, rememberPreference: false }
-                          : await decideBuiltInCapabilityStateUpdate(
-                                builtInRepairPreview.repairs,
-                            );
+                          : await decideBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
                     if (builtInUpdateDecision.rememberPreference) {
                         await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
                         autoAcceptRefreshUpdates = true;
@@ -6052,6 +6050,10 @@ export function registerCommands(
             const repoIdFromArg = extractRepoId(arg);
             const requestedCheckedState = extractLayerCheckedState(arg);
             const requestedLayerPath = extractLayerPath(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
             if (repoIdFromArg === BUILT_IN_CAPABILITY_REPO_ID) {
                 const nextLayerEnabled =
                     typeof requestedCheckedState === 'boolean'
@@ -6102,10 +6104,12 @@ export function registerCommands(
                 logInfo(
                     `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                    preferStateConfig: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                        preferStateConfig: true,
+                    });
+                }
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             }
 
@@ -6230,10 +6234,12 @@ export function registerCommands(
                 if (repoAutoEnabled) {
                     logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
                 }
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                    preferStateConfig: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                        preferStateConfig: true,
+                    });
+                }
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -6253,6 +6259,10 @@ export function registerCommands(
 
             const requestedCheckedState = extractLayerCheckedState(arg);
             const requestedRepoId = extractRepoId(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
             const requestedLayerPath =
                 extractLayerPath(arg) ??
                 (typeof arg === 'object' && arg !== null
@@ -6404,7 +6414,11 @@ export function registerCommands(
             logInfo(
                 `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} layer(s))${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
             );
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            if (!deferRefresh) {
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                });
+            }
         }),
     );
 
@@ -6849,6 +6863,10 @@ export function registerCommands(
         vscode.commands.registerCommand('metaflow.toggleRepoSource', async (arg?: unknown) => {
             const repoId = extractRepoId(arg);
             const requestedCheckedState = extractLayerCheckedState(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
 
             if (typeof repoId !== 'string' || repoId.length === 0) {
                 logWarn('Toggle repo source requires a valid repo id.');
@@ -6902,9 +6920,11 @@ export function registerCommands(
                 logInfo(
                     `Toggled built-in repo source ${repoId}: ${nextEnabled ? 'enabled' : 'disabled'}`,
                 );
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                    });
+                }
                 return;
             }
 
@@ -6950,7 +6970,11 @@ export function registerCommands(
                 logWarn(`Toggle repo source failed: ${message}`);
             }
 
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            if (!deferRefresh) {
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                });
+            }
         }),
     );
 

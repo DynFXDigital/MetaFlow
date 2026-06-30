@@ -497,6 +497,51 @@ export function activate(context: vscode.ExtensionContext): void {
             });
     };
 
+    let pendingLayerTreeCheckboxMutation = Promise.resolve();
+    let pendingLayerTreeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingLayerTreeRefreshWaiters: Array<() => void> = [];
+
+    const enqueueLayerTreeCheckboxMutation = async (
+        mutation: () => Promise<void>,
+    ): Promise<void> => {
+        const run = pendingLayerTreeCheckboxMutation.then(mutation, mutation);
+        pendingLayerTreeCheckboxMutation = run.then(
+            () => undefined,
+            () => undefined,
+        );
+        return run;
+    };
+
+    const scheduleLayerTreeCheckboxRefresh = (): Promise<void> =>
+        new Promise((resolve) => {
+            pendingLayerTreeRefreshWaiters.push(resolve);
+            if (pendingLayerTreeRefreshTimer) {
+                clearTimeout(pendingLayerTreeRefreshTimer);
+            }
+            pendingLayerTreeRefreshTimer = setTimeout(() => {
+                const waiters = pendingLayerTreeRefreshWaiters;
+                pendingLayerTreeRefreshWaiters = [];
+                pendingLayerTreeRefreshTimer = undefined;
+
+                void (async () => {
+                    try {
+                        await pendingLayerTreeCheckboxMutation;
+                        await vscode.commands.executeCommand('metaflow.refresh', {
+                            skipRepoSync: true,
+                            preferStateConfig: true,
+                        });
+                    } catch (error: unknown) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        logWarn(`Layer tree checkbox refresh failed: ${message}`);
+                    } finally {
+                        for (const waiter of waiters) {
+                            waiter();
+                        }
+                    }
+                })();
+            }, 100);
+        });
+
     context.subscriptions.push(
         state.onDidChange.event(() => {
             vscode.commands.executeCommand(
@@ -545,6 +590,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         layersTreeView.onDidChangeCheckboxState(async (e) => {
+            let queuedMutation = false;
             for (const [item, checkboxState] of e.items) {
                 if (
                     checkboxState !== vscode.TreeItemCheckboxState.Checked &&
@@ -558,18 +604,26 @@ export function activate(context: vscode.ExtensionContext): void {
                 const layerPath = extractLayerPath(item);
 
                 if (contextValue === 'layerRepo' && typeof repoId === 'string') {
-                    await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
-                        repoId,
-                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    queuedMutation = true;
+                    await enqueueLayerTreeCheckboxMutation(async () => {
+                        await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                            repoId,
+                            checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                            deferRefresh: true,
+                        });
                     });
                     continue;
                 }
 
                 if (contextValue === 'layerFolder') {
-                    await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
-                        repoId,
-                        layerPath,
-                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    queuedMutation = true;
+                    await enqueueLayerTreeCheckboxMutation(async () => {
+                        await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
+                            repoId,
+                            layerPath,
+                            checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                            deferRefresh: true,
+                        });
                     });
                     continue;
                 }
@@ -581,12 +635,20 @@ export function activate(context: vscode.ExtensionContext): void {
                     continue;
                 }
 
-                await vscode.commands.executeCommand('metaflow.toggleLayer', {
-                    layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
-                    repoId,
-                    layerPath,
-                    checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                queuedMutation = true;
+                await enqueueLayerTreeCheckboxMutation(async () => {
+                    await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                        layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
+                        repoId,
+                        layerPath,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                        deferRefresh: true,
+                    });
                 });
+            }
+
+            if (queuedMutation) {
+                await scheduleLayerTreeCheckboxRefresh();
             }
         }),
     );

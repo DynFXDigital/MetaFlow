@@ -10,6 +10,30 @@ type ExecuteRecord = {
     inProgress: boolean;
 };
 
+type HarnessLayerSource = {
+    repoId: string;
+    path: string;
+    enabled?: boolean;
+};
+
+type HarnessCapability = {
+    path: string;
+    enabled?: boolean;
+};
+
+type HarnessMetadataRepo = {
+    id: string;
+    localPath: string;
+    enabled?: boolean;
+    capabilities?: HarnessCapability[];
+};
+
+type HarnessConfig = {
+    metadataRepos?: HarnessMetadataRepo[];
+    layerSources?: HarnessLayerSource[];
+    activeProfile?: string;
+};
+
 class MockEventEmitter {
     public event = (): { dispose: () => void } => ({
         dispose: () => {},
@@ -214,6 +238,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                 normalizeAiMetadataAutoApplyMode: () => 'off',
                 normalizeAndDeduplicateLayerPaths: () => false,
                 pruneStaleLayerSources: () => [],
+                projectConfigForProfile: (config: unknown) => config,
             };
         }
         if (request === './starterMetadata' || request.endsWith('/commands/starterMetadata')) {
@@ -245,6 +270,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                     enabled: boolean;
                     synchronizedFiles: string[];
                 }) => state.enabled || state.synchronizedFiles.length > 0,
+                isBuiltInCapabilityEnabled: (state: { enabled: boolean }) => state.enabled,
                 readBuiltInCapabilityRuntimeState: () => {
                     const payload = workspaceStateStore.get('metaflow.builtin.state') as
                         | {
@@ -305,6 +331,7 @@ function createCommandHandlersHarness(initResult: boolean) {
     try {
         const module = require(targetPath) as {
             createState: () => {
+                config?: HarnessConfig;
                 onDidChange: MockEventEmitter;
                 isLoading: boolean;
                 isApplying: boolean;
@@ -649,6 +676,128 @@ suite('Command Handlers initConfig command', () => {
                     synchronizedFiles: [],
                 },
                 'built-in fallback toggle should still disable the built-in source when layerPath is omitted',
+            );
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleLayer skips the immediate refresh when deferRefresh is requested', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleLayer');
+            assert.ok(callback, 'metaflow.toggleLayer command should be registered');
+
+            harness.state.config = {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: 'C:/repo',
+                        enabled: true,
+                        capabilities: [{ path: 'capabilities/planning', enabled: true }],
+                    },
+                ],
+                layerSources: [{ repoId: 'primary', path: 'capabilities/planning', enabled: true }],
+            } as NonNullable<typeof harness.state.config>;
+
+            await callback!({
+                layerIndex: 0,
+                repoId: 'primary',
+                layerPath: 'capabilities/planning',
+                checked: false,
+                deferRefresh: true,
+            });
+
+            assert.strictEqual(
+                harness.state.config.layerSources?.[0]?.enabled,
+                false,
+                'deferred layer toggles should still update in-memory config state',
+            );
+            assert.deepStrictEqual(
+                harness.executedCommands.map((entry) => entry.command),
+                [],
+                'deferred layer toggles should not execute an immediate refresh',
+            );
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleLayerBranch skips the immediate refresh when deferRefresh is requested', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleLayerBranch');
+            assert.ok(callback, 'metaflow.toggleLayerBranch command should be registered');
+
+            harness.state.config = {
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: 'C:/repo',
+                        enabled: true,
+                        capabilities: [
+                            { path: 'capabilities/planning/one', enabled: true },
+                            { path: 'capabilities/planning/two', enabled: true },
+                        ],
+                    },
+                ],
+                layerSources: [
+                    { repoId: 'primary', path: 'capabilities/planning/one', enabled: true },
+                    { repoId: 'primary', path: 'capabilities/planning/two', enabled: true },
+                ],
+            } as NonNullable<typeof harness.state.config>;
+
+            await callback!({
+                repoId: 'primary',
+                layerPath: 'capabilities/planning',
+                checked: false,
+                deferRefresh: true,
+            });
+
+            assert.deepStrictEqual(
+                harness.state.config.layerSources?.map((layer) => layer.enabled),
+                [false, false],
+                'deferred branch toggles should still update matching in-memory layers',
+            );
+            assert.deepStrictEqual(
+                harness.executedCommands.map((entry) => entry.command),
+                [],
+                'deferred branch toggles should not execute an immediate refresh',
+            );
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('toggleRepoSource skips the immediate refresh when deferRefresh is requested', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.toggleRepoSource');
+            assert.ok(callback, 'metaflow.toggleRepoSource command should be registered');
+
+            harness.state.config = {
+                metadataRepos: [{ id: 'primary', localPath: 'C:/repo', enabled: true }],
+                layerSources: [],
+            } as NonNullable<typeof harness.state.config>;
+
+            await callback!({
+                repoId: 'primary',
+                checked: false,
+                deferRefresh: true,
+            });
+
+            assert.strictEqual(
+                harness.state.config.metadataRepos?.[0]?.enabled,
+                false,
+                'deferred repo toggles should still update in-memory repo state',
+            );
+            assert.deepStrictEqual(
+                harness.executedCommands.map((entry) => entry.command),
+                [],
+                'deferred repo toggles should not execute an immediate refresh',
             );
         } finally {
             harness.dispose();
