@@ -4,11 +4,13 @@ on:
   pull_request:
     branches:
       - main
+      - prerelease
       - develop
       - release/**
   push:
     branches:
       - main
+      - prerelease
       - develop
       - release/**
 
@@ -42,10 +44,10 @@ jobs:
       - name: Build workspace
         run: npm run build
 
-      - name: Lint (blocking on main/release)
+      - name: Lint (blocking on release branches)
         if: >
-          (github.event_name == 'pull_request' && (github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))) ||
-          (github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')))
+          (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
+          (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
         run: npm -w metaflow-ai run lint
 
       - name: Lint (advisory on develop)
@@ -64,7 +66,7 @@ jobs:
 
       - name: Lint advisory notice
         if: steps.lint_advisory.outcome == 'failure'
-        run: echo "::warning::Lint issues detected on develop. This is non-blocking on develop but blocks on main/release branches."
+        run: echo "::warning::Lint issues detected on develop. This is non-blocking on develop but blocks on release branches."
 
       - name: Unit tests
         run: npm run test
@@ -82,7 +84,13 @@ jobs:
         run: xvfb-run -a npm run gate:integration
 
       - name: Package smoke
-        run: npm -C src run package:stable
+        shell: bash
+        run: |
+          if [ "${{ github.base_ref }}" = "prerelease" ] || [ "${{ github.ref_name }}" = "prerelease" ]; then
+            npm -C src run package:pre
+          else
+            npm -C src run package:stable
+          fi
 
   gui-tests:
     name: GUI tests (vscode-extension-tester)
@@ -110,10 +118,10 @@ jobs:
       - name: Build, bundle, and package for GUI tests
         run: npm -w metaflow-ai run pretest:gui
 
-      - name: Run GUI tests (headless, blocking on main/release)
+      - name: Run GUI tests (headless, blocking on release branches)
         if: >
-          (github.event_name == 'pull_request' && (github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))) ||
-          (github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')))
+          (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
+          (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
         run: xvfb-run -a npm -w metaflow-ai run test:gui
 
       - name: Run GUI tests (headless, advisory on develop)
@@ -126,4 +134,4 @@ jobs:
 
       - name: GUI advisory notice
         if: steps.gui_advisory.outcome == 'failure'
-        run: echo "::warning::GUI test issues detected on develop. This is non-blocking on develop but blocks on main/release branches."
+        run: echo "::warning::GUI test issues detected on develop. This is non-blocking on develop but blocks on release branches."

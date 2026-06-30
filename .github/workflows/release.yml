@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      checks: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -93,19 +94,39 @@ jobs:
             fi
           fi
 
-      - name: Quick gate
-        run: npm run gate:quick
-
-      - name: Ensure xvfb is available
+      - name: Verify required CI passed for release SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if ! command -v xvfb-run >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y xvfb
-          fi
+          required_checks=(
+            "Lint, build, and unit tests"
+            "GUI tests (vscode-extension-tester)"
+          )
 
-      - name: Integration gate (headless)
-        shell: bash
-        run: xvfb-run -a npm run gate:integration
+          check_runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100")"
+          missing=0
+
+          for check_name in "${required_checks[@]}"; do
+            conclusion="$(jq -r --arg name "$check_name" '
+              [.check_runs[] | select(.name == $name)]
+              | sort_by(.completed_at // "")
+              | last
+              | .conclusion // empty
+            ' <<< "$check_runs_json")"
+
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::Required check '$check_name' did not pass for ${GITHUB_SHA} (conclusion: ${conclusion:-missing})."
+              missing=1
+            else
+              echo "Required check passed: $check_name"
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Run release only after required branch CI is green for the exact release commit."
+            exit 1
+          fi
 
       - name: Package extension
         id: vsix

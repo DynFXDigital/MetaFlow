@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - prerelease
   pull_request:
   schedule:
     - cron: '20 4 * * 1'
@@ -75,4 +76,4 @@ jobs:
 
       - name: CodeQL advisory notice
         if: steps.codeql_advisory.outcome == 'failure'
-        run: echo "::warning::CodeQL findings detected on develop PR. This is non-blocking on develop but blocks on main/release branches."
+        run: echo "::warning::CodeQL findings detected on develop PR. This is non-blocking on develop but blocks on release branches."

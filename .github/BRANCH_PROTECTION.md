@@ -1,7 +1,7 @@
 # Branch Protection Baseline
 
-This repository expects `develop` to stay easy to integrate while `main` and
-`release/**` stay release-grade.
+This repository expects `develop` to stay easy to integrate while `main`,
+`prerelease`, and `release/**` stay release-grade.
 
 ## Required Checks
 
@@ -17,7 +17,7 @@ active.
   but do not require them unless the repository has GitHub Advanced Security
   enabled.
 
-### `main` and `release/**`
+### `main`, `prerelease`, and `release/**`
 
 - Require pull request before merging.
 - Require status checks:
@@ -40,3 +40,8 @@ active.
 The manual release workflow expects GitHub Environments named `production` and
 `prerelease`. Configure required reviewers on both environments before allowing
 marketplace publishing secrets.
+
+The release workflow does not rerun the full test gates. It verifies that the
+required CI checks already passed for the exact release commit, then performs
+channel validation, packaging, environment approval, publishing, tagging, and
+GitHub Release creation.
