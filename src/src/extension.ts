@@ -605,6 +605,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
                 if (contextValue === 'layerRepo' && typeof repoId === 'string') {
                     queuedMutation = true;
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'repo',
+                        repoId,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
                     await enqueueLayerTreeCheckboxMutation(async () => {
                         await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                             repoId,
@@ -615,8 +620,14 @@ export function activate(context: vscode.ExtensionContext): void {
                     continue;
                 }
 
-                if (contextValue === 'layerFolder') {
+                if (contextValue === 'layerFolder' && typeof layerPath === 'string') {
                     queuedMutation = true;
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'branch',
+                        repoId,
+                        layerPath,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
                     await enqueueLayerTreeCheckboxMutation(async () => {
                         await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
                             repoId,
@@ -636,6 +647,14 @@ export function activate(context: vscode.ExtensionContext): void {
                 }
 
                 queuedMutation = true;
+                if (typeof layerPath === 'string') {
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'layer',
+                        repoId,
+                        layerPath,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
+                }
                 await enqueueLayerTreeCheckboxMutation(async () => {
                     await vscode.commands.executeCommand('metaflow.toggleLayer', {
                         layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
@@ -648,7 +667,15 @@ export function activate(context: vscode.ExtensionContext): void {
             }
 
             if (queuedMutation) {
-                await scheduleLayerTreeCheckboxRefresh();
+                const pendingCheckboxSequence =
+                    layersTreeViewProvider.getPendingCapabilityCheckboxSequence();
+                try {
+                    await scheduleLayerTreeCheckboxRefresh();
+                } finally {
+                    layersTreeViewProvider.clearPendingCapabilityCheckboxStates(
+                        pendingCheckboxSequence,
+                    );
+                }
             }
         }),
     );
