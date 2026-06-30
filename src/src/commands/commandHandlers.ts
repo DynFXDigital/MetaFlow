@@ -120,6 +120,7 @@ import {
     resolveBuiltInCapabilityDisplayName,
     resolveBuiltInLayerEnabled,
     resolveBuiltInRepoEnabled,
+    sanitizeBuiltInInjectionConfig,
     sanitizeBuiltInLayerStates,
     sanitizeSynchronizedFiles,
 } from '../builtInCapability';
@@ -435,6 +436,49 @@ function isPathWithin(candidatePath: string, rootPath: string): boolean {
     );
 }
 
+function fileUriToFsPath(uri: string): string | undefined {
+    try {
+        const parsed = new URL(uri);
+        if (parsed.protocol !== 'file:') {
+            return undefined;
+        }
+
+        let fsPath = decodeURIComponent(parsed.pathname);
+        if (/^\/[A-Za-z]:\//.test(fsPath)) {
+            fsPath = fsPath.slice(1);
+        }
+        return path.normalize(fsPath);
+    } catch {
+        return undefined;
+    }
+}
+
+function collectConfiguredMetadataRepoRoots(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    builtInCapability: BuiltInCapabilityRuntimeState,
+): string[] {
+    const roots = new Set<string>();
+
+    if (config.metadataRepos) {
+        for (const repo of config.metadataRepos) {
+            roots.add(path.normalize(resolvePathFromWorkspace(workspaceRoot, repo.localPath)));
+        }
+    }
+
+    if (config.metadataRepo) {
+        roots.add(
+            path.normalize(resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath)),
+        );
+    }
+
+    if (builtInCapability.sourceRoot) {
+        roots.add(path.normalize(builtInCapability.sourceRoot));
+    }
+
+    return Array.from(roots).sort((left, right) => left.localeCompare(right));
+}
+
 function filterSettingsEligibleEffectiveFiles(
     effectiveFiles: EffectiveFile[],
     builtInCapability: BuiltInCapabilityRuntimeState,
@@ -464,10 +508,14 @@ async function updateManagedCopilotPluginSettings(
     workspaceRoot: string,
     previousManagedPluginUris: string[],
     nextManagedPluginUris: string[],
+    configuredMetadataRepoRoots: string[] = [],
 ): Promise<void> {
     const settingsPath = getCopilotPluginSettingsPath(workspaceRoot);
     const normalizedPrevious = normalizeManagedPluginUris(previousManagedPluginUris);
     const normalizedNext = normalizeManagedPluginUris(nextManagedPluginUris);
+    const normalizedConfiguredRoots = configuredMetadataRepoRoots.map((root) =>
+        path.normalize(root),
+    );
 
     let existing: string | undefined;
     try {
@@ -519,7 +567,14 @@ async function updateManagedCopilotPluginSettings(
 
         const normalizedNextSet = new Set(normalizedNext);
         for (const pluginUri of Object.keys(enabledPlugins)) {
-            if (isBundledMetaFlowPluginUri(pluginUri) && !normalizedNextSet.has(pluginUri)) {
+            const pluginPath = fileUriToFsPath(pluginUri);
+            const isConfiguredMetadataPlugin =
+                pluginPath !== undefined &&
+                normalizedConfiguredRoots.some((root) => isPathWithin(pluginPath, root));
+            if (
+                !normalizedNextSet.has(pluginUri) &&
+                (isBundledMetaFlowPluginUri(pluginUri) || isConfiguredMetadataPlugin)
+            ) {
                 delete enabledPlugins[pluginUri];
             }
         }
@@ -556,6 +611,27 @@ async function updateManagedCopilotPluginSettings(
         { formattingOptions: formatOptions },
     );
     const updated = jsonc.applyEdits(existing, edits);
+    const updatedParseErrors: jsonc.ParseError[] = [];
+    const updatedParsed = jsonc.parse(updated, updatedParseErrors, {
+        allowTrailingComma: true,
+        disallowComments: false,
+    });
+    if (
+        updatedParseErrors.length === 0 &&
+        updatedParsed &&
+        typeof updatedParsed === 'object' &&
+        !Array.isArray(updatedParsed) &&
+        Object.keys(updatedParsed as Record<string, unknown>).length === 0
+    ) {
+        try {
+            await fsp.unlink(settingsPath);
+        } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw err;
+            }
+        }
+        return;
+    }
 
     await ensureLocalGitExcludeEntry(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
     await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
@@ -640,6 +716,7 @@ export function createState(): ExtensionState {
             layerEnabled: true,
             disabledByUser: false,
             synchronizedFiles: [],
+            injection: undefined,
             sourceRoot: undefined,
             sourceId: 'unknown.extension',
             sourceDisplayName: 'unknown.extension',
@@ -687,6 +764,7 @@ function cloneBuiltInCapabilityRuntimeState(
         ...state,
         synchronizedFiles: [...state.synchronizedFiles],
         layerStates: { ...(state.layerStates ?? {}) },
+        injection: sanitizeBuiltInInjectionConfig(state.injection),
     };
 }
 
@@ -703,6 +781,7 @@ function previewBuiltInCapabilityWorkspaceState(
             patch.synchronizedFiles ?? currentState.synchronizedFiles,
         ),
         layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
+        injection: sanitizeBuiltInInjectionConfig(patch.injection ?? currentState.injection),
     };
 }
 
@@ -1340,6 +1419,7 @@ function resolveInjectionCommandTarget(
 }
 
 async function runDirectsynchronizationCommand(
+    context: vscode.ExtensionContext,
     state: ExtensionState,
     arg: unknown,
     mutation: InjectionMutationSelection,
@@ -1352,9 +1432,7 @@ async function runDirectsynchronizationCommand(
 
     const requestedRepoId = extractRepoId(arg);
     if (requestedRepoId === BUILT_IN_CAPABILITY_REPO_ID) {
-        vscode.window.showWarningMessage(
-            'MetaFlow: Built-in capability injection is not configurable yet.',
-        );
+        await applyBuiltInRepoInjectionMutation(context, state, mutation);
         return;
     }
 
@@ -1387,6 +1465,50 @@ async function runDirectsynchronizationCommand(
     );
     void vscode.window.showInformationMessage(
         `MetaFlow: Updated injection policy for ${updatedLabel}.`,
+    );
+    await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+}
+
+async function applyBuiltInRepoInjectionMutation(
+    context: vscode.ExtensionContext,
+    state: ExtensionState,
+    mutation: InjectionMutationSelection,
+): Promise<void> {
+    if (!isBuiltInCapabilityActive(state.builtInCapability)) {
+        vscode.window.showWarningMessage('MetaFlow: Built-in capability is not active.');
+        return;
+    }
+
+    const nextInjection = applyInjectionMutation(state.builtInCapability.injection, mutation);
+    const candidateBuiltInCapability = previewBuiltInCapabilityWorkspaceState(
+        state.builtInCapability,
+        {
+            injection: nextInjection,
+        },
+    );
+    const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+    const applied = await executeGovernedMutation({
+        actionLabel: 'configuring built-in capability injection defaults',
+        state,
+        candidateConfig,
+        candidateBuiltInCapability,
+        persist: async () => {
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                {
+                    injection: nextInjection,
+                },
+            );
+        },
+    });
+    if (!applied) {
+        return;
+    }
+
+    logInfo(`Configured built-in capability injection defaults: ${describeInjectionConfig(nextInjection)}`);
+    void vscode.window.showInformationMessage(
+        'MetaFlow: Updated injection defaults for built-in MetaFlow capability.',
     );
     await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
 }
@@ -2394,11 +2516,13 @@ function withBuiltInCapabilityProjected(
             name: builtInRepoLabel,
             localPath: builtInState.sourceRoot,
             enabled: builtInRepoEnabled,
+            injection: builtInState.injection,
         });
     } else {
         existingRepo.name = builtInRepoLabel;
         existingRepo.localPath = builtInState.sourceRoot;
         existingRepo.enabled = builtInRepoEnabled;
+        existingRepo.injection = builtInState.injection;
     }
 
     multiRepo.layerSources = multiRepo.layerSources.filter(
@@ -2476,6 +2600,10 @@ async function writeBuiltInCapabilityWorkspaceState(
         ),
         layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
     };
+    const injection = sanitizeBuiltInInjectionConfig(patch.injection ?? currentState.injection);
+    if (injection) {
+        payload.injection = injection;
+    }
 
     await context.workspaceState.update(BUILT_IN_CAPABILITY_STATE_KEY, payload);
     return loadBuiltInCapabilityRuntimeState(context);
@@ -4809,6 +4937,7 @@ export async function injectWorkspaceSettings(
                 workspace.uri.fsPath,
                 managedPluginUris,
                 nextManagedPluginUris,
+                collectConfiguredMetadataRepoRoots(config, workspace.uri.fsPath, builtInCapability),
             );
             managedPluginUris = normalizeManagedPluginUris(nextManagedPluginUris);
         } catch (pluginErr: unknown) {
@@ -5119,6 +5248,11 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
+            const notifyStateChanged = (): void => {
+                if (!refreshOptions.skipStateChangeEvent) {
+                    state.onDidChange.fire();
+                }
+            };
             const autoAcceptRefreshUpdatesInTests =
                 context.extensionMode === vscode.ExtensionMode.Test;
             const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
@@ -5131,9 +5265,11 @@ export function registerCommands(
             const pendingCapabilityPluginMetadataDirtyVersion =
                 state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
-            updateStatusBar('loading');
-            state.isLoading = true;
-            state.onDidChange.fire();
+            if (!refreshOptions.skipLoadingState) {
+                updateStatusBar('loading');
+                state.isLoading = true;
+                notifyStateChanged();
+            }
 
             try {
                 const result =
@@ -5191,7 +5327,7 @@ export function registerCommands(
                         pendingCapabilityPluginMetadataDirtyVersion,
                     );
                     state.isLoading = false;
-                    state.onDidChange.fire();
+                    notifyStateChanged();
                     return;
                 }
 
@@ -5355,9 +5491,7 @@ export function registerCommands(
                         ? { shouldPersist: true, rememberPreference: false }
                         : suppressRefreshUpdatePrompts
                           ? { shouldPersist: false, rememberPreference: false }
-                          : await decideBuiltInCapabilityStateUpdate(
-                                builtInRepairPreview.repairs,
-                            );
+                          : await decideBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
                     if (builtInUpdateDecision.rememberPreference) {
                         await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
                         autoAcceptRefreshUpdates = true;
@@ -5532,7 +5666,7 @@ export function registerCommands(
                     pendingCapabilityPluginMetadataDirtyVersion,
                 );
                 state.isLoading = false;
-                state.onDidChange.fire();
+                notifyStateChanged();
 
                 if (!refreshOptions.skipAutoApply && overlayResolved) {
                     if (autoApplyEnabled) {
@@ -5544,7 +5678,7 @@ export function registerCommands(
                 }
             } catch (err: unknown) {
                 state.isLoading = false;
-                state.onDidChange.fire();
+                notifyStateChanged();
                 throw err;
             }
         }),
@@ -6052,6 +6186,10 @@ export function registerCommands(
             const repoIdFromArg = extractRepoId(arg);
             const requestedCheckedState = extractLayerCheckedState(arg);
             const requestedLayerPath = extractLayerPath(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
             if (repoIdFromArg === BUILT_IN_CAPABILITY_REPO_ID) {
                 const nextLayerEnabled =
                     typeof requestedCheckedState === 'boolean'
@@ -6102,10 +6240,12 @@ export function registerCommands(
                 logInfo(
                     `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                    preferStateConfig: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                        preferStateConfig: true,
+                    });
+                }
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             }
 
@@ -6230,10 +6370,12 @@ export function registerCommands(
                 if (repoAutoEnabled) {
                     logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
                 }
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                    preferStateConfig: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                        preferStateConfig: true,
+                    });
+                }
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -6253,6 +6395,10 @@ export function registerCommands(
 
             const requestedCheckedState = extractLayerCheckedState(arg);
             const requestedRepoId = extractRepoId(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
             const requestedLayerPath =
                 extractLayerPath(arg) ??
                 (typeof arg === 'object' && arg !== null
@@ -6404,7 +6550,11 @@ export function registerCommands(
             logInfo(
                 `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} layer(s))${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
             );
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            if (!deferRefresh) {
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                });
+            }
         }),
     );
 
@@ -6587,9 +6737,22 @@ export function registerCommands(
 
                 const requestedRepoId = extractRepoId(arg);
                 if (requestedRepoId === BUILT_IN_CAPABILITY_REPO_ID) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: Built-in capability injection is not configurable yet.',
-                    );
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
@@ -6701,18 +6864,45 @@ export function registerCommands(
 
                 let repoId = extractRepoId(arg);
                 if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: Built-in capability injection is not configurable yet.',
-                    );
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
                 const { metadataRepos } = ensureMultiRepoConfig(state.config);
                 if (!repoId) {
+                    const builtInRepoPick =
+                        isBuiltInCapabilityActive(state.builtInCapability) &&
+                        state.builtInCapability.sourceRoot
+                            ? [
+                                  {
+                                      label: resolveBuiltInCapabilityDisplayName(
+                                          state.repoMetadataById[BUILT_IN_CAPABILITY_REPO_ID]?.name,
+                                          state.builtInCapability.sourceDisplayName,
+                                      ),
+                                      description: BUILT_IN_CAPABILITY_REPO_ID,
+                                      detail: `Current defaults: ${describeInjectionConfig(state.builtInCapability.injection)}`,
+                                      repoId: BUILT_IN_CAPABILITY_REPO_ID,
+                                  },
+                              ]
+                            : [];
                     const selection = await vscode.window.showQuickPick(
-                        metadataRepos
-                            .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID)
-                            .map((repo) => ({
+                        [
+                            ...metadataRepos.map((repo) => ({
                                 label: resolveRepoDisplayLabel(
                                     repo.id,
                                     repo.name,
@@ -6723,6 +6913,8 @@ export function registerCommands(
                                 detail: `Current defaults: ${describeInjectionConfig(repo.injection)}`,
                                 repoId: repo.id,
                             })),
+                            ...builtInRepoPick,
+                        ],
                         {
                             title: 'MetaFlow: Configure Repository Injection Defaults',
                             placeHolder: 'Select a repository source to configure',
@@ -6733,6 +6925,26 @@ export function registerCommands(
                 }
 
                 if (!repoId) {
+                    return;
+                }
+
+                if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
@@ -6785,7 +6997,8 @@ export function registerCommands(
             context.subscriptions.push(
                 vscode.commands.registerCommand(
                     buildDirectsynchronizationCommandId(artifactType, mode),
-                    async (arg?: unknown) => runDirectsynchronizationCommand(state, arg, mutation),
+                    async (arg?: unknown) =>
+                        runDirectsynchronizationCommand(context, state, arg, mutation),
                 ),
             );
         }
@@ -6801,7 +7014,8 @@ export function registerCommands(
         context.subscriptions.push(
             vscode.commands.registerCommand(
                 buildGlobalInjectionPolicyCommandId(mode),
-                async (arg?: unknown) => runDirectsynchronizationCommand(state, arg, { preset }),
+                async (arg?: unknown) =>
+                    runDirectsynchronizationCommand(context, state, arg, { preset }),
             ),
         );
     }
@@ -6849,6 +7063,10 @@ export function registerCommands(
         vscode.commands.registerCommand('metaflow.toggleRepoSource', async (arg?: unknown) => {
             const repoId = extractRepoId(arg);
             const requestedCheckedState = extractLayerCheckedState(arg);
+            const deferRefresh =
+                typeof arg === 'object' &&
+                arg !== null &&
+                (arg as { deferRefresh?: unknown }).deferRefresh === true;
 
             if (typeof repoId !== 'string' || repoId.length === 0) {
                 logWarn('Toggle repo source requires a valid repo id.');
@@ -6902,9 +7120,11 @@ export function registerCommands(
                 logInfo(
                     `Toggled built-in repo source ${repoId}: ${nextEnabled ? 'enabled' : 'disabled'}`,
                 );
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                });
+                if (!deferRefresh) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                    });
+                }
                 return;
             }
 
@@ -6950,7 +7170,11 @@ export function registerCommands(
                 logWarn(`Toggle repo source failed: ${message}`);
             }
 
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            if (!deferRefresh) {
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    skipRepoSync: true,
+                });
+            }
         }),
     );
 
@@ -8326,63 +8550,6 @@ export function registerCommands(
         vscode.commands.registerCommand('metaflow.initMetaFlowAiMetadata', async () => {
             const ws = getWorkspace();
             if (!ws) {
-                return;
-            }
-
-            const setupMode = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: 'Synchronize MetaFlow capability files into .github',
-                        description:
-                            'Overwrite synchronized MetaFlow capability files in this workspace.',
-                        mode: 'synchronize' as const,
-                    },
-                    {
-                        label: 'Enable built-in MetaFlow capability (settings-only)',
-                        description:
-                            'Use bundled MetaFlow capability files without modifying .metaflow/config.jsonc.',
-                        mode: 'builtin' as const,
-                    },
-                ],
-                {
-                    title: 'MetaFlow: Initialize MetaFlow Capability',
-                    placeHolder: 'Choose how to initialize MetaFlow capability support',
-                    ignoreFocusOut: true,
-                },
-            );
-
-            if (!setupMode) {
-                return;
-            }
-
-            if (setupMode.mode === 'synchronize') {
-                const synchronized = await scaffoldMetaFlowAiMetadata({
-                    workspaceRoot: ws.uri.fsPath,
-                    extensionPath: context.extensionPath,
-                    overwriteExisting: true,
-                });
-
-                if (!synchronized) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: MetaFlow capability assets are unavailable in this extension build.',
-                    );
-                    return;
-                }
-
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
-                    state.builtInCapability,
-                    {
-                        enabled: false,
-                        layerEnabled: true,
-                        synchronizedFiles: synchronized.writtenFiles,
-                    },
-                );
-
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
-                vscode.window.showInformationMessage(
-                    `MetaFlow: Synchronized ${synchronized.writtenFiles.length} MetaFlow capability file(s) into .github.`,
-                );
                 return;
             }
 

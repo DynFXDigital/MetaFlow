@@ -104,12 +104,18 @@ type LayersTreeViewModule = {
         getChildren(element?: MockLayerTreeItem): MockLayerTreeItem[];
         getExpandAllStrategy(): string;
         getSearchQuery(): string | undefined;
+        getPendingCapabilityCheckboxSequence(): number;
         getStagedExpandPlan(): {
             stageOne: MockLayerTreeItem[];
             stageTwo: MockLayerTreeItem[];
             stages?: MockLayerTreeItem[][];
         };
         getParent(element: MockLayerTreeItem): MockLayerTreeItem | undefined;
+        setPendingCapabilityCheckboxState(state:
+            | { kind: 'repo'; repoId: string; checked: boolean }
+            | { kind: 'branch'; repoId?: string; layerPath: string; checked: boolean }
+            | { kind: 'layer'; repoId?: string; layerPath: string; checked: boolean }): void;
+        clearPendingCapabilityCheckboxStates(maxSequence?: number): void;
         setSearchQuery(value: string | undefined): void;
     };
 };
@@ -2220,6 +2226,145 @@ suite('LayersTreeView – artifact-type children', () => {
             restoredLayers.map((item) => `${String(item.label)}:${item.checkboxState}`),
             ['Active Tooling:1', 'Inactive Tooling:0'],
             're-enabling the repo should reveal the previous per-layer checked states',
+        );
+    });
+
+    test('LTV-PCT-01: pending leaf toggle renders immediately before config refresh', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/alpha', enabled: false },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/alpha': { name: 'Alpha Tooling' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        assert.strictEqual(provider.getChildren()[0]?.checkboxState, 0);
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'layer',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools/alpha',
+            checked: true,
+        });
+
+        assert.strictEqual(
+            provider.getChildren()[0]?.checkboxState,
+            1,
+            'pending user intent should keep the clicked capability checked',
+        );
+    });
+
+    test('LTV-PCT-02: pending branch toggle applies to descendant capability rows', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/alpha', enabled: false },
+                { repoId: 'repo1', path: 'capabilities/devtools/beta', enabled: false },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/alpha': { name: 'Alpha Tooling' },
+            'repo1/capabilities/devtools/beta': { name: 'Beta Tooling' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'branch',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools',
+            checked: true,
+        });
+
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => `${String(item.label)}:${item.checkboxState}`),
+            ['Alpha Tooling:1', 'Beta Tooling:1'],
+        );
+    });
+
+    test('LTV-PCT-03: latest pending click wins between branch and leaf toggles', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/alpha', enabled: false },
+                { repoId: 'repo1', path: 'capabilities/devtools/beta', enabled: false },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/alpha': { name: 'Alpha Tooling' },
+            'repo1/capabilities/devtools/beta': { name: 'Beta Tooling' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'branch',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools',
+            checked: true,
+        });
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'layer',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools/alpha',
+            checked: false,
+        });
+
+        assert.deepStrictEqual(
+            provider.getChildren().map((item) => `${String(item.label)}:${item.checkboxState}`),
+            ['Alpha Tooling:0', 'Beta Tooling:1'],
+        );
+    });
+
+    test('LTV-PCT-04: clearing an older refresh batch preserves newer pending clicks', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools/alpha', enabled: false },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/devtools/alpha': { name: 'Alpha Tooling' },
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, [], capabilityByLayer),
+            () => 'flat',
+        );
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'layer',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools/alpha',
+            checked: true,
+        });
+        const firstBatchSequence = provider.getPendingCapabilityCheckboxSequence();
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'layer',
+            repoId: 'repo1',
+            layerPath: 'capabilities/devtools/alpha',
+            checked: false,
+        });
+
+        provider.clearPendingCapabilityCheckboxStates(firstBatchSequence);
+
+        assert.strictEqual(
+            provider.getChildren()[0]?.checkboxState,
+            0,
+            'newer pending state should survive clearing an older batch',
         );
     });
 

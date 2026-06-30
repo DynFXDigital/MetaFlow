@@ -35,7 +35,7 @@ export interface PromptInjectionScanOptions {
 }
 
 const ZERO_WIDTH_PATTERN = /[\u200B-\u200D\u2060\uFEFF]/g;
-const BASE64_TOKEN_PATTERN = /\b(?:[A-Za-z0-9+/]{16,}={0,2})\b/g;
+const BASE64_TOKEN_PATTERN = /(?:^|[^A-Za-z0-9+/=])([A-Za-z0-9+/]{16,}={0,2})(?=$|[^A-Za-z0-9+/=])/g;
 const TARGETABLE_PATH_SEGMENTS = [
     '.github/instructions/',
     '.github/prompts/',
@@ -158,7 +158,7 @@ export function scanPromptInjectionContent(
     const contentToScan = maskLabeledExampleBlocks(options.content);
     const normalized = normalizeForScanning(contentToScan);
     const fuzzyTokens = tokenizeForFuzzyMatching(normalized);
-    const decodedPayloads = extractDecodedBase64Payloads(normalized);
+    const decodedPayloads = extractDecodedBase64Payloads(contentToScan);
 
     const findings = new Map<PromptInjectionRuleId, PromptInjectionFinding>();
 
@@ -206,11 +206,6 @@ function maskLabeledExampleBlocks(content: string): string {
         const trimmed = line.trim().toLowerCase();
         const isFence = trimmed.startsWith('```');
 
-        if (!insideMaskableFence) {
-            priorLabelWasMaskable =
-                /(example|untrusted input|adversarial example|test attack)/i.test(line);
-        }
-
         if (isFence && priorLabelWasMaskable && !insideMaskableFence) {
             insideMaskableFence = true;
             masked.push('```');
@@ -222,6 +217,11 @@ function maskLabeledExampleBlocks(content: string): string {
             priorLabelWasMaskable = false;
             masked.push('```');
             continue;
+        }
+
+        if (!insideMaskableFence) {
+            priorLabelWasMaskable =
+                /(example|untrusted input|adversarial example|test attack)/i.test(line);
         }
 
         masked.push(insideMaskableFence ? '[masked example content]' : line);
@@ -269,7 +269,7 @@ function sortMiddle(value: string): string {
 }
 
 function extractDecodedBase64Payloads(content: string): string[] {
-    const matches = content.match(BASE64_TOKEN_PATTERN) ?? [];
+    const matches = Array.from(content.matchAll(BASE64_TOKEN_PATTERN), (match) => match[1]);
     const decoded: string[] = [];
 
     for (const candidate of matches) {

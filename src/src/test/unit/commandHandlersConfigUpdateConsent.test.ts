@@ -132,7 +132,7 @@ suite('Command handler config update consent', () => {
         );
         assert.match(
             builtInRepairBlock,
-            /await decideBuiltInCapabilityStateUpdate\(\s*builtInRepairPreview\.repairs,\s*\)/m,
+            /await decideBuiltInCapabilityStateUpdate\(\s*builtInRepairPreview\.repairs\s*\)/m,
         );
         assert.match(
             builtInRepairBlock,

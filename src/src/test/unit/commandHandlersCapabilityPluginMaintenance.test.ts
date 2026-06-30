@@ -457,6 +457,313 @@ suite('Command handler capability plugin maintenance helpers', () => {
         });
     });
 
+    test('injectWorkspaceSettings prunes stale local plugin enablement when policy returns to settings', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-policy-settings-'));
+        const metadataRoot = path.join(workspaceRoot, '..', 'metadata');
+        const stalePluginRoot = path.join(metadataRoot, 'capabilities', 'plugin-smoke');
+        const agentPath = path.join(stalePluginRoot, '.github', 'agents', 'reviewer.agent.md');
+        const otherPluginRoot = path.join(workspaceRoot, '..', 'other-plugin');
+        const copilotSettingsPath = path.join(
+            workspaceRoot,
+            '.github',
+            'copilot',
+            'settings.local.json',
+        );
+        const stalePluginUri = `file:///${stalePluginRoot.replace(/\\/g, '/')}`;
+        const otherPluginUri = `file:///${otherPluginRoot.replace(/\\/g, '/')}`;
+        const workspaceValues = new Map<string, unknown>();
+        const globalValues = new Map<string, unknown>();
+        const workspaceStateStore = new Map<string, unknown>([
+            [
+                'metaflow.settingsInjection.v1',
+                {
+                    effectiveTarget: 'workspace',
+                    managedEntries: {},
+                },
+            ],
+        ]);
+
+        try {
+            fs.mkdirSync(path.dirname(agentPath), { recursive: true });
+            fs.writeFileSync(agentPath, '# Reviewer\n', 'utf-8');
+            fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+            fs.writeFileSync(
+                copilotSettingsPath,
+                JSON.stringify(
+                    {
+                        enabledPlugins: {
+                            [stalePluginUri]: true,
+                            [otherPluginUri]: true,
+                        },
+                    },
+                    null,
+                    2,
+                ) + '\n',
+                'utf-8',
+            );
+
+            const makeConfig = () => ({
+                get: (_key: string, defaultValue: unknown) => defaultValue,
+                inspect: (key: string) => ({
+                    globalValue: globalValues.get(key),
+                    workspaceValue: workspaceValues.get(key),
+                    workspaceFolderValue: undefined,
+                }),
+                update: async (key: string, value: unknown, target: number) => {
+                    const targetMap = target === 1 ? globalValues : workspaceValues;
+                    if (value === undefined) {
+                        targetMap.delete(key);
+                    } else {
+                        targetMap.set(key, value);
+                    }
+                },
+            });
+
+            const mockVscode = {
+                window: {
+                    showWarningMessage: async () => undefined,
+                    showInformationMessage: async () => undefined,
+                    createOutputChannel: () => ({
+                        appendLine: () => {},
+                        show: () => {},
+                        dispose: () => {},
+                    }),
+                },
+                ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+                workspace: {
+                    workspaceFolders: undefined,
+                    getConfiguration: (_section?: string, resource?: { fsPath?: string }) => {
+                        void resource;
+                        return makeConfig();
+                    },
+                },
+                TreeItemCheckboxState: { Checked: 1, Unchecked: 0 },
+                TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+                EventEmitter: class {
+                    event(listener: unknown): { dispose: () => void } {
+                        void listener;
+                        return { dispose: () => {} };
+                    }
+                    fire(value: unknown): void {
+                        void value;
+                    }
+                },
+                Uri: {
+                    file: (fsPath: string) => ({
+                        fsPath,
+                        toString: () => `file:///${fsPath.replace(/\\/g, '/')}`,
+                    }),
+                },
+            };
+
+            const { injectWorkspaceSettings } = loadCommandHandlers(mockVscode);
+
+            await injectWorkspaceSettings(
+                {
+                    uri: { fsPath: workspaceRoot },
+                    name: 'project',
+                    index: 0,
+                } as Parameters<typeof injectWorkspaceSettings>[0],
+                {
+                    metadataRepos: [
+                        {
+                            id: 'primary',
+                            localPath: metadataRoot,
+                            enabled: true,
+                        },
+                    ],
+                } as Parameters<typeof injectWorkspaceSettings>[1],
+                [
+                    {
+                        relativePath: '.github/agents/reviewer.agent.md',
+                        sourcePath: agentPath,
+                        sourceLayer: 'primary/capabilities/plugin-smoke',
+                        classification: 'settings',
+                    },
+                ] as Parameters<typeof injectWorkspaceSettings>[2],
+                {
+                    workspaceState: {
+                        get: (key: string) => workspaceStateStore.get(key),
+                        update: async (key: string, value: unknown) => {
+                            workspaceStateStore.set(key, value);
+                        },
+                    },
+                } as unknown as Parameters<typeof injectWorkspaceSettings>[3],
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    layerStates: {},
+                    sourceRoot: undefined,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                } as Parameters<typeof injectWorkspaceSettings>[4],
+            );
+
+            assert.deepStrictEqual(workspaceValues.get('chat.agentFilesLocations'), {
+                '../metadata/capabilities/plugin-smoke/.github/agents': true,
+            });
+
+            const updatedSettings = JSON.parse(
+                fs.readFileSync(copilotSettingsPath, 'utf-8'),
+            ) as {
+                enabledPlugins?: Record<string, boolean>;
+            };
+            assert.deepStrictEqual(updatedSettings.enabledPlugins, {
+                [otherPluginUri]: true,
+            });
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+            fs.rmSync(metadataRoot, { recursive: true, force: true });
+            fs.rmSync(otherPluginRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('injectWorkspaceSettings deletes empty local plugin settings after stale cleanup', async () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-policy-empty-'));
+        const metadataRoot = path.join(workspaceRoot, '..', 'metadata-empty');
+        const stalePluginRoot = path.join(metadataRoot, 'capabilities', 'plugin-smoke');
+        const agentPath = path.join(stalePluginRoot, '.github', 'agents', 'reviewer.agent.md');
+        const copilotSettingsPath = path.join(
+            workspaceRoot,
+            '.github',
+            'copilot',
+            'settings.local.json',
+        );
+        const stalePluginUri = `file:///${stalePluginRoot.replace(/\\/g, '/')}`;
+        const workspaceValues = new Map<string, unknown>();
+        const workspaceStateStore = new Map<string, unknown>([
+            [
+                'metaflow.settingsInjection.v1',
+                {
+                    effectiveTarget: 'workspace',
+                    managedEntries: {},
+                },
+            ],
+        ]);
+
+        try {
+            fs.mkdirSync(path.dirname(agentPath), { recursive: true });
+            fs.writeFileSync(agentPath, '# Reviewer\n', 'utf-8');
+            fs.mkdirSync(path.dirname(copilotSettingsPath), { recursive: true });
+            fs.writeFileSync(
+                copilotSettingsPath,
+                JSON.stringify({ enabledPlugins: { [stalePluginUri]: true } }, null, 2) + '\n',
+                'utf-8',
+            );
+
+            const makeConfig = () => ({
+                get: (_key: string, defaultValue: unknown) => defaultValue,
+                inspect: (key: string) => ({
+                    globalValue: undefined,
+                    workspaceValue: workspaceValues.get(key),
+                    workspaceFolderValue: undefined,
+                }),
+                update: async (key: string, value: unknown, target: number) => {
+                    if (target !== 2) {
+                        return;
+                    }
+                    if (value === undefined) {
+                        workspaceValues.delete(key);
+                    } else {
+                        workspaceValues.set(key, value);
+                    }
+                },
+            });
+
+            const mockVscode = {
+                window: {
+                    showWarningMessage: async () => undefined,
+                    showInformationMessage: async () => undefined,
+                    createOutputChannel: () => ({
+                        appendLine: () => {},
+                        show: () => {},
+                        dispose: () => {},
+                    }),
+                },
+                ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
+                workspace: {
+                    workspaceFolders: undefined,
+                    getConfiguration: (_section?: string, resource?: { fsPath?: string }) => {
+                        void resource;
+                        return makeConfig();
+                    },
+                },
+                TreeItemCheckboxState: { Checked: 1, Unchecked: 0 },
+                TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+                EventEmitter: class {
+                    event(listener: unknown): { dispose: () => void } {
+                        void listener;
+                        return { dispose: () => {} };
+                    }
+                    fire(value: unknown): void {
+                        void value;
+                    }
+                },
+                Uri: {
+                    file: (fsPath: string) => ({
+                        fsPath,
+                        toString: () => `file:///${fsPath.replace(/\\/g, '/')}`,
+                    }),
+                },
+            };
+
+            const { injectWorkspaceSettings } = loadCommandHandlers(mockVscode);
+
+            await injectWorkspaceSettings(
+                {
+                    uri: { fsPath: workspaceRoot },
+                    name: 'project',
+                    index: 0,
+                } as Parameters<typeof injectWorkspaceSettings>[0],
+                {
+                    metadataRepos: [
+                        {
+                            id: 'primary',
+                            localPath: metadataRoot,
+                            enabled: true,
+                        },
+                    ],
+                } as Parameters<typeof injectWorkspaceSettings>[1],
+                [
+                    {
+                        relativePath: '.github/agents/reviewer.agent.md',
+                        sourcePath: agentPath,
+                        sourceLayer: 'primary/capabilities/plugin-smoke',
+                        classification: 'settings',
+                    },
+                ] as Parameters<typeof injectWorkspaceSettings>[2],
+                {
+                    workspaceState: {
+                        get: (key: string) => workspaceStateStore.get(key),
+                        update: async (key: string, value: unknown) => {
+                            workspaceStateStore.set(key, value);
+                        },
+                    },
+                } as unknown as Parameters<typeof injectWorkspaceSettings>[3],
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    layerStates: {},
+                    sourceRoot: undefined,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                } as Parameters<typeof injectWorkspaceSettings>[4],
+            );
+
+            assert.deepStrictEqual(workspaceValues.get('chat.agentFilesLocations'), {
+                '../metadata-empty/capabilities/plugin-smoke/.github/agents': true,
+            });
+            assert.strictEqual(fs.existsSync(copilotSettingsPath), false);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+            fs.rmSync(metadataRoot, { recursive: true, force: true });
+        }
+    });
+
     test('ensureLocalGitExcludeEntry records machine-local Copilot plugin settings in git info exclude', async () => {
         const { ensureLocalGitExcludeEntry } = loadCommandHandlers();
         const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-local-exclude-'));

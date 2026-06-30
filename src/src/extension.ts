@@ -43,6 +43,8 @@ import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedul
 import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
 import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
 import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
+import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
+import { createLayerTreeCheckboxIdleRefreshScheduler } from './layerTreeCheckboxIdleRefresh';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -497,6 +499,35 @@ export function activate(context: vscode.ExtensionContext): void {
             });
     };
 
+    const layerTreeCheckboxIdleRefresh = createLayerTreeCheckboxIdleRefreshScheduler({
+        executeRefresh: (options) => vscode.commands.executeCommand('metaflow.refresh', options),
+        fireStateChanged: () => {
+            state.onDidChange.fire();
+        },
+        onRefreshError: (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            logWarn(`Layer tree checkbox idle refresh failed: ${message}`);
+        },
+    });
+    context.subscriptions.push(layerTreeCheckboxIdleRefresh);
+
+    const layerTreeCheckboxQueue = createLayerTreeCheckboxQueue({
+        // Checkbox clicks must stay independent from full overlay/count refreshes.
+        // Toggle commands already update and persist selection state; the expensive
+        // refresh that regenerates derived settings/counts runs only after clicks
+        // go idle so it does not compete with TreeView checkbox event delivery.
+        settle: async () => {
+            layerTreeCheckboxIdleRefresh.schedule();
+        },
+        clearPendingStates: (clearThroughSequence) => {
+            layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
+        },
+        onSettleError: (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            logWarn(`Layer tree checkbox settlement failed: ${message}`);
+        },
+    });
+
     context.subscriptions.push(
         state.onDidChange.event(() => {
             vscode.commands.executeCommand(
@@ -544,7 +575,8 @@ export function activate(context: vscode.ExtensionContext): void {
     );
 
     context.subscriptions.push(
-        layersTreeView.onDidChangeCheckboxState(async (e) => {
+        layersTreeView.onDidChangeCheckboxState((e) => {
+            let queuedMutation = false;
             for (const [item, checkboxState] of e.items) {
                 if (
                     checkboxState !== vscode.TreeItemCheckboxState.Checked &&
@@ -558,18 +590,37 @@ export function activate(context: vscode.ExtensionContext): void {
                 const layerPath = extractLayerPath(item);
 
                 if (contextValue === 'layerRepo' && typeof repoId === 'string') {
-                    await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                    queuedMutation = true;
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'repo',
                         repoId,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
+                    void layerTreeCheckboxQueue.enqueueMutation(async () => {
+                        await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
+                            repoId,
+                            checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                            deferRefresh: true,
+                        });
                     });
                     continue;
                 }
 
-                if (contextValue === 'layerFolder') {
-                    await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
+                if (contextValue === 'layerFolder' && typeof layerPath === 'string') {
+                    queuedMutation = true;
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'branch',
                         repoId,
                         layerPath,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
+                    void layerTreeCheckboxQueue.enqueueMutation(async () => {
+                        await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
+                            repoId,
+                            layerPath,
+                            checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                            deferRefresh: true,
+                        });
                     });
                     continue;
                 }
@@ -581,12 +632,30 @@ export function activate(context: vscode.ExtensionContext): void {
                     continue;
                 }
 
-                await vscode.commands.executeCommand('metaflow.toggleLayer', {
-                    layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
-                    repoId,
-                    layerPath,
-                    checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                queuedMutation = true;
+                if (typeof layerPath === 'string') {
+                    layersTreeViewProvider.setPendingCapabilityCheckboxState({
+                        kind: 'layer',
+                        repoId,
+                        layerPath,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                    });
+                }
+                void layerTreeCheckboxQueue.enqueueMutation(async () => {
+                    await vscode.commands.executeCommand('metaflow.toggleLayer', {
+                        layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
+                        repoId,
+                        layerPath,
+                        checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
+                        deferRefresh: true,
+                    });
                 });
+            }
+
+            if (queuedMutation) {
+                const pendingCheckboxSequence =
+                    layersTreeViewProvider.getPendingCapabilityCheckboxSequence();
+                layerTreeCheckboxQueue.scheduleSettlement(pendingCheckboxSequence);
             }
         }),
     );

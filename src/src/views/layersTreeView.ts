@@ -56,6 +56,11 @@ import type { ExpandAllStrategy, StagedExpandPlan } from './stagedTreeExpand';
 
 type CapabilityArtifactType = Exclude<ArtifactType, 'other'>;
 
+export type PendingCapabilityCheckboxState =
+    | { kind: 'repo'; repoId: string; checked: boolean }
+    | { kind: 'branch'; repoId?: string; layerPath: string; checked: boolean }
+    | { kind: 'layer'; repoId?: string; layerPath: string; checked: boolean };
+
 const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'instructions',
     'prompts',
@@ -370,6 +375,11 @@ function buildLayerEntryPathKey(repoId: string, normalizedPath: string): string 
 interface LayerAvailability {
     repoEnabled: boolean;
     layerEnabled: boolean;
+}
+
+interface PendingCheckboxValue {
+    checked: boolean;
+    sequence: number;
 }
 
 type BranchToggleStatus = 'all-enabled' | 'partially-enabled' | 'all-disabled';
@@ -858,6 +868,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
     private readonly _parentMap = new WeakMap<LayerTreeItem, LayerTreeItem | undefined>();
     private readonly parsedMetadataByPath = new Map<string, ParsedMetadata | null>();
     private readonly directoryManifestByPath = new Map<string, DirectoryManifestMetadata | null>();
+    private readonly pendingRepoCheckboxStates = new Map<string, PendingCheckboxValue>();
+    private readonly pendingLayerCheckboxStates = new Map<string, PendingCheckboxValue>();
+    private readonly pendingBranchCheckboxStates = new Map<string, PendingCheckboxValue>();
+    private pendingCheckboxSequence = 0;
     private searchQuery: string | undefined;
     private searchVersion = 0;
 
@@ -875,6 +889,65 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     refresh(): void {
         this.directoryManifestByPath.clear();
+        this._onDidChangeTreeData.fire(undefined);
+    }
+
+    setPendingCapabilityCheckboxState(state: PendingCapabilityCheckboxState): void {
+        const pending: PendingCheckboxValue = {
+            checked: state.checked,
+            sequence: ++this.pendingCheckboxSequence,
+        };
+
+        if (state.kind === 'repo') {
+            this.pendingRepoCheckboxStates.set(this.normalizePendingRepoId(state.repoId), pending);
+        } else if (state.kind === 'branch') {
+            this.pendingBranchCheckboxStates.set(
+                this.buildPendingLayerKey(state.repoId, state.layerPath),
+                pending,
+            );
+        } else {
+            this.pendingLayerCheckboxStates.set(
+                this.buildPendingLayerKey(state.repoId, state.layerPath),
+                pending,
+            );
+        }
+
+        // Do not force a tree rebuild for every click. VS Code already updates the
+        // clicked checkbox optimistically; the pending map is here so later refreshes
+        // do not redraw stale persisted state over the user's latest interaction.
+    }
+
+    getPendingCapabilityCheckboxSequence(): number {
+        return this.pendingCheckboxSequence;
+    }
+
+    clearPendingCapabilityCheckboxStates(maxSequence?: number): void {
+        if (
+            this.pendingRepoCheckboxStates.size === 0 &&
+            this.pendingLayerCheckboxStates.size === 0 &&
+            this.pendingBranchCheckboxStates.size === 0
+        ) {
+            return;
+        }
+
+        const shouldClear = (pending: PendingCheckboxValue): boolean =>
+            maxSequence === undefined || pending.sequence <= maxSequence;
+
+        for (const [key, pending] of Array.from(this.pendingRepoCheckboxStates)) {
+            if (shouldClear(pending)) {
+                this.pendingRepoCheckboxStates.delete(key);
+            }
+        }
+        for (const [key, pending] of Array.from(this.pendingLayerCheckboxStates)) {
+            if (shouldClear(pending)) {
+                this.pendingLayerCheckboxStates.delete(key);
+            }
+        }
+        for (const [key, pending] of Array.from(this.pendingBranchCheckboxStates)) {
+            if (shouldClear(pending)) {
+                this.pendingBranchCheckboxStates.delete(key);
+            }
+        }
         this._onDidChangeTreeData.fire(undefined);
     }
 
@@ -1064,6 +1137,56 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private normalizeLayerPath(layerPath: string): string {
         return layerPath === '.' ? '' : layerPath;
+    }
+
+    private normalizePendingRepoId(repoId: string | undefined): string {
+        return repoId?.trim() || 'primary';
+    }
+
+    private normalizePendingLayerPath(layerPath: string | undefined): string {
+        return normalizeRelativePath(layerPath?.trim() || '.');
+    }
+
+    private buildPendingLayerKey(repoId: string | undefined, layerPath: string | undefined): string {
+        return `${this.normalizePendingRepoId(repoId)}:${this.normalizePendingLayerPath(layerPath)}`;
+    }
+
+    private resolvePendingRepoEnabled(repoId: string | undefined, enabled: boolean): boolean {
+        const pending = this.pendingRepoCheckboxStates.get(this.normalizePendingRepoId(repoId));
+        return pending ? pending.checked : enabled;
+    }
+
+    private resolvePendingLayerEnabled(
+        repoId: string | undefined,
+        layerPath: string | undefined,
+        enabled: boolean,
+    ): boolean {
+        const normalizedRepoId = this.normalizePendingRepoId(repoId);
+        const normalizedLayerPath = this.normalizePendingLayerPath(layerPath);
+        let latest = this.pendingLayerCheckboxStates.get(
+            `${normalizedRepoId}:${normalizedLayerPath}`,
+        );
+
+        for (const [key, pending] of this.pendingBranchCheckboxStates) {
+            const separatorIndex = key.indexOf(':');
+            const branchRepoId = separatorIndex >= 0 ? key.slice(0, separatorIndex) : 'primary';
+            const branchPath = separatorIndex >= 0 ? key.slice(separatorIndex + 1) : key;
+            if (branchRepoId !== normalizedRepoId) {
+                continue;
+            }
+            if (
+                branchPath !== '.' &&
+                normalizedLayerPath !== branchPath &&
+                !normalizedLayerPath.startsWith(`${branchPath}/`)
+            ) {
+                continue;
+            }
+            if (!latest || pending.sequence > latest.sequence) {
+                latest = pending;
+            }
+        }
+
+        return latest ? latest.checked : enabled;
     }
 
     private normalizeLayerId(layerId: string): string {
@@ -1490,11 +1613,18 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             );
 
             const entries = config.layerSources.reduce<LayerEntry[]>((acc, ls, i) => {
-                const isRepoEnabled = repoEnabled.get(ls.repoId) !== false;
-                const isLayerEnabled = ls.enabled !== false;
+                const normalizedPath = this.normalizeLayerPath(ls.path);
+                const isRepoEnabled = this.resolvePendingRepoEnabled(
+                    ls.repoId,
+                    repoEnabled.get(ls.repoId) !== false,
+                );
+                const isLayerEnabled = this.resolvePendingLayerEnabled(
+                    ls.repoId,
+                    normalizedPath || '.',
+                    ls.enabled !== false,
+                );
                 const layerId = `${ls.repoId}/${ls.path}`;
                 const capability = capabilityByLayer.get(this.normalizeLayerId(layerId));
-                const normalizedPath = this.normalizeLayerPath(ls.path);
                 if (isReservedArtifactContainerLayerPath(normalizedPath)) {
                     return acc;
                 }
@@ -2286,7 +2416,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 projectedConfig.metadataRepos.map((repo, idx) => [repo.id, idx]),
             );
             const repoDisabled = new Map(
-                projectedConfig.metadataRepos.map((repo) => [repo.id, repo.enabled === false]),
+                projectedConfig.metadataRepos.map((repo) => [
+                    repo.id,
+                    !this.resolvePendingRepoEnabled(repo.id, repo.enabled !== false),
+                ]),
             );
             const repoRoots = new Map(
                 projectedConfig.metadataRepos.map((repo) => [repo.id, repo.localPath]),

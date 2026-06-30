@@ -103,7 +103,7 @@ Supported injection modes are:
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
-After initialization succeeds, MetaFlow now automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. Use `MetaFlow: Initialize MetaFlow Capability` only when you want to switch explicitly to synchronized `.github/` installation or re-enable the built-in mode manually later.
+After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo row's injection policy menu or `metaflow.aiMetadataAutoApplyMode=synchronize` when you need to change the policy after setup.
 
 `MetaFlow: Add Repository Source` also recognizes local metadata authoring workflows:
 
@@ -183,12 +183,12 @@ description: Shared repository-level metadata for this workspace.
 | `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                     |                |
 | `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                          |                |
 | `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                      |                |
-| `MetaFlow: Initialize MetaFlow Capability` | Choose synchronization mode (`synchronize` in config) or built-in settings-only mode persisted in workspace state     |                |
+| `MetaFlow: Initialize MetaFlow Capability` | Enable the built-in MetaFlow capability with plugin-first defaults persisted in workspace state                       |                |
 | `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                            |                |
 | `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                               |                |
 | `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                        |                |
 | `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                               |                |
-| `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability in settings-only mode |                |
+| `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability with plugin-first defaults |                |
 | `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                           |                |
 
 ## Settings

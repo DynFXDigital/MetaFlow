@@ -2,11 +2,11 @@
  * GUI tests — Built-in AI metadata management (v0.2.0).
  *
  * Verifies that the initMetaFlowAiMetadata and removeMetaFlowCapability
- * commands are accessible and open the expected dialogs.
+ * commands are accessible.
  */
 
 import * as assert from 'assert';
-import { SideBarView, Workbench, InputBox } from 'vscode-extension-tester';
+import { SideBarView, Workbench } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
     WAIT_TIMEOUT,
@@ -34,17 +34,14 @@ suite('Built-in AI Metadata Management', function () {
         await dismissActiveInput();
     });
 
-    test('MetaFlow: Initialize MetaFlow Capability command opens input dialogs', async function () {
+    test('MetaFlow: Initialize MetaFlow Capability command executes without prompting', async function () {
         this.timeout(30_000);
         const workbench = new Workbench();
         await workbench.executeCommand('MetaFlow: Initialize MetaFlow Capability');
+        await sleep(INTERACTION_TIMEOUT);
 
-        // Extension should show an input box for capability name
-        const input = await InputBox.create(INTERACTION_TIMEOUT);
-        assert.ok(input, 'No input dialog appeared after Initialize MetaFlow Capability command');
-
-        // Cancel without completing
-        await input.cancel();
+        const capSection = await getSection(sideBar, 'Capabilities');
+        assert.ok(capSection, 'Capabilities section missing after initializing MetaFlow capability');
     });
 
     test('MetaFlow: Get Diagnostics Snapshot command executes without error', async () => {

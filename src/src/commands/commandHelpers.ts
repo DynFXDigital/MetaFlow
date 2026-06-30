@@ -8,6 +8,8 @@ export interface RefreshCommandOptions {
     skipBuiltInAutoApply?: boolean;
     skipRepoSync?: boolean;
     skipSettingsInjection?: boolean;
+    skipLoadingState?: boolean;
+    skipStateChangeEvent?: boolean;
     preferStateConfig?: boolean;
     nonInteractive?: boolean;
     forceDiscovery?: boolean;
@@ -459,6 +461,8 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
     const skipSettingsInjection = (arg as { skipSettingsInjection?: unknown })
         .skipSettingsInjection;
+    const skipLoadingState = (arg as { skipLoadingState?: unknown }).skipLoadingState;
+    const skipStateChangeEvent = (arg as { skipStateChangeEvent?: unknown }).skipStateChangeEvent;
     const preferStateConfig = (arg as { preferStateConfig?: unknown }).preferStateConfig;
     const nonInteractive = (arg as { nonInteractive?: unknown }).nonInteractive;
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
@@ -470,6 +474,9 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
         skipRepoSync: typeof skipRepoSync === 'boolean' ? skipRepoSync : undefined,
         skipSettingsInjection:
             typeof skipSettingsInjection === 'boolean' ? skipSettingsInjection : undefined,
+        skipLoadingState: typeof skipLoadingState === 'boolean' ? skipLoadingState : undefined,
+        skipStateChangeEvent:
+            typeof skipStateChangeEvent === 'boolean' ? skipStateChangeEvent : undefined,
         preferStateConfig: typeof preferStateConfig === 'boolean' ? preferStateConfig : undefined,
         nonInteractive: typeof nonInteractive === 'boolean' ? nonInteractive : undefined,
         forceDiscovery: typeof forceDiscovery === 'boolean' ? forceDiscovery : undefined,

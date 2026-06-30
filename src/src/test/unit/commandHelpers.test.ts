@@ -356,6 +356,8 @@ suite('Command Helpers', () => {
                 skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
                 skipSettingsInjection: undefined,
+                skipLoadingState: undefined,
+                skipStateChangeEvent: undefined,
                 preferStateConfig: undefined,
                 nonInteractive: undefined,
                 forceDiscovery: false,
@@ -373,6 +375,8 @@ suite('Command Helpers', () => {
                 skipBuiltInAutoApply: undefined,
                 skipRepoSync: undefined,
                 skipSettingsInjection: undefined,
+                skipLoadingState: undefined,
+                skipStateChangeEvent: undefined,
                 preferStateConfig: undefined,
                 nonInteractive: undefined,
                 forceDiscovery: undefined,
@@ -380,12 +384,19 @@ suite('Command Helpers', () => {
             },
         );
         assert.deepStrictEqual(
-            extractRefreshCommandOptions({ skipRepoSync: true, nonInteractive: true }),
+            extractRefreshCommandOptions({
+                skipRepoSync: true,
+                skipLoadingState: true,
+                skipStateChangeEvent: true,
+                nonInteractive: true,
+            }),
             {
                 skipAutoApply: undefined,
                 skipBuiltInAutoApply: undefined,
                 skipRepoSync: true,
                 skipSettingsInjection: undefined,
+                skipLoadingState: true,
+                skipStateChangeEvent: true,
                 preferStateConfig: undefined,
                 nonInteractive: true,
                 forceDiscovery: undefined,
