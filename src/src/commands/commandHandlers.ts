@@ -435,6 +435,49 @@ function isPathWithin(candidatePath: string, rootPath: string): boolean {
     );
 }
 
+function fileUriToFsPath(uri: string): string | undefined {
+    try {
+        const parsed = new URL(uri);
+        if (parsed.protocol !== 'file:') {
+            return undefined;
+        }
+
+        let fsPath = decodeURIComponent(parsed.pathname);
+        if (/^\/[A-Za-z]:\//.test(fsPath)) {
+            fsPath = fsPath.slice(1);
+        }
+        return path.normalize(fsPath);
+    } catch {
+        return undefined;
+    }
+}
+
+function collectConfiguredMetadataRepoRoots(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    builtInCapability: BuiltInCapabilityRuntimeState,
+): string[] {
+    const roots = new Set<string>();
+
+    if (config.metadataRepos) {
+        for (const repo of config.metadataRepos) {
+            roots.add(path.normalize(resolvePathFromWorkspace(workspaceRoot, repo.localPath)));
+        }
+    }
+
+    if (config.metadataRepo) {
+        roots.add(
+            path.normalize(resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath)),
+        );
+    }
+
+    if (builtInCapability.sourceRoot) {
+        roots.add(path.normalize(builtInCapability.sourceRoot));
+    }
+
+    return Array.from(roots).sort((left, right) => left.localeCompare(right));
+}
+
 function filterSettingsEligibleEffectiveFiles(
     effectiveFiles: EffectiveFile[],
     builtInCapability: BuiltInCapabilityRuntimeState,
@@ -464,10 +507,14 @@ async function updateManagedCopilotPluginSettings(
     workspaceRoot: string,
     previousManagedPluginUris: string[],
     nextManagedPluginUris: string[],
+    configuredMetadataRepoRoots: string[] = [],
 ): Promise<void> {
     const settingsPath = getCopilotPluginSettingsPath(workspaceRoot);
     const normalizedPrevious = normalizeManagedPluginUris(previousManagedPluginUris);
     const normalizedNext = normalizeManagedPluginUris(nextManagedPluginUris);
+    const normalizedConfiguredRoots = configuredMetadataRepoRoots.map((root) =>
+        path.normalize(root),
+    );
 
     let existing: string | undefined;
     try {
@@ -519,7 +566,14 @@ async function updateManagedCopilotPluginSettings(
 
         const normalizedNextSet = new Set(normalizedNext);
         for (const pluginUri of Object.keys(enabledPlugins)) {
-            if (isBundledMetaFlowPluginUri(pluginUri) && !normalizedNextSet.has(pluginUri)) {
+            const pluginPath = fileUriToFsPath(pluginUri);
+            const isConfiguredMetadataPlugin =
+                pluginPath !== undefined &&
+                normalizedConfiguredRoots.some((root) => isPathWithin(pluginPath, root));
+            if (
+                !normalizedNextSet.has(pluginUri) &&
+                (isBundledMetaFlowPluginUri(pluginUri) || isConfiguredMetadataPlugin)
+            ) {
                 delete enabledPlugins[pluginUri];
             }
         }
@@ -556,6 +610,27 @@ async function updateManagedCopilotPluginSettings(
         { formattingOptions: formatOptions },
     );
     const updated = jsonc.applyEdits(existing, edits);
+    const updatedParseErrors: jsonc.ParseError[] = [];
+    const updatedParsed = jsonc.parse(updated, updatedParseErrors, {
+        allowTrailingComma: true,
+        disallowComments: false,
+    });
+    if (
+        updatedParseErrors.length === 0 &&
+        updatedParsed &&
+        typeof updatedParsed === 'object' &&
+        !Array.isArray(updatedParsed) &&
+        Object.keys(updatedParsed as Record<string, unknown>).length === 0
+    ) {
+        try {
+            await fsp.unlink(settingsPath);
+        } catch (err: unknown) {
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+                throw err;
+            }
+        }
+        return;
+    }
 
     await ensureLocalGitExcludeEntry(workspaceRoot, COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH);
     await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
@@ -4809,6 +4884,7 @@ export async function injectWorkspaceSettings(
                 workspace.uri.fsPath,
                 managedPluginUris,
                 nextManagedPluginUris,
+                collectConfiguredMetadataRepoRoots(config, workspace.uri.fsPath, builtInCapability),
             );
             managedPluginUris = normalizeManagedPluginUris(nextManagedPluginUris);
         } catch (pluginErr: unknown) {
