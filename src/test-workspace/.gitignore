@@ -3,6 +3,7 @@
 .metaflow/*
 !.metaflow/
 !.metaflow/config.jsonc
+!.metaflow/config.golden.jsonc
 !.metaflow/governance.jsonc
 
 # Generated built-in capability fixtures created by integration runs.
