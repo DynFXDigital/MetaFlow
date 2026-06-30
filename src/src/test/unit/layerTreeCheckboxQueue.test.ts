@@ -26,16 +26,16 @@ async function waitFor(assertion: () => boolean): Promise<void> {
 }
 
 suite('Layer tree checkbox queue', () => {
-    test('coalesces rapid mutations before the refresh timer fires', async () => {
+    test('coalesces rapid mutations before the settlement timer fires', async () => {
         const events: string[] = [];
         const queue = createLayerTreeCheckboxQueue({
-            refresh: async () => {
-                events.push('refresh');
+            settle: async () => {
+                events.push('settle');
             },
             clearPendingStates: (sequence) => {
                 events.push(`clear-${sequence}`);
             },
-            onRefreshError: (error) => {
+            onSettleError: (error) => {
                 throw error;
             },
         });
@@ -43,34 +43,34 @@ suite('Layer tree checkbox queue', () => {
         void queue.enqueueMutation(async () => {
             events.push('mutation-1');
         });
-        queue.scheduleRefresh(1);
+        queue.scheduleSettlement(1);
         void queue.enqueueMutation(async () => {
             events.push('mutation-2');
         });
-        queue.scheduleRefresh(2);
+        queue.scheduleSettlement(2);
 
         await waitFor(() => events.includes('clear-2'));
 
-        assert.deepStrictEqual(events, ['mutation-1', 'mutation-2', 'refresh', 'clear-2']);
+        assert.deepStrictEqual(events, ['mutation-1', 'mutation-2', 'settle', 'clear-2']);
     });
 
-    test('serializes mutations that arrive while refresh is running', async () => {
+    test('serializes mutations that arrive while settlement is running', async () => {
         const events: string[] = [];
-        const firstRefresh = deferred();
-        let refreshCount = 0;
+        const firstSettlement = deferred();
+        let settlementCount = 0;
         const queue = createLayerTreeCheckboxQueue({
-            refresh: async () => {
-                refreshCount += 1;
-                events.push(`refresh-${refreshCount}-start`);
-                if (refreshCount === 1) {
-                    await firstRefresh.promise;
+            settle: async () => {
+                settlementCount += 1;
+                events.push(`settle-${settlementCount}-start`);
+                if (settlementCount === 1) {
+                    await firstSettlement.promise;
                 }
-                events.push(`refresh-${refreshCount}-end`);
+                events.push(`settle-${settlementCount}-end`);
             },
             clearPendingStates: (sequence) => {
                 events.push(`clear-${sequence}`);
             },
-            onRefreshError: (error) => {
+            onSettleError: (error) => {
                 throw error;
             },
         });
@@ -78,29 +78,29 @@ suite('Layer tree checkbox queue', () => {
         void queue.enqueueMutation(async () => {
             events.push('mutation-1');
         });
-        queue.scheduleRefresh(1);
+        queue.scheduleSettlement(1);
 
-        await waitFor(() => events.includes('refresh-1-start'));
+        await waitFor(() => events.includes('settle-1-start'));
 
         void queue.enqueueMutation(async () => {
             events.push('mutation-2');
         });
-        queue.scheduleRefresh(2);
+        queue.scheduleSettlement(2);
         await tick();
 
-        assert.deepStrictEqual(events, ['mutation-1', 'refresh-1-start']);
+        assert.deepStrictEqual(events, ['mutation-1', 'settle-1-start']);
 
-        firstRefresh.resolve();
+        firstSettlement.resolve();
         await waitFor(() => events.includes('clear-2'));
 
         assert.deepStrictEqual(events, [
             'mutation-1',
-            'refresh-1-start',
-            'refresh-1-end',
+            'settle-1-start',
+            'settle-1-end',
             'clear-1',
             'mutation-2',
-            'refresh-2-start',
-            'refresh-2-end',
+            'settle-2-start',
+            'settle-2-end',
             'clear-2',
         ]);
     });
@@ -108,13 +108,13 @@ suite('Layer tree checkbox queue', () => {
     test('continues queued work after a mutation rejects', async () => {
         const events: string[] = [];
         const queue = createLayerTreeCheckboxQueue({
-            refresh: async () => {
-                events.push('refresh');
+            settle: async () => {
+                events.push('settle');
             },
             clearPendingStates: (sequence) => {
                 events.push(`clear-${sequence}`);
             },
-            onRefreshError: (error) => {
+            onSettleError: (error) => {
                 throw error;
             },
         });
@@ -126,10 +126,10 @@ suite('Layer tree checkbox queue', () => {
         void queue.enqueueMutation(async () => {
             events.push('mutation-2');
         });
-        queue.scheduleRefresh(2);
+        queue.scheduleSettlement(2);
 
         await waitFor(() => events.includes('clear-2'));
 
-        assert.deepStrictEqual(events, ['mutation-1', 'mutation-2', 'refresh', 'clear-2']);
+        assert.deepStrictEqual(events, ['mutation-1', 'mutation-2', 'settle', 'clear-2']);
     });
 });

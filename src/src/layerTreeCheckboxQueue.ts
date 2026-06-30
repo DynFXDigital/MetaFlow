@@ -1,22 +1,22 @@
 export interface LayerTreeCheckboxQueueOptions {
-    refresh: () => Promise<void>;
+    settle: () => Promise<void>;
     clearPendingStates: (maxSequence: number) => void;
-    onRefreshError: (error: unknown) => void;
+    onSettleError: (error: unknown) => void;
 }
 
 export interface LayerTreeCheckboxQueue {
     enqueueMutation: (mutation: () => Promise<void>) => Promise<void>;
-    scheduleRefresh: (clearThroughSequence: number) => void;
+    scheduleSettlement: (clearThroughSequence: number) => void;
 }
 
 export function createLayerTreeCheckboxQueue(
     options: LayerTreeCheckboxQueueOptions,
 ): LayerTreeCheckboxQueue {
     let operationQueue = Promise.resolve();
-    let pendingRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-    let pendingRefreshClearSequence = 0;
-    let deferredRefreshClearSequence = 0;
-    let refreshQueuedOrRunning = false;
+    let pendingSettlementTimer: ReturnType<typeof setTimeout> | undefined;
+    let pendingSettlementClearSequence = 0;
+    let deferredSettlementClearSequence = 0;
+    let settlementQueuedOrRunning = false;
 
     const enqueueOperation = (operation: () => Promise<void>): Promise<void> => {
         const run = operationQueue.then(operation, operation);
@@ -27,29 +27,29 @@ export function createLayerTreeCheckboxQueue(
         return run;
     };
 
-    const enqueueRefresh = (clearThroughSequence: number): void => {
-        if (refreshQueuedOrRunning) {
-            deferredRefreshClearSequence = Math.max(
-                deferredRefreshClearSequence,
+    const enqueueSettlement = (clearThroughSequence: number): void => {
+        if (settlementQueuedOrRunning) {
+            deferredSettlementClearSequence = Math.max(
+                deferredSettlementClearSequence,
                 clearThroughSequence,
             );
             return;
         }
 
-        refreshQueuedOrRunning = true;
+        settlementQueuedOrRunning = true;
         void enqueueOperation(async () => {
             try {
-                await options.refresh();
+                await options.settle();
             } catch (error: unknown) {
-                options.onRefreshError(error);
+                options.onSettleError(error);
             } finally {
                 options.clearPendingStates(clearThroughSequence);
-                refreshQueuedOrRunning = false;
+                settlementQueuedOrRunning = false;
 
-                if (deferredRefreshClearSequence > 0) {
-                    const deferredClearSequence = deferredRefreshClearSequence;
-                    deferredRefreshClearSequence = 0;
-                    enqueueRefresh(deferredClearSequence);
+                if (deferredSettlementClearSequence > 0) {
+                    const deferredClearSequence = deferredSettlementClearSequence;
+                    deferredSettlementClearSequence = 0;
+                    enqueueSettlement(deferredClearSequence);
                 }
             }
         });
@@ -57,20 +57,20 @@ export function createLayerTreeCheckboxQueue(
 
     return {
         enqueueMutation: (mutation) => enqueueOperation(mutation),
-        scheduleRefresh: (clearThroughSequence) => {
-            pendingRefreshClearSequence = Math.max(
-                pendingRefreshClearSequence,
+        scheduleSettlement: (clearThroughSequence) => {
+            pendingSettlementClearSequence = Math.max(
+                pendingSettlementClearSequence,
                 clearThroughSequence,
             );
-            if (pendingRefreshTimer) {
-                clearTimeout(pendingRefreshTimer);
+            if (pendingSettlementTimer) {
+                clearTimeout(pendingSettlementTimer);
             }
-            pendingRefreshTimer = setTimeout(() => {
-                const sequenceToClear = pendingRefreshClearSequence;
-                pendingRefreshClearSequence = 0;
-                pendingRefreshTimer = undefined;
+            pendingSettlementTimer = setTimeout(() => {
+                const sequenceToClear = pendingSettlementClearSequence;
+                pendingSettlementClearSequence = 0;
+                pendingSettlementTimer = undefined;
 
-                enqueueRefresh(sequenceToClear);
+                enqueueSettlement(sequenceToClear);
             });
         },
     };

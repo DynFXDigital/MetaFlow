@@ -47,7 +47,6 @@ import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
-const LAYER_TREE_CHECKBOX_REFRESH_SETTLE_MS = 100;
 
 type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
@@ -500,24 +499,17 @@ export function activate(context: vscode.ExtensionContext): void {
     };
 
     const layerTreeCheckboxQueue = createLayerTreeCheckboxQueue({
-        refresh: async () => {
-            await Promise.resolve(vscode.commands.executeCommand('metaflow.refresh', {
-                skipRepoSync: true,
-                preferStateConfig: true,
-                skipLoadingState: true,
-                skipStateChangeEvent: true,
-            })).then(() => undefined);
-            await new Promise<void>((resolve) =>
-                setTimeout(resolve, LAYER_TREE_CHECKBOX_REFRESH_SETTLE_MS),
-            );
-            state.onDidChange.fire();
-        },
+        // Checkbox clicks must stay independent from full overlay/count refreshes.
+        // Toggle commands already update and persist selection state; a product
+        // refresh can be run separately after interaction, but it must not sit in
+        // the TreeView checkbox event path.
+        settle: async () => undefined,
         clearPendingStates: (clearThroughSequence) => {
             layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
         },
-        onRefreshError: (error) => {
+        onSettleError: (error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logWarn(`Layer tree checkbox refresh failed: ${message}`);
+            logWarn(`Layer tree checkbox settlement failed: ${message}`);
         },
     });
 
@@ -648,7 +640,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (queuedMutation) {
                 const pendingCheckboxSequence =
                     layersTreeViewProvider.getPendingCapabilityCheckboxSequence();
-                layerTreeCheckboxQueue.scheduleRefresh(pendingCheckboxSequence);
+                layerTreeCheckboxQueue.scheduleSettlement(pendingCheckboxSequence);
             }
         }),
     );
