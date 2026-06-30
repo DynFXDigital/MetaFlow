@@ -263,13 +263,81 @@ jobs:
           EXTRA=""
           [ "${{ inputs.channel }}" = "prerelease" ] && EXTRA="--prerelease"
           VSIX_PATH="${{ steps.downloaded_vsix.outputs.vsix_path }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$VSIX_PATH" --clobber
-          else
-            gh release create "$TAG" \
+
+          run_with_retry() {
+            local attempt=1
+            local max_attempts=5
+            local delay_seconds=5
+
+            while true; do
+              if "$@"; then
+                return 0
+              fi
+
+              local exit_code=$?
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "::error::Command failed after ${max_attempts} attempts: $*"
+                return "$exit_code"
+              fi
+
+              echo "::warning::Command failed with exit code ${exit_code}: $*"
+              echo "Retrying in ${delay_seconds}s (attempt ${attempt}/${max_attempts})..."
+              sleep "$delay_seconds"
+              attempt=$((attempt + 1))
+              delay_seconds=$((delay_seconds * 2))
+            done
+          }
+
+          release_status() {
+            local output_file
+            output_file="$(mktemp)"
+
+            if gh release view "$TAG" >"$output_file" 2>&1; then
+              rm -f "$output_file"
+              echo "exists"
+              return 0
+            fi
+
+            local view_output
+            view_output="$(cat "$output_file")"
+            rm -f "$output_file"
+
+            if grep -Eiq "(not found|HTTP 404|status code: 404)" <<< "$view_output"; then
+              echo "missing"
+              return 0
+            fi
+
+            echo "$view_output"
+            return 1
+          }
+
+          status=""
+          for attempt in 1 2 3 4 5; do
+            if status="$(release_status)"; then
+              break
+            fi
+
+            if [ "$attempt" -eq 5 ]; then
+              echo "::error::Unable to determine whether GitHub Release $TAG exists after ${attempt} attempts."
+              echo "$status"
+              exit 1
+            fi
+
+            echo "::warning::Unable to determine whether GitHub Release $TAG exists:"
+            echo "$status"
+            sleep $((5 * attempt))
+          done
+
+          if [ "$status" = "exists" ]; then
+            run_with_retry gh release upload "$TAG" "$VSIX_PATH" --clobber
+          elif [ "$status" = "missing" ]; then
+            run_with_retry gh release create "$TAG" \
               "$VSIX_PATH" \
               --verify-tag \
               --title "$TAG" \
               --generate-notes \
               $EXTRA
+          else
+            echo "::error::Unexpected release status for $TAG: $status"
+            exit 1
           fi
