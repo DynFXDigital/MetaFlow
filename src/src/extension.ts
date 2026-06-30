@@ -43,6 +43,7 @@ import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedul
 import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
 import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
 import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
+import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -497,76 +498,20 @@ export function activate(context: vscode.ExtensionContext): void {
             });
     };
 
-    let pendingLayerTreeCheckboxMutation = Promise.resolve();
-    let pendingLayerTreeCheckboxMutationGeneration = 0;
-    let pendingLayerTreeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-    let pendingLayerTreeRefreshClearSequence = 0;
-    let deferredLayerTreeRefreshClearSequence = 0;
-    let layerTreeCheckboxRefreshRunning = false;
-
-    const enqueueLayerTreeCheckboxMutation = (mutation: () => Promise<void>): Promise<void> => {
-        pendingLayerTreeCheckboxMutationGeneration += 1;
-        const run = pendingLayerTreeCheckboxMutation.then(mutation, mutation);
-        pendingLayerTreeCheckboxMutation = run.then(
-            () => undefined,
-            () => undefined,
-        );
-        return run;
-    };
-
-    const runLayerTreeCheckboxRefresh = (clearThroughSequence: number): void => {
-        if (layerTreeCheckboxRefreshRunning) {
-            deferredLayerTreeRefreshClearSequence = Math.max(
-                deferredLayerTreeRefreshClearSequence,
-                clearThroughSequence,
-            );
-            return;
-        }
-
-        layerTreeCheckboxRefreshRunning = true;
-        void (async () => {
-            try {
-                let observedGeneration: number;
-                do {
-                    observedGeneration = pendingLayerTreeCheckboxMutationGeneration;
-                    await pendingLayerTreeCheckboxMutation;
-                } while (observedGeneration !== pendingLayerTreeCheckboxMutationGeneration);
-
-                await vscode.commands.executeCommand('metaflow.refresh', {
-                    skipRepoSync: true,
-                    preferStateConfig: true,
-                });
-            } catch (error: unknown) {
-                const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Layer tree checkbox refresh failed: ${message}`);
-            } finally {
-                layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
-                layerTreeCheckboxRefreshRunning = false;
-                if (deferredLayerTreeRefreshClearSequence > 0) {
-                    const deferredClearSequence = deferredLayerTreeRefreshClearSequence;
-                    deferredLayerTreeRefreshClearSequence = 0;
-                    runLayerTreeCheckboxRefresh(deferredClearSequence);
-                }
-            }
-        })();
-    };
-
-    const scheduleLayerTreeCheckboxRefresh = (clearThroughSequence: number): void => {
-        pendingLayerTreeRefreshClearSequence = Math.max(
-            pendingLayerTreeRefreshClearSequence,
-            clearThroughSequence,
-        );
-        if (pendingLayerTreeRefreshTimer) {
-            clearTimeout(pendingLayerTreeRefreshTimer);
-        }
-        pendingLayerTreeRefreshTimer = setTimeout(() => {
-            const sequenceToClear = pendingLayerTreeRefreshClearSequence;
-            pendingLayerTreeRefreshClearSequence = 0;
-            pendingLayerTreeRefreshTimer = undefined;
-
-            runLayerTreeCheckboxRefresh(sequenceToClear);
-        });
-    };
+    const layerTreeCheckboxQueue = createLayerTreeCheckboxQueue({
+        refresh: () =>
+            Promise.resolve(vscode.commands.executeCommand('metaflow.refresh', {
+                skipRepoSync: true,
+                preferStateConfig: true,
+            })).then(() => undefined),
+        clearPendingStates: (clearThroughSequence) => {
+            layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
+        },
+        onRefreshError: (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            logWarn(`Layer tree checkbox refresh failed: ${message}`);
+        },
+    });
 
     context.subscriptions.push(
         state.onDidChange.event(() => {
@@ -636,7 +581,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         repoId,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
-                    void enqueueLayerTreeCheckboxMutation(async () => {
+                    void layerTreeCheckboxQueue.enqueueMutation(async () => {
                         await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                             repoId,
                             checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
@@ -654,7 +599,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         layerPath,
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
-                    void enqueueLayerTreeCheckboxMutation(async () => {
+                    void layerTreeCheckboxQueue.enqueueMutation(async () => {
                         await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
                             repoId,
                             layerPath,
@@ -681,7 +626,7 @@ export function activate(context: vscode.ExtensionContext): void {
                         checked: checkboxState === vscode.TreeItemCheckboxState.Checked,
                     });
                 }
-                void enqueueLayerTreeCheckboxMutation(async () => {
+                void layerTreeCheckboxQueue.enqueueMutation(async () => {
                     await vscode.commands.executeCommand('metaflow.toggleLayer', {
                         layerIndex: typeof layerIndex === 'number' ? layerIndex : undefined,
                         repoId,
@@ -695,7 +640,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (queuedMutation) {
                 const pendingCheckboxSequence =
                     layersTreeViewProvider.getPendingCapabilityCheckboxSequence();
-                scheduleLayerTreeCheckboxRefresh(pendingCheckboxSequence);
+                layerTreeCheckboxQueue.scheduleRefresh(pendingCheckboxSequence);
             }
         }),
     );
