@@ -5119,6 +5119,11 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
+            const notifyStateChanged = (): void => {
+                if (!refreshOptions.skipStateChangeEvent) {
+                    state.onDidChange.fire();
+                }
+            };
             const autoAcceptRefreshUpdatesInTests =
                 context.extensionMode === vscode.ExtensionMode.Test;
             const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
@@ -5131,9 +5136,11 @@ export function registerCommands(
             const pendingCapabilityPluginMetadataDirtyVersion =
                 state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
-            updateStatusBar('loading');
-            state.isLoading = true;
-            state.onDidChange.fire();
+            if (!refreshOptions.skipLoadingState) {
+                updateStatusBar('loading');
+                state.isLoading = true;
+                notifyStateChanged();
+            }
 
             try {
                 const result =
@@ -5191,7 +5198,7 @@ export function registerCommands(
                         pendingCapabilityPluginMetadataDirtyVersion,
                     );
                     state.isLoading = false;
-                    state.onDidChange.fire();
+                    notifyStateChanged();
                     return;
                 }
 
@@ -5530,7 +5537,7 @@ export function registerCommands(
                     pendingCapabilityPluginMetadataDirtyVersion,
                 );
                 state.isLoading = false;
-                state.onDidChange.fire();
+                notifyStateChanged();
 
                 if (!refreshOptions.skipAutoApply && overlayResolved) {
                     if (autoApplyEnabled) {
@@ -5542,7 +5549,7 @@ export function registerCommands(
                 }
             } catch (err: unknown) {
                 state.isLoading = false;
-                state.onDidChange.fire();
+                notifyStateChanged();
                 throw err;
             }
         }),

@@ -35,11 +35,15 @@ type HarnessConfig = {
 };
 
 class MockEventEmitter {
+    public fireCount = 0;
+
     public event = (): { dispose: () => void } => ({
         dispose: () => {},
     });
 
-    public fire(): void {}
+    public fire(): void {
+        this.fireCount += 1;
+    }
 
     public dispose(): void {}
 }
@@ -76,6 +80,7 @@ function createCommandHandlersHarness(initResult: boolean) {
             Workspace: 2,
             WorkspaceFolder: 3,
         },
+        ExtensionMode: { Test: 3 },
         TreeItemCheckboxState: {
             Checked: 1,
             Unchecked: 0,
@@ -529,6 +534,25 @@ suite('Command Handlers initConfig command', () => {
 
             assert.deepStrictEqual(harness.progressTitles, []);
             assert.deepStrictEqual(harness.executedCommands, []);
+        } finally {
+            harness.dispose();
+        }
+    });
+
+    test('refresh skips tree invalidation when requested', async () => {
+        const harness = createCommandHandlersHarness(true);
+
+        try {
+            const callback = harness.registeredCommands.get('metaflow.refresh');
+            assert.ok(callback, 'metaflow.refresh command should be registered');
+
+            await callback!({ skipLoadingState: true, skipStateChangeEvent: true });
+
+            assert.strictEqual(
+                harness.state.onDidChange.fireCount,
+                0,
+                'checkbox refreshes should be able to update state without immediately redrawing the tree',
+            );
         } finally {
             harness.dispose();
         }

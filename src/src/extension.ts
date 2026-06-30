@@ -47,6 +47,7 @@ import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
+const LAYER_TREE_CHECKBOX_REFRESH_SETTLE_MS = 100;
 
 type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
@@ -499,11 +500,18 @@ export function activate(context: vscode.ExtensionContext): void {
     };
 
     const layerTreeCheckboxQueue = createLayerTreeCheckboxQueue({
-        refresh: () =>
-            Promise.resolve(vscode.commands.executeCommand('metaflow.refresh', {
+        refresh: async () => {
+            await Promise.resolve(vscode.commands.executeCommand('metaflow.refresh', {
                 skipRepoSync: true,
                 preferStateConfig: true,
-            })).then(() => undefined),
+                skipLoadingState: true,
+                skipStateChangeEvent: true,
+            })).then(() => undefined);
+            await new Promise<void>((resolve) =>
+                setTimeout(resolve, LAYER_TREE_CHECKBOX_REFRESH_SETTLE_MS),
+            );
+            state.onDidChange.fire();
+        },
         clearPendingStates: (clearThroughSequence) => {
             layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
         },
