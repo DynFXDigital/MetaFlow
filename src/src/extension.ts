@@ -44,10 +44,10 @@ import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetad
 import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
 import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
 import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
+import { createLayerTreeCheckboxIdleRefreshScheduler } from './layerTreeCheckboxIdleRefresh';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
-const LAYER_TREE_CHECKBOX_REFRESH_IDLE_MS = 3000;
 
 type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
@@ -499,59 +499,17 @@ export function activate(context: vscode.ExtensionContext): void {
             });
     };
 
-    let layerTreeCheckboxRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-    let layerTreeCheckboxRefreshRunning = false;
-    let layerTreeCheckboxRefreshRequested = false;
-
-    function runLayerTreeCheckboxRefresh(): void {
-        layerTreeCheckboxRefreshTimer = undefined;
-        if (layerTreeCheckboxRefreshRunning || !layerTreeCheckboxRefreshRequested) {
-            return;
-        }
-
-        layerTreeCheckboxRefreshRunning = true;
-        layerTreeCheckboxRefreshRequested = false;
-        void Promise.resolve(
-            vscode.commands.executeCommand('metaflow.refresh', {
-                skipRepoSync: true,
-                preferStateConfig: true,
-                skipLoadingState: true,
-                skipStateChangeEvent: true,
-            }),
-        )
-            .then(() => {
-                state.onDidChange.fire();
-            })
-            .catch((error: unknown) => {
-                const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Layer tree checkbox idle refresh failed: ${message}`);
-            })
-            .finally(() => {
-                layerTreeCheckboxRefreshRunning = false;
-                if (layerTreeCheckboxRefreshRequested) {
-                    scheduleLayerTreeCheckboxRefresh();
-                }
-            });
-    }
-
-    function scheduleLayerTreeCheckboxRefresh(): void {
-        layerTreeCheckboxRefreshRequested = true;
-        if (layerTreeCheckboxRefreshTimer) {
-            clearTimeout(layerTreeCheckboxRefreshTimer);
-        }
-        layerTreeCheckboxRefreshTimer = setTimeout(
-            runLayerTreeCheckboxRefresh,
-            LAYER_TREE_CHECKBOX_REFRESH_IDLE_MS,
-        );
-    }
-
-    context.subscriptions.push({
-        dispose: () => {
-            if (layerTreeCheckboxRefreshTimer) {
-                clearTimeout(layerTreeCheckboxRefreshTimer);
-            }
+    const layerTreeCheckboxIdleRefresh = createLayerTreeCheckboxIdleRefreshScheduler({
+        executeRefresh: (options) => vscode.commands.executeCommand('metaflow.refresh', options),
+        fireStateChanged: () => {
+            state.onDidChange.fire();
+        },
+        onRefreshError: (error) => {
+            const message = error instanceof Error ? error.message : String(error);
+            logWarn(`Layer tree checkbox idle refresh failed: ${message}`);
         },
     });
+    context.subscriptions.push(layerTreeCheckboxIdleRefresh);
 
     const layerTreeCheckboxQueue = createLayerTreeCheckboxQueue({
         // Checkbox clicks must stay independent from full overlay/count refreshes.
@@ -559,7 +517,7 @@ export function activate(context: vscode.ExtensionContext): void {
         // refresh that regenerates derived settings/counts runs only after clicks
         // go idle so it does not compete with TreeView checkbox event delivery.
         settle: async () => {
-            scheduleLayerTreeCheckboxRefresh();
+            layerTreeCheckboxIdleRefresh.schedule();
         },
         clearPendingStates: (clearThroughSequence) => {
             layersTreeViewProvider.clearPendingCapabilityCheckboxStates(clearThroughSequence);
