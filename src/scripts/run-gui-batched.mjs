@@ -12,6 +12,7 @@
  * Usage:
  *   node ./scripts/run-gui-batched.mjs            # all suites, batches of 6
  *   GUI_BATCH_SIZE=4 node ./scripts/run-gui-batched.mjs
+ *   GUI_VSCODE_VERSION=1.110.0 node ./scripts/run-gui-batched.mjs
  *   node ./scripts/run-gui-batched.mjs 12 19 22   # only suites whose basename
  *                                                 # starts with these prefixes
  *
@@ -36,6 +37,7 @@ const EXTENSIONS = '.vscode-test/gui/extensions';
 const VSIX = 'metaflow-test.vsix';
 
 const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '6'));
+const codeVersion = process.env.GUI_VSCODE_VERSION ?? '1.110.0';
 const prefixes = process.argv.slice(2);
 
 function runExtest(args, label) {
@@ -52,8 +54,11 @@ function runExtest(args, label) {
 
 // ── Setup: download VS Code + chromedriver (idempotent) and install the VSIX ──
 const setupSteps = [
-    [['get-vscode', '-s', STORAGE], 'download VS Code'],
-    [['get-chromedriver', '-s', STORAGE], 'download chromedriver'],
+    [['get-vscode', '-s', STORAGE, '-c', codeVersion], `download VS Code ${codeVersion}`],
+    [
+        ['get-chromedriver', '-s', STORAGE, '-c', codeVersion],
+        `download chromedriver for VS Code ${codeVersion}`,
+    ],
     [['install-vsix', '-s', STORAGE, '-e', EXTENSIONS, '-f', VSIX], 'install VSIX'],
 ];
 for (const [args, label] of setupSteps) {
@@ -93,11 +98,18 @@ for (const [idx, batch] of batches.entries()) {
         [
             'run-tests',
             ...files,
-            '-s', STORAGE,
-            '-e', EXTENSIONS,
-            '-r', 'test-workspace',
-            '-m', '.mocharc-gui.js',
-            '-o', '.vscode-test-gui-settings.json',
+            '-s',
+            STORAGE,
+            '-e',
+            EXTENSIONS,
+            '-c',
+            codeVersion,
+            '-r',
+            'test-workspace',
+            '-m',
+            '.mocharc-gui.js',
+            '-o',
+            '.vscode-test-gui-settings.json',
         ],
         label,
     );
@@ -112,7 +124,7 @@ for (const [idx, batch] of batches.entries()) {
 
 console.log(
     `\n=== GUI batched summary: ${totalPass} passing, ${totalFail} failing ` +
-    `across ${batches.length} batch(es) of ${batchSize} ===`,
+        `across ${batches.length} batch(es) of ${batchSize} ===`,
 );
 if (failedBatches.length > 0) {
     console.log('Batches with failures:');
