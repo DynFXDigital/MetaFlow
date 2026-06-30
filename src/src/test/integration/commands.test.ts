@@ -5976,8 +5976,15 @@ suite('Command Execution', function () {
         }
     });
 
-    test('initMetaFlowAiMetadata synchronize mode overwrites managed files', async function () {
+    test('aiMetadataAutoApplyMode synchronize overwrites managed files on refresh', async function () {
         this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
 
         const instructionPath = path.join(
             workspaceRoot,
@@ -5989,28 +5996,32 @@ suite('Command Execution', function () {
             ? fs.readFileSync(instructionPath, 'utf-8')
             : undefined;
 
-        const windowAny = vscode.window as unknown as {
-            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
-        };
-        const originalQuickPick = windowAny.showQuickPick;
-        windowAny.showQuickPick = async (items: unknown) => {
-            const picks = items as Array<{ mode?: string }>;
-            return picks.find((pick) => pick.mode === 'synchronize') ?? picks[0];
-        };
-
+        await updateConfigAndWait(
+            'metaflow.aiMetadataAutoApplyMode',
+            'off',
+            vscode.ConfigurationTarget.Workspace,
+            wsFolder!,
+        );
+        await resetBuiltInCapabilityState();
         if (fs.existsSync(instructionPath)) {
             fs.rmSync(instructionPath, { force: true });
         }
 
         try {
-            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'synchronize',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
             assert.ok(
                 fs.existsSync(instructionPath),
-                'Starter metadata command should scaffold instruction templates',
+                'Synchronized auto-apply should scaffold instruction templates',
             );
 
             fs.writeFileSync(instructionPath, '# local customization\n', 'utf-8');
-            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
+            await vscode.commands.executeCommand('metaflow.refresh');
 
             const after = fs.readFileSync(instructionPath, 'utf-8');
             assert.ok(
@@ -6018,16 +6029,23 @@ suite('Command Execution', function () {
                 'Synchronize mode should overwrite managed files deterministically',
             );
         } finally {
-            windowAny.showQuickPick = originalQuickPick;
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
             if (originalInstruction === undefined) {
                 fs.rmSync(instructionPath, { force: true });
             } else {
                 fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
             }
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 
-    test('initMetaFlowAiMetadata synchronize mode stays active for refresh re-synchronization', async function () {
+    test('aiMetadataAutoApplyMode synchronize stays active for refresh re-synchronization', async function () {
         this.timeout(25000);
 
         const instructionPath = path.join(
@@ -6044,19 +6062,20 @@ suite('Command Execution', function () {
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
         const previousAutoApply = wsConfig.inspect<boolean>('metaflow.autoApply')?.workspaceValue;
-
-        const windowAny = vscode.window as unknown as {
-            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
-        };
-        const originalQuickPick = windowAny.showQuickPick;
-        windowAny.showQuickPick = async (items: unknown) => {
-            const picks = items as Array<{ mode?: string }>;
-            return picks.find((pick) => pick.mode === 'synchronize') ?? picks[0];
-        };
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
 
         try {
             await wsConfig.update('metaflow.autoApply', true, vscode.ConfigurationTarget.Workspace);
-            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'synchronize',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
 
             assert.ok(
                 fs.existsSync(instructionPath),
@@ -6074,17 +6093,23 @@ suite('Command Execution', function () {
                 'Refresh should auto-apply and restore built-in synchronized metadata after local drift',
             );
         } finally {
-            windowAny.showQuickPick = originalQuickPick;
             await wsConfig.update(
                 'metaflow.autoApply',
                 previousAutoApply,
                 vscode.ConfigurationTarget.Workspace,
+            );
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             if (originalInstruction === undefined) {
                 fs.rmSync(instructionPath, { force: true });
             } else {
                 fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
             }
+            await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
@@ -6096,21 +6121,10 @@ suite('Command Execution', function () {
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
 
         const windowAny = vscode.window as unknown as {
-            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
             showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
         };
-        const originalQuickPick = windowAny.showQuickPick;
         const originalWarning = windowAny.showWarningMessage;
 
-        let builtInEnabledPickCount = 0;
-        windowAny.showQuickPick = async (items: unknown) => {
-            const picks = items as Array<{ mode?: string }>;
-            if (picks.some((pick) => pick.mode === 'builtin')) {
-                builtInEnabledPickCount += 1;
-                return picks.find((pick) => pick.mode === 'builtin') ?? picks[0];
-            }
-            return picks[0];
-        };
         windowAny.showWarningMessage = async (message: unknown) => {
             if (
                 typeof message === 'string' &&
@@ -6141,12 +6155,7 @@ suite('Command Execution', function () {
                 originalConfig,
                 'Removing built-in mode should not mutate .metaflow/config.jsonc',
             );
-            assert.ok(
-                builtInEnabledPickCount > 0,
-                'Test should exercise built-in initialization mode',
-            );
         } finally {
-            windowAny.showQuickPick = originalQuickPick;
             windowAny.showWarningMessage = originalWarning;
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -6155,6 +6164,13 @@ suite('Command Execution', function () {
 
     test('TC-0338: synchronize mode uninstall fully clears tracked capability state', async function () {
         this.timeout(25000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
+        const previousMode = wsConfig.inspect<string>(
+            'metaflow.aiMetadataAutoApplyMode',
+        )?.workspaceValue;
 
         const windowAny = vscode.window as unknown as {
             showQuickPick: (...items: unknown[]) => Thenable<unknown>;
@@ -6195,7 +6211,14 @@ suite('Command Execution', function () {
         };
 
         try {
-            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                'synchronize',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
             await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
 
@@ -6211,6 +6234,12 @@ suite('Command Execution', function () {
             windowAny.showQuickPick = originalQuickPick;
             windowAny.showWarningMessage = originalWarning;
             windowAny.showInformationMessage = originalInfo;
+            await updateConfigAndWait(
+                'metaflow.aiMetadataAutoApplyMode',
+                previousMode,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
             await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh');
         }

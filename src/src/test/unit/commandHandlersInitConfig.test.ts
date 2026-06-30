@@ -283,6 +283,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                               layerEnabled?: boolean;
                               layerStates?: Record<string, boolean>;
                               synchronizedFiles?: string[];
+                              injection?: Record<string, string>;
                           }
                         | undefined;
 
@@ -291,6 +292,7 @@ function createCommandHandlersHarness(initResult: boolean) {
                         layerEnabled: payload?.layerEnabled ?? true,
                         layerStates: payload?.layerStates ?? {},
                         synchronizedFiles: payload?.synchronizedFiles ?? [],
+                        injection: payload?.injection,
                         sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
                         sourceId: 'dynfxdigital.metaflow-ai',
                         sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
@@ -307,6 +309,9 @@ function createCommandHandlersHarness(initResult: boolean) {
                 ) => state.layerStates?.[layerPath] ?? state.layerEnabled,
                 sanitizeBuiltInLayerStates: (value: Record<string, boolean> | undefined) =>
                     value ?? {},
+                sanitizeBuiltInInjectionConfig: (
+                    value: Record<string, string> | undefined,
+                ) => value,
                 sanitizeSynchronizedFiles: (files: string[]) => files,
             };
         }

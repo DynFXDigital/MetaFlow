@@ -1,10 +1,13 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import type { InjectionConfig, InjectionMode } from '@metaflow/engine';
 
 export const BUILT_IN_CAPABILITY_STATE_KEY = 'metaflow.builtInCapability.v1';
 export const BUILT_IN_CAPABILITY_REPO_ID = '__metaflow_builtin__';
 export const BUILT_IN_CAPABILITY_LAYER_PATH = '.';
 export const BUILT_IN_CAPABILITY_LAYER_LABEL = 'MetaFlow';
+
+const BUILT_IN_INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
 
 export interface BuiltInCapabilityWorkspaceState {
     enabled?: boolean;
@@ -12,6 +15,7 @@ export interface BuiltInCapabilityWorkspaceState {
     disabledByUser?: boolean;
     synchronizedFiles?: string[];
     layerStates?: Record<string, boolean>;
+    injection?: InjectionConfig;
 }
 
 export interface BuiltInCapabilityRuntimeState {
@@ -20,6 +24,7 @@ export interface BuiltInCapabilityRuntimeState {
     disabledByUser?: boolean;
     synchronizedFiles: string[];
     layerStates?: Record<string, boolean>;
+    injection?: InjectionConfig;
     sourceRoot?: string;
     sourceId: string;
     sourceDisplayName: string;
@@ -31,6 +36,7 @@ export interface BuiltInCapabilityActivationState {
     disabledByUser?: boolean;
     synchronizedFiles: string[];
     layerStates?: Record<string, boolean>;
+    injection?: InjectionConfig;
 }
 
 export interface WorkspaceStateLike {
@@ -63,6 +69,7 @@ export function readBuiltInCapabilityRuntimeState(
         disabledByUser: payload?.disabledByUser ?? false,
         synchronizedFiles: sanitizeSynchronizedFiles(payload?.synchronizedFiles),
         layerStates: sanitizeBuiltInLayerStates(payload?.layerStates),
+        injection: sanitizeBuiltInInjectionConfig(payload?.injection),
         sourceRoot,
         sourceId,
         sourceDisplayName,
@@ -181,4 +188,27 @@ export function sanitizeBuiltInLayerStates(
     }
 
     return sanitized;
+}
+
+function isBuiltInInjectionMode(value: unknown): value is InjectionMode {
+    return value === 'settings' || value === 'synchronize' || value === 'plugin';
+}
+
+export function sanitizeBuiltInInjectionConfig(
+    injection: unknown,
+): InjectionConfig | undefined {
+    if (!injection || typeof injection !== 'object' || Array.isArray(injection)) {
+        return undefined;
+    }
+
+    const source = injection as Record<string, unknown>;
+    const sanitized: InjectionConfig = {};
+    for (const key of BUILT_IN_INJECTION_KEYS) {
+        const mode = source[key];
+        if (isBuiltInInjectionMode(mode)) {
+            sanitized[key] = mode;
+        }
+    }
+
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }

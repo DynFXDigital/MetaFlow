@@ -120,6 +120,7 @@ import {
     resolveBuiltInCapabilityDisplayName,
     resolveBuiltInLayerEnabled,
     resolveBuiltInRepoEnabled,
+    sanitizeBuiltInInjectionConfig,
     sanitizeBuiltInLayerStates,
     sanitizeSynchronizedFiles,
 } from '../builtInCapability';
@@ -715,6 +716,7 @@ export function createState(): ExtensionState {
             layerEnabled: true,
             disabledByUser: false,
             synchronizedFiles: [],
+            injection: undefined,
             sourceRoot: undefined,
             sourceId: 'unknown.extension',
             sourceDisplayName: 'unknown.extension',
@@ -762,6 +764,7 @@ function cloneBuiltInCapabilityRuntimeState(
         ...state,
         synchronizedFiles: [...state.synchronizedFiles],
         layerStates: { ...(state.layerStates ?? {}) },
+        injection: sanitizeBuiltInInjectionConfig(state.injection),
     };
 }
 
@@ -778,6 +781,7 @@ function previewBuiltInCapabilityWorkspaceState(
             patch.synchronizedFiles ?? currentState.synchronizedFiles,
         ),
         layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
+        injection: sanitizeBuiltInInjectionConfig(patch.injection ?? currentState.injection),
     };
 }
 
@@ -1415,6 +1419,7 @@ function resolveInjectionCommandTarget(
 }
 
 async function runDirectsynchronizationCommand(
+    context: vscode.ExtensionContext,
     state: ExtensionState,
     arg: unknown,
     mutation: InjectionMutationSelection,
@@ -1427,9 +1432,7 @@ async function runDirectsynchronizationCommand(
 
     const requestedRepoId = extractRepoId(arg);
     if (requestedRepoId === BUILT_IN_CAPABILITY_REPO_ID) {
-        vscode.window.showWarningMessage(
-            'MetaFlow: Built-in capability injection is not configurable yet.',
-        );
+        await applyBuiltInRepoInjectionMutation(context, state, mutation);
         return;
     }
 
@@ -1462,6 +1465,50 @@ async function runDirectsynchronizationCommand(
     );
     void vscode.window.showInformationMessage(
         `MetaFlow: Updated injection policy for ${updatedLabel}.`,
+    );
+    await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+}
+
+async function applyBuiltInRepoInjectionMutation(
+    context: vscode.ExtensionContext,
+    state: ExtensionState,
+    mutation: InjectionMutationSelection,
+): Promise<void> {
+    if (!isBuiltInCapabilityActive(state.builtInCapability)) {
+        vscode.window.showWarningMessage('MetaFlow: Built-in capability is not active.');
+        return;
+    }
+
+    const nextInjection = applyInjectionMutation(state.builtInCapability.injection, mutation);
+    const candidateBuiltInCapability = previewBuiltInCapabilityWorkspaceState(
+        state.builtInCapability,
+        {
+            injection: nextInjection,
+        },
+    );
+    const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+    const applied = await executeGovernedMutation({
+        actionLabel: 'configuring built-in capability injection defaults',
+        state,
+        candidateConfig,
+        candidateBuiltInCapability,
+        persist: async () => {
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                {
+                    injection: nextInjection,
+                },
+            );
+        },
+    });
+    if (!applied) {
+        return;
+    }
+
+    logInfo(`Configured built-in capability injection defaults: ${describeInjectionConfig(nextInjection)}`);
+    void vscode.window.showInformationMessage(
+        'MetaFlow: Updated injection defaults for built-in MetaFlow capability.',
     );
     await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
 }
@@ -2469,11 +2516,13 @@ function withBuiltInCapabilityProjected(
             name: builtInRepoLabel,
             localPath: builtInState.sourceRoot,
             enabled: builtInRepoEnabled,
+            injection: builtInState.injection,
         });
     } else {
         existingRepo.name = builtInRepoLabel;
         existingRepo.localPath = builtInState.sourceRoot;
         existingRepo.enabled = builtInRepoEnabled;
+        existingRepo.injection = builtInState.injection;
     }
 
     multiRepo.layerSources = multiRepo.layerSources.filter(
@@ -2551,6 +2600,10 @@ async function writeBuiltInCapabilityWorkspaceState(
         ),
         layerStates: sanitizeBuiltInLayerStates(patch.layerStates ?? currentState.layerStates),
     };
+    const injection = sanitizeBuiltInInjectionConfig(patch.injection ?? currentState.injection);
+    if (injection) {
+        payload.injection = injection;
+    }
 
     await context.workspaceState.update(BUILT_IN_CAPABILITY_STATE_KEY, payload);
     return loadBuiltInCapabilityRuntimeState(context);
@@ -6684,9 +6737,22 @@ export function registerCommands(
 
                 const requestedRepoId = extractRepoId(arg);
                 if (requestedRepoId === BUILT_IN_CAPABILITY_REPO_ID) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: Built-in capability injection is not configurable yet.',
-                    );
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
@@ -6798,18 +6864,45 @@ export function registerCommands(
 
                 let repoId = extractRepoId(arg);
                 if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: Built-in capability injection is not configurable yet.',
-                    );
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
                 const { metadataRepos } = ensureMultiRepoConfig(state.config);
                 if (!repoId) {
+                    const builtInRepoPick =
+                        isBuiltInCapabilityActive(state.builtInCapability) &&
+                        state.builtInCapability.sourceRoot
+                            ? [
+                                  {
+                                      label: resolveBuiltInCapabilityDisplayName(
+                                          state.repoMetadataById[BUILT_IN_CAPABILITY_REPO_ID]?.name,
+                                          state.builtInCapability.sourceDisplayName,
+                                      ),
+                                      description: BUILT_IN_CAPABILITY_REPO_ID,
+                                      detail: `Current defaults: ${describeInjectionConfig(state.builtInCapability.injection)}`,
+                                      repoId: BUILT_IN_CAPABILITY_REPO_ID,
+                                  },
+                              ]
+                            : [];
                     const selection = await vscode.window.showQuickPick(
-                        metadataRepos
-                            .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID)
-                            .map((repo) => ({
+                        [
+                            ...metadataRepos.map((repo) => ({
                                 label: resolveRepoDisplayLabel(
                                     repo.id,
                                     repo.name,
@@ -6820,6 +6913,8 @@ export function registerCommands(
                                 detail: `Current defaults: ${describeInjectionConfig(repo.injection)}`,
                                 repoId: repo.id,
                             })),
+                            ...builtInRepoPick,
+                        ],
                         {
                             title: 'MetaFlow: Configure Repository Injection Defaults',
                             placeHolder: 'Select a repository source to configure',
@@ -6830,6 +6925,26 @@ export function registerCommands(
                 }
 
                 if (!repoId) {
+                    return;
+                }
+
+                if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
+                    const mutation =
+                        buildInjectionSelectionFromArg(arg) ??
+                        (await promptForInjectionMutation(
+                            'built-in MetaFlow capability',
+                            state.builtInCapability.injection,
+                            'Clear all built-in defaults',
+                            (artifactType) =>
+                                resolveInheritedInjectionMode(
+                                    artifactType,
+                                    undefined,
+                                    state.config?.injection,
+                                ),
+                        ));
+                    if (mutation) {
+                        await applyBuiltInRepoInjectionMutation(context, state, mutation);
+                    }
                     return;
                 }
 
@@ -6882,7 +6997,8 @@ export function registerCommands(
             context.subscriptions.push(
                 vscode.commands.registerCommand(
                     buildDirectsynchronizationCommandId(artifactType, mode),
-                    async (arg?: unknown) => runDirectsynchronizationCommand(state, arg, mutation),
+                    async (arg?: unknown) =>
+                        runDirectsynchronizationCommand(context, state, arg, mutation),
                 ),
             );
         }
@@ -6898,7 +7014,8 @@ export function registerCommands(
         context.subscriptions.push(
             vscode.commands.registerCommand(
                 buildGlobalInjectionPolicyCommandId(mode),
-                async (arg?: unknown) => runDirectsynchronizationCommand(state, arg, { preset }),
+                async (arg?: unknown) =>
+                    runDirectsynchronizationCommand(context, state, arg, { preset }),
             ),
         );
     }
@@ -8433,63 +8550,6 @@ export function registerCommands(
         vscode.commands.registerCommand('metaflow.initMetaFlowAiMetadata', async () => {
             const ws = getWorkspace();
             if (!ws) {
-                return;
-            }
-
-            const setupMode = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: 'Synchronize MetaFlow capability files into .github',
-                        description:
-                            'Overwrite synchronized MetaFlow capability files in this workspace.',
-                        mode: 'synchronize' as const,
-                    },
-                    {
-                        label: 'Enable built-in MetaFlow capability (settings-only)',
-                        description:
-                            'Use bundled MetaFlow capability files without modifying .metaflow/config.jsonc.',
-                        mode: 'builtin' as const,
-                    },
-                ],
-                {
-                    title: 'MetaFlow: Initialize MetaFlow Capability',
-                    placeHolder: 'Choose how to initialize MetaFlow capability support',
-                    ignoreFocusOut: true,
-                },
-            );
-
-            if (!setupMode) {
-                return;
-            }
-
-            if (setupMode.mode === 'synchronize') {
-                const synchronized = await scaffoldMetaFlowAiMetadata({
-                    workspaceRoot: ws.uri.fsPath,
-                    extensionPath: context.extensionPath,
-                    overwriteExisting: true,
-                });
-
-                if (!synchronized) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: MetaFlow capability assets are unavailable in this extension build.',
-                    );
-                    return;
-                }
-
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
-                    state.builtInCapability,
-                    {
-                        enabled: false,
-                        layerEnabled: true,
-                        synchronizedFiles: synchronized.writtenFiles,
-                    },
-                );
-
-                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
-                vscode.window.showInformationMessage(
-                    `MetaFlow: Synchronized ${synchronized.writtenFiles.length} MetaFlow capability file(s) into .github.`,
-                );
                 return;
             }
 

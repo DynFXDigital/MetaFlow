@@ -542,7 +542,7 @@
         },
         {
           "submenu": "metaflow.synchronization",
-          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
+          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
           "group": "3_configure@1"
         },
         {
@@ -609,15 +609,15 @@
       "metaflow.synchronization": [
         {
           "command": "metaflow.injectionPolicy.global.inherit",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin"
         },
         {
           "command": "metaflow.injectionPolicy.global.settings",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin"
         },
         {
           "command": "metaflow.injectionPolicy.global.synchronize",
-          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead"
+          "when": "viewItem == layerRepo || viewItem == layer || viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin"
         },
         {
           "command": "metaflow.synchronization.instructions.settings",
