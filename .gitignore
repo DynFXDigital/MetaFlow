@@ -58,3 +58,4 @@ tmp-*.log
 !src/test-workspace/.metaflow/
 src/test-workspace/.metaflow/*
 !src/test-workspace/.metaflow/config.jsonc
+!src/test-workspace/.metaflow/config.golden.jsonc
