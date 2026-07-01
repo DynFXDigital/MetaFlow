@@ -28,6 +28,8 @@ export interface LayerContent {
     capability?: CapabilityMetadata;
     /** Policy grants loaded from canonical MetaFlow policy manifests. */
     policyGrants?: PolicyGrantMetadata[];
+    /** MCP servers loaded from canonical MetaFlow MCP manifests. */
+    mcpServers?: McpServerMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -153,6 +155,41 @@ export interface PolicyGrantMetadata {
     scope?: Record<string, unknown>;
     /** Whether this authority requires audit evidence. */
     audit: boolean;
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Transport family declared by a canonical MCP server manifest. */
+export type McpServerTransport = 'stdio' | 'http' | 'sse' | 'streamable-http';
+
+/** Local process invocation declared by a canonical MCP server manifest. */
+export interface McpServerInvocation {
+    /** Executable command or package runner. */
+    command: string;
+    /** Optional command arguments. */
+    args: string[];
+}
+
+/** Canonical MetaFlow MCP server metadata associated with a layer. */
+export interface McpServerMetadata {
+    /** Stable MCP server identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied MCP server metadata. */
+    manifestPath: string;
+    /** Transport used by the MCP server. */
+    transport: McpServerTransport;
+    /** Optional local invocation for stdio-style MCP servers. */
+    invocation?: McpServerInvocation;
+    /** Optional endpoint reference for network MCP transports. */
+    endpoint?: string;
+    /** Required secret names referenced by the server. */
+    requiredSecrets: string[];
+    /** Capability category exposed by the server. */
+    capabilityCategory?: string;
+    /** Policy grants required before the server is used. */
+    policyGrants: string[];
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */

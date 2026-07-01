@@ -59,12 +59,14 @@ const CODEX_MATRIX: MatrixSeed[] = [
     ),
     row(
         'mcpServers',
-        'runtime-only',
-        ['Codex MCP configuration and runtime MCP server registry'],
+        'partial',
+        ['.metaflow/mcp/*.json', 'Codex MCP configuration and runtime MCP server registry'],
         [
+            'Canonical MCP server metadata is parsed and reported for adapter review.',
             'Codex supports MCP at runtime, but canonical MetaFlow MCP server projection is not implemented.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
+        ['RUN-033'],
     ),
     row(
         'hooks',
@@ -177,12 +179,14 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     ),
     row(
         'mcpServers',
-        'runtime-only',
-        ['GitHub Copilot MCP configuration'],
+        'partial',
+        ['.metaflow/mcp/*.json', 'GitHub Copilot MCP configuration'],
         [
+            'Canonical MCP server metadata is parsed and reported for adapter review.',
             'Copilot supports MCP through host/runtime configuration, but canonical MetaFlow MCP projection is not implemented.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
+        ['RUN-033'],
     ),
     row(
         'hooks',

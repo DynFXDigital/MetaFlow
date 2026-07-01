@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    McpServerMetadata,
     PolicyGrantMetadata,
     SurfacedFileConflict,
     toAuthoredConfig,
@@ -25,6 +26,11 @@ export interface LoadedConfig {
 }
 
 export interface ResolvedPolicyGrant extends PolicyGrantMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedMcpServer extends McpServerMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -133,6 +139,20 @@ export function resolvePolicyGrants(
     return layers.flatMap((layer) =>
         (layer.policyGrants ?? []).map((grant) => ({
             ...grant,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveMcpServers(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedMcpServer[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.mcpServers ?? []).map((server) => ({
+            ...server,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

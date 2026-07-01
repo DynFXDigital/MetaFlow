@@ -90,6 +90,7 @@ export {
     parsePolicyGrantContent,
     policyGrantConstants,
 } from './policyGrant';
+export { loadMcpServersForLayer, parseMcpServerContent, mcpServerConstants } from './mcpServer';
 export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
@@ -106,6 +107,9 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    McpServerInvocation,
+    McpServerMetadata,
+    McpServerTransport,
     PolicyGrantApproval,
     PolicyGrantAuthorityCategory,
     PolicyGrantMetadata,

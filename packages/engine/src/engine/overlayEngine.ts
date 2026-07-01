@@ -24,6 +24,7 @@ import {
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { loadPolicyGrantsForLayer } from './policyGrant';
+import { loadMcpServersForLayer } from './mcpServer';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -182,12 +183,7 @@ function resolveSingleRepoLayers(
         }
 
         const files = walkDirectory(layerAbsPath, layerAbsPath);
-        result.push({
-            layerId: normalizedLayerPath,
-            files,
-            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-            policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
-        });
+        result.push(buildLayerContent(normalizedLayerPath, layerAbsPath, capabilityId, files));
     }
 
     const shouldForceSingleRepoDiscovery =
@@ -205,12 +201,7 @@ function resolveSingleRepoLayers(
             }
 
             const files = walkDirectory(layerAbsPath, layerAbsPath);
-            result.push({
-                layerId: layerPath,
-                files,
-                capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-                policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
-            });
+            result.push(buildLayerContent(layerPath, layerAbsPath, capabilityId, files));
         }
     }
 
@@ -288,16 +279,37 @@ function resolveMultiRepoLayers(
         }
 
         const files = walkDirectory(layerAbsPath, layerAbsPath);
-        result.push({
-            layerId: `${ls.repoId}/${normalizedLayerPath}`,
-            repoId: ls.repoId,
-            files,
-            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-            policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
-        });
+        result.push(
+            buildLayerContent(
+                `${ls.repoId}/${normalizedLayerPath}`,
+                layerAbsPath,
+                capabilityId,
+                files,
+                ls.repoId,
+            ),
+        );
     }
 
     return result;
+}
+
+function buildLayerContent(
+    layerId: string,
+    layerAbsPath: string,
+    capabilityId: string,
+    files: LayerFile[],
+    repoId?: string,
+): LayerContent {
+    const policyGrants = loadPolicyGrantsForLayer(layerAbsPath);
+    const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
+    return {
+        layerId,
+        repoId,
+        files,
+        capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
+        policyGrants,
+        mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
+    };
 }
 
 /**
@@ -590,12 +602,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const policiesDir = path.join(metaFlowDirPath, 'policies');
-        if (!fs.existsSync(policiesDir) || !fs.statSync(policiesDir).isDirectory()) {
+        if (fs.existsSync(policiesDir) && fs.statSync(policiesDir).isDirectory()) {
+            const policyEntries = fs.readdirSync(policiesDir, { withFileTypes: true });
+            const hasPolicyGrant = policyEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasPolicyGrant) {
+                return true;
+            }
+        }
+
+        const mcpDir = path.join(metaFlowDirPath, 'mcp');
+        if (!fs.existsSync(mcpDir) || !fs.statSync(mcpDir).isDirectory()) {
             return false;
         }
 
-        const policyEntries = fs.readdirSync(policiesDir, { withFileTypes: true });
-        return policyEntries.some(
+        const mcpEntries = fs.readdirSync(mcpDir, { withFileTypes: true });
+        return mcpEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

@@ -12,8 +12,10 @@ import {
     getWorkspaceRoot,
     loadConfigOrExit,
     resolveEffectiveFiles,
+    resolveMcpServers,
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
+    ResolvedMcpServer,
     ResolvedPolicyGrant,
 } from './common';
 
@@ -82,6 +84,14 @@ function formatPolicyGrant(grant: ResolvedPolicyGrant): string {
     return `${grant.id || '<invalid>'} [${grant.category}] ${grant.authority || '<missing authority>'} approval=${grant.approval} audit=${audit} @ ${formatFileProvenance(grant.sourceLayer, grant.sourceRepo)}`;
 }
 
+function formatMcpServer(server: ResolvedMcpServer): string {
+    const category = server.capabilityCategory ? ` category=${server.capabilityCategory}` : '';
+    const grants = server.policyGrants.length > 0 ? ` grants=${server.policyGrants.join(',')}` : '';
+    const secrets =
+        server.requiredSecrets.length > 0 ? ` secrets=${server.requiredSecrets.join(',')}` : '';
+    return `${server.id || '<invalid>'} [${server.transport}]${category}${grants}${secrets} @ ${formatFileProvenance(server.sourceLayer, server.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -109,6 +119,7 @@ export function registerPreviewCommand(program: Command): void {
                 const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
                 const sourceSummary = summarizeSources(files);
                 const policyGrants = resolvePolicyGrants(config, workspaceRoot);
+                const mcpServers = resolveMcpServers(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -125,6 +136,7 @@ export function registerPreviewCommand(program: Command): void {
                             synchronized: synchronizedCount,
                             sourceCount: sourceSummary.length,
                             policyGrants: policyGrants.length,
+                            mcpServers: mcpServers.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -147,6 +159,7 @@ export function registerPreviewCommand(program: Command): void {
                             projection: c.projection,
                         })),
                         policyGrants,
+                        mcpServers,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -157,7 +170,7 @@ export function registerPreviewCommand(program: Command): void {
                     return;
                 }
 
-                if (files.length === 0 && policyGrants.length === 0) {
+                if (files.length === 0 && policyGrants.length === 0 && mcpServers.length === 0) {
                     console.log('No files in overlay.');
                     return;
                 }
@@ -199,6 +212,26 @@ export function registerPreviewCommand(program: Command): void {
                     for (const grant of policyGrants) {
                         console.log(`  - ${formatPolicyGrant(grant)}`);
                         for (const warning of grant.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (mcpServers.length > 0) {
+                    console.log(`MCP Servers: ${mcpServers.length}`);
+                    for (const server of mcpServers) {
+                        console.log(`  - ${formatMcpServer(server)}`);
+                        if (server.invocation) {
+                            const args =
+                                server.invocation.args.length > 0
+                                    ? ` ${server.invocation.args.join(' ')}`
+                                    : '';
+                            console.log(`    invocation: ${server.invocation.command}${args}`);
+                        }
+                        if (server.endpoint) {
+                            console.log(`    endpoint: ${server.endpoint}`);
+                        }
+                        for (const warning of server.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

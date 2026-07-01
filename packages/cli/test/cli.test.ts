@@ -230,6 +230,7 @@ describe('CLI: preview', () => {
         const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
         const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
         const policyGrantPath = '.metaflow/policies/github-pr-read.json';
+        const mcpServerPath = '.metaflow/mcp/github.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -252,6 +253,18 @@ describe('CLI: preview', () => {
                             audit: true,
                         }),
                     },
+                    {
+                        relativePath: mcpServerPath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.mcpServer/v1',
+                            id: 'github',
+                            transport: 'stdio',
+                            invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                            requiredSecrets: ['GITHUB_TOKEN'],
+                            capabilityCategory: 'source-control',
+                            policyGrants: ['github-pr-read'],
+                        }),
+                    },
                 ],
             },
         });
@@ -268,6 +281,11 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Policy Grants: 1'));
         assert.ok(textResult.stdout.includes('github-pr-read [github]'));
         assert.ok(textResult.stdout.includes('approval=auto audit=true'));
+        assert.ok(textResult.stdout.includes('MCP Servers: 1'));
+        assert.ok(textResult.stdout.includes('github [stdio] category=source-control'));
+        assert.ok(textResult.stdout.includes('grants=github-pr-read'));
+        assert.ok(textResult.stdout.includes('secrets=GITHUB_TOKEN'));
+        assert.ok(textResult.stdout.includes('mcpServers=partial'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -281,6 +299,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexChange.projection.lossiness, 'none');
         assert.strictEqual(codexChange.projection.pathTransformed, true);
         assert.strictEqual(data.summary.policyGrants, 1);
+        assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -288,6 +307,16 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.policyGrants[0].scope, { repository: 'current' });
         assert.strictEqual(data.policyGrants[0].audit, true);
         assert.strictEqual(data.policyGrants[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.mcpServers[0].id, 'github');
+        assert.strictEqual(data.mcpServers[0].transport, 'stdio');
+        assert.deepStrictEqual(data.mcpServers[0].invocation, {
+            command: 'github-mcp-server',
+            args: ['stdio'],
+        });
+        assert.deepStrictEqual(data.mcpServers[0].requiredSecrets, ['GITHUB_TOKEN']);
+        assert.strictEqual(data.mcpServers[0].capabilityCategory, 'source-control');
+        assert.deepStrictEqual(data.mcpServers[0].policyGrants, ['github-pr-read']);
+        assert.strictEqual(data.mcpServers[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -304,6 +333,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexPolicySupport.support, 'partial');
         assert.ok(codexPolicySupport.authorityImplications.length > 0);
+        const codexMcpSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'mcpServers',
+        );
+        assert.strictEqual(codexMcpSupport.support, 'partial');
+        assert.ok(codexMcpSupport.evidence.includes('RUN-033'));
     });
 
     it('should show no files for empty overlay', async () => {

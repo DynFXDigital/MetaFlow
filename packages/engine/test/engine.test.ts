@@ -51,6 +51,7 @@ import {
     normalizeConfigShape,
     getTargetCapabilityMatrix,
     parsePolicyGrantContent,
+    parseMcpServerContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -134,6 +135,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof computeSettingsEntries, 'function');
         assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
         assert.strictEqual(typeof parsePolicyGrantContent, 'function');
+        assert.strictEqual(typeof parseMcpServerContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -180,6 +182,15 @@ describe('Engine package: public API', () => {
                 note.includes('Authority-sensitive projections'),
             ),
             'policy grant row should report authority implications',
+        );
+
+        const codexMcp = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'mcpServers',
+        );
+        assert.strictEqual(codexMcp?.support, 'partial');
+        assert.ok(
+            codexMcp?.nativeSurfaces.includes('.metaflow/mcp/*.json'),
+            'Codex MCP row should name the canonical MCP metadata surface',
         );
     });
 });
@@ -549,6 +560,27 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/policy-only']);
     });
 
+    it('discovers canonical .metaflow MCP server layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-mcp-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'mcp-only', '.metaflow', 'mcp'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoRoot, 'capabilities', 'mcp-only', '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/mcp-only']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
@@ -817,6 +849,90 @@ describe('Engine package: overlay pipeline', () => {
                 (warning) =>
                     warning.severity === 'error' || warning.code === 'POLICY_GRANT_UNKNOWN_FIELD',
             ),
+        );
+    });
+
+    it('loads canonical MCP servers as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                requiredSecrets: ['GITHUB_TOKEN'],
+                capabilityCategory: 'source-control',
+                policyGrants: ['github-pr-read'],
+                description: 'GitHub MCP access for pull request review.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].mcpServers?.length, 1);
+        const server = layers[0].mcpServers?.[0];
+        assert.strictEqual(server?.id, 'github');
+        assert.strictEqual(server?.transport, 'stdio');
+        assert.deepStrictEqual(server?.invocation, {
+            command: 'github-mcp-server',
+            args: ['stdio'],
+        });
+        assert.deepStrictEqual(server?.requiredSecrets, ['GITHUB_TOKEN']);
+        assert.strictEqual(server?.capabilityCategory, 'source-control');
+        assert.deepStrictEqual(server?.policyGrants, ['github-pr-read']);
+        assert.strictEqual(server?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical MCP servers', () => {
+        const server = parseMcpServerContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v0',
+                id: 'Invalid ID',
+                transport: 'stdio',
+                invocation: { args: ['stdio'] },
+                requiredSecrets: ['TOKEN', 42],
+                capabilityCategory: '',
+                policyGrants: ['missing-grant'],
+                extra: true,
+            }),
+            'mcp.json',
+            new Set(['github-pr-read']),
+        );
+
+        assert.strictEqual(server.id, 'Invalid ID');
+        assert.strictEqual(server.transport, 'stdio');
+        assert.deepStrictEqual(
+            server.warnings.map((warning) => warning.code),
+            [
+                'MCP_SERVER_UNKNOWN_FIELD',
+                'MCP_SERVER_SCHEMA_VERSION_INVALID',
+                'MCP_SERVER_ID_INVALID',
+                'MCP_SERVER_INVOCATION_COMMAND_REQUIRED',
+                'MCP_SERVER_INVOCATION_REQUIRED',
+                'MCP_SERVER_REQUIRED_SECRETS_INVALID',
+                'MCP_SERVER_POLICY_GRANT_UNKNOWN',
+                'MCP_SERVER_CAPABILITY_CATEGORY_INVALID',
+            ],
         );
     });
 });
