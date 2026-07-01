@@ -158,6 +158,50 @@ export interface ProjectionMetadata {
     notes: string[];
 }
 
+/** Canonical concept covered by a target adapter capability matrix. */
+export type TargetCapabilityConcept =
+    | 'instructions'
+    | 'skills'
+    | 'agents'
+    | 'mcpServers'
+    | 'hooks'
+    | 'packageManifests'
+    | 'policyGrants'
+    | 'executionSurfaces'
+    | 'memoryScopes'
+    | 'localCloudHandoff'
+    | 'issuePrOperation'
+    | 'evaluationSupport';
+
+/** Support state for one canonical concept on one target adapter. */
+export type TargetCapabilitySupportStatus =
+    | 'supported'
+    | 'partial'
+    | 'unsupported'
+    | 'runtime-only'
+    | 'requires-policy-grant'
+    | 'generated-substitute';
+
+/** Capability matrix row describing one canonical concept on one target adapter. */
+export interface TargetCapabilityMatrixEntry {
+    /** Target adapter family. */
+    target: ProjectionTarget;
+    /** Adapter contract version used by MetaFlow for this target. */
+    adapterVersion: string;
+    /** Canonical concept covered by this row. */
+    concept: TargetCapabilityConcept;
+    /** Current projection support state. */
+    support: TargetCapabilitySupportStatus;
+    /** Harness-native paths or surfaces associated with this concept. */
+    nativeSurfaces: string[];
+    /** Support, lossiness, or validation notes. */
+    notes: string[];
+    /** Authority, sandbox, or policy implications reported during preview. */
+    authorityImplications: string[];
+    /** Evidence identifiers supporting the current matrix row. */
+    evidence: string[];
+}
+
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {
     /** Relative path in the output (e.g., `instructions/coding.md`). */

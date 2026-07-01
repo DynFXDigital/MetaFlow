@@ -249,6 +249,10 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes(`[codex] ${codexSkillPath}`));
         assert.ok(textResult.stdout.includes('lossiness=none'));
         assert.ok(textResult.stdout.includes('MetaFlow source projected to Codex'));
+        assert.ok(textResult.stdout.includes('Target Capability Matrix:'));
+        assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
+        assert.ok(textResult.stdout.includes('skills=supported'));
+        assert.ok(textResult.stdout.includes('policyGrants=unsupported'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -261,6 +265,22 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
         assert.strictEqual(codexChange.projection.lossiness, 'none');
         assert.strictEqual(codexChange.projection.pathTransformed, true);
+        const codexSkillSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'skills',
+        );
+        assert.strictEqual(codexSkillSupport.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(codexSkillSupport.support, 'supported');
+        assert.ok(
+            codexSkillSupport.evidence.includes('RUN-030'),
+            'Codex skill support should point to the live canonical consumer smoke',
+        );
+        const codexPolicySupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'policyGrants',
+        );
+        assert.strictEqual(codexPolicySupport.support, 'unsupported');
+        assert.ok(codexPolicySupport.authorityImplications.length > 0);
     });
 
     it('should show no files for empty overlay', async () => {

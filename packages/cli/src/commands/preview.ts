@@ -2,7 +2,9 @@ import { Command } from 'commander';
 import {
     computeSettingsEntries,
     describeProjection,
+    getTargetCapabilityMatrix,
     preview,
+    TargetCapabilityMatrixEntry,
     ProjectionMetadata,
 } from '@metaflow/engine';
 import {
@@ -20,6 +22,26 @@ function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string 
 function formatProjection(projection: ProjectionMetadata): string {
     const notes = projection.notes.length > 0 ? `; ${projection.notes.join('; ')}` : '';
     return `${projection.target}; lossiness=${projection.lossiness}${notes}`;
+}
+
+function summarizeTargetCapabilityMatrix(entries: TargetCapabilityMatrixEntry[]): string[] {
+    const rowsByTarget = new Map<string, TargetCapabilityMatrixEntry[]>();
+    for (const entry of entries) {
+        const rows = rowsByTarget.get(entry.target) ?? [];
+        rows.push(entry);
+        rowsByTarget.set(entry.target, rows);
+    }
+
+    return Array.from(rowsByTarget.entries())
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([target, rows]) => {
+            const adapterVersion = rows[0]?.adapterVersion ?? 'unknown';
+            const concepts = [...rows]
+                .sort((left, right) => left.concept.localeCompare(right.concept))
+                .map((entry) => `${entry.concept}=${entry.support}`)
+                .join(', ');
+            return `${target} (${adapterVersion}): ${concepts}`;
+        });
 }
 
 function summarizeSources(files: Array<{ sourceLayer: string; sourceRepo?: string }>): string[] {
@@ -79,6 +101,9 @@ export function registerPreviewCommand(program: Command): void {
                 const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
                 const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
                 const sourceSummary = summarizeSources(files);
+                const targetCapabilityMatrix = getTargetCapabilityMatrix();
+                const targetCapabilitySummary =
+                    summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
                 const settingsCount = files.filter(
                     (file) => file.classification === 'settings',
                 ).length;
@@ -114,6 +139,7 @@ export function registerPreviewCommand(program: Command): void {
                         })),
                         settingsEntries,
                         sources: sourceSummary,
+                        targetCapabilityMatrix,
                         surfacedFileConflicts: conflicts,
                         warnings,
                     };
@@ -152,6 +178,12 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`Sources: ${sourceSummary.length}`);
                     for (const source of sourceSummary) {
                         console.log(`  - ${source}`);
+                    }
+                }
+                if (targetCapabilitySummary.length > 0) {
+                    console.log(`Target Capability Matrix: ${targetCapabilityMatrix.length}`);
+                    for (const summary of targetCapabilitySummary) {
+                        console.log(`  - ${summary}`);
                     }
                 }
 

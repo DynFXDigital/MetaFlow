@@ -49,6 +49,7 @@ import {
     toSynchronizedRelativePath,
     toAuthoredConfig,
     normalizeConfigShape,
+    getTargetCapabilityMatrix,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -130,6 +131,54 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof clean, 'function');
         assert.strictEqual(typeof preview, 'function');
         assert.strictEqual(typeof computeSettingsEntries, 'function');
+        assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
+    });
+
+    it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
+        const matrix = getTargetCapabilityMatrix();
+        const requiredConcepts = [
+            'skills',
+            'agents',
+            'mcpServers',
+            'hooks',
+            'packageManifests',
+            'policyGrants',
+            'executionSurfaces',
+            'memoryScopes',
+            'localCloudHandoff',
+            'issuePrOperation',
+            'evaluationSupport',
+        ];
+        for (const target of ['codex', 'github-copilot']) {
+            const rows = matrix.filter((entry) => entry.target === target);
+            assert.ok(rows.length > 0, `${target} rows should exist`);
+            for (const concept of requiredConcepts) {
+                assert.ok(
+                    rows.some((entry) => entry.concept === concept),
+                    `${target} should cover ${concept}`,
+                );
+            }
+        }
+
+        const codexSkills = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'skills',
+        );
+        assert.strictEqual(codexSkills?.support, 'supported');
+        assert.ok(
+            codexSkills?.nativeSurfaces.includes('.agents/skills/<skill-id>/SKILL.md'),
+            'Codex skills row should name the generated repository skill surface',
+        );
+
+        const codexPolicy = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'policyGrants',
+        );
+        assert.strictEqual(codexPolicy?.support, 'unsupported');
+        assert.ok(
+            codexPolicy?.authorityImplications.some((note) =>
+                note.includes('Authority-sensitive projections'),
+            ),
+            'policy grant row should report authority implications',
+        );
     });
 });
 

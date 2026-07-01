@@ -108,11 +108,15 @@ export type {
     ProjectionLossiness,
     ProjectionMetadata,
     ProjectionTarget,
+    TargetCapabilityConcept,
+    TargetCapabilityMatrixEntry,
+    TargetCapabilitySupportStatus,
     OverlayResult,
     PendingAction,
     PendingChange,
 } from './types';
 export { describeProjection } from './projectionMetadata';
+export { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
 export type { ProvenanceData } from './provenanceHeader';
 export type {
     ManagedState,
