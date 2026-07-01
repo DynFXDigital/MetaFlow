@@ -108,6 +108,11 @@ export {
     evaluationProfileConstants,
 } from './evaluationProfile';
 export {
+    loadTargetAdaptersForLayer,
+    parseTargetAdapterContent,
+    targetAdapterConstants,
+} from './targetAdapter';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -154,6 +159,9 @@ export type {
     ProjectionLossiness,
     ProjectionMetadata,
     ProjectionTarget,
+    TargetAdapterMaterializationMode,
+    TargetAdapterMetadata,
+    TargetAdapterValidationStatus,
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
     TargetCapabilitySupportStatus,

@@ -38,6 +38,8 @@ export interface LayerContent {
     memoryScopes?: MemoryScopeMetadata[];
     /** Evaluation profiles loaded from canonical MetaFlow evaluation manifests. */
     evaluationProfiles?: EvaluationProfileMetadata[];
+    /** Target adapter preferences loaded from canonical MetaFlow target manifests. */
+    targetAdapters?: TargetAdapterMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -364,6 +366,50 @@ export interface EvaluationProfileMetadata {
     policyGrants: string[];
     /** Target harnesses or adapters this evaluation profile applies to. */
     targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Materialization preference declared by a canonical target adapter manifest. */
+export type TargetAdapterMaterializationMode =
+    | 'managed'
+    | 'candidate'
+    | 'report-only'
+    | 'disabled';
+
+/** Validation status declared by a canonical target adapter manifest. */
+export type TargetAdapterValidationStatus =
+    | 'unverified'
+    | 'staticVerified'
+    | 'runtimeVerified'
+    | 'manualWaived';
+
+/** Canonical MetaFlow target adapter metadata associated with a layer. */
+export interface TargetAdapterMetadata {
+    /** Target adapter manifest identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied target adapter metadata. */
+    manifestPath: string;
+    /** Target harness family controlled by this manifest. */
+    target: ProjectionTarget;
+    /** Whether projections for this target are enabled for the owning capability. */
+    enabled: boolean;
+    /** Optional target adapter contract version expected by this capability. */
+    adapterVersion?: string;
+    /** Default materialization mode for target outputs. */
+    materializationMode: TargetAdapterMaterializationMode;
+    /** Optional per-canonical-concept materialization modes. */
+    concepts: Partial<Record<TargetCapabilityConcept, TargetAdapterMaterializationMode>>;
+    /** Required policy grants before target projections are treated as operational. */
+    requiredPolicyGrants: string[];
+    /** Declared target validation status. */
+    validationStatus: TargetAdapterValidationStatus;
+    /** Optional evidence identifiers or references for target validation. */
+    validationEvidence: string[];
+    /** Optional user-facing notes about target support or projection constraints. */
+    notes: string[];
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */

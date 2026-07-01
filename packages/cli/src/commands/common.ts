@@ -20,6 +20,7 @@ import {
     McpServerMetadata,
     PolicyGrantMetadata,
     SurfacedFileConflict,
+    TargetAdapterMetadata,
     toAuthoredConfig,
 } from '@metaflow/engine';
 
@@ -55,6 +56,11 @@ export interface ResolvedMemoryScope extends MemoryScopeMetadata {
 }
 
 export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedTargetAdapter extends TargetAdapterMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -230,6 +236,20 @@ export function resolveEvaluationProfiles(
     return layers.flatMap((layer) =>
         (layer.evaluationProfiles ?? []).map((profile) => ({
             ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveTargetAdapters(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedTargetAdapter[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.targetAdapters ?? []).map((adapter) => ({
+            ...adapter,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

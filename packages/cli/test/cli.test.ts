@@ -235,6 +235,7 @@ describe('CLI: preview', () => {
         const executionProfilePath = '.metaflow/execution/local.json';
         const memoryScopePath = '.metaflow/memory/repo-decisions.json';
         const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
+        const targetAdapterPath = '.metaflow/targets/codex.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -329,6 +330,26 @@ describe('CLI: preview', () => {
                             targets: ['codex'],
                         }),
                     },
+                    {
+                        relativePath: targetAdapterPath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.targetAdapter/v1',
+                            id: 'codex-default',
+                            target: 'codex',
+                            enabled: true,
+                            adapterVersion: 'codex-v0.1',
+                            materializationMode: 'candidate',
+                            concepts: {
+                                skills: 'managed',
+                                instructions: 'candidate',
+                                mcpServers: 'report-only',
+                            },
+                            requiredPolicyGrants: ['github-pr-read'],
+                            validationStatus: 'runtimeVerified',
+                            validationEvidence: ['RUN-030'],
+                            notes: ['Root instructions stay candidate-only.'],
+                        }),
+                    },
                 ],
             },
         });
@@ -385,6 +406,18 @@ describe('CLI: preview', () => {
                 'successCriteria: Gate exits 0 with no failing tests.',
             ),
         );
+        assert.ok(textResult.stdout.includes('Target Adapters: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'codex-default [codex] enabled mode=candidate validation=runtimeVerified version=codex-v0.1 grants=github-pr-read evidence=RUN-030',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'concepts: instructions=candidate, mcpServers=report-only, skills=managed',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('note: Root instructions stay candidate-only.'));
         assert.ok(textResult.stdout.includes('Adapter Readiness Reports: 2'));
         assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
         assert.ok(
@@ -421,6 +454,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.executionProfiles, 1);
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
+        assert.strictEqual(data.summary.targetAdapters, 1);
         assert.strictEqual(data.summary.adapterReports, 2);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
@@ -482,6 +516,23 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.evaluationProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.evaluationProfiles[0].targets, ['codex']);
         assert.strictEqual(data.evaluationProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.targetAdapters[0].id, 'codex-default');
+        assert.strictEqual(data.targetAdapters[0].target, 'codex');
+        assert.strictEqual(data.targetAdapters[0].enabled, true);
+        assert.strictEqual(data.targetAdapters[0].adapterVersion, 'codex-v0.1');
+        assert.strictEqual(data.targetAdapters[0].materializationMode, 'candidate');
+        assert.deepStrictEqual(data.targetAdapters[0].concepts, {
+            skills: 'managed',
+            instructions: 'candidate',
+            mcpServers: 'report-only',
+        });
+        assert.deepStrictEqual(data.targetAdapters[0].requiredPolicyGrants, ['github-pr-read']);
+        assert.strictEqual(data.targetAdapters[0].validationStatus, 'runtimeVerified');
+        assert.deepStrictEqual(data.targetAdapters[0].validationEvidence, ['RUN-030']);
+        assert.deepStrictEqual(data.targetAdapters[0].notes, [
+            'Root instructions stay candidate-only.',
+        ]);
+        assert.strictEqual(data.targetAdapters[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',

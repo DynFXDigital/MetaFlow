@@ -57,6 +57,7 @@ import {
     parseExecutionProfileContent,
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
+    parseTargetAdapterContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -146,6 +147,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseExecutionProfileContent, 'function');
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
         assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
+        assert.strictEqual(typeof parseTargetAdapterContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -820,6 +822,33 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/evaluation-only']);
+    });
+
+    it('discovers canonical .metaflow target adapter layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-target-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'target-only', '.metaflow', 'targets'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'target-only',
+                '.metaflow',
+                'targets',
+                'codex.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                materializationMode: 'candidate',
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/target-only']);
     });
 
     it('does not discover artifact roots as standalone layer directories', () => {
@@ -1551,6 +1580,121 @@ describe('Engine package: overlay pipeline', () => {
                 'EVALUATION_PROFILE_POLICY_GRANT_UNKNOWN',
                 'EVALUATION_PROFILE_TARGETS_INVALID',
                 'EVALUATION_PROFILE_DESCRIPTION_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical target adapter preferences as layer metadata', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    skills: 'managed',
+                    instructions: 'candidate',
+                    mcpServers: 'report-only',
+                },
+                requiredPolicyGrants: ['github-pr-read'],
+                validationStatus: 'runtimeVerified',
+                validationEvidence: ['RUN-030'],
+                notes: ['Root instructions stay candidate-only.'],
+                description: 'Codex target projection preferences.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].targetAdapters?.length, 1);
+        const adapter = layers[0].targetAdapters?.[0];
+        assert.strictEqual(adapter?.id, 'codex-default');
+        assert.strictEqual(adapter?.target, 'codex');
+        assert.strictEqual(adapter?.enabled, true);
+        assert.strictEqual(adapter?.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(adapter?.materializationMode, 'candidate');
+        assert.deepStrictEqual(adapter?.concepts, {
+            skills: 'managed',
+            instructions: 'candidate',
+            mcpServers: 'report-only',
+        });
+        assert.deepStrictEqual(adapter?.requiredPolicyGrants, ['github-pr-read']);
+        assert.strictEqual(adapter?.validationStatus, 'runtimeVerified');
+        assert.deepStrictEqual(adapter?.validationEvidence, ['RUN-030']);
+        assert.deepStrictEqual(adapter?.notes, ['Root instructions stay candidate-only.']);
+        assert.strictEqual(adapter?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical target adapters', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v0',
+                id: 'Invalid ID',
+                target: 'unknown-target',
+                enabled: 'yes',
+                adapterVersion: '',
+                materializationMode: 'automatic',
+                concepts: {
+                    skills: 'managed',
+                    mystery: 'managed',
+                    hooks: 'automatic',
+                },
+                requiredPolicyGrants: ['missing-grant'],
+                validationStatus: 'complete',
+                validationEvidence: ['RUN-030', 42],
+                notes: ['ok', 42],
+                description: '',
+                extra: true,
+            }),
+            'target.json',
+            new Set(['github-pr-read']),
+        );
+
+        assert.strictEqual(adapter.id, 'Invalid ID');
+        assert.strictEqual(adapter.target, 'generic');
+        assert.strictEqual(adapter.enabled, true);
+        assert.strictEqual(adapter.materializationMode, 'report-only');
+        assert.deepStrictEqual(adapter.concepts, { skills: 'managed' });
+        assert.deepStrictEqual(
+            adapter.warnings.map((warning) => warning.code),
+            [
+                'TARGET_ADAPTER_UNKNOWN_FIELD',
+                'TARGET_ADAPTER_SCHEMA_VERSION_INVALID',
+                'TARGET_ADAPTER_ID_INVALID',
+                'TARGET_ADAPTER_TARGET_INVALID',
+                'TARGET_ADAPTER_ENABLED_INVALID',
+                'TARGET_ADAPTER_VERSION_INVALID',
+                'TARGET_ADAPTER_MATERIALIZATION_MODE_INVALID',
+                'TARGET_ADAPTER_CONCEPT_UNKNOWN',
+                'TARGET_ADAPTER_CONCEPT_MODE_INVALID',
+                'TARGET_ADAPTER_POLICY_GRANT_UNKNOWN',
+                'TARGET_ADAPTER_VALIDATION_STATUS_INVALID',
+                'TARGET_ADAPTER_VALIDATION_EVIDENCE_INVALID',
+                'TARGET_ADAPTER_NOTES_INVALID',
+                'TARGET_ADAPTER_DESCRIPTION_INVALID',
             ],
         );
     });

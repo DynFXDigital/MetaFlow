@@ -29,6 +29,7 @@ import { loadHooksForLayer } from './hookManifest';
 import { loadExecutionProfilesForLayer } from './executionProfile';
 import { loadMemoryScopesForLayer } from './memoryScope';
 import { loadEvaluationProfilesForLayer } from './evaluationProfile';
+import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -317,6 +318,7 @@ function buildLayerContent(
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
+        targetAdapters: loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
 
@@ -665,12 +667,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const evaluationDir = path.join(metaFlowDirPath, 'evaluation');
-        if (!fs.existsSync(evaluationDir) || !fs.statSync(evaluationDir).isDirectory()) {
+        if (fs.existsSync(evaluationDir) && fs.statSync(evaluationDir).isDirectory()) {
+            const evaluationEntries = fs.readdirSync(evaluationDir, { withFileTypes: true });
+            const hasEvaluationProfile = evaluationEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasEvaluationProfile) {
+                return true;
+            }
+        }
+
+        const targetsDir = path.join(metaFlowDirPath, 'targets');
+        if (!fs.existsSync(targetsDir) || !fs.statSync(targetsDir).isDirectory()) {
             return false;
         }
 
-        const evaluationEntries = fs.readdirSync(evaluationDir, { withFileTypes: true });
-        return evaluationEntries.some(
+        const targetEntries = fs.readdirSync(targetsDir, { withFileTypes: true });
+        return targetEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

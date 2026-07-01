@@ -21,12 +21,14 @@ import {
     resolveMemoryScopes,
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
+    resolveTargetAdapters,
     ResolvedMcpServer,
     ResolvedPolicyGrant,
     ResolvedHook,
     ResolvedExecutionProfile,
     ResolvedEvaluationProfile,
     ResolvedMemoryScope,
+    ResolvedTargetAdapter,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -142,6 +144,20 @@ function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
     return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatTargetAdapter(adapter: ResolvedTargetAdapter): string {
+    const enabled = adapter.enabled ? 'enabled' : 'disabled';
+    const version = adapter.adapterVersion ? ` version=${adapter.adapterVersion}` : '';
+    const grants =
+        adapter.requiredPolicyGrants.length > 0
+            ? ` grants=${adapter.requiredPolicyGrants.join(',')}`
+            : '';
+    const evidence =
+        adapter.validationEvidence.length > 0
+            ? ` evidence=${adapter.validationEvidence.join(',')}`
+            : '';
+    return `${adapter.id || '<invalid>'} [${adapter.target}] ${enabled} mode=${adapter.materializationMode} validation=${adapter.validationStatus}${version}${grants}${evidence} @ ${formatFileProvenance(adapter.sourceLayer, adapter.sourceRepo)}`;
+}
+
 function formatAdapterReport(report: AdapterReadinessReport): string {
     const counts = Object.entries(report.managedMetadata)
         .filter(([, count]) => count > 0)
@@ -182,6 +198,7 @@ export function registerPreviewCommand(program: Command): void {
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
+                const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -215,6 +232,7 @@ export function registerPreviewCommand(program: Command): void {
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
+                            targetAdapters: targetAdapters.length,
                             adapterReports: adapterReports.length,
                         },
                         effectiveFiles: files.map((f) => ({
@@ -243,6 +261,7 @@ export function registerPreviewCommand(program: Command): void {
                         executionProfiles,
                         memoryScopes,
                         evaluationProfiles,
+                        targetAdapters,
                         adapterReports,
                         settingsEntries,
                         sources: sourceSummary,
@@ -262,6 +281,7 @@ export function registerPreviewCommand(program: Command): void {
                     executionProfiles.length === 0 &&
                     memoryScopes.length === 0 &&
                     evaluationProfiles.length === 0 &&
+                    targetAdapters.length === 0 &&
                     actionableAdapterReports.length === 0
                 ) {
                     console.log('No files in overlay.');
@@ -394,6 +414,28 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    successCriteria: ${profile.successCriteria}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (targetAdapters.length > 0) {
+                    console.log(`Target Adapters: ${targetAdapters.length}`);
+                    for (const adapter of targetAdapters) {
+                        console.log(`  - ${formatTargetAdapter(adapter)}`);
+                        const conceptEntries = Object.entries(adapter.concepts).sort((left, right) =>
+                            left[0].localeCompare(right[0]),
+                        );
+                        if (conceptEntries.length > 0) {
+                            const concepts = conceptEntries
+                                .map(([concept, mode]) => `${concept}=${mode}`)
+                                .join(', ');
+                            console.log(`    concepts: ${concepts}`);
+                        }
+                        for (const note of adapter.notes) {
+                            console.log(`    note: ${note}`);
+                        }
+                        for (const warning of adapter.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }
