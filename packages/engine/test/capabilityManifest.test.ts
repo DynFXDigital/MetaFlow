@@ -3,6 +3,7 @@ import {
     capabilityManifestConstants,
     collectDuplicateCapabilityUidWarnings,
     loadCapabilityManifestForLayer,
+    parseCanonicalCapabilityManifestContent,
     parseCapabilityManifestContent,
     type CapabilityMetadata,
 } from '../src/index';
@@ -617,5 +618,124 @@ describe('capabilityManifest parser', () => {
             '/tmp/CAPABILITY.md',
         );
         assert.ok(parsed.warnings.some((w) => w.code === 'CAPABILITY_AGENT_PLUGIN_INVALID'));
+    });
+
+    it('parses canonical .metaflow capability metadata', () => {
+        const parsed = parseCanonicalCapabilityManifestContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.capability/v1',
+                id: 'metadata-authoring.codex',
+                uid: '123e4567-e89b-42d3-a456-426614174000',
+                previousIds: ['codex-metadata-authoring'],
+                previousPaths: ['capabilities/old-codex'],
+                name: 'Codex Metadata Authoring',
+                summary: 'Helps agents author Codex-compatible metadata.',
+                license: 'MIT',
+                experimental: false,
+            }),
+            'fallback-id',
+            '/tmp/.metaflow/capability.json',
+        );
+
+        assert.strictEqual(parsed.id, 'metadata-authoring.codex');
+        assert.strictEqual(parsed.uid, '123e4567-e89b-42d3-a456-426614174000');
+        assert.deepStrictEqual(parsed.previousIds, ['codex-metadata-authoring']);
+        assert.deepStrictEqual(parsed.previousPaths, ['capabilities/old-codex']);
+        assert.strictEqual(parsed.name, 'Codex Metadata Authoring');
+        assert.strictEqual(parsed.description, 'Helps agents author Codex-compatible metadata.');
+        assert.strictEqual(parsed.license, 'MIT');
+        assert.strictEqual(parsed.experimental, false);
+        assert.deepStrictEqual(parsed.warnings, []);
+    });
+
+    it('warns on invalid canonical .metaflow capability metadata shapes', () => {
+        const parsed = parseCanonicalCapabilityManifestContent(
+            JSON.stringify({
+                schemaVersion: '',
+                id: '',
+                uid: 'not-a-uuid',
+                previousIds: 'old-id',
+                previousPaths: [],
+                name: '',
+                experimental: 'false',
+                agentPlugin: 'true',
+                kind: '',
+                extraField: true,
+            }),
+            'fallback-id',
+            '/tmp/.metaflow/capability.json',
+        );
+
+        const codes = parsed.warnings.map((warning) => warning.code);
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_SCHEMA_VERSION_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_ID_INVALID'));
+        assert.ok(codes.includes('CAPABILITY_UID_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_PREVIOUS_IDS_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_PREVIOUS_PATHS_INVALID'));
+        assert.ok(codes.includes('CAPABILITY_NAME_REQUIRED'));
+        assert.ok(codes.includes('CAPABILITY_DESCRIPTION_REQUIRED'));
+        assert.ok(codes.includes('CAPABILITY_EXPERIMENTAL_INVALID'));
+        assert.ok(codes.includes('CAPABILITY_AGENT_PLUGIN_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_KIND_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_UNKNOWN_FIELD'));
+    });
+
+    it('loads canonical kind agent-plugin opt-in and validates plugin.json', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canonical-capability-plugin-test-'));
+        try {
+            fs.mkdirSync(path.join(tmpDir, '.metaflow'));
+            fs.writeFileSync(
+                path.join(tmpDir, '.metaflow', 'capability.json'),
+                JSON.stringify({
+                    schemaVersion: 'metaflow.capability/v1',
+                    id: 'codex-plugin-capability',
+                    name: 'Codex Plugin Capability',
+                    summary: 'Codex plugin capability.',
+                    kind: 'agent-plugin',
+                }),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, 'plugin.json'),
+                JSON.stringify({
+                    name: 'codex-plugin-capability',
+                    version: '1.0.0',
+                    metaflow: {
+                        pluginHosts: ['github-copilot', 'codex'],
+                    },
+                }),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'fallback-id');
+            assert.strictEqual(loaded?.agentPlugin, true);
+            assert.strictEqual(loaded?.agentPluginManifest?.name, 'codex-plugin-capability');
+            assert.deepStrictEqual(loaded?.agentPluginManifest?.pluginHosts, [
+                'github-copilot',
+                'codex',
+            ]);
+            assert.ok(
+                !loaded?.warnings.some((warning) => warning.severity === 'error'),
+                `expected no canonical plugin errors, got: ${JSON.stringify(loaded?.warnings)}`,
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('returns canonical parse errors for invalid .metaflow capability files', () => {
+        const invalidJson = parseCanonicalCapabilityManifestContent(
+            '{ invalid json',
+            'fallback-id',
+            '/tmp/.metaflow/capability.json',
+        );
+        assert.ok(hasCode(invalidJson, 'CANONICAL_CAPABILITY_JSON_INVALID'));
+
+        const nonObject = parseCanonicalCapabilityManifestContent(
+            '[]',
+            'fallback-id',
+            '/tmp/.metaflow/capability.json',
+        );
+        assert.ok(hasCode(nonObject, 'CANONICAL_CAPABILITY_OBJECT_REQUIRED'));
     });
 });
