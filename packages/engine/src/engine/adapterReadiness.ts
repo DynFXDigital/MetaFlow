@@ -179,7 +179,7 @@ export function buildAdapterReadinessReports(
                 action(
                     'hooks',
                     hook.id,
-                    `${label} hook ${hook.id} (${hook.triggerPhase}/${hook.invocationType}) requires lifecycle projection or runtime wiring before enforcement.`,
+                    `${label} hook ${hook.id} (${hook.triggerPhase}/${hook.invocationType}) requires target adapter materialization and runtime trust review before enforcement.`,
                     rowEvidence(hookRow),
                 ),
             );

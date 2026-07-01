@@ -88,10 +88,11 @@ const CODEX_MATRIX: MatrixSeed[] = [
         [
             'Canonical hook metadata is parsed and reported for adapter review.',
             'Target-native Codex hook policy files are materialized safely when authored.',
-            'Canonical MetaFlow lifecycle hook projection is not implemented.',
+            'Supported canonical MetaFlow command lifecycle hooks project to Codex hook JSON according to target adapter materialization gates.',
+            'Unsupported canonical hook forms remain report-only adapter metadata.',
         ],
         ['Hooks execute code or commands and require explicit trust and sandbox review.'],
-        ['RUN-024', 'RUN-034'],
+        ['RUN-024', 'RUN-034', 'RUN-044'],
     ),
     row(
         'packageManifests',

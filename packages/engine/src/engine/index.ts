@@ -121,6 +121,12 @@ export {
     renderCodexProjectConfigToml,
 } from './codexProjectConfig';
 export {
+    codexHookProjectionConstants,
+    codexHookProjectionDestination,
+    isCodexHookProjectable,
+    renderCodexHooksJson,
+} from './codexHookProjection';
+export {
     loadTargetAdaptersForLayer,
     parseTargetAdapterContent,
     targetAdapterConstants,

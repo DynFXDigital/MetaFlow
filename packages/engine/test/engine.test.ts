@@ -1339,6 +1339,137 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(hook?.warnings.length, 0);
     });
 
+    it('projects supported canonical hooks to Codex hook JSON', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'hooks'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-hook.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-hook',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        for (const hook of [
+            {
+                id: 'after-tool',
+                triggerPhase: 'postToolUse',
+                command: 'node',
+                args: ['scripts/after-tool.js'],
+            },
+            {
+                id: 'before-tool',
+                triggerPhase: 'preToolUse',
+                command: 'node',
+                args: ['scripts/before-tool.js'],
+            },
+            {
+                id: 'post-apply',
+                triggerPhase: 'postApply',
+                command: 'npm',
+                args: ['test'],
+            },
+        ]) {
+            fs.writeFileSync(
+                path.join(repoDir, 'core', '.metaflow', 'hooks', `${hook.id}.json`),
+                JSON.stringify({
+                    schemaVersion: 'metaflow.hook/v1',
+                    id: hook.id,
+                    triggerPhase: hook.triggerPhase,
+                    invocationType: 'command',
+                    command: hook.command,
+                    args: hook.args,
+                    failureBehavior: 'block',
+                    policyGrants: ['shell-hook'],
+                    targets: ['codex'],
+                }),
+                'utf-8',
+            );
+        }
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers[0].hooks?.length, 3);
+        const fileMap = buildEffectiveFileMap(layers);
+        const projected = fileMap.get('.codex/hooks.json');
+        assert.ok(projected, 'supported canonical hooks should project to Codex hooks JSON');
+        assert.strictEqual(projected?.sourceRelativePath, '.metaflow/hooks');
+        const json = JSON.parse(projected?.projectedContent ?? '{}');
+        assert.deepStrictEqual(json.hooks.PreToolUse, [
+            {
+                matcher: '*',
+                hooks: [{ type: 'command', command: 'node scripts/before-tool.js' }],
+            },
+        ]);
+        assert.deepStrictEqual(json.hooks.PostToolUse, [
+            {
+                matcher: '*',
+                hooks: [{ type: 'command', command: 'node scripts/after-tool.js' }],
+            },
+        ]);
+        assert.ok(!json.hooks.PostApply, 'unsupported canonical phases are not projected');
+    });
+
+    it('retains target-native Codex hooks when canonical hooks are also present', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.codex'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'hooks'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.codex', 'hooks.json'),
+            JSON.stringify({ hooks: { PreToolUse: [] } }, null, 2),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-hook.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-hook',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'hooks', 'before-tool.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'before-tool',
+                triggerPhase: 'preToolUse',
+                invocationType: 'command',
+                command: 'node',
+                args: ['scripts/before-tool.js'],
+                failureBehavior: 'block',
+                policyGrants: ['shell-hook'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+
+        const layers = resolveLayers(
+            {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['core'],
+            },
+            tmpDir,
+        );
+        const fileMap = buildEffectiveFileMap(layers);
+        const codexHooks = fileMap.get('.codex/hooks.json');
+
+        assert.ok(codexHooks, 'target-native Codex hooks should remain present');
+        assert.strictEqual(codexHooks?.sourceRelativePath, undefined);
+        assert.strictEqual(codexHooks?.projectedContent, undefined);
+    });
+
     it('reports validation diagnostics for invalid canonical hooks', () => {
         const hook = parseHookContent(
             JSON.stringify({
@@ -3764,6 +3895,143 @@ describe('Engine: synchronizer advanced', () => {
         const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
         assert.ok(result.skipped.includes('.codex/config.toml'));
         assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'config.toml')));
+    });
+
+    it('managed target adapter projects canonical hooks to Codex hooks JSON', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'hooks'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-hook.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-hook',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'hooks', 'before-tool.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'before-tool',
+                triggerPhase: 'preToolUse',
+                invocationType: 'command',
+                command: 'node',
+                args: ['scripts/before-tool.js'],
+                failureBehavior: 'block',
+                policyGrants: ['shell-hook'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { hooks: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-044'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const hookFile = fileMap.get('.codex/hooks.json');
+        assert.ok(hookFile, 'projected Codex hooks file should be present');
+        assert.strictEqual(hookFile?.classification, 'synchronized');
+
+        const pending = preview(tmpDir, files);
+        const hookChange = pending.find((change) => change.relativePath === '.codex/hooks.json');
+        assert.strictEqual(hookChange?.action, 'add');
+        assert.strictEqual(hookChange?.projection.targetAdapterConcept, 'hooks');
+        assert.strictEqual(hookChange?.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(hookChange?.projection.lossiness, 'lossy');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/hooks.json'));
+        const written = JSON.parse(
+            fs.readFileSync(path.join(tmpDir, '.codex', 'hooks.json'), 'utf-8'),
+        );
+        assert.deepStrictEqual(written.hooks.PreToolUse, [
+            {
+                matcher: '*',
+                hooks: [{ type: 'command', command: 'node scripts/before-tool.js' }],
+            },
+        ]);
+    });
+
+    it('canonical hook projection is candidate-only without a managed Codex target adapter', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'hooks'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-hook.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-hook',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'hooks', 'before-tool.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'before-tool',
+                triggerPhase: 'preToolUse',
+                invocationType: 'command',
+                command: 'node',
+                args: ['scripts/before-tool.js'],
+                failureBehavior: 'block',
+                policyGrants: ['shell-hook'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const hookChange = pending.find((change) => change.relativePath === '.codex/hooks.json');
+        assert.strictEqual(hookChange?.action, 'skip');
+        assert.strictEqual(hookChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(hookChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            hookChange?.projection.notes.includes(
+                'target adapter required for managed hook materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.codex/hooks.json'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'hooks.json')));
     });
 
     it('discovers and synchronizes Codex project config without inline provenance', () => {

@@ -105,7 +105,16 @@ function inferTargetAdapterConcept(
         return 'projectConfig';
     }
 
-    if (paths.some((path) => path.startsWith('hooks/') || path.startsWith('.github/hooks/'))) {
+    if (
+        paths.some(
+            (path) =>
+                path === '.metaflow/hooks' ||
+                /^\.metaflow\/hooks\/[^/]+\.json$/.test(path) ||
+                path === '.codex/hooks.json' ||
+                path.startsWith('hooks/') ||
+                path.startsWith('.github/hooks/'),
+        )
+    ) {
         return 'hooks';
     }
 
@@ -142,6 +151,9 @@ function inferLossiness(
     const canonicalProjectConfig = /^\.metaflow\/project-config\/[^/]+\.json$/.test(
         normalizedSource,
     );
+    const canonicalHooks =
+        normalizedSource === '.metaflow/hooks' ||
+        /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSource);
     if (
         canonicalSkill &&
         (target === 'codex' || target === 'github-copilot') &&
@@ -162,6 +174,9 @@ function inferLossiness(
         normalizedDestination === '.codex/config.toml'
     ) {
         return 'none';
+    }
+    if (canonicalHooks && target === 'codex' && normalizedDestination === '.codex/hooks.json') {
+        return 'lossy';
     }
     if (sourceFormat === target) {
         return 'none';
@@ -223,7 +238,10 @@ export function describeProjectionWithTargetAdapters(
         target === 'codex' &&
         ((concept === 'agents' && /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSourcePath)) ||
             (concept === 'projectConfig' &&
-                /^\.metaflow\/project-config\/[^/]+\.json$/.test(normalizedSourcePath)));
+                /^\.metaflow\/project-config\/[^/]+\.json$/.test(normalizedSourcePath)) ||
+            (concept === 'hooks' &&
+                (normalizedSourcePath === '.metaflow/hooks' ||
+                    /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSourcePath))));
     const materializationMode =
         adapter && !adapter.enabled
             ? 'disabled'
@@ -244,6 +262,8 @@ export function describeProjectionWithTargetAdapters(
     } else if (requiresExplicitTargetAdapter) {
         if (concept === 'projectConfig') {
             notes.push('target adapter required for managed project config materialization');
+        } else if (concept === 'hooks') {
+            notes.push('target adapter required for managed hook materialization');
         } else {
             notes.push('target adapter required for managed agent materialization');
         }

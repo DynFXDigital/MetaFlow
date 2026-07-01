@@ -284,7 +284,7 @@ describe('CLI: preview', () => {
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.hook/v1',
                             id: 'release-gate',
-                            triggerPhase: 'preApply',
+                            triggerPhase: 'preToolUse',
                             invocationType: 'command',
                             command: 'npm',
                             args: ['test'],
@@ -381,6 +381,7 @@ describe('CLI: preview', () => {
                             materializationMode: 'candidate',
                             concepts: {
                                 agents: 'managed',
+                                hooks: 'managed',
                                 skills: 'managed',
                                 instructions: 'candidate',
                                 mcpServers: 'report-only',
@@ -424,7 +425,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Hooks: 1'));
         assert.ok(
             textResult.stdout.includes(
-                'release-gate [preApply/command] failure=block scope=workspace',
+                'release-gate [preToolUse/command] failure=block scope=workspace',
             ),
         );
         assert.ok(textResult.stdout.includes('targets=codex'));
@@ -478,7 +479,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(
             textResult.stdout.includes(
-                'concepts: agents=managed, instructions=candidate, mcpServers=report-only, projectConfig=managed, skills=managed',
+                'concepts: agents=managed, hooks=managed, instructions=candidate, mcpServers=report-only, projectConfig=managed, skills=managed',
             ),
         );
         assert.ok(textResult.stdout.includes('note: Root instructions stay candidate-only.'));
@@ -526,6 +527,9 @@ describe('CLI: preview', () => {
         const codexConfigChange = data.pendingChanges.find(
             (change: { relativePath: string }) => change.relativePath === codexConfigPath,
         );
+        const codexHookChange = data.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === '.codex/hooks.json',
+        );
         assert.strictEqual(codexChange.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(codexChange.projection.target, 'codex');
         assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
@@ -563,6 +567,13 @@ describe('CLI: preview', () => {
             codexConfigChange.projection.targetAdapterMaterializationMode,
             'managed',
         );
+        assert.strictEqual(codexHookChange.sourceRelativePath, '.metaflow/hooks');
+        assert.strictEqual(codexHookChange.action, 'add');
+        assert.strictEqual(codexHookChange.projection.target, 'codex');
+        assert.strictEqual(codexHookChange.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(codexHookChange.projection.lossiness, 'lossy');
+        assert.strictEqual(codexHookChange.projection.targetAdapterConcept, 'hooks');
+        assert.strictEqual(codexHookChange.projection.targetAdapterMaterializationMode, 'managed');
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);
@@ -591,7 +602,7 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.mcpServers[0].policyGrants, ['github-pr-read']);
         assert.strictEqual(data.mcpServers[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.hooks[0].id, 'release-gate');
-        assert.strictEqual(data.hooks[0].triggerPhase, 'preApply');
+        assert.strictEqual(data.hooks[0].triggerPhase, 'preToolUse');
         assert.strictEqual(data.hooks[0].invocationType, 'command');
         assert.strictEqual(data.hooks[0].command, 'npm');
         assert.deepStrictEqual(data.hooks[0].args, ['test']);
@@ -657,6 +668,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.targetAdapters[0].materializationMode, 'candidate');
         assert.deepStrictEqual(data.targetAdapters[0].concepts, {
             agents: 'managed',
+            hooks: 'managed',
             skills: 'managed',
             instructions: 'candidate',
             mcpServers: 'report-only',
@@ -709,6 +721,7 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexHookSupport.support, 'partial');
         assert.ok(codexHookSupport.evidence.includes('RUN-034'));
+        assert.ok(codexHookSupport.evidence.includes('RUN-044'));
         const codexExecutionSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'executionSurfaces',
@@ -751,6 +764,7 @@ describe('CLI: preview', () => {
         assert.ok(codexAdapterReport.evidence.includes('RUN-037'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-042'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-043'));
+        assert.ok(codexAdapterReport.evidence.includes('RUN-044'));
         const copilotAdapterReport = data.adapterReports.find(
             (report: { target: string }) => report.target === 'github-copilot',
         );

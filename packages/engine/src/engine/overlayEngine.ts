@@ -39,6 +39,10 @@ import {
     loadCodexProjectConfigsForLayer,
     renderCodexProjectConfigToml,
 } from './codexProjectConfig';
+import {
+    codexHookProjectionDestination,
+    renderCodexHooksJson,
+} from './codexHookProjection';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
@@ -321,6 +325,7 @@ function buildLayerContent(
     const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
     const agentProfiles = loadAgentProfilesForLayer(layerAbsPath, knownPolicyGrantIds);
     const codexProjectConfigs = loadCodexProjectConfigsForLayer(layerAbsPath, knownPolicyGrantIds);
+    const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const agentProfileFiles: LayerFile[] = agentProfiles.flatMap((profile) => {
         const destination = codexAgentProfileDestination(profile);
         if (!destination) {
@@ -349,14 +354,30 @@ function buildLayerContent(
             },
         ];
     });
+    const hasTargetNativeCodexHooks = files.some(
+        (file) => normalizeInputPath(file.relativePath) === '.codex/hooks.json',
+    );
+    const codexHooksDestination = hasTargetNativeCodexHooks
+        ? undefined
+        : codexHookProjectionDestination(hooks);
+    const codexHookFiles: LayerFile[] = codexHooksDestination
+        ? [
+              {
+                  relativePath: codexHooksDestination,
+                  sourceRelativePath: '.metaflow/hooks',
+                  absolutePath: path.join(layerAbsPath, '.metaflow', 'hooks'),
+                  projectedContent: renderCodexHooksJson(hooks),
+              },
+          ]
+        : [];
     return {
         layerId,
         repoId,
-        files: [...files, ...agentProfileFiles, ...codexProjectConfigFiles],
+        files: [...files, ...agentProfileFiles, ...codexProjectConfigFiles, ...codexHookFiles],
         capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         policyGrants,
         mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
-        hooks: loadHooksForLayer(layerAbsPath, knownPolicyGrantIds),
+        hooks,
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
