@@ -10,8 +10,11 @@ import * as path from 'path';
 import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    McpServerEnvironmentSource,
+    McpServerForwardedEnvVar,
     McpServerInvocation,
     McpServerMetadata,
+    McpServerToolApprovalMode,
     McpServerTransport,
 } from './types';
 
@@ -26,11 +29,30 @@ const KNOWN_FIELDS = new Set([
     'invocation',
     'endpoint',
     'requiredSecrets',
+    'bearerTokenEnvVar',
+    'httpHeaders',
+    'envHttpHeaders',
+    'oauthScopes',
+    'oauthResource',
+    'startupTimeoutSeconds',
+    'toolTimeoutSeconds',
+    'enabled',
+    'required',
+    'enabledTools',
+    'disabledTools',
+    'defaultToolsApprovalMode',
+    'toolApprovalModes',
     'capabilityCategory',
     'policyGrants',
     'description',
 ]);
 const TRANSPORT_VALUES = new Set<McpServerTransport>(['stdio', 'http', 'sse', 'streamable-http']);
+const ENVIRONMENT_SOURCE_VALUES = new Set<McpServerEnvironmentSource>(['local', 'remote']);
+const TOOL_APPROVAL_MODE_VALUES = new Set<McpServerToolApprovalMode>([
+    'auto',
+    'prompt',
+    'approve',
+]);
 
 type McpServerFields = {
     schemaVersion?: unknown;
@@ -39,6 +61,19 @@ type McpServerFields = {
     invocation?: unknown;
     endpoint?: unknown;
     requiredSecrets?: unknown;
+    bearerTokenEnvVar?: unknown;
+    httpHeaders?: unknown;
+    envHttpHeaders?: unknown;
+    oauthScopes?: unknown;
+    oauthResource?: unknown;
+    startupTimeoutSeconds?: unknown;
+    toolTimeoutSeconds?: unknown;
+    enabled?: unknown;
+    required?: unknown;
+    enabledTools?: unknown;
+    disabledTools?: unknown;
+    defaultToolsApprovalMode?: unknown;
+    toolApprovalModes?: unknown;
     capabilityCategory?: unknown;
     policyGrants?: unknown;
     description?: unknown;
@@ -106,12 +141,243 @@ function parseStringArray(
     return result;
 }
 
+function parseStringRecord(
+    value: unknown,
+    fieldName: string,
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): Record<string, string> | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!isObjectRecord(value)) {
+        warnings.push(
+            toWarning(
+                warningCode,
+                `MCP server ${fieldName} must be an object with non-empty string keys and values when present.`,
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+
+    const result: Record<string, string> = {};
+    for (const [key, recordValue] of Object.entries(value)) {
+        const parsedKey = parseNonEmptyString(key);
+        const parsedValue = parseNonEmptyString(recordValue);
+        if (!parsedKey || !parsedValue) {
+            warnings.push(
+                toWarning(
+                    warningCode,
+                    `MCP server ${fieldName} must contain only non-empty string keys and values.`,
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+        result[parsedKey] = parsedValue;
+    }
+    return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function parseOptionalBoolean(
+    value: unknown,
+    fieldName: string,
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): boolean | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== 'boolean') {
+        warnings.push(
+            toWarning(
+                warningCode,
+                `MCP server ${fieldName} must be a boolean when present.`,
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+    return value;
+}
+
+function parsePositiveNumber(
+    value: unknown,
+    fieldName: string,
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): number | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+        warnings.push(
+            toWarning(
+                warningCode,
+                `MCP server ${fieldName} must be a positive number when present.`,
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+    return value;
+}
+
+function parseToolApprovalMode(
+    value: unknown,
+    fieldName: string,
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): McpServerToolApprovalMode | undefined {
+    const text = parseNonEmptyString(value);
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!text || !TOOL_APPROVAL_MODE_VALUES.has(text as McpServerToolApprovalMode)) {
+        warnings.push(
+            toWarning(
+                warningCode,
+                `MCP server ${fieldName} must be one of auto, prompt, or approve when present.`,
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+    return text as McpServerToolApprovalMode;
+}
+
+function parseToolApprovalModes(
+    value: unknown,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): Record<string, McpServerToolApprovalMode> {
+    if (value === undefined) {
+        return {};
+    }
+    if (!isObjectRecord(value)) {
+        warnings.push(
+            toWarning(
+                'MCP_SERVER_TOOL_APPROVAL_MODES_INVALID',
+                'MCP server toolApprovalModes must be an object keyed by non-empty tool names when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+        return {};
+    }
+
+    const result: Record<string, McpServerToolApprovalMode> = {};
+    for (const [toolName, mode] of Object.entries(value)) {
+        const parsedName = parseNonEmptyString(toolName);
+        const parsedMode = parseToolApprovalMode(
+            mode,
+            `toolApprovalModes.${toolName}`,
+            'MCP_SERVER_TOOL_APPROVAL_MODES_INVALID',
+            manifestPath,
+            warnings,
+        );
+        if (parsedName && parsedMode) {
+            result[parsedName] = parsedMode;
+        }
+    }
+    return result;
+}
+
+function parseForwardedEnvVars(
+    value: unknown,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): McpServerForwardedEnvVar[] | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (!Array.isArray(value)) {
+        warnings.push(
+            toWarning(
+                'MCP_SERVER_INVOCATION_ENV_VARS_INVALID',
+                'MCP server invocation.envVars must be an array of non-empty strings or objects with name and optional source.',
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+
+    const result: McpServerForwardedEnvVar[] = [];
+    for (const entry of value) {
+        const text = parseNonEmptyString(entry);
+        if (text) {
+            result.push({ name: text });
+            continue;
+        }
+
+        if (!isObjectRecord(entry)) {
+            warnings.push(
+                toWarning(
+                    'MCP_SERVER_INVOCATION_ENV_VARS_INVALID',
+                    'MCP server invocation.envVars entries must be non-empty strings or objects.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const name = parseNonEmptyString(entry.name);
+        const sourceText = parseNonEmptyString(entry.source);
+        if (!name) {
+            warnings.push(
+                toWarning(
+                    'MCP_SERVER_INVOCATION_ENV_VARS_INVALID',
+                    'MCP server invocation.envVars object entries require a non-empty name.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+        if (
+            entry.source !== undefined &&
+            (!sourceText || !ENVIRONMENT_SOURCE_VALUES.has(sourceText as McpServerEnvironmentSource))
+        ) {
+            warnings.push(
+                toWarning(
+                    'MCP_SERVER_INVOCATION_ENV_VARS_INVALID',
+                    'MCP server invocation.envVars source must be local or remote when present.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+        result.push({
+            name,
+            ...(sourceText ? { source: sourceText as McpServerEnvironmentSource } : {}),
+        });
+    }
+    return result.length > 0 ? result : undefined;
+}
+
 function emptyMcpServer(manifestPath: string | undefined, warnings: CapabilityWarning[]) {
     return {
         id: '',
         manifestPath: manifestPath ?? '',
         transport: 'stdio' as const,
         requiredSecrets: [],
+        oauthScopes: [],
+        enabledTools: [],
+        disabledTools: [],
+        toolApprovalModes: {},
         policyGrants: [],
         warnings,
     };
@@ -156,8 +422,35 @@ function parseInvocation(
         manifestPath,
         warnings,
     );
+    const env = parseStringRecord(
+        value.env,
+        'invocation.env',
+        'MCP_SERVER_INVOCATION_ENV_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const cwd = parseNonEmptyString(value.cwd);
+    if (value.cwd !== undefined && !cwd) {
+        warnings.push(
+            toWarning(
+                'MCP_SERVER_INVOCATION_CWD_INVALID',
+                'MCP server invocation.cwd must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const envVars = parseForwardedEnvVars(value.envVars, manifestPath, warnings);
 
-    return command ? { command, args } : undefined;
+    return command
+        ? {
+              command,
+              args,
+              ...(env ? { env } : {}),
+              ...(cwd ? { cwd } : {}),
+              ...(envVars ? { envVars } : {}),
+          }
+        : undefined;
 }
 
 export function parseMcpServerContent(
@@ -303,6 +596,103 @@ export function parseMcpServerContent(
         manifestPath,
         warnings,
     );
+    const bearerTokenEnvVar = parseNonEmptyString(fields.bearerTokenEnvVar);
+    if (fields.bearerTokenEnvVar !== undefined && !bearerTokenEnvVar) {
+        warnings.push(
+            toWarning(
+                'MCP_SERVER_BEARER_TOKEN_ENV_VAR_INVALID',
+                'MCP server bearerTokenEnvVar must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const httpHeaders = parseStringRecord(
+        fields.httpHeaders,
+        'httpHeaders',
+        'MCP_SERVER_HTTP_HEADERS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const envHttpHeaders = parseStringRecord(
+        fields.envHttpHeaders,
+        'envHttpHeaders',
+        'MCP_SERVER_ENV_HTTP_HEADERS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const oauthScopes = parseStringArray(
+        fields.oauthScopes,
+        'oauthScopes',
+        'MCP_SERVER_OAUTH_SCOPES_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const oauthResource = parseNonEmptyString(fields.oauthResource);
+    if (fields.oauthResource !== undefined && !oauthResource) {
+        warnings.push(
+            toWarning(
+                'MCP_SERVER_OAUTH_RESOURCE_INVALID',
+                'MCP server oauthResource must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const startupTimeoutSeconds = parsePositiveNumber(
+        fields.startupTimeoutSeconds,
+        'startupTimeoutSeconds',
+        'MCP_SERVER_STARTUP_TIMEOUT_SECONDS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const toolTimeoutSeconds = parsePositiveNumber(
+        fields.toolTimeoutSeconds,
+        'toolTimeoutSeconds',
+        'MCP_SERVER_TOOL_TIMEOUT_SECONDS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const enabled = parseOptionalBoolean(
+        fields.enabled,
+        'enabled',
+        'MCP_SERVER_ENABLED_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const required = parseOptionalBoolean(
+        fields.required,
+        'required',
+        'MCP_SERVER_REQUIRED_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const enabledTools = parseStringArray(
+        fields.enabledTools,
+        'enabledTools',
+        'MCP_SERVER_ENABLED_TOOLS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const disabledTools = parseStringArray(
+        fields.disabledTools,
+        'disabledTools',
+        'MCP_SERVER_DISABLED_TOOLS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const defaultToolsApprovalMode = parseToolApprovalMode(
+        fields.defaultToolsApprovalMode,
+        'defaultToolsApprovalMode',
+        'MCP_SERVER_DEFAULT_TOOLS_APPROVAL_MODE_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const toolApprovalModes = parseToolApprovalModes(
+        fields.toolApprovalModes,
+        manifestPath,
+        warnings,
+    );
     const policyGrants = parseStringArray(
         fields.policyGrants,
         'policyGrants',
@@ -364,6 +754,19 @@ export function parseMcpServerContent(
         invocation,
         endpoint,
         requiredSecrets,
+        bearerTokenEnvVar,
+        httpHeaders,
+        envHttpHeaders,
+        oauthScopes,
+        oauthResource,
+        startupTimeoutSeconds,
+        toolTimeoutSeconds,
+        enabled,
+        required,
+        enabledTools,
+        disabledTools,
+        defaultToolsApprovalMode,
+        toolApprovalModes,
         capabilityCategory,
         policyGrants,
         description,

@@ -77,12 +77,12 @@ const CODEX_MATRIX: MatrixSeed[] = [
         [
             'Canonical MCP server metadata is parsed and reported for adapter review.',
             'Codex supports MCP at runtime through project config and user config.',
-            'Canonical MetaFlow stdio MCP server metadata projects to Codex project config according to target adapter materialization gates when the layer owns MCP-only Codex config.',
-            'Canonical project config and supported stdio MCP sections share one Codex project config file when each concept is managed by the target adapter.',
-            'Network transports, bearer-token mapping, static HTTP headers, OAuth, and tool-level approval overrides remain report-only until canonical authority semantics are explicit.',
+            'Canonical MetaFlow stdio and Streamable HTTP MCP server metadata projects to Codex project config according to target adapter materialization gates.',
+            'Canonical project config and supported MCP sections share one Codex project config file when each concept is managed by the target adapter.',
+            'Projected MCP options include command arguments, literal environment, forwarded environment variables, working directory, bearer-token environment mapping, HTTP headers, OAuth scopes and resource, timeouts, enablement, requirement flags, tool allow and deny lists, and tool approval modes.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
-        ['RUN-033', 'RUN-045', 'RUN-046'],
+        ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047'],
     ),
     row(
         'hooks',

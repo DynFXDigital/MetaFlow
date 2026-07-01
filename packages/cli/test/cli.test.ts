@@ -810,6 +810,22 @@ describe('CLI: preview', () => {
                         }),
                     },
                     {
+                        relativePath: '.metaflow/mcp/docs.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.mcpServer/v1',
+                            id: 'docs',
+                            transport: 'streamable-http',
+                            endpoint: 'https://mcp.example.test/mcp',
+                            bearerTokenEnvVar: 'DOCS_MCP_TOKEN',
+                            httpHeaders: { 'X-Client': 'metaflow' },
+                            oauthScopes: ['docs.read'],
+                            startupTimeoutSeconds: 20,
+                            enabledTools: ['search'],
+                            defaultToolsApprovalMode: 'prompt',
+                            policyGrants: ['github-pr-read'],
+                        }),
+                    },
+                    {
                         relativePath: '.metaflow/targets/codex.json',
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.targetAdapter/v1',
@@ -900,6 +916,22 @@ describe('CLI: preview', () => {
                         }),
                     },
                     {
+                        relativePath: '.metaflow/mcp/docs.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.mcpServer/v1',
+                            id: 'docs',
+                            transport: 'streamable-http',
+                            endpoint: 'https://mcp.example.test/mcp',
+                            bearerTokenEnvVar: 'DOCS_MCP_TOKEN',
+                            httpHeaders: { 'X-Client': 'metaflow' },
+                            oauthScopes: ['docs.read'],
+                            startupTimeoutSeconds: 20,
+                            enabledTools: ['search'],
+                            defaultToolsApprovalMode: 'prompt',
+                            policyGrants: ['github-pr-read'],
+                        }),
+                    },
+                    {
                         relativePath: '.metaflow/targets/codex.json',
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.targetAdapter/v1',
@@ -941,6 +973,14 @@ describe('CLI: preview', () => {
         assert.ok(written.includes('[mcp_servers.github]'));
         assert.ok(written.includes('command = "github-mcp-server"'));
         assert.ok(written.includes('env_vars = ["GITHUB_TOKEN"]'));
+        assert.ok(written.includes('[mcp_servers.docs]'));
+        assert.ok(written.includes('url = "https://mcp.example.test/mcp"'));
+        assert.ok(written.includes('bearer_token_env_var = "DOCS_MCP_TOKEN"'));
+        assert.ok(written.includes('http_headers = { "X-Client" = "metaflow" }'));
+        assert.ok(written.includes('scopes = ["docs.read"]'));
+        assert.ok(written.includes('startup_timeout_sec = 20'));
+        assert.ok(written.includes('enabled_tools = ["search"]'));
+        assert.ok(written.includes('default_tools_approval_mode = "prompt"'));
     });
 
     it('should show no files for empty overlay', async () => {

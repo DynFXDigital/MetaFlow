@@ -1252,6 +1252,80 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(server?.warnings.length, 0);
     });
 
+    it('loads canonical streamable HTTP MCP servers with Codex runtime options', () => {
+        const server = parseMcpServerContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'docs',
+                transport: 'streamable-http',
+                endpoint: 'https://mcp.example.test/mcp',
+                bearerTokenEnvVar: 'DOCS_MCP_TOKEN',
+                httpHeaders: { 'X-Client': 'metaflow' },
+                envHttpHeaders: { Authorization: 'DOCS_AUTH_HEADER' },
+                oauthScopes: ['docs.read', 'docs.search'],
+                oauthResource: 'https://mcp.example.test',
+                startupTimeoutSeconds: 20,
+                toolTimeoutSeconds: 90,
+                enabled: true,
+                required: false,
+                enabledTools: ['search'],
+                disabledTools: ['delete'],
+                defaultToolsApprovalMode: 'prompt',
+                toolApprovalModes: { search: 'auto', delete: 'approve' },
+                policyGrants: ['docs-read'],
+            }),
+            'docs.json',
+            new Set(['docs-read']),
+        );
+
+        assert.strictEqual(server.id, 'docs');
+        assert.strictEqual(server.transport, 'streamable-http');
+        assert.strictEqual(server.endpoint, 'https://mcp.example.test/mcp');
+        assert.strictEqual(server.bearerTokenEnvVar, 'DOCS_MCP_TOKEN');
+        assert.deepStrictEqual(server.httpHeaders, { 'X-Client': 'metaflow' });
+        assert.deepStrictEqual(server.envHttpHeaders, { Authorization: 'DOCS_AUTH_HEADER' });
+        assert.deepStrictEqual(server.oauthScopes, ['docs.read', 'docs.search']);
+        assert.strictEqual(server.oauthResource, 'https://mcp.example.test');
+        assert.strictEqual(server.startupTimeoutSeconds, 20);
+        assert.strictEqual(server.toolTimeoutSeconds, 90);
+        assert.strictEqual(server.enabled, true);
+        assert.strictEqual(server.required, false);
+        assert.deepStrictEqual(server.enabledTools, ['search']);
+        assert.deepStrictEqual(server.disabledTools, ['delete']);
+        assert.strictEqual(server.defaultToolsApprovalMode, 'prompt');
+        assert.deepStrictEqual(server.toolApprovalModes, { search: 'auto', delete: 'approve' });
+        assert.strictEqual(server.warnings.length, 0);
+    });
+
+    it('loads canonical stdio MCP servers with environment controls', () => {
+        const server = parseMcpServerContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'filesystem',
+                transport: 'stdio',
+                invocation: {
+                    command: 'filesystem-mcp',
+                    args: ['--root', '.'],
+                    cwd: '.',
+                    env: { MODE: 'readonly' },
+                    envVars: ['LOCAL_TOKEN', { name: 'REMOTE_TOKEN', source: 'remote' }],
+                },
+                policyGrants: ['filesystem-read'],
+            }),
+            'filesystem.json',
+            new Set(['filesystem-read']),
+        );
+
+        assert.deepStrictEqual(server.invocation, {
+            command: 'filesystem-mcp',
+            args: ['--root', '.'],
+            cwd: '.',
+            env: { MODE: 'readonly' },
+            envVars: [{ name: 'LOCAL_TOKEN' }, { name: 'REMOTE_TOKEN', source: 'remote' }],
+        });
+        assert.strictEqual(server.warnings.length, 0);
+    });
+
     it('projects canonical stdio MCP servers to Codex config TOML', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
@@ -1355,6 +1429,19 @@ describe('Engine package: overlay pipeline', () => {
                 transport: 'stdio',
                 invocation: { args: ['stdio'] },
                 requiredSecrets: ['TOKEN', 42],
+                bearerTokenEnvVar: '',
+                httpHeaders: { Empty: '' },
+                envHttpHeaders: [],
+                oauthScopes: ['scope', 42],
+                oauthResource: '',
+                startupTimeoutSeconds: 0,
+                toolTimeoutSeconds: 'slow',
+                enabled: 'yes',
+                required: 'no',
+                enabledTools: ['search', 42],
+                disabledTools: 'delete',
+                defaultToolsApprovalMode: 'sometimes',
+                toolApprovalModes: { search: 'auto', delete: 'sometimes' },
                 capabilityCategory: '',
                 policyGrants: ['missing-grant'],
                 extra: true,
@@ -1374,6 +1461,19 @@ describe('Engine package: overlay pipeline', () => {
                 'MCP_SERVER_INVOCATION_COMMAND_REQUIRED',
                 'MCP_SERVER_INVOCATION_REQUIRED',
                 'MCP_SERVER_REQUIRED_SECRETS_INVALID',
+                'MCP_SERVER_BEARER_TOKEN_ENV_VAR_INVALID',
+                'MCP_SERVER_HTTP_HEADERS_INVALID',
+                'MCP_SERVER_ENV_HTTP_HEADERS_INVALID',
+                'MCP_SERVER_OAUTH_SCOPES_INVALID',
+                'MCP_SERVER_OAUTH_RESOURCE_INVALID',
+                'MCP_SERVER_STARTUP_TIMEOUT_SECONDS_INVALID',
+                'MCP_SERVER_TOOL_TIMEOUT_SECONDS_INVALID',
+                'MCP_SERVER_ENABLED_INVALID',
+                'MCP_SERVER_REQUIRED_INVALID',
+                'MCP_SERVER_ENABLED_TOOLS_INVALID',
+                'MCP_SERVER_DISABLED_TOOLS_INVALID',
+                'MCP_SERVER_DEFAULT_TOOLS_APPROVAL_MODE_INVALID',
+                'MCP_SERVER_TOOL_APPROVAL_MODES_INVALID',
                 'MCP_SERVER_POLICY_GRANT_UNKNOWN',
                 'MCP_SERVER_CAPABILITY_CATEGORY_INVALID',
             ],
@@ -4065,6 +4165,122 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(written.includes('command = "github-mcp-server"'));
         assert.ok(written.includes('args = ["stdio"]'));
         assert.ok(written.includes('env_vars = ["GITHUB_TOKEN"]'));
+    });
+
+    it('managed target adapter projects extended MCP server options to Codex config TOML', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'docs-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'docs-read',
+                authority: 'mcp.docs.read',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'docs.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'docs',
+                transport: 'streamable-http',
+                endpoint: 'https://mcp.example.test/mcp',
+                bearerTokenEnvVar: 'DOCS_MCP_TOKEN',
+                httpHeaders: { 'X-Client': 'metaflow' },
+                envHttpHeaders: { Authorization: 'DOCS_AUTH_HEADER' },
+                oauthScopes: ['docs.read', 'docs.search'],
+                oauthResource: 'https://mcp.example.test',
+                startupTimeoutSeconds: 20,
+                toolTimeoutSeconds: 90,
+                enabled: true,
+                required: false,
+                enabledTools: ['search'],
+                disabledTools: ['delete'],
+                defaultToolsApprovalMode: 'prompt',
+                toolApprovalModes: { delete: 'approve', search: 'auto' },
+                policyGrants: ['docs-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'filesystem.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'filesystem',
+                transport: 'stdio',
+                invocation: {
+                    command: 'filesystem-mcp',
+                    args: ['--root', '.'],
+                    cwd: '.',
+                    env: { MODE: 'readonly' },
+                    envVars: [{ name: 'REMOTE_TOKEN', source: 'remote' }],
+                },
+                requiredSecrets: ['LOCAL_TOKEN'],
+                policyGrants: ['docs-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { mcpServers: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-047'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/config.toml'));
+        const written = fs.readFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'utf-8');
+        assert.ok(written.includes('[mcp_servers.docs]'));
+        assert.ok(written.includes('url = "https://mcp.example.test/mcp"'));
+        assert.ok(written.includes('bearer_token_env_var = "DOCS_MCP_TOKEN"'));
+        assert.ok(written.includes('http_headers = { "X-Client" = "metaflow" }'));
+        assert.ok(written.includes('env_http_headers = { "Authorization" = "DOCS_AUTH_HEADER" }'));
+        assert.ok(written.includes('scopes = ["docs.read", "docs.search"]'));
+        assert.ok(written.includes('oauth_resource = "https://mcp.example.test"'));
+        assert.ok(written.includes('startup_timeout_sec = 20'));
+        assert.ok(written.includes('tool_timeout_sec = 90'));
+        assert.ok(written.includes('enabled = true'));
+        assert.ok(written.includes('required = false'));
+        assert.ok(written.includes('enabled_tools = ["search"]'));
+        assert.ok(written.includes('disabled_tools = ["delete"]'));
+        assert.ok(written.includes('default_tools_approval_mode = "prompt"'));
+        assert.ok(written.includes('[mcp_servers.docs.tools.delete]'));
+        assert.ok(written.includes('approval_mode = "approve"'));
+        assert.ok(written.includes('[mcp_servers.docs.tools.search]'));
+        assert.ok(written.includes('approval_mode = "auto"'));
+        assert.ok(written.includes('[mcp_servers.filesystem]'));
+        assert.ok(written.includes('command = "filesystem-mcp"'));
+        assert.ok(
+            written.includes(
+                'env_vars = [{ name = "LOCAL_TOKEN" }, { name = "REMOTE_TOKEN", source = "remote" }]',
+            ),
+        );
+        assert.ok(written.includes('cwd = "."'));
+        assert.ok(written.includes('[mcp_servers.filesystem.env]'));
+        assert.ok(written.includes('MODE = "readonly"'));
     });
 
     it('managed Codex project config and MCP servers share one config TOML', () => {

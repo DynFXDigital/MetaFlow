@@ -180,12 +180,32 @@ export interface PolicyGrantMetadata {
 /** Transport family declared by a canonical MCP server manifest. */
 export type McpServerTransport = 'stdio' | 'http' | 'sse' | 'streamable-http';
 
+/** Environment variable source declared for a forwarded MCP environment variable. */
+export type McpServerEnvironmentSource = 'local' | 'remote';
+
+/** Forwarded environment variable declaration for an MCP server runtime. */
+export interface McpServerForwardedEnvVar {
+    /** Environment variable name forwarded into the MCP server runtime. */
+    name: string;
+    /** Optional source boundary for the forwarded variable. */
+    source?: McpServerEnvironmentSource;
+}
+
+/** Codex MCP tool approval mode represented by MetaFlow. */
+export type McpServerToolApprovalMode = 'auto' | 'prompt' | 'approve';
+
 /** Local process invocation declared by a canonical MCP server manifest. */
 export interface McpServerInvocation {
     /** Executable command or package runner. */
     command: string;
     /** Optional command arguments. */
     args: string[];
+    /** Optional literal environment variables passed to the local MCP process. */
+    env?: Record<string, string>;
+    /** Optional working directory for the local MCP process. */
+    cwd?: string;
+    /** Optional environment variable forwarding declarations. */
+    envVars?: McpServerForwardedEnvVar[];
 }
 
 /** Canonical MetaFlow MCP server metadata associated with a layer. */
@@ -202,6 +222,32 @@ export interface McpServerMetadata {
     endpoint?: string;
     /** Required secret names referenced by the server. */
     requiredSecrets: string[];
+    /** Optional bearer token environment variable for network transports. */
+    bearerTokenEnvVar?: string;
+    /** Optional literal HTTP headers for network transports. */
+    httpHeaders?: Record<string, string>;
+    /** Optional HTTP headers whose values are read from environment variables. */
+    envHttpHeaders?: Record<string, string>;
+    /** Optional OAuth scopes requested by network transports. */
+    oauthScopes?: string[];
+    /** Optional OAuth resource identifier requested by network transports. */
+    oauthResource?: string;
+    /** Optional startup timeout in seconds. */
+    startupTimeoutSeconds?: number;
+    /** Optional tool call timeout in seconds. */
+    toolTimeoutSeconds?: number;
+    /** Optional target-runtime enablement flag. */
+    enabled?: boolean;
+    /** Optional target-runtime required-server flag. */
+    required?: boolean;
+    /** Optional allow-list of tools exposed by the server. */
+    enabledTools?: string[];
+    /** Optional deny-list of tools exposed by the server. */
+    disabledTools?: string[];
+    /** Optional default approval mode for server tools. */
+    defaultToolsApprovalMode?: McpServerToolApprovalMode;
+    /** Optional per-tool approval mode overrides. */
+    toolApprovalModes?: Record<string, McpServerToolApprovalMode>;
     /** Capability category exposed by the server. */
     capabilityCategory?: string;
     /** Policy grants required before the server is used. */
