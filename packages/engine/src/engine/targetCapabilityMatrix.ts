@@ -82,7 +82,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
             'Projected MCP options include command arguments, literal environment, forwarded environment variables, working directory, bearer-token environment mapping, HTTP headers, OAuth scopes and resource, timeouts, enablement, requirement flags, tool allow and deny lists, and tool approval modes.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
-        ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047'],
+        ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047', 'RUN-048'],
     ),
     row(
         'hooks',
