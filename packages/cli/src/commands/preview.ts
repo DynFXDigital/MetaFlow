@@ -11,6 +11,7 @@ import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
     loadConfigOrExit,
+    resolveEvaluationProfiles,
     resolveExecutionProfiles,
     resolveEffectiveFiles,
     resolveHooks,
@@ -22,6 +23,7 @@ import {
     ResolvedPolicyGrant,
     ResolvedHook,
     ResolvedExecutionProfile,
+    ResolvedEvaluationProfile,
     ResolvedMemoryScope,
 } from './common';
 
@@ -128,6 +130,16 @@ function formatMemoryScope(scope: ResolvedMemoryScope): string {
     return `${scope.id || '<invalid>'} [${scope.scopeType}/${scope.storage}]${retention}${sharing}${grants}${targets} @ ${formatFileProvenance(scope.sourceLayer, scope.sourceRepo)}`;
 }
 
+function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
+    const command = profile.command ? ` command=${profile.command}` : '';
+    const artifacts =
+        profile.artifacts.length > 0 ? ` artifacts=${profile.artifacts.join(',')}` : '';
+    const grants =
+        profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
+    const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
+    return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -159,6 +171,7 @@ export function registerPreviewCommand(program: Command): void {
                 const hooks = resolveHooks(config, workspaceRoot);
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
+                const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -179,6 +192,7 @@ export function registerPreviewCommand(program: Command): void {
                             hooks: hooks.length,
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
+                            evaluationProfiles: evaluationProfiles.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -205,6 +219,7 @@ export function registerPreviewCommand(program: Command): void {
                         hooks,
                         executionProfiles,
                         memoryScopes,
+                        evaluationProfiles,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -221,7 +236,8 @@ export function registerPreviewCommand(program: Command): void {
                     mcpServers.length === 0 &&
                     hooks.length === 0 &&
                     executionProfiles.length === 0 &&
-                    memoryScopes.length === 0
+                    memoryScopes.length === 0 &&
+                    evaluationProfiles.length === 0
                 ) {
                     console.log('No files in overlay.');
                     return;
@@ -337,6 +353,22 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    writePolicy: ${scope.writePolicy}`);
                         }
                         for (const warning of scope.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (evaluationProfiles.length > 0) {
+                    console.log(`Evaluation Profiles: ${evaluationProfiles.length}`);
+                    for (const profile of evaluationProfiles) {
+                        console.log(`  - ${formatEvaluationProfile(profile)}`);
+                        if (profile.args.length > 0) {
+                            console.log(`    args: ${profile.args.join(' ')}`);
+                        }
+                        if (profile.successCriteria) {
+                            console.log(`    successCriteria: ${profile.successCriteria}`);
+                        }
+                        for (const warning of profile.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

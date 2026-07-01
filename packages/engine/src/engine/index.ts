@@ -103,6 +103,11 @@ export {
     memoryScopeConstants,
 } from './memoryScope';
 export {
+    loadEvaluationProfilesForLayer,
+    parseEvaluationProfileContent,
+    evaluationProfileConstants,
+} from './evaluationProfile';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -118,6 +123,8 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    EvaluationProfileMetadata,
+    EvaluationType,
     ExecutionIsolation,
     ExecutionProfileMetadata,
     ExecutionSurface,

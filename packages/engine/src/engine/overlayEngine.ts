@@ -28,6 +28,7 @@ import { loadMcpServersForLayer } from './mcpServer';
 import { loadHooksForLayer } from './hookManifest';
 import { loadExecutionProfilesForLayer } from './executionProfile';
 import { loadMemoryScopesForLayer } from './memoryScope';
+import { loadEvaluationProfilesForLayer } from './evaluationProfile';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -315,6 +316,7 @@ function buildLayerContent(
         hooks: loadHooksForLayer(layerAbsPath, knownPolicyGrantIds),
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
+        evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
 
@@ -652,12 +654,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const memoryDir = path.join(metaFlowDirPath, 'memory');
-        if (!fs.existsSync(memoryDir) || !fs.statSync(memoryDir).isDirectory()) {
+        if (fs.existsSync(memoryDir) && fs.statSync(memoryDir).isDirectory()) {
+            const memoryEntries = fs.readdirSync(memoryDir, { withFileTypes: true });
+            const hasMemoryScope = memoryEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasMemoryScope) {
+                return true;
+            }
+        }
+
+        const evaluationDir = path.join(metaFlowDirPath, 'evaluation');
+        if (!fs.existsSync(evaluationDir) || !fs.statSync(evaluationDir).isDirectory()) {
             return false;
         }
 
-        const memoryEntries = fs.readdirSync(memoryDir, { withFileTypes: true });
-        return memoryEntries.some(
+        const evaluationEntries = fs.readdirSync(evaluationDir, { withFileTypes: true });
+        return evaluationEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

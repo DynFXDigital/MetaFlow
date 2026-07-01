@@ -55,6 +55,7 @@ import {
     parseHookContent,
     parseExecutionProfileContent,
     parseMemoryScopeContent,
+    parseEvaluationProfileContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -142,6 +143,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseHookContent, 'function');
         assert.strictEqual(typeof parseExecutionProfileContent, 'function');
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
+        assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -672,6 +674,34 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/memory-only']);
+    });
+
+    it('discovers canonical .metaflow evaluation profile layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-evaluation-repo');
+        fs.mkdirSync(
+            path.join(repoRoot, 'capabilities', 'evaluation-only', '.metaflow', 'evaluation'),
+            { recursive: true },
+        );
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'evaluation-only',
+                '.metaflow',
+                'evaluation',
+                'release-gate.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.evaluationProfile/v1',
+                id: 'release-gate',
+                evaluationType: 'regressionGate',
+                successCriteria: 'All configured release checks pass.',
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/evaluation-only']);
     });
 
     it('does not discover artifact roots as standalone layer directories', () => {
@@ -1312,6 +1342,97 @@ describe('Engine package: overlay pipeline', () => {
                 'MEMORY_SCOPE_POLICY_GRANT_UNKNOWN',
                 'MEMORY_SCOPE_TARGETS_INVALID',
                 'MEMORY_SCOPE_DESCRIPTION_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical evaluation profiles as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'evaluation'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-test.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-test',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'evaluation', 'release-gate.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.evaluationProfile/v1',
+                id: 'release-gate',
+                evaluationType: 'regressionGate',
+                command: 'npm',
+                args: ['run', 'gate:quick'],
+                successCriteria: 'Gate exits 0 with no failing tests.',
+                artifacts: ['doc/ftr/latest.md'],
+                policyGrants: ['shell-test'],
+                targets: ['codex', 'github-copilot'],
+                description: 'Release gate evidence for agent-generated changes.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].evaluationProfiles?.length, 1);
+        const profile = layers[0].evaluationProfiles?.[0];
+        assert.strictEqual(profile?.id, 'release-gate');
+        assert.strictEqual(profile?.evaluationType, 'regressionGate');
+        assert.strictEqual(profile?.command, 'npm');
+        assert.deepStrictEqual(profile?.args, ['run', 'gate:quick']);
+        assert.strictEqual(profile?.successCriteria, 'Gate exits 0 with no failing tests.');
+        assert.deepStrictEqual(profile?.artifacts, ['doc/ftr/latest.md']);
+        assert.deepStrictEqual(profile?.policyGrants, ['shell-test']);
+        assert.deepStrictEqual(profile?.targets, ['codex', 'github-copilot']);
+        assert.strictEqual(profile?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical evaluation profiles', () => {
+        const profile = parseEvaluationProfileContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.evaluationProfile/v0',
+                id: 'Invalid ID',
+                evaluationType: 'manual',
+                command: '',
+                args: ['run', 42],
+                successCriteria: '',
+                artifacts: ['doc/ftr/latest.md', 42],
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                description: '',
+                extra: true,
+            }),
+            'evaluation.json',
+            new Set(['shell-test']),
+        );
+
+        assert.strictEqual(profile.id, 'Invalid ID');
+        assert.strictEqual(profile.evaluationType, 'test');
+        assert.deepStrictEqual(
+            profile.warnings.map((warning) => warning.code),
+            [
+                'EVALUATION_PROFILE_UNKNOWN_FIELD',
+                'EVALUATION_PROFILE_SCHEMA_VERSION_INVALID',
+                'EVALUATION_PROFILE_ID_INVALID',
+                'EVALUATION_PROFILE_TYPE_INVALID',
+                'EVALUATION_PROFILE_COMMAND_INVALID',
+                'EVALUATION_PROFILE_ARGS_INVALID',
+                'EVALUATION_PROFILE_SUCCESS_CRITERIA_INVALID',
+                'EVALUATION_PROFILE_ARTIFACTS_INVALID',
+                'EVALUATION_PROFILE_POLICY_GRANT_UNKNOWN',
+                'EVALUATION_PROFILE_TARGETS_INVALID',
+                'EVALUATION_PROFILE_DESCRIPTION_INVALID',
             ],
         );
     });

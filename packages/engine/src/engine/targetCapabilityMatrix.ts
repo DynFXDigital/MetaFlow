@@ -146,12 +146,13 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'evaluationSupport',
         'partial',
-        ['MetaFlow FTR evidence', 'Codex CLI smoke runs'],
+        ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'Codex CLI smoke runs'],
         [
-            'MetaFlow stores adapter validation evidence, but canonical evaluation metadata is not implemented.',
+            'Canonical evaluation metadata is parsed and reported for adapter review.',
+            'Codex evaluation execution remains a runtime workflow until explicit projection adapters exist.',
         ],
         [],
-        ['RUN-027', 'RUN-030'],
+        ['RUN-027', 'RUN-030', 'RUN-037'],
     ),
 ];
 
@@ -270,12 +271,13 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'evaluationSupport',
         'partial',
-        ['MetaFlow FTR evidence', 'extension integration tests'],
+        ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'extension integration tests'],
         [
-            'MetaFlow stores adapter validation evidence, but canonical evaluation metadata is not implemented.',
+            'Canonical evaluation metadata is parsed and reported for adapter review.',
+            'Copilot and GitHub evaluation execution remains a runtime workflow until explicit projection adapters exist.',
         ],
         [],
-        ['RUN-026'],
+        ['RUN-026', 'RUN-037'],
     ),
 ];
 

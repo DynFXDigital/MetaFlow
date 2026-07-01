@@ -36,6 +36,8 @@ export interface LayerContent {
     executionProfiles?: ExecutionProfileMetadata[];
     /** Memory scopes loaded from canonical MetaFlow memory manifests. */
     memoryScopes?: MemoryScopeMetadata[];
+    /** Evaluation profiles loaded from canonical MetaFlow evaluation manifests. */
+    evaluationProfiles?: EvaluationProfileMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -325,6 +327,42 @@ export interface MemoryScopeMetadata {
     /** Policy grants required before this memory scope is used. */
     policyGrants: string[];
     /** Target harnesses or adapters this memory scope applies to. */
+    targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Evaluation type declared by a canonical evaluation profile manifest. */
+export type EvaluationType =
+    | 'build'
+    | 'test'
+    | 'lint'
+    | 'semantic'
+    | 'benchmark'
+    | 'regressionGate'
+    | 'reviewerAgent';
+
+/** Canonical MetaFlow evaluation profile metadata associated with a layer. */
+export interface EvaluationProfileMetadata {
+    /** Stable evaluation profile identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied evaluation profile metadata. */
+    manifestPath: string;
+    /** Evaluation family for this profile. */
+    evaluationType: EvaluationType;
+    /** Optional command for command-backed evaluations. */
+    command?: string;
+    /** Optional command arguments. */
+    args: string[];
+    /** Required success criteria or evidence expectation. */
+    successCriteria: string;
+    /** Artifact paths, globs, or evidence references produced by this evaluation. */
+    artifacts: string[];
+    /** Policy grants required before this evaluation is used. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this evaluation profile applies to. */
     targets: string[];
     /** Optional user-facing description. */
     description?: string;

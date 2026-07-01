@@ -234,6 +234,7 @@ describe('CLI: preview', () => {
         const hookPath = '.metaflow/hooks/release-gate.json';
         const executionProfilePath = '.metaflow/execution/local.json';
         const memoryScopePath = '.metaflow/memory/repo-decisions.json';
+        const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -314,6 +315,20 @@ describe('CLI: preview', () => {
                             targets: ['codex'],
                         }),
                     },
+                    {
+                        relativePath: evaluationProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.evaluationProfile/v1',
+                            id: 'release-gate',
+                            evaluationType: 'regressionGate',
+                            command: 'npm',
+                            args: ['run', 'gate:quick'],
+                            successCriteria: 'Gate exits 0 with no failing tests.',
+                            artifacts: ['doc/ftr/latest.md'],
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                        }),
+                    },
                 ],
             },
         });
@@ -358,6 +373,18 @@ describe('CLI: preview', () => {
         );
         assert.ok(textResult.stdout.includes('readPolicy: maintainers-only'));
         assert.ok(textResult.stdout.includes('writePolicy: approved-agents'));
+        assert.ok(textResult.stdout.includes('Evaluation Profiles: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'release-gate [regressionGate] command=npm artifacts=doc/ftr/latest.md',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('args: run gate:quick'));
+        assert.ok(
+            textResult.stdout.includes(
+                'successCriteria: Gate exits 0 with no failing tests.',
+            ),
+        );
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -375,6 +402,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.hooks, 1);
         assert.strictEqual(data.summary.executionProfiles, 1);
         assert.strictEqual(data.summary.memoryScopes, 1);
+        assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -423,6 +451,18 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.memoryScopes[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.memoryScopes[0].targets, ['codex']);
         assert.strictEqual(data.memoryScopes[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.evaluationProfiles[0].id, 'release-gate');
+        assert.strictEqual(data.evaluationProfiles[0].evaluationType, 'regressionGate');
+        assert.strictEqual(data.evaluationProfiles[0].command, 'npm');
+        assert.deepStrictEqual(data.evaluationProfiles[0].args, ['run', 'gate:quick']);
+        assert.strictEqual(
+            data.evaluationProfiles[0].successCriteria,
+            'Gate exits 0 with no failing tests.',
+        );
+        assert.deepStrictEqual(data.evaluationProfiles[0].artifacts, ['doc/ftr/latest.md']);
+        assert.deepStrictEqual(data.evaluationProfiles[0].policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(data.evaluationProfiles[0].targets, ['codex']);
+        assert.strictEqual(data.evaluationProfiles[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -463,6 +503,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexMemorySupport.support, 'partial');
         assert.ok(codexMemorySupport.evidence.includes('RUN-036'));
+        const codexEvaluationSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'evaluationSupport',
+        );
+        assert.strictEqual(codexEvaluationSupport.support, 'partial');
+        assert.ok(codexEvaluationSupport.evidence.includes('RUN-037'));
     });
 
     it('should show no files for empty overlay', async () => {

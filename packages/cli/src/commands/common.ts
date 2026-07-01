@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
     MemoryScopeMetadata,
@@ -49,6 +50,11 @@ export interface ResolvedExecutionProfile extends ExecutionProfileMetadata {
 }
 
 export interface ResolvedMemoryScope extends MemoryScopeMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -210,6 +216,20 @@ export function resolveMemoryScopes(
     return layers.flatMap((layer) =>
         (layer.memoryScopes ?? []).map((scope) => ({
             ...scope,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveEvaluationProfiles(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedEvaluationProfile[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.evaluationProfiles ?? []).map((profile) => ({
+            ...profile,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),
