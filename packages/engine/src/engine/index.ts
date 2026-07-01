@@ -112,9 +112,15 @@ export {
     loadRepoManifestForRoot,
     repoManifestConstants,
 } from './repoManifest';
+export { buildAdapterReadinessReports } from './adapterReadiness';
+export type { BuildAdapterReadinessReportsOptions } from './adapterReadiness';
 export { parseFrontmatter } from './frontmatter';
 export type { FrontmatterResult } from './frontmatter';
 export type {
+    AdapterReadinessAction,
+    AdapterReadinessMetadataCounts,
+    AdapterReadinessReport,
+    AdapterReadinessSeverity,
     LayerFile,
     LayerContent,
     EffectiveFile,

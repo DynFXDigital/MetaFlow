@@ -385,6 +385,24 @@ describe('CLI: preview', () => {
                 'successCriteria: Gate exits 0 with no failing tests.',
             ),
         );
+        assert.ok(textResult.stdout.includes('Adapter Readiness Reports: 2'));
+        assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
+        assert.ok(
+            textResult.stdout.includes(
+                'Codex policy grant github-pr-read (github.pullRequest.read) requires runtime authority review',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'Codex MCP server github requires target runtime MCP configuration',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'Codex evaluation profile release-gate (regressionGate) requires evaluation runner or check integration',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('github-copilot (github-copilot-v0.1):'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -403,6 +421,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.executionProfiles, 1);
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
+        assert.strictEqual(data.summary.adapterReports, 2);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -509,6 +528,38 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexEvaluationSupport.support, 'partial');
         assert.ok(codexEvaluationSupport.evidence.includes('RUN-037'));
+        const codexAdapterReport = data.adapterReports.find(
+            (report: { target: string }) => report.target === 'codex',
+        );
+        assert.deepStrictEqual(codexAdapterReport.managedMetadata, {
+            policyGrants: 1,
+            mcpServers: 1,
+            hooks: 1,
+            executionProfiles: 1,
+            memoryScopes: 1,
+            evaluationProfiles: 1,
+        });
+        assert.ok(
+            codexAdapterReport.actionItems.some(
+                (item: { concept: string; metadataId: string; message: string }) =>
+                    item.concept === 'evaluationSupport' &&
+                    item.metadataId === 'release-gate' &&
+                    item.message.includes('evaluation runner or check integration'),
+            ),
+        );
+        assert.ok(codexAdapterReport.evidence.includes('RUN-037'));
+        const copilotAdapterReport = data.adapterReports.find(
+            (report: { target: string }) => report.target === 'github-copilot',
+        );
+        assert.strictEqual(copilotAdapterReport.managedMetadata.hooks, 0);
+        assert.strictEqual(copilotAdapterReport.managedMetadata.executionProfiles, 0);
+        assert.strictEqual(copilotAdapterReport.managedMetadata.policyGrants, 1);
+        assert.ok(
+            copilotAdapterReport.actionItems.some(
+                (item: { concept: string; metadataId: string }) =>
+                    item.concept === 'mcpServers' && item.metadataId === 'github',
+            ),
+        );
     });
 
     it('should show no files for empty overlay', async () => {

@@ -451,6 +451,55 @@ export interface TargetCapabilityMatrixEntry {
     evidence: string[];
 }
 
+/** Count of canonical metadata records considered by a target adapter report. */
+export interface AdapterReadinessMetadataCounts {
+    /** Canonical policy grants considered for adapter readiness. */
+    policyGrants: number;
+    /** Canonical MCP server manifests considered for adapter readiness. */
+    mcpServers: number;
+    /** Canonical hook manifests considered for adapter readiness. */
+    hooks: number;
+    /** Canonical execution profiles considered for adapter readiness. */
+    executionProfiles: number;
+    /** Canonical memory scopes considered for adapter readiness. */
+    memoryScopes: number;
+    /** Canonical evaluation profiles considered for adapter readiness. */
+    evaluationProfiles: number;
+}
+
+/** Adapter readiness action severity. */
+export type AdapterReadinessSeverity = 'info' | 'warning';
+
+/** One target-specific adapter action item derived from canonical metadata. */
+export interface AdapterReadinessAction {
+    /** Canonical concept that produced this action. */
+    concept: TargetCapabilityConcept;
+    /** Metadata identifier associated with this action. */
+    metadataId: string;
+    /** Action severity. */
+    severity: AdapterReadinessSeverity;
+    /** Human-readable adapter action. */
+    message: string;
+    /** Evidence identifiers supporting this adapter finding. */
+    evidence: string[];
+}
+
+/** Target-specific readiness report for canonical metadata adapter work. */
+export interface AdapterReadinessReport {
+    /** Target adapter family. */
+    target: ProjectionTarget;
+    /** Adapter contract version used by MetaFlow for this target. */
+    adapterVersion: string;
+    /** Canonical metadata counts considered by this target. */
+    managedMetadata: AdapterReadinessMetadataCounts;
+    /** Action items required to make metadata operational for the target harness. */
+    actionItems: AdapterReadinessAction[];
+    /** Authority, runtime, or compatibility warnings that apply to the report. */
+    warnings: string[];
+    /** Evidence identifiers supporting the report. */
+    evidence: string[];
+}
+
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {
     /** Relative path in the output (e.g., `instructions/coding.md`). */

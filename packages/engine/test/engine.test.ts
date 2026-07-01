@@ -50,6 +50,7 @@ import {
     toAuthoredConfig,
     normalizeConfigShape,
     getTargetCapabilityMatrix,
+    buildAdapterReadinessReports,
     parsePolicyGrantContent,
     parseMcpServerContent,
     parseHookContent,
@@ -138,6 +139,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof preview, 'function');
         assert.strictEqual(typeof computeSettingsEntries, 'function');
         assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
+        assert.strictEqual(typeof buildAdapterReadinessReports, 'function');
         assert.strictEqual(typeof parsePolicyGrantContent, 'function');
         assert.strictEqual(typeof parseMcpServerContent, 'function');
         assert.strictEqual(typeof parseHookContent, 'function');
@@ -199,6 +201,122 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexMcp?.nativeSurfaces.includes('.metaflow/mcp/*.json'),
             'Codex MCP row should name the canonical MCP metadata surface',
+        );
+    });
+
+    it('builds adapter readiness reports from canonical metadata', () => {
+        const reports = buildAdapterReadinessReports({
+            targets: ['codex', 'github-copilot'],
+            policyGrants: [
+                {
+                    id: 'github-pr-read',
+                    manifestPath: '/metadata/.metaflow/policies/github-pr-read.json',
+                    authority: 'github.pullRequest.read',
+                    category: 'github',
+                    approval: 'auto',
+                    audit: true,
+                    warnings: [],
+                },
+            ],
+            mcpServers: [
+                {
+                    id: 'github',
+                    manifestPath: '/metadata/.metaflow/mcp/github.json',
+                    transport: 'stdio',
+                    invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                    requiredSecrets: ['GITHUB_TOKEN'],
+                    policyGrants: ['github-pr-read'],
+                    warnings: [],
+                },
+            ],
+            hooks: [
+                {
+                    id: 'release-gate',
+                    manifestPath: '/metadata/.metaflow/hooks/release-gate.json',
+                    triggerPhase: 'preApply',
+                    invocationType: 'command',
+                    command: 'npm',
+                    args: ['test'],
+                    failureBehavior: 'block',
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    warnings: [],
+                },
+            ],
+            executionProfiles: [
+                {
+                    id: 'local',
+                    manifestPath: '/metadata/.metaflow/execution/local.json',
+                    surface: 'localWorkstation',
+                    isolation: 'workspace-write',
+                    requiredSecrets: [],
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    warnings: [],
+                },
+            ],
+            memoryScopes: [
+                {
+                    id: 'repo-decisions',
+                    manifestPath: '/metadata/.metaflow/memory/repo-decisions.json',
+                    scopeType: 'repository',
+                    storage: 'persistent',
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    warnings: [],
+                },
+            ],
+            evaluationProfiles: [
+                {
+                    id: 'release-gate',
+                    manifestPath: '/metadata/.metaflow/evaluation/release-gate.json',
+                    evaluationType: 'regressionGate',
+                    args: ['run', 'gate:quick'],
+                    successCriteria: 'Gate exits 0.',
+                    artifacts: ['doc/ftr/latest.md'],
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    warnings: [],
+                },
+            ],
+        });
+
+        const codexReport = reports.find((report) => report.target === 'codex');
+        assert.strictEqual(codexReport?.adapterVersion, 'codex-v0.1');
+        assert.deepStrictEqual(codexReport?.managedMetadata, {
+            policyGrants: 1,
+            mcpServers: 1,
+            hooks: 1,
+            executionProfiles: 1,
+            memoryScopes: 1,
+            evaluationProfiles: 1,
+        });
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'policyGrants' &&
+                    item.message.includes('runtime authority review'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'evaluationSupport' &&
+                    item.evidence.includes('RUN-037'),
+            ),
+        );
+        assert.ok(
+            codexReport?.warnings.some((warning) =>
+                warning.includes('MCP servers require explicit tool'),
+            ),
+        );
+
+        const copilotReport = reports.find((report) => report.target === 'github-copilot');
+        assert.strictEqual(copilotReport?.managedMetadata.hooks, 0);
+        assert.strictEqual(copilotReport?.managedMetadata.policyGrants, 1);
+        assert.ok(
+            copilotReport?.actionItems.some((item) => item.concept === 'mcpServers'),
+            'shared MCP metadata should contribute to GitHub Copilot readiness',
         );
     });
 });

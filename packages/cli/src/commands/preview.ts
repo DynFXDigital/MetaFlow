@@ -1,9 +1,11 @@
 import { Command } from 'commander';
 import {
+    buildAdapterReadinessReports,
     computeSettingsEntries,
     describeProjection,
     getTargetCapabilityMatrix,
     preview,
+    AdapterReadinessReport,
     TargetCapabilityMatrixEntry,
     ProjectionMetadata,
 } from '@metaflow/engine';
@@ -140,6 +142,14 @@ function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
     return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatAdapterReport(report: AdapterReadinessReport): string {
+    const counts = Object.entries(report.managedMetadata)
+        .filter(([, count]) => count > 0)
+        .map(([key, count]) => `${key}=${count}`)
+        .join(', ');
+    return `${report.target} (${report.adapterVersion})${counts ? `: ${counts}` : ''}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -175,6 +185,18 @@ export function registerPreviewCommand(program: Command): void {
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
+                const adapterReports = buildAdapterReadinessReports({
+                    matrix: targetCapabilityMatrix,
+                    policyGrants,
+                    mcpServers,
+                    hooks,
+                    executionProfiles,
+                    memoryScopes,
+                    evaluationProfiles,
+                });
+                const actionableAdapterReports = adapterReports.filter(
+                    (report) => report.actionItems.length > 0 || report.warnings.length > 0,
+                );
                 const settingsCount = files.filter(
                     (file) => file.classification === 'settings',
                 ).length;
@@ -193,6 +215,7 @@ export function registerPreviewCommand(program: Command): void {
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
+                            adapterReports: adapterReports.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -220,6 +243,7 @@ export function registerPreviewCommand(program: Command): void {
                         executionProfiles,
                         memoryScopes,
                         evaluationProfiles,
+                        adapterReports,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -237,7 +261,8 @@ export function registerPreviewCommand(program: Command): void {
                     hooks.length === 0 &&
                     executionProfiles.length === 0 &&
                     memoryScopes.length === 0 &&
-                    evaluationProfiles.length === 0
+                    evaluationProfiles.length === 0 &&
+                    actionableAdapterReports.length === 0
                 ) {
                     console.log('No files in overlay.');
                     return;
@@ -378,6 +403,18 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`Target Capability Matrix: ${targetCapabilityMatrix.length}`);
                     for (const summary of targetCapabilitySummary) {
                         console.log(`  - ${summary}`);
+                    }
+                }
+                if (actionableAdapterReports.length > 0) {
+                    console.log(`Adapter Readiness Reports: ${actionableAdapterReports.length}`);
+                    for (const report of actionableAdapterReports) {
+                        console.log(`  - ${formatAdapterReport(report)}`);
+                        for (const item of report.actionItems) {
+                            console.log(`    * [${item.concept}] ${item.message}`);
+                        }
+                        for (const warning of report.warnings) {
+                            console.log(`    ! ${warning}`);
+                        }
                     }
                 }
 
