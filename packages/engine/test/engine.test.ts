@@ -4067,6 +4067,181 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(written.includes('env_vars = ["GITHUB_TOKEN"]'));
     });
 
+    it('managed Codex project config and MCP servers share one config TOML', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    approvalPolicy: 'on-request',
+                    sandboxMode: 'workspace-write',
+                },
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                requiredSecrets: ['GITHUB_TOKEN'],
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { projectConfig: 'managed', mcpServers: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-046'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const configChange = pending.find((change) => change.relativePath === '.codex/config.toml');
+        assert.strictEqual(configChange?.action, 'add');
+        assert.strictEqual(configChange?.sourceRelativePath, '.metaflow/mcp');
+        assert.strictEqual(configChange?.projection.targetAdapterConcept, 'mcpServers');
+        assert.strictEqual(configChange?.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(configChange?.projection.lossiness, 'lossy');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/config.toml'));
+        const written = fs.readFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'utf-8');
+        assert.ok(written.includes('model = "gpt-5-codex"'));
+        assert.ok(written.includes('approval_policy = "on-request"'));
+        assert.ok(written.includes('sandbox_mode = "workspace-write"'));
+        assert.ok(written.includes('[mcp_servers.github]'));
+        assert.ok(written.includes('command = "github-mcp-server"'));
+        assert.ok(written.includes('env_vars = ["GITHUB_TOKEN"]'));
+    });
+
+    it('managed Codex project config excludes report-only MCP sections from shared TOML', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    sandboxMode: 'workspace-write',
+                },
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { projectConfig: 'managed', mcpServers: 'report-only' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-046'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const configChange = pending.find((change) => change.relativePath === '.codex/config.toml');
+        assert.strictEqual(
+            configChange?.sourceRelativePath,
+            '.metaflow/project-config/codex.json',
+        );
+        assert.strictEqual(configChange?.projection.targetAdapterConcept, 'projectConfig');
+        assert.strictEqual(configChange?.projection.targetAdapterMaterializationMode, 'managed');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/config.toml'));
+        const written = fs.readFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'utf-8');
+        assert.ok(written.includes('model = "gpt-5-codex"'));
+        assert.ok(written.includes('sandbox_mode = "workspace-write"'));
+        assert.ok(!written.includes('[mcp_servers.github]'));
+        assert.ok(!written.includes('command = "github-mcp-server"'));
+    });
+
     it('canonical MCP projection is candidate-only without a managed Codex target adapter', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });

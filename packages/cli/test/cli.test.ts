@@ -857,6 +857,92 @@ describe('CLI: preview', () => {
         assert.ok(codexMcpSupport.evidence.includes('RUN-045'));
     });
 
+    it('applies merged Codex config TOML for managed project config and MCP sections', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/codex'],
+            },
+            layers: {
+                'company/codex': [
+                    {
+                        relativePath: '.metaflow/project-config/codex.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.codexProjectConfig/v1',
+                            id: 'default',
+                            settings: {
+                                model: 'gpt-5-codex',
+                                approvalPolicy: 'on-request',
+                                sandboxMode: 'workspace-write',
+                            },
+                            targets: ['codex'],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/policies/github-pr-read.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.policyGrant/v1',
+                            id: 'github-pr-read',
+                            authority: 'github.pullRequest.read',
+                            approval: 'auto',
+                            audit: true,
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/mcp/github.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.mcpServer/v1',
+                            id: 'github',
+                            transport: 'stdio',
+                            invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                            requiredSecrets: ['GITHUB_TOKEN'],
+                            policyGrants: ['github-pr-read'],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/targets/codex.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.targetAdapter/v1',
+                            id: 'codex-default',
+                            target: 'codex',
+                            enabled: true,
+                            adapterVersion: 'codex-v0.1',
+                            materializationMode: 'candidate',
+                            concepts: { projectConfig: 'managed', mcpServers: 'managed' },
+                            validationStatus: 'runtimeVerified',
+                            validationEvidence: ['RUN-046'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        const previewData = JSON.parse(previewResult.stdout);
+        const codexConfigChange = previewData.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === '.codex/config.toml',
+        );
+        assert.strictEqual(codexConfigChange.action, 'add');
+        assert.strictEqual(codexConfigChange.sourceRelativePath, '.metaflow/mcp');
+        assert.strictEqual(codexConfigChange.projection.lossiness, 'lossy');
+        assert.strictEqual(codexConfigChange.projection.targetAdapterConcept, 'mcpServers');
+        assert.strictEqual(
+            codexConfigChange.projection.targetAdapterMaterializationMode,
+            'managed',
+        );
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+        const written = fs.readFileSync(path.join(ws.root, '.codex', 'config.toml'), 'utf-8');
+        assert.ok(written.includes('model = "gpt-5-codex"'));
+        assert.ok(written.includes('approval_policy = "on-request"'));
+        assert.ok(written.includes('sandbox_mode = "workspace-write"'));
+        assert.ok(written.includes('[mcp_servers.github]'));
+        assert.ok(written.includes('command = "github-mcp-server"'));
+        assert.ok(written.includes('env_vars = ["GITHUB_TOKEN"]'));
+    });
+
     it('should show no files for empty overlay', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),

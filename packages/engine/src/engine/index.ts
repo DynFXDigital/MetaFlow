@@ -97,6 +97,10 @@ export {
     isCodexMcpServerProjectable,
     renderCodexMcpConfigToml,
 } from './codexMcpProjection';
+export {
+    codexConfigProjectionConstants,
+    renderCodexConfigProjection,
+} from './codexConfigProjection';
 export { loadHooksForLayer, parseHookContent, hookManifestConstants } from './hookManifest';
 export {
     loadExecutionProfilesForLayer,

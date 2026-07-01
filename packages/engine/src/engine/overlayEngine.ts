@@ -34,19 +34,12 @@ import {
     loadAgentProfilesForLayer,
     renderCodexAgentProfileToml,
 } from './agentProfile';
-import {
-    codexProjectConfigDestination,
-    loadCodexProjectConfigsForLayer,
-    renderCodexProjectConfigToml,
-} from './codexProjectConfig';
+import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
+import { renderCodexConfigProjection } from './codexConfigProjection';
 import {
     codexHookProjectionDestination,
     renderCodexHooksJson,
 } from './codexHookProjection';
-import {
-    codexMcpProjectionDestination,
-    renderCodexMcpConfigToml,
-} from './codexMcpProjection';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
@@ -331,6 +324,7 @@ function buildLayerContent(
     const codexProjectConfigs = loadCodexProjectConfigsForLayer(layerAbsPath, knownPolicyGrantIds);
     const mcpServers = loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds);
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
+    const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
     const hasTargetNativeCodexConfig = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
     );
@@ -348,33 +342,21 @@ function buildLayerContent(
             },
         ];
     });
-    const codexProjectConfigFiles: LayerFile[] = hasTargetNativeCodexConfig
-        ? []
-        : codexProjectConfigs.flatMap((config) => {
-              const destination = codexProjectConfigDestination(config);
-              if (!destination) {
-                  return [];
-              }
-              return [
-                  {
-                      relativePath: destination,
-                      sourceRelativePath: `.metaflow/project-config/${path.basename(config.manifestPath)}`,
-                      absolutePath: config.manifestPath,
-                      projectedContent: renderCodexProjectConfigToml(config),
-                  },
-              ];
-          });
-    const codexMcpDestination =
-        hasTargetNativeCodexConfig || codexProjectConfigFiles.length > 0
-            ? undefined
-            : codexMcpProjectionDestination(mcpServers);
-    const codexMcpFiles: LayerFile[] = codexMcpDestination
+    const codexConfigProjection = hasTargetNativeCodexConfig
+        ? undefined
+        : renderCodexConfigProjection(
+              codexProjectConfigs,
+              mcpServers,
+              targetAdapters,
+              path.join(layerAbsPath, '.metaflow', 'mcp'),
+          );
+    const codexConfigFiles: LayerFile[] = codexConfigProjection
         ? [
               {
-                  relativePath: codexMcpDestination,
-                  sourceRelativePath: '.metaflow/mcp',
-                  absolutePath: path.join(layerAbsPath, '.metaflow', 'mcp'),
-                  projectedContent: renderCodexMcpConfigToml(mcpServers),
+                  relativePath: codexConfigProjection.destination,
+                  sourceRelativePath: codexConfigProjection.sourceRelativePath,
+                  absolutePath: codexConfigProjection.sourcePath,
+                  projectedContent: codexConfigProjection.content,
               },
           ]
         : [];
@@ -400,8 +382,7 @@ function buildLayerContent(
         files: [
             ...files,
             ...agentProfileFiles,
-            ...codexProjectConfigFiles,
-            ...codexMcpFiles,
+            ...codexConfigFiles,
             ...codexHookFiles,
         ],
         capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
@@ -413,7 +394,7 @@ function buildLayerContent(
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         agentProfiles,
         codexProjectConfigs,
-        targetAdapters: loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds),
+        targetAdapters,
     };
 }
 
