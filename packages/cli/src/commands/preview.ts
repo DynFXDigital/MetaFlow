@@ -12,11 +12,13 @@ import {
     getWorkspaceRoot,
     loadConfigOrExit,
     resolveEffectiveFiles,
+    resolveHooks,
     resolveMcpServers,
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
     ResolvedMcpServer,
     ResolvedPolicyGrant,
+    ResolvedHook,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -92,6 +94,13 @@ function formatMcpServer(server: ResolvedMcpServer): string {
     return `${server.id || '<invalid>'} [${server.transport}]${category}${grants}${secrets} @ ${formatFileProvenance(server.sourceLayer, server.sourceRepo)}`;
 }
 
+function formatHook(hook: ResolvedHook): string {
+    const scope = hook.scope ? ` scope=${hook.scope}` : '';
+    const grants = hook.policyGrants.length > 0 ? ` grants=${hook.policyGrants.join(',')}` : '';
+    const targets = hook.targets.length > 0 ? ` targets=${hook.targets.join(',')}` : '';
+    return `${hook.id || '<invalid>'} [${hook.triggerPhase}/${hook.invocationType}] failure=${hook.failureBehavior}${scope}${grants}${targets} @ ${formatFileProvenance(hook.sourceLayer, hook.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -120,6 +129,7 @@ export function registerPreviewCommand(program: Command): void {
                 const sourceSummary = summarizeSources(files);
                 const policyGrants = resolvePolicyGrants(config, workspaceRoot);
                 const mcpServers = resolveMcpServers(config, workspaceRoot);
+                const hooks = resolveHooks(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -137,6 +147,7 @@ export function registerPreviewCommand(program: Command): void {
                             sourceCount: sourceSummary.length,
                             policyGrants: policyGrants.length,
                             mcpServers: mcpServers.length,
+                            hooks: hooks.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -160,6 +171,7 @@ export function registerPreviewCommand(program: Command): void {
                         })),
                         policyGrants,
                         mcpServers,
+                        hooks,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -170,7 +182,12 @@ export function registerPreviewCommand(program: Command): void {
                     return;
                 }
 
-                if (files.length === 0 && policyGrants.length === 0 && mcpServers.length === 0) {
+                if (
+                    files.length === 0 &&
+                    policyGrants.length === 0 &&
+                    mcpServers.length === 0 &&
+                    hooks.length === 0
+                ) {
                     console.log('No files in overlay.');
                     return;
                 }
@@ -232,6 +249,23 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    endpoint: ${server.endpoint}`);
                         }
                         for (const warning of server.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (hooks.length > 0) {
+                    console.log(`Hooks: ${hooks.length}`);
+                    for (const hook of hooks) {
+                        console.log(`  - ${formatHook(hook)}`);
+                        if (hook.command) {
+                            const args = hook.args.length > 0 ? ` ${hook.args.join(' ')}` : '';
+                            console.log(`    command: ${hook.command}${args}`);
+                        }
+                        if (hook.endpoint) {
+                            console.log(`    endpoint: ${hook.endpoint}`);
+                        }
+                        for (const warning of hook.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

@@ -71,13 +71,14 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'hooks',
         'partial',
-        ['.codex/hooks.json'],
+        ['.metaflow/hooks/*.json', '.codex/hooks.json'],
         [
+            'Canonical hook metadata is parsed and reported for adapter review.',
             'Target-native Codex hook policy files are materialized safely when authored.',
             'Canonical MetaFlow lifecycle hook projection is not implemented.',
         ],
         ['Hooks execute code or commands and require explicit trust and sandbox review.'],
-        ['RUN-024'],
+        ['RUN-024', 'RUN-034'],
     ),
     row(
         'packageManifests',
@@ -191,11 +192,13 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'hooks',
         'partial',
-        ['hooks/**', 'chat.hookFilesLocations'],
+        ['.metaflow/hooks/*.json', 'hooks/**', 'chat.hookFilesLocations'],
         [
-            'Hook files can be surfaced through existing settings injection, but canonical hook metadata is not implemented.',
+            'Canonical hook metadata is parsed and reported for adapter review.',
+            'Hook files can be surfaced through existing settings injection, but canonical hook projection is not implemented.',
         ],
         ['Hooks execute code or commands and require explicit trust and sandbox review.'],
+        ['RUN-034'],
     ),
     row(
         'packageManifests',

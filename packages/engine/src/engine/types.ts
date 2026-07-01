@@ -30,6 +30,8 @@ export interface LayerContent {
     policyGrants?: PolicyGrantMetadata[];
     /** MCP servers loaded from canonical MetaFlow MCP manifests. */
     mcpServers?: McpServerMetadata[];
+    /** Hooks loaded from canonical MetaFlow hook manifests. */
+    hooks?: HookMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -190,6 +192,51 @@ export interface McpServerMetadata {
     capabilityCategory?: string;
     /** Policy grants required before the server is used. */
     policyGrants: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Trigger phase declared by a canonical hook manifest. */
+export type HookTriggerPhase =
+    | 'preToolUse'
+    | 'postToolUse'
+    | 'preApply'
+    | 'postApply'
+    | 'preCommit'
+    | 'custom';
+
+/** Invocation type declared by a canonical hook manifest. */
+export type HookInvocationType = 'command' | 'http' | 'llm';
+
+/** Failure behavior declared by a canonical hook manifest. */
+export type HookFailureBehavior = 'block' | 'warn' | 'continue';
+
+/** Canonical MetaFlow hook metadata associated with a layer. */
+export interface HookMetadata {
+    /** Stable hook identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied hook metadata. */
+    manifestPath: string;
+    /** Lifecycle or tool phase that triggers this hook. */
+    triggerPhase: HookTriggerPhase;
+    /** Invocation type used by this hook. */
+    invocationType: HookInvocationType;
+    /** Optional command for command hooks. */
+    command?: string;
+    /** Optional command arguments for command hooks. */
+    args: string[];
+    /** Optional endpoint for HTTP hooks. */
+    endpoint?: string;
+    /** Affected scope such as repository, workspace, or pull-request. */
+    scope?: string;
+    /** Behavior when the hook reports failure. */
+    failureBehavior: HookFailureBehavior;
+    /** Policy grants required before the hook is used. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this hook applies to. */
+    targets: string[];
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */

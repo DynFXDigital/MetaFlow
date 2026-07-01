@@ -91,6 +91,7 @@ export {
     policyGrantConstants,
 } from './policyGrant';
 export { loadMcpServersForLayer, parseMcpServerContent, mcpServerConstants } from './mcpServer';
+export { loadHooksForLayer, parseHookContent, hookManifestConstants } from './hookManifest';
 export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
@@ -107,6 +108,10 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    HookFailureBehavior,
+    HookInvocationType,
+    HookMetadata,
+    HookTriggerPhase,
     McpServerInvocation,
     McpServerMetadata,
     McpServerTransport,

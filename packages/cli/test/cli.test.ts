@@ -231,6 +231,7 @@ describe('CLI: preview', () => {
         const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
         const policyGrantPath = '.metaflow/policies/github-pr-read.json';
         const mcpServerPath = '.metaflow/mcp/github.json';
+        const hookPath = '.metaflow/hooks/release-gate.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -265,6 +266,21 @@ describe('CLI: preview', () => {
                             policyGrants: ['github-pr-read'],
                         }),
                     },
+                    {
+                        relativePath: hookPath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.hook/v1',
+                            id: 'release-gate',
+                            triggerPhase: 'preApply',
+                            invocationType: 'command',
+                            command: 'npm',
+                            args: ['test'],
+                            scope: 'workspace',
+                            failureBehavior: 'block',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                        }),
+                    },
                 ],
             },
         });
@@ -286,6 +302,13 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('grants=github-pr-read'));
         assert.ok(textResult.stdout.includes('secrets=GITHUB_TOKEN'));
         assert.ok(textResult.stdout.includes('mcpServers=partial'));
+        assert.ok(textResult.stdout.includes('Hooks: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'release-gate [preApply/command] failure=block scope=workspace',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('targets=codex'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -300,6 +323,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexChange.projection.pathTransformed, true);
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
+        assert.strictEqual(data.summary.hooks, 1);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -317,6 +341,16 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.mcpServers[0].capabilityCategory, 'source-control');
         assert.deepStrictEqual(data.mcpServers[0].policyGrants, ['github-pr-read']);
         assert.strictEqual(data.mcpServers[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.hooks[0].id, 'release-gate');
+        assert.strictEqual(data.hooks[0].triggerPhase, 'preApply');
+        assert.strictEqual(data.hooks[0].invocationType, 'command');
+        assert.strictEqual(data.hooks[0].command, 'npm');
+        assert.deepStrictEqual(data.hooks[0].args, ['test']);
+        assert.strictEqual(data.hooks[0].scope, 'workspace');
+        assert.strictEqual(data.hooks[0].failureBehavior, 'block');
+        assert.deepStrictEqual(data.hooks[0].policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(data.hooks[0].targets, ['codex']);
+        assert.strictEqual(data.hooks[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -339,6 +373,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexMcpSupport.support, 'partial');
         assert.ok(codexMcpSupport.evidence.includes('RUN-033'));
+        const codexHookSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'hooks',
+        );
+        assert.strictEqual(codexHookSupport.support, 'partial');
+        assert.ok(codexHookSupport.evidence.includes('RUN-034'));
     });
 
     it('should show no files for empty overlay', async () => {

@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    HookMetadata,
     McpServerMetadata,
     PolicyGrantMetadata,
     SurfacedFileConflict,
@@ -31,6 +32,11 @@ export interface ResolvedPolicyGrant extends PolicyGrantMetadata {
 }
 
 export interface ResolvedMcpServer extends McpServerMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedHook extends HookMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -153,6 +159,17 @@ export function resolveMcpServers(
     return layers.flatMap((layer) =>
         (layer.mcpServers ?? []).map((server) => ({
             ...server,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveHooks(config: MetaFlowConfig, workspaceRoot: string): ResolvedHook[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.hooks ?? []).map((hook) => ({
+            ...hook,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

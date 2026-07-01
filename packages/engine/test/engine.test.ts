@@ -52,6 +52,7 @@ import {
     getTargetCapabilityMatrix,
     parsePolicyGrantContent,
     parseMcpServerContent,
+    parseHookContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -136,6 +137,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
         assert.strictEqual(typeof parsePolicyGrantContent, 'function');
         assert.strictEqual(typeof parseMcpServerContent, 'function');
+        assert.strictEqual(typeof parseHookContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -581,6 +583,37 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/mcp-only']);
     });
 
+    it('discovers canonical .metaflow hook layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-hook-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'hook-only', '.metaflow', 'hooks'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'hook-only',
+                '.metaflow',
+                'hooks',
+                'release-gate.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'release-gate',
+                triggerPhase: 'preApply',
+                invocationType: 'command',
+                command: 'npm',
+                args: ['test'],
+                failureBehavior: 'block',
+                policyGrants: ['shell-test'],
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/hook-only']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
@@ -932,6 +965,97 @@ describe('Engine package: overlay pipeline', () => {
                 'MCP_SERVER_REQUIRED_SECRETS_INVALID',
                 'MCP_SERVER_POLICY_GRANT_UNKNOWN',
                 'MCP_SERVER_CAPABILITY_CATEGORY_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical hooks as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'hooks'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-test.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-test',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'hooks', 'release-gate.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'release-gate',
+                triggerPhase: 'preApply',
+                invocationType: 'command',
+                command: 'npm',
+                args: ['test'],
+                scope: 'workspace',
+                failureBehavior: 'block',
+                policyGrants: ['shell-test'],
+                targets: ['codex', 'github-copilot'],
+                description: 'Run release checks before applying metadata.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].hooks?.length, 1);
+        const hook = layers[0].hooks?.[0];
+        assert.strictEqual(hook?.id, 'release-gate');
+        assert.strictEqual(hook?.triggerPhase, 'preApply');
+        assert.strictEqual(hook?.invocationType, 'command');
+        assert.strictEqual(hook?.command, 'npm');
+        assert.deepStrictEqual(hook?.args, ['test']);
+        assert.strictEqual(hook?.scope, 'workspace');
+        assert.strictEqual(hook?.failureBehavior, 'block');
+        assert.deepStrictEqual(hook?.policyGrants, ['shell-test']);
+        assert.deepStrictEqual(hook?.targets, ['codex', 'github-copilot']);
+        assert.strictEqual(hook?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical hooks', () => {
+        const hook = parseHookContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v0',
+                id: 'Invalid ID',
+                triggerPhase: 'unknown',
+                invocationType: 'command',
+                args: ['test', 42],
+                scope: '',
+                failureBehavior: 'halt',
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                extra: true,
+            }),
+            'hook.json',
+            new Set(['shell-test']),
+        );
+
+        assert.strictEqual(hook.id, 'Invalid ID');
+        assert.strictEqual(hook.invocationType, 'command');
+        assert.deepStrictEqual(
+            hook.warnings.map((warning) => warning.code),
+            [
+                'HOOK_UNKNOWN_FIELD',
+                'HOOK_SCHEMA_VERSION_INVALID',
+                'HOOK_ID_INVALID',
+                'HOOK_TRIGGER_PHASE_INVALID',
+                'HOOK_COMMAND_REQUIRED',
+                'HOOK_FAILURE_BEHAVIOR_INVALID',
+                'HOOK_POLICY_GRANT_UNKNOWN',
+                'HOOK_ARGS_INVALID',
+                'HOOK_TARGETS_INVALID',
+                'HOOK_SCOPE_INVALID',
             ],
         );
     });
