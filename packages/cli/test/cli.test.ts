@@ -722,6 +722,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexHookSupport.support, 'partial');
         assert.ok(codexHookSupport.evidence.includes('RUN-034'));
         assert.ok(codexHookSupport.evidence.includes('RUN-044'));
+        assert.ok(codexHookSupport.evidence.includes('RUN-049'));
         const codexExecutionSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'executionSurfaces',

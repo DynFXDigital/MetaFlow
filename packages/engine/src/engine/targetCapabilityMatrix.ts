@@ -95,7 +95,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
             'Unsupported canonical hook forms remain report-only adapter metadata.',
         ],
         ['Hooks execute code or commands and require explicit trust and sandbox review.'],
-        ['RUN-024', 'RUN-034', 'RUN-044'],
+        ['RUN-024', 'RUN-034', 'RUN-044', 'RUN-049'],
     ),
     row(
         'packageManifests',

@@ -211,6 +211,14 @@ describe('Engine package: public API', () => {
             codexMcp?.nativeSurfaces.includes('.metaflow/mcp/*.json'),
             'Codex MCP row should name the canonical MCP metadata surface',
         );
+        const codexHooks = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'hooks',
+        );
+        assert.strictEqual(codexHooks?.support, 'partial');
+        assert.ok(
+            codexHooks?.evidence.includes('RUN-049'),
+            'Codex hooks row should point to the live hook consumer smoke',
+        );
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {
