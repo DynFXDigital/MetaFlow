@@ -779,6 +779,84 @@ describe('CLI: preview', () => {
         );
     });
 
+    it('shows target metadata for canonical MCP server Codex projection', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/mcp'],
+            },
+            layers: {
+                'company/mcp': [
+                    {
+                        relativePath: '.metaflow/policies/github-pr-read.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.policyGrant/v1',
+                            id: 'github-pr-read',
+                            authority: 'github.pullRequest.read',
+                            approval: 'auto',
+                            audit: true,
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/mcp/github.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.mcpServer/v1',
+                            id: 'github',
+                            transport: 'stdio',
+                            invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                            requiredSecrets: ['GITHUB_TOKEN'],
+                            capabilityCategory: 'source-control',
+                            policyGrants: ['github-pr-read'],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/targets/codex.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.targetAdapter/v1',
+                            id: 'codex-default',
+                            target: 'codex',
+                            enabled: true,
+                            adapterVersion: 'codex-v0.1',
+                            materializationMode: 'candidate',
+                            concepts: { mcpServers: 'managed' },
+                            validationStatus: 'runtimeVerified',
+                            validationEvidence: ['RUN-045'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes('[codex] .codex/config.toml'));
+        assert.ok(textResult.stdout.includes('lossiness=lossy'));
+        assert.ok(textResult.stdout.includes('target adapter concept mcpServers'));
+        assert.ok(textResult.stdout.includes('adapter=codex-default; mode=managed'));
+
+        const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        const codexConfigChange = data.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === '.codex/config.toml',
+        );
+        assert.strictEqual(codexConfigChange.action, 'add');
+        assert.strictEqual(codexConfigChange.sourceRelativePath, '.metaflow/mcp');
+        assert.strictEqual(codexConfigChange.projection.target, 'codex');
+        assert.strictEqual(codexConfigChange.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(codexConfigChange.projection.lossiness, 'lossy');
+        assert.strictEqual(codexConfigChange.projection.targetAdapterConcept, 'mcpServers');
+        assert.strictEqual(
+            codexConfigChange.projection.targetAdapterMaterializationMode,
+            'managed',
+        );
+        const codexMcpSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'mcpServers',
+        );
+        assert.ok(codexMcpSupport.evidence.includes('RUN-045'));
+    });
+
     it('should show no files for empty overlay', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),

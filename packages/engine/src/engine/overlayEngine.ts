@@ -43,6 +43,10 @@ import {
     codexHookProjectionDestination,
     renderCodexHooksJson,
 } from './codexHookProjection';
+import {
+    codexMcpProjectionDestination,
+    renderCodexMcpConfigToml,
+} from './codexMcpProjection';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
@@ -325,7 +329,11 @@ function buildLayerContent(
     const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
     const agentProfiles = loadAgentProfilesForLayer(layerAbsPath, knownPolicyGrantIds);
     const codexProjectConfigs = loadCodexProjectConfigsForLayer(layerAbsPath, knownPolicyGrantIds);
+    const mcpServers = loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds);
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
+    const hasTargetNativeCodexConfig = files.some(
+        (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
+    );
     const agentProfileFiles: LayerFile[] = agentProfiles.flatMap((profile) => {
         const destination = codexAgentProfileDestination(profile);
         if (!destination) {
@@ -340,20 +348,36 @@ function buildLayerContent(
             },
         ];
     });
-    const codexProjectConfigFiles: LayerFile[] = codexProjectConfigs.flatMap((config) => {
-        const destination = codexProjectConfigDestination(config);
-        if (!destination) {
-            return [];
-        }
-        return [
-            {
-                relativePath: destination,
-                sourceRelativePath: `.metaflow/project-config/${path.basename(config.manifestPath)}`,
-                absolutePath: config.manifestPath,
-                projectedContent: renderCodexProjectConfigToml(config),
-            },
-        ];
-    });
+    const codexProjectConfigFiles: LayerFile[] = hasTargetNativeCodexConfig
+        ? []
+        : codexProjectConfigs.flatMap((config) => {
+              const destination = codexProjectConfigDestination(config);
+              if (!destination) {
+                  return [];
+              }
+              return [
+                  {
+                      relativePath: destination,
+                      sourceRelativePath: `.metaflow/project-config/${path.basename(config.manifestPath)}`,
+                      absolutePath: config.manifestPath,
+                      projectedContent: renderCodexProjectConfigToml(config),
+                  },
+              ];
+          });
+    const codexMcpDestination =
+        hasTargetNativeCodexConfig || codexProjectConfigFiles.length > 0
+            ? undefined
+            : codexMcpProjectionDestination(mcpServers);
+    const codexMcpFiles: LayerFile[] = codexMcpDestination
+        ? [
+              {
+                  relativePath: codexMcpDestination,
+                  sourceRelativePath: '.metaflow/mcp',
+                  absolutePath: path.join(layerAbsPath, '.metaflow', 'mcp'),
+                  projectedContent: renderCodexMcpConfigToml(mcpServers),
+              },
+          ]
+        : [];
     const hasTargetNativeCodexHooks = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/hooks.json',
     );
@@ -373,10 +397,16 @@ function buildLayerContent(
     return {
         layerId,
         repoId,
-        files: [...files, ...agentProfileFiles, ...codexProjectConfigFiles, ...codexHookFiles],
+        files: [
+            ...files,
+            ...agentProfileFiles,
+            ...codexProjectConfigFiles,
+            ...codexMcpFiles,
+            ...codexHookFiles,
+        ],
         capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         policyGrants,
-        mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
+        mcpServers,
         hooks,
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),

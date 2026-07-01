@@ -91,6 +91,12 @@ export {
     policyGrantConstants,
 } from './policyGrant';
 export { loadMcpServersForLayer, parseMcpServerContent, mcpServerConstants } from './mcpServer';
+export {
+    codexMcpProjectionConstants,
+    codexMcpProjectionDestination,
+    isCodexMcpServerProjectable,
+    renderCodexMcpConfigToml,
+} from './codexMcpProjection';
 export { loadHooksForLayer, parseHookContent, hookManifestConstants } from './hookManifest';
 export {
     loadExecutionProfilesForLayer,

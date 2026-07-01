@@ -98,6 +98,16 @@ function inferTargetAdapterConcept(
     if (
         paths.some(
             (path) =>
+                path === '.metaflow/mcp' ||
+                /^\.metaflow\/mcp\/[^/]+\.json$/.test(path),
+        )
+    ) {
+        return 'mcpServers';
+    }
+
+    if (
+        paths.some(
+            (path) =>
                 /^\.metaflow\/project-config\/[^/]+\.json$/.test(path) ||
                 path === '.codex/config.toml',
         )
@@ -151,6 +161,9 @@ function inferLossiness(
     const canonicalProjectConfig = /^\.metaflow\/project-config\/[^/]+\.json$/.test(
         normalizedSource,
     );
+    const canonicalMcpServers =
+        normalizedSource === '.metaflow/mcp' ||
+        /^\.metaflow\/mcp\/[^/]+\.json$/.test(normalizedSource);
     const canonicalHooks =
         normalizedSource === '.metaflow/hooks' ||
         /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSource);
@@ -174,6 +187,13 @@ function inferLossiness(
         normalizedDestination === '.codex/config.toml'
     ) {
         return 'none';
+    }
+    if (
+        canonicalMcpServers &&
+        target === 'codex' &&
+        normalizedDestination === '.codex/config.toml'
+    ) {
+        return 'lossy';
     }
     if (canonicalHooks && target === 'codex' && normalizedDestination === '.codex/hooks.json') {
         return 'lossy';
@@ -239,6 +259,9 @@ export function describeProjectionWithTargetAdapters(
         ((concept === 'agents' && /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSourcePath)) ||
             (concept === 'projectConfig' &&
                 /^\.metaflow\/project-config\/[^/]+\.json$/.test(normalizedSourcePath)) ||
+            (concept === 'mcpServers' &&
+                (normalizedSourcePath === '.metaflow/mcp' ||
+                    /^\.metaflow\/mcp\/[^/]+\.json$/.test(normalizedSourcePath))) ||
             (concept === 'hooks' &&
                 (normalizedSourcePath === '.metaflow/hooks' ||
                     /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSourcePath))));
@@ -262,6 +285,8 @@ export function describeProjectionWithTargetAdapters(
     } else if (requiresExplicitTargetAdapter) {
         if (concept === 'projectConfig') {
             notes.push('target adapter required for managed project config materialization');
+        } else if (concept === 'mcpServers') {
+            notes.push('target adapter required for managed MCP server materialization');
         } else if (concept === 'hooks') {
             notes.push('target adapter required for managed hook materialization');
         } else {

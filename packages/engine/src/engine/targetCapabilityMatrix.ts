@@ -76,10 +76,12 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['.metaflow/mcp/*.json', 'Codex MCP configuration and runtime MCP server registry'],
         [
             'Canonical MCP server metadata is parsed and reported for adapter review.',
-            'Codex supports MCP at runtime, but canonical MetaFlow MCP server projection is not implemented.',
+            'Codex supports MCP at runtime through project config and user config.',
+            'Canonical MetaFlow stdio MCP server metadata projects to Codex project config according to target adapter materialization gates when the layer owns MCP-only Codex config.',
+            'Network transports and merged project config plus MCP ownership remain report-only until adapter merge semantics represent each concept gate independently.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
-        ['RUN-033'],
+        ['RUN-033', 'RUN-045'],
     ),
     row(
         'hooks',
