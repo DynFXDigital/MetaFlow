@@ -211,6 +211,10 @@ describe('Engine package: public API', () => {
             codexMcp?.nativeSurfaces.includes('.metaflow/mcp/*.json'),
             'Codex MCP row should name the canonical MCP metadata surface',
         );
+        assert.ok(
+            codexMcp?.evidence.includes('RUN-050'),
+            'Codex MCP row should point to the live MCP tool-call smoke',
+        );
         const codexHooks = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'hooks',
         );
