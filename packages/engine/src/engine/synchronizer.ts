@@ -152,6 +152,10 @@ function isRootRelativeSynchronizedPath(relativePath: string): boolean {
     return isCodexRootRelativeSynchronizedPath(relativePath);
 }
 
+function getSourceRelativePath(file: EffectiveFile): string {
+    return normalizeRelativePath(file.sourceRelativePath ?? file.relativePath);
+}
+
 function resolveSynchronizedOutputDir(outputDir: string, relativePath: string): string {
     return isRootRelativeSynchronizedPath(relativePath) ? '' : outputDir;
 }
@@ -265,7 +269,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
                 file,
                 resolveEffectiveFileNamingStrategy(file, fileNamingStrategy, strategyByLayer),
             ),
-            sourceRelativePath: normalizeRelativePath(file.relativePath),
+            sourceRelativePath: getSourceRelativePath(file),
             sourceLayer: file.sourceLayer,
             sourceRepo: file.sourceRepo,
             sourcePath: file.sourcePath,
@@ -522,7 +526,7 @@ export function apply(options: ApplyOptions): ApplyResult {
         const fileState: ManagedFileState = {
             contentHash,
             sourceLayer: file.sourceLayer,
-            sourceRelativePath: file.relativePath.replace(/\\/g, '/'),
+            sourceRelativePath: getSourceRelativePath(file),
             sourceRepo: file.sourceRepo,
         };
         state.files[relPath] = fileState;

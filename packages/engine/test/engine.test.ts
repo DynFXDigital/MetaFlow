@@ -1364,6 +1364,21 @@ describe('Engine: overlay multi-repo resolution', () => {
         assert.ok(discovered.includes('codex-only'));
     });
 
+    it('discovers layers that only contain canonical MetaFlow skills', () => {
+        const repoRoot = path.join(tmpDir, 'repos', 'company');
+        const layerRoot = path.join(repoRoot, 'canonical-skill-only');
+        fs.mkdirSync(path.join(layerRoot, '.metaflow', 'skills', 'repo-guidance'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(layerRoot, '.metaflow', 'skills', 'repo-guidance', 'SKILL.md'),
+            '# Repo Guidance',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.ok(discovered.includes('canonical-skill-only'));
+    });
+
     it('discovers layers that only contain Codex project instructions', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         const layerRoot = path.join(repoRoot, 'project-guidance');
@@ -2109,6 +2124,54 @@ describe('Engine: synchronizer advanced', () => {
 
         const cleanResult = clean(tmpDir);
         assert.ok(cleanResult.skipped.includes(codexSkillPath));
+    });
+
+    it('projects canonical MetaFlow skills to Copilot skill and Codex repository skill targets', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
+        const copilotSkillPath = 'skills/release-readiness/SKILL.md';
+        const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'skills', 'release-readiness'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'skills', 'release-readiness', 'SKILL.md'),
+            '# Release Readiness',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const copilotSkill = fileMap.get(copilotSkillPath);
+        const codexSkill = fileMap.get(codexSkillPath);
+        assert.ok(copilotSkill, 'canonical skill should project to a Copilot skill artifact');
+        assert.ok(codexSkill, 'canonical skill should project to a Codex repository skill artifact');
+        assert.strictEqual(copilotSkill?.sourceRelativePath, canonicalSkillPath);
+        assert.strictEqual(codexSkill?.sourceRelativePath, canonicalSkillPath);
+        assert.strictEqual(copilotSkill?.classification, 'plugin');
+        assert.strictEqual(codexSkill?.classification, 'synchronized');
+        assert.strictEqual(toSynchronizedRelativePath(codexSkill as EffectiveFile), codexSkillPath);
+
+        const pending = preview(tmpDir, files);
+        assert.ok(pending.some((change) => change.relativePath === codexSkillPath));
+        assert.ok(!pending.some((change) => change.relativePath === copilotSkillPath));
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes(codexSkillPath));
+        assert.ok(
+            fs.existsSync(path.join(tmpDir, '.agents', 'skills', 'release-readiness', 'SKILL.md')),
+        );
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'skills', 'release-readiness', 'SKILL.md')));
+
+        const state = loadManagedState(tmpDir);
+        assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, canonicalSkillPath);
     });
 
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {

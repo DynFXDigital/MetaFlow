@@ -10,6 +10,8 @@
 export interface LayerFile {
     /** Relative path within the layer (e.g., `instructions/coding.md`). */
     relativePath: string;
+    /** Original relative source path when the file is projected from canonical metadata. */
+    sourceRelativePath?: string;
     /** Absolute path to the source file on disk. */
     absolutePath: string;
 }
@@ -140,6 +142,8 @@ export type ArtifactClassification = 'settings' | 'plugin' | 'synchronized';
 export interface EffectiveFile {
     /** Relative path in the output (e.g., `instructions/coding.md`). */
     relativePath: string;
+    /** Original relative source path when different from the projected output path. */
+    sourceRelativePath?: string;
     /** Absolute path to the source file. */
     sourcePath: string;
     /** Which layer contributed this file (later wins). */

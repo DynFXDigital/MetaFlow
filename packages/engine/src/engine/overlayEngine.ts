@@ -98,6 +98,7 @@ export function buildEffectiveFileMap(layers: LayerContent[]): Map<string, Effec
             const normalizedPath = file.relativePath.replace(/\\/g, '/');
             fileMap.set(normalizedPath, {
                 relativePath: normalizedPath,
+                sourceRelativePath: file.sourceRelativePath?.replace(/\\/g, '/'),
                 sourcePath: file.absolutePath,
                 sourceLayer: layer.layerId,
                 sourceRepo: layer.repoId,
@@ -330,14 +331,19 @@ function walkDirectory(
         if (entryKind === 'directory') {
             files.push(...walkDirectory(fullPath, layerRoot, visitedDirectories));
         } else if (entryKind === 'file') {
-            const relativePath = normalizeLayerRelativePath(path.relative(layerRoot, fullPath));
-            if (!isKnownArtifactPath(relativePath)) {
-                continue;
+            const sourceRelativePath = normalizeInputPath(path.relative(layerRoot, fullPath));
+            const relativePaths = expandLayerRelativePaths(sourceRelativePath);
+            for (const relativePath of relativePaths) {
+                if (!isKnownArtifactPath(relativePath)) {
+                    continue;
+                }
+                files.push({
+                    relativePath,
+                    sourceRelativePath:
+                        relativePath === sourceRelativePath ? undefined : sourceRelativePath,
+                    absolutePath: fullPath,
+                });
             }
-            files.push({
-                relativePath,
-                absolutePath: fullPath,
-            });
         }
     }
 
@@ -358,6 +364,17 @@ function normalizeLayerRelativePath(relativePath: string): string {
         return posixPath.slice('.github/'.length);
     }
     return posixPath;
+}
+
+function expandLayerRelativePaths(relativePath: string): string[] {
+    const normalized = normalizeLayerRelativePath(relativePath);
+    const canonicalSkillMatch = normalized.match(/^\.metaflow\/skills\/([^/]+)\/SKILL\.md$/);
+    if (!canonicalSkillMatch) {
+        return [normalized];
+    }
+
+    const skillId = canonicalSkillMatch[1];
+    return [`skills/${skillId}/SKILL.md`, `.agents/skills/${skillId}/SKILL.md`];
 }
 
 function deriveCapabilityId(layerPath: string, repoRoot: string): string {
@@ -452,6 +469,9 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         );
         const hasCodexProjectConfig =
             childNames.has('.codex') && hasCodexProjectConfigDir(path.join(currentDir, '.codex'));
+        const hasCanonicalMetaFlowArtifacts =
+            childNames.has('.metaflow') &&
+            hasCanonicalMetaFlowArtifactsDir(path.join(currentDir, '.metaflow'));
         const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
         if (
@@ -460,6 +480,7 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             hasCodexRepositorySkills ||
             hasCodexProjectInstructions ||
             hasCodexProjectConfig ||
+            hasCanonicalMetaFlowArtifacts ||
             hasCapabilityManifest
         ) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
@@ -536,6 +557,30 @@ function hasCodexProjectConfigDir(codexDirPath: string): boolean {
             }
         }
         return false;
+    } catch {
+        return false;
+    }
+}
+
+function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
+    try {
+        const skillsDir = path.join(metaFlowDirPath, 'skills');
+        if (!fs.existsSync(skillsDir) || !fs.statSync(skillsDir).isDirectory()) {
+            return false;
+        }
+
+        const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+        return entries.some((entry) => {
+            if (!entry.isDirectory()) {
+                return false;
+            }
+            const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
+            try {
+                return fs.existsSync(skillPath) && fs.statSync(skillPath).isFile();
+            } catch {
+                return false;
+            }
+        });
     } catch {
         return false;
     }
