@@ -229,6 +229,7 @@ describe('CLI: preview', () => {
     it('shows target and lossiness metadata for canonical MetaFlow skill projections', async () => {
         const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
         const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
+        const codexInstructionsPath = 'AGENTS.md';
         const policyGrantPath = '.metaflow/policies/github-pr-read.json';
         const mcpServerPath = '.metaflow/mcp/github.json';
         const hookPath = '.metaflow/hooks/release-gate.json';
@@ -246,6 +247,10 @@ describe('CLI: preview', () => {
                     {
                         relativePath: canonicalSkillPath,
                         content: '# Release Readiness',
+                    },
+                    {
+                        relativePath: codexInstructionsPath,
+                        content: '# Repository Guidance',
                     },
                     {
                         relativePath: policyGrantPath,
@@ -363,6 +368,7 @@ describe('CLI: preview', () => {
                 'adapter=codex-default; mode=managed; validation=runtimeVerified',
             ),
         );
+        assert.ok(textResult.stdout.includes('skip [codex] AGENTS.md (target-adapter-candidate)'));
         assert.ok(textResult.stdout.includes('MetaFlow source projected to Codex'));
         assert.ok(textResult.stdout.includes('target adapter concept skills'));
         assert.ok(textResult.stdout.includes('Target Capability Matrix:'));
@@ -449,6 +455,9 @@ describe('CLI: preview', () => {
         const codexChange = data.pendingChanges.find(
             (change: { relativePath: string }) => change.relativePath === codexSkillPath,
         );
+        const codexInstructionsChange = data.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === codexInstructionsPath,
+        );
         assert.strictEqual(codexChange.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(codexChange.projection.target, 'codex');
         assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
@@ -463,6 +472,12 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(codexChange.projection.targetAdapterRequiredPolicyGrants, [
             'github-pr-read',
         ]);
+        assert.strictEqual(codexInstructionsChange.action, 'skip');
+        assert.strictEqual(codexInstructionsChange.reason, 'target-adapter-candidate');
+        assert.strictEqual(
+            codexInstructionsChange.projection.targetAdapterMaterializationMode,
+            'candidate',
+        );
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);

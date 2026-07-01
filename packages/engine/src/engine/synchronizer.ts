@@ -223,6 +223,20 @@ function comparePlannedFiles(
     );
 }
 
+function getAdapterMaterializationSkipReason(
+    projection: ProjectionMetadata,
+): string | undefined {
+    const mode = projection.targetAdapterMaterializationMode;
+    if (mode === undefined || mode === 'managed') {
+        return undefined;
+    }
+    return `target-adapter-${mode}`;
+}
+
+function isWriteEnabledPlannedFile(entry: PlannedSynchronizedFile): boolean {
+    return getAdapterMaterializationSkipReason(entry.projection) === undefined;
+}
+
 function formatSynchronizationPlanningError(
     collisions: DestinationCollision[],
     unmanagedConflicts: UnmanagedDestinationConflict[],
@@ -287,10 +301,14 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         };
         synchronizedFiles.push(entry);
 
-        const contenders = contendersByDestination.get(entry.destinationRelativePath) ?? [];
-        contenders.push(entry);
-        contendersByDestination.set(entry.destinationRelativePath, contenders);
+        if (isWriteEnabledPlannedFile(entry)) {
+            const contenders = contendersByDestination.get(entry.destinationRelativePath) ?? [];
+            contenders.push(entry);
+            contendersByDestination.set(entry.destinationRelativePath, contenders);
+        }
     }
+
+    const writeEnabledSynchronizedFiles = synchronizedFiles.filter(isWriteEnabledPlannedFile);
 
     const collisions = Array.from(contendersByDestination.entries())
         .filter(([, contenders]) => contenders.length > 1)
@@ -304,7 +322,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
 
     const remapConflicts: ManagedRemapConflict[] = [];
     const destinationBySource = new Map<string, string>();
-    for (const entry of synchronizedFiles) {
+    for (const entry of writeEnabledSynchronizedFiles) {
         destinationBySource.set(
             buildSourceIdentity(entry.sourceRelativePath, entry.sourceLayer, entry.sourceRepo),
             entry.destinationRelativePath,
@@ -347,10 +365,10 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
     );
 
     const unmanagedConflicts: UnmanagedDestinationConflict[] = [];
-    const hasRepoWideCopilotInstructions = synchronizedFiles.some((entry) =>
+    const hasRepoWideCopilotInstructions = writeEnabledSynchronizedFiles.some((entry) =>
         isRepoWideCopilotInstructionsFile(entry.file),
     );
-    const hasRootRelativeSynchronizedFiles = synchronizedFiles.some((entry) =>
+    const hasRootRelativeSynchronizedFiles = writeEnabledSynchronizedFiles.some((entry) =>
         isRootRelativeSynchronizedPath(entry.destinationRelativePath),
     );
     if (
@@ -359,7 +377,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         hasRepoWideCopilotInstructions ||
         hasRootRelativeSynchronizedFiles
     ) {
-        for (const entry of [...synchronizedFiles].sort(comparePlannedFiles)) {
+        for (const entry of [...writeEnabledSynchronizedFiles].sort(comparePlannedFiles)) {
             const drift = checkDrift(
                 options.workspaceRoot,
                 outputDir,
@@ -485,6 +503,14 @@ export function apply(options: ApplyOptions): ApplyResult {
     for (const entry of plan.synchronizedFiles) {
         const relPath = entry.destinationRelativePath;
         const file = entry.file;
+        const adapterSkipReason = getAdapterMaterializationSkipReason(entry.projection);
+        if (adapterSkipReason) {
+            result.skipped.push(relPath);
+            result.warnings.push(
+                `Skipped ${relPath}: target adapter materialization mode ${entry.projection.targetAdapterMaterializationMode}`,
+            );
+            continue;
+        }
 
         // Check drift
         const drift = checkDrift(options.workspaceRoot, plan.outputDir, relPath, state);
@@ -635,27 +661,33 @@ export function preview(
     for (const entry of plan.synchronizedFiles) {
         const synchronizedRelPath = entry.destinationRelativePath;
         const file = entry.file;
+        const adapterSkipReason = getAdapterMaterializationSkipReason(entry.projection);
 
         const drift = checkDrift(workspaceRoot, outDir, synchronizedRelPath, state);
         let action: PendingAction;
         let reason: string | undefined;
 
-        switch (drift.status) {
-            case 'drifted':
-                action = 'skip';
-                reason = 'drifted';
-                break;
-            case 'missing':
-                action = state.files[synchronizedRelPath] ? 'add' : 'add';
-                break;
-            case 'in-sync':
-                action = 'update';
-                break;
-            case 'untracked':
-                action = 'add';
-                break;
-            default:
-                action = 'add';
+        if (adapterSkipReason) {
+            action = 'skip';
+            reason = adapterSkipReason;
+        } else {
+            switch (drift.status) {
+                case 'drifted':
+                    action = 'skip';
+                    reason = 'drifted';
+                    break;
+                case 'missing':
+                    action = state.files[synchronizedRelPath] ? 'add' : 'add';
+                    break;
+                case 'in-sync':
+                    action = 'update';
+                    break;
+                case 'untracked':
+                    action = 'add';
+                    break;
+                default:
+                    action = 'add';
+            }
         }
 
         changes.push({

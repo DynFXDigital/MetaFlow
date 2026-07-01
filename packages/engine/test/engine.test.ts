@@ -3159,6 +3159,57 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(message.includes('AGENTS.md'));
     });
 
+    it('target adapter candidate mode reports Codex project instructions without writing', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'AGENTS.md'), '# Managed Guidance', 'utf-8');
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { instructions: 'candidate' },
+                validationStatus: 'staticVerified',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), '# User Guidance', 'utf-8');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const planned = planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(
+            planned.synchronizedFiles.some(
+                (entry) => entry.destinationRelativePath === 'AGENTS.md',
+            ),
+        );
+
+        const pending = preview(tmpDir, files);
+        const agentsChange = pending.find((change) => change.relativePath === 'AGENTS.md');
+        assert.strictEqual(agentsChange?.action, 'skip');
+        assert.strictEqual(agentsChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(
+            agentsChange?.projection.targetAdapterMaterializationMode,
+            'candidate',
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('AGENTS.md'));
+        assert.ok(!result.written.includes('AGENTS.md'));
+        assert.strictEqual(fs.readFileSync(path.join(tmpDir, 'AGENTS.md'), 'utf-8'), '# User Guidance');
+    });
+
     it('discovers and synchronizes Codex project config without inline provenance', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.codex', 'rules'), { recursive: true });
