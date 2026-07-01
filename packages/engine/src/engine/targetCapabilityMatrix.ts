@@ -195,12 +195,13 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'agents',
         'supported',
-        ['.github/agents/**', 'agents/**'],
+        ['.github/agents/*.agent.md', 'agents/*.agent.md'],
         [
             'Copilot agent metadata participates in existing plugin-mode classification and packaging.',
+            'Canonical MetaFlow agent profiles project to GitHub Copilot custom-agent Markdown profiles with optional agent-local MCP server frontmatter.',
         ],
         ['Agents can imply tool or repository authority and require policy review.'],
-        ['RUN-022'],
+        ['RUN-022', 'RUN-051'],
     ),
     row(
         'projectConfig',
@@ -215,13 +216,14 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'mcpServers',
         'partial',
-        ['.metaflow/mcp/*.json', 'GitHub Copilot MCP configuration'],
+        ['.metaflow/mcp/*.json', 'GitHub Copilot repository MCP settings', '.github/agents/*.agent.md'],
         [
             'Canonical MCP server metadata is parsed and reported for adapter review.',
-            'Copilot supports MCP through host/runtime configuration, but canonical MetaFlow MCP projection is not implemented.',
+            'Copilot repository-wide MCP configuration remains a GitHub settings operation.',
+            'Canonical MCP server metadata referenced by canonical agent profiles projects into GitHub Copilot custom-agent frontmatter.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
-        ['RUN-033'],
+        ['RUN-033', 'RUN-051'],
     ),
     row(
         'hooks',

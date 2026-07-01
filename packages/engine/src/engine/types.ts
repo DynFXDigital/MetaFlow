@@ -444,6 +444,10 @@ export interface AgentProfileMetadata {
     modelReasoningEffort?: string;
     /** Optional target sandbox mode override. */
     sandboxMode?: string;
+    /** Optional target tool allow-list for agent harnesses that expose tool filters. */
+    tools: string[];
+    /** Optional canonical MCP server ids attached to this agent profile. */
+    mcpServers: string[];
     /** Policy grants required before the agent profile is treated as operational. */
     policyGrants: string[];
     /** Target harnesses or adapters this agent profile applies to. */

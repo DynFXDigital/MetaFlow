@@ -255,16 +255,18 @@ export function describeProjectionWithTargetAdapters(
     const adapter = selectTargetAdapter(target, targetAdapters);
     const normalizedSourcePath = normalizeArtifactPath(sourcePath);
     const requiresExplicitTargetAdapter =
-        target === 'codex' &&
-        ((concept === 'agents' && /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSourcePath)) ||
-            (concept === 'projectConfig' &&
+        ((target === 'codex' || target === 'github-copilot') &&
+            concept === 'agents' &&
+            /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSourcePath)) ||
+        (target === 'codex' &&
+            ((concept === 'projectConfig' &&
                 /^\.metaflow\/project-config\/[^/]+\.json$/.test(normalizedSourcePath)) ||
-            (concept === 'mcpServers' &&
-                (normalizedSourcePath === '.metaflow/mcp' ||
-                    /^\.metaflow\/mcp\/[^/]+\.json$/.test(normalizedSourcePath))) ||
-            (concept === 'hooks' &&
-                (normalizedSourcePath === '.metaflow/hooks' ||
-                    /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSourcePath))));
+                (concept === 'mcpServers' &&
+                    (normalizedSourcePath === '.metaflow/mcp' ||
+                        /^\.metaflow\/mcp\/[^/]+\.json$/.test(normalizedSourcePath))) ||
+                (concept === 'hooks' &&
+                    (normalizedSourcePath === '.metaflow/hooks' ||
+                        /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSourcePath)))));
     const materializationMode =
         adapter && !adapter.enabled
             ? 'disabled'

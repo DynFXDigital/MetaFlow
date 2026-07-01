@@ -129,6 +129,9 @@ export function classifySingle(
     if (isCodexProjectConfigPath(normalized)) {
         return 'synchronized';
     }
+    if (/^\.github\/agents\/[^/]+\.agent\.md$/.test(normalized)) {
+        return 'synchronized';
+    }
 
     const effectivePath = normalized.startsWith('.github/')
         ? normalized.slice('.github/'.length)

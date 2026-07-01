@@ -308,6 +308,8 @@ describe('Engine package: public API', () => {
                     description: 'Reviews changes before handoff.',
                     developerInstructions: 'Review the diff and report risks.',
                     nicknameCandidates: ['reviewer'],
+                    tools: [],
+                    mcpServers: [],
                     policyGrants: ['github-pr-read'],
                     targets: ['codex'],
                     notes: [],
@@ -2062,6 +2064,84 @@ describe('Engine package: overlay pipeline', () => {
             projected?.projectedContent?.includes('developer_instructions = "Review the diff and report risks."'),
             'projected file should contain Codex developer instructions',
         );
+    });
+
+    it('projects canonical agent profiles to GitHub Copilot custom-agent profiles with MCP frontmatter', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: {
+                    command: 'github-mcp-server',
+                    args: ['stdio'],
+                    env: {
+                        GITHUB_TOKEN: '${{ secrets.COPILOT_MCP_GITHUB_TOKEN }}',
+                    },
+                },
+                enabledTools: ['get_pull_request', 'list_pull_requests'],
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                tools: ['read', 'search', 'github/get_pull_request'],
+                mcpServers: ['github'],
+                policyGrants: ['github-pr-read'],
+                targets: ['github-copilot'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const profile = layers[0].agentProfiles?.[0];
+        assert.deepStrictEqual(profile?.tools, ['read', 'search', 'github/get_pull_request']);
+        assert.deepStrictEqual(profile?.mcpServers, ['github']);
+        assert.strictEqual(profile?.warnings.length, 0);
+
+        const fileMap = buildEffectiveFileMap(layers);
+        const projected = fileMap.get('.github/agents/reviewer.agent.md');
+        assert.ok(projected, 'canonical agent profile should project to Copilot agent Markdown');
+        assert.strictEqual(projected?.sourceRelativePath, '.metaflow/agents/reviewer.json');
+        assert.ok(projected?.projectedContent?.includes('target: "github-copilot"'));
+        assert.ok(
+            projected?.projectedContent?.includes('tools: ["read", "search", "github/get_pull_request"]'),
+        );
+        assert.ok(projected?.projectedContent?.includes('mcp-servers:'));
+        assert.ok(projected?.projectedContent?.includes('type: "local"'));
+        assert.ok(projected?.projectedContent?.includes('tools: ["get_pull_request", "list_pull_requests"]'));
+        assert.ok(
+            projected?.projectedContent?.includes('GITHUB_TOKEN: "${{ secrets.COPILOT_MCP_GITHUB_TOKEN }}"'),
+        );
+        assert.ok(projected?.projectedContent?.endsWith('Review the diff and report risks.\n'));
     });
 
     it('loads canonical Codex project configs as layer metadata with TOML projection files', () => {
@@ -3949,6 +4029,71 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(!written.includes('schemaVersion'));
     });
 
+    it('managed target adapter projects canonical agent profiles to GitHub Copilot custom agents', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                tools: ['read', 'search'],
+                targets: ['github-copilot'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'github-copilot.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'github-copilot-default',
+                target: 'github-copilot',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { agents: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-051'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const agentFile = fileMap.get('.github/agents/reviewer.agent.md');
+        assert.ok(agentFile, 'projected GitHub Copilot agent file should be present');
+        assert.strictEqual(agentFile?.classification, 'synchronized');
+
+        const pending = preview(tmpDir, files);
+        const agentChange = pending.find(
+            (change) => change.relativePath === '.github/agents/reviewer.agent.md',
+        );
+        assert.strictEqual(agentChange?.action, 'add');
+        assert.strictEqual(agentChange?.projection.targetAdapterConcept, 'agents');
+        assert.strictEqual(agentChange?.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(agentChange?.projection.lossiness, 'lossy');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.github/agents/reviewer.agent.md'));
+        const written = fs.readFileSync(
+            path.join(tmpDir, '.github', 'agents', 'reviewer.agent.md'),
+            'utf-8',
+        );
+        assert.ok(written.includes('target: "github-copilot"'));
+        assert.ok(written.includes('Review the diff and report risks.'));
+    });
+
     it('canonical agent profile projection is candidate-only without a managed Codex target adapter', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
@@ -3991,6 +4136,50 @@ describe('Engine: synchronizer advanced', () => {
         const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
         assert.ok(result.skipped.includes('.codex/agents/reviewer.toml'));
         assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'agents', 'reviewer.toml')));
+    });
+
+    it('canonical agent profile projection is candidate-only without a managed GitHub Copilot target adapter', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                targets: ['github-copilot'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const agentChange = pending.find(
+            (change) => change.relativePath === '.github/agents/reviewer.agent.md',
+        );
+        assert.strictEqual(agentChange?.action, 'skip');
+        assert.strictEqual(agentChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(agentChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            agentChange?.projection.notes.includes(
+                'target adapter required for managed agent materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.github/agents/reviewer.agent.md'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'agents', 'reviewer.agent.md')));
     });
 
     it('managed target adapter projects canonical Codex project config to config TOML', () => {

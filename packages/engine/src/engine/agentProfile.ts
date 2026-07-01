@@ -11,6 +11,7 @@ import {
     AgentProfileMetadata,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    McpServerMetadata,
 } from './types';
 
 const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
@@ -27,6 +28,8 @@ const KNOWN_FIELDS = new Set([
     'model',
     'modelReasoningEffort',
     'sandboxMode',
+    'tools',
+    'mcpServers',
     'policyGrants',
     'targets',
     'notes',
@@ -42,6 +45,8 @@ type AgentProfileFields = {
     model?: unknown;
     modelReasoningEffort?: unknown;
     sandboxMode?: unknown;
+    tools?: unknown;
+    mcpServers?: unknown;
     policyGrants?: unknown;
     targets?: unknown;
     notes?: unknown;
@@ -120,6 +125,8 @@ function emptyAgentProfile(
         description: '',
         developerInstructions: '',
         nicknameCandidates: [],
+        tools: [],
+        mcpServers: [],
         policyGrants: [],
         targets: [],
         notes: [],
@@ -131,6 +138,7 @@ export function parseAgentProfileContent(
     rawText: string,
     manifestPath?: string,
     knownPolicyGrantIds: Set<string> = new Set(),
+    knownMcpServerIds: Set<string> = new Set(),
 ): AgentProfileMetadata {
     let data: unknown;
     try {
@@ -311,6 +319,34 @@ export function parseAgentProfileContent(
         );
     }
 
+    const tools = parseStringArray(
+        fields.tools,
+        'tools',
+        'AGENT_PROFILE_TOOLS_INVALID',
+        manifestPath,
+        warnings,
+    );
+
+    const mcpServers = parseStringArray(
+        fields.mcpServers,
+        'mcpServers',
+        'AGENT_PROFILE_MCP_SERVERS_INVALID',
+        manifestPath,
+        warnings,
+    );
+    for (const serverId of mcpServers) {
+        if (knownMcpServerIds.size > 0 && !knownMcpServerIds.has(serverId)) {
+            warnings.push(
+                toWarning(
+                    'AGENT_PROFILE_MCP_SERVER_UNKNOWN',
+                    `Agent profile references unknown MCP server "${serverId}".`,
+                    manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
+
     const policyGrants = parseStringArray(
         fields.policyGrants,
         'policyGrants',
@@ -356,6 +392,8 @@ export function parseAgentProfileContent(
         model,
         modelReasoningEffort,
         sandboxMode,
+        tools,
+        mcpServers,
         policyGrants,
         targets,
         notes,
@@ -369,6 +407,10 @@ function hasErrorWarnings(profile: AgentProfileMetadata): boolean {
 
 function appliesToCodex(profile: AgentProfileMetadata): boolean {
     return profile.targets.length === 0 || profile.targets.includes('codex');
+}
+
+function appliesToGitHubCopilot(profile: AgentProfileMetadata): boolean {
+    return profile.targets.length === 0 || profile.targets.includes('github-copilot');
 }
 
 function tomlString(value: string): string {
@@ -409,9 +451,108 @@ export function codexAgentProfileDestination(profile: AgentProfileMetadata): str
     return `.codex/agents/${profile.id}.toml`;
 }
 
+function yamlScalar(value: string): string {
+    return JSON.stringify(value);
+}
+
+function yamlStringArray(values: string[]): string {
+    return `[${values.map(yamlScalar).join(', ')}]`;
+}
+
+function renderYamlStringMap(map: Record<string, string>, indentation: string): string[] {
+    return Object.entries(map)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => `${indentation}${key}: ${yamlScalar(value)}`);
+}
+
+function isProjectableGitHubCopilotMcpServer(server: McpServerMetadata): boolean {
+    return (
+        (server.transport === 'stdio' && Boolean(server.invocation)) ||
+        ((server.transport === 'http' || server.transport === 'sse') && Boolean(server.endpoint))
+    );
+}
+
+function githubCopilotMcpServerLines(
+    profile: AgentProfileMetadata,
+    servers: McpServerMetadata[],
+): string[] {
+    const referencedServerIds = new Set(profile.mcpServers);
+    const selectedServers = servers
+        .filter((server) => referencedServerIds.has(server.id))
+        .filter((server) => !server.warnings.some((warning) => warning.severity === 'error'))
+        .filter(isProjectableGitHubCopilotMcpServer)
+        .sort((left, right) => left.id.localeCompare(right.id));
+    if (selectedServers.length === 0) {
+        return [];
+    }
+
+    const lines = ['mcp-servers:'];
+    for (const server of selectedServers) {
+        const enabledTools = server.enabledTools && server.enabledTools.length > 0
+            ? server.enabledTools
+            : ['*'];
+        lines.push(`  ${server.id}:`);
+        if (server.transport === 'stdio' && server.invocation) {
+            lines.push('    type: "local"');
+            lines.push(`    command: ${yamlScalar(server.invocation.command)}`);
+            lines.push(`    args: ${yamlStringArray(server.invocation.args)}`);
+            lines.push(`    tools: ${yamlStringArray(enabledTools)}`);
+            if (server.invocation.env && Object.keys(server.invocation.env).length > 0) {
+                lines.push('    env:');
+                lines.push(...renderYamlStringMap(server.invocation.env, '      '));
+            }
+        } else if ((server.transport === 'http' || server.transport === 'sse') && server.endpoint) {
+            lines.push(`    type: ${yamlScalar(server.transport)}`);
+            lines.push(`    url: ${yamlScalar(server.endpoint)}`);
+            lines.push(`    tools: ${yamlStringArray(enabledTools)}`);
+            const headers = {
+                ...(server.httpHeaders ?? {}),
+                ...(server.envHttpHeaders ?? {}),
+            };
+            if (Object.keys(headers).length > 0) {
+                lines.push('    headers:');
+                lines.push(...renderYamlStringMap(headers, '      '));
+            }
+        }
+    }
+    return lines.length > 1 ? lines : [];
+}
+
+export function renderGitHubCopilotAgentProfileMarkdown(
+    profile: AgentProfileMetadata,
+    servers: McpServerMetadata[] = [],
+): string {
+    const frontmatter = [
+        '---',
+        `name: ${yamlScalar(profile.name)}`,
+        `description: ${yamlScalar(profile.description)}`,
+        'target: "github-copilot"',
+    ];
+    if (profile.tools.length > 0) {
+        frontmatter.push(`tools: ${yamlStringArray(profile.tools)}`);
+    }
+    if (profile.model) {
+        frontmatter.push(`model: ${yamlScalar(profile.model)}`);
+    }
+    frontmatter.push(...githubCopilotMcpServerLines(profile, servers));
+    frontmatter.push('---');
+
+    return `${frontmatter.join('\n')}\n\n${profile.developerInstructions.trim()}\n`;
+}
+
+export function githubCopilotAgentProfileDestination(
+    profile: AgentProfileMetadata,
+): string | undefined {
+    if (!profile.id || hasErrorWarnings(profile) || !appliesToGitHubCopilot(profile)) {
+        return undefined;
+    }
+    return `.github/agents/${profile.id}.agent.md`;
+}
+
 export function loadAgentProfilesForLayer(
     layerAbsPath: string,
     knownPolicyGrantIds: Set<string> = new Set(),
+    knownMcpServerIds: Set<string> = new Set(),
 ): AgentProfileMetadata[] {
     const agentsDir = path.join(layerAbsPath, CANONICAL_METAFLOW_DIR_NAME, AGENTS_DIR_NAME);
     if (!fs.existsSync(agentsDir)) {
@@ -444,6 +585,7 @@ export function loadAgentProfilesForLayer(
                     fs.readFileSync(manifestPath, 'utf-8'),
                     manifestPath,
                     knownPolicyGrantIds,
+                    knownMcpServerIds,
                 );
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);

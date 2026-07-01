@@ -152,7 +152,10 @@ function isRepoWideCopilotInstructionsFile(file: EffectiveFile): boolean {
 }
 
 function isRootRelativeSynchronizedPath(relativePath: string): boolean {
-    return isCodexRootRelativeSynchronizedPath(relativePath);
+    return (
+        isCodexRootRelativeSynchronizedPath(relativePath) ||
+        /^\.github\/agents\/[^/]+\.agent\.md$/.test(normalizeRelativePath(relativePath))
+    );
 }
 
 function getSourceRelativePath(file: EffectiveFile): string {

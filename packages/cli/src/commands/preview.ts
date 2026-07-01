@@ -156,10 +156,13 @@ function formatAgentProfile(profile: ResolvedAgentProfile): string {
     const model = profile.model ? ` model=${profile.model}` : '';
     const effort = profile.modelReasoningEffort ? ` reasoning=${profile.modelReasoningEffort}` : '';
     const sandbox = profile.sandboxMode ? ` sandbox=${profile.sandboxMode}` : '';
+    const tools = profile.tools.length > 0 ? ` tools=${profile.tools.join(',')}` : '';
+    const mcpServers =
+        profile.mcpServers.length > 0 ? ` mcpServers=${profile.mcpServers.join(',')}` : '';
     const grants =
         profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
     const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
-    return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+    return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${tools}${mcpServers}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
 function formatCodexProjectConfig(config: ResolvedCodexProjectConfig): string {

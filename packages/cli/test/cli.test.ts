@@ -350,6 +350,8 @@ describe('CLI: preview', () => {
                             nicknameCandidates: ['reviewer'],
                             model: 'gpt-5-codex',
                             sandboxMode: 'workspace-write',
+                            tools: ['read', 'search', 'github/get_pull_request'],
+                            mcpServers: ['github'],
                             policyGrants: ['github-pr-read'],
                             targets: ['codex'],
                         }),
@@ -460,7 +462,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Agent Profiles: 1'));
         assert.ok(
             textResult.stdout.includes(
-                'reviewer [Reviewer] model=gpt-5-codex sandbox=workspace-write grants=github-pr-read targets=codex',
+                'reviewer [Reviewer] model=gpt-5-codex sandbox=workspace-write tools=read,search,github/get_pull_request mcpServers=github grants=github-pr-read targets=codex',
             ),
         );
         assert.ok(textResult.stdout.includes('description: Reviews implementation changes.'));
@@ -648,6 +650,12 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.agentProfiles[0].name, 'Reviewer');
         assert.strictEqual(data.agentProfiles[0].model, 'gpt-5-codex');
         assert.strictEqual(data.agentProfiles[0].sandboxMode, 'workspace-write');
+        assert.deepStrictEqual(data.agentProfiles[0].tools, [
+            'read',
+            'search',
+            'github/get_pull_request',
+        ]);
+        assert.deepStrictEqual(data.agentProfiles[0].mcpServers, ['github']);
         assert.deepStrictEqual(data.agentProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.agentProfiles[0].targets, ['codex']);
         assert.strictEqual(data.agentProfiles[0].sourceLayer, 'primary/company/core');

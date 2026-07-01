@@ -31,8 +31,10 @@ import { loadMemoryScopesForLayer } from './memoryScope';
 import { loadEvaluationProfilesForLayer } from './evaluationProfile';
 import {
     codexAgentProfileDestination,
+    githubCopilotAgentProfileDestination,
     loadAgentProfilesForLayer,
     renderCodexAgentProfileToml,
+    renderGitHubCopilotAgentProfileMarkdown,
 } from './agentProfile';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
 import { renderCodexConfigProjection } from './codexConfigProjection';
@@ -320,9 +322,14 @@ function buildLayerContent(
 ): LayerContent {
     const policyGrants = loadPolicyGrantsForLayer(layerAbsPath);
     const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
-    const agentProfiles = loadAgentProfilesForLayer(layerAbsPath, knownPolicyGrantIds);
     const codexProjectConfigs = loadCodexProjectConfigsForLayer(layerAbsPath, knownPolicyGrantIds);
     const mcpServers = loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds);
+    const knownMcpServerIds = new Set(mcpServers.map((server) => server.id).filter(Boolean));
+    const agentProfiles = loadAgentProfilesForLayer(
+        layerAbsPath,
+        knownPolicyGrantIds,
+        knownMcpServerIds,
+    );
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
     const hasTargetNativeCodexConfig = files.some(
@@ -339,6 +346,20 @@ function buildLayerContent(
                 sourceRelativePath: `.metaflow/agents/${path.basename(profile.manifestPath)}`,
                 absolutePath: profile.manifestPath,
                 projectedContent: renderCodexAgentProfileToml(profile),
+            },
+        ];
+    });
+    const githubCopilotAgentProfileFiles: LayerFile[] = agentProfiles.flatMap((profile) => {
+        const destination = githubCopilotAgentProfileDestination(profile);
+        if (!destination) {
+            return [];
+        }
+        return [
+            {
+                relativePath: destination,
+                sourceRelativePath: `.metaflow/agents/${path.basename(profile.manifestPath)}`,
+                absolutePath: profile.manifestPath,
+                projectedContent: renderGitHubCopilotAgentProfileMarkdown(profile, mcpServers),
             },
         ];
     });
@@ -382,6 +403,7 @@ function buildLayerContent(
         files: [
             ...files,
             ...agentProfileFiles,
+            ...githubCopilotAgentProfileFiles,
             ...codexConfigFiles,
             ...codexHookFiles,
         ],
