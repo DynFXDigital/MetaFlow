@@ -232,6 +232,7 @@ describe('CLI: preview', () => {
         const policyGrantPath = '.metaflow/policies/github-pr-read.json';
         const mcpServerPath = '.metaflow/mcp/github.json';
         const hookPath = '.metaflow/hooks/release-gate.json';
+        const executionProfilePath = '.metaflow/execution/local.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -281,6 +282,22 @@ describe('CLI: preview', () => {
                             targets: ['codex'],
                         }),
                     },
+                    {
+                        relativePath: executionProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.executionProfile/v1',
+                            id: 'local',
+                            surface: 'localWorkstation',
+                            isolation: 'workspace-write',
+                            runner: 'codex-cli',
+                            workingDirectory: '.',
+                            timeoutSeconds: 900,
+                            requiredSecrets: ['OPENAI_API_KEY'],
+                            environment: { NODE_ENV: 'test' },
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                        }),
+                    },
                 ],
             },
         });
@@ -309,6 +326,14 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('targets=codex'));
+        assert.ok(textResult.stdout.includes('Execution Profiles: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'local [localWorkstation/workspace-write] runner=codex-cli timeout=900s',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('secrets=OPENAI_API_KEY'));
+        assert.ok(textResult.stdout.includes('environment: NODE_ENV=test'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -324,6 +349,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);
+        assert.strictEqual(data.summary.executionProfiles, 1);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -351,6 +377,17 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.hooks[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.hooks[0].targets, ['codex']);
         assert.strictEqual(data.hooks[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.executionProfiles[0].id, 'local');
+        assert.strictEqual(data.executionProfiles[0].surface, 'localWorkstation');
+        assert.strictEqual(data.executionProfiles[0].isolation, 'workspace-write');
+        assert.strictEqual(data.executionProfiles[0].runner, 'codex-cli');
+        assert.strictEqual(data.executionProfiles[0].workingDirectory, '.');
+        assert.strictEqual(data.executionProfiles[0].timeoutSeconds, 900);
+        assert.deepStrictEqual(data.executionProfiles[0].requiredSecrets, ['OPENAI_API_KEY']);
+        assert.deepStrictEqual(data.executionProfiles[0].environment, { NODE_ENV: 'test' });
+        assert.deepStrictEqual(data.executionProfiles[0].policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(data.executionProfiles[0].targets, ['codex']);
+        assert.strictEqual(data.executionProfiles[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -379,6 +416,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexHookSupport.support, 'partial');
         assert.ok(codexHookSupport.evidence.includes('RUN-034'));
+        const codexExecutionSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'executionSurfaces',
+        );
+        assert.strictEqual(codexExecutionSupport.support, 'partial');
+        assert.ok(codexExecutionSupport.evidence.includes('RUN-035'));
     });
 
     it('should show no files for empty overlay', async () => {

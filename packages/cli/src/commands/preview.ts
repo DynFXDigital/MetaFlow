@@ -11,6 +11,7 @@ import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
     loadConfigOrExit,
+    resolveExecutionProfiles,
     resolveEffectiveFiles,
     resolveHooks,
     resolveMcpServers,
@@ -19,6 +20,7 @@ import {
     ResolvedMcpServer,
     ResolvedPolicyGrant,
     ResolvedHook,
+    ResolvedExecutionProfile,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -101,6 +103,20 @@ function formatHook(hook: ResolvedHook): string {
     return `${hook.id || '<invalid>'} [${hook.triggerPhase}/${hook.invocationType}] failure=${hook.failureBehavior}${scope}${grants}${targets} @ ${formatFileProvenance(hook.sourceLayer, hook.sourceRepo)}`;
 }
 
+function formatExecutionProfile(profile: ResolvedExecutionProfile): string {
+    const runner = profile.runner ? ` runner=${profile.runner}` : '';
+    const timeout =
+        profile.timeoutSeconds !== undefined ? ` timeout=${profile.timeoutSeconds}s` : '';
+    const grants =
+        profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
+    const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
+    const secrets =
+        profile.requiredSecrets.length > 0
+            ? ` secrets=${profile.requiredSecrets.join(',')}`
+            : '';
+    return `${profile.id || '<invalid>'} [${profile.surface}/${profile.isolation}]${runner}${timeout}${grants}${targets}${secrets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -130,6 +146,7 @@ export function registerPreviewCommand(program: Command): void {
                 const policyGrants = resolvePolicyGrants(config, workspaceRoot);
                 const mcpServers = resolveMcpServers(config, workspaceRoot);
                 const hooks = resolveHooks(config, workspaceRoot);
+                const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -148,6 +165,7 @@ export function registerPreviewCommand(program: Command): void {
                             policyGrants: policyGrants.length,
                             mcpServers: mcpServers.length,
                             hooks: hooks.length,
+                            executionProfiles: executionProfiles.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -172,6 +190,7 @@ export function registerPreviewCommand(program: Command): void {
                         policyGrants,
                         mcpServers,
                         hooks,
+                        executionProfiles,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -186,7 +205,8 @@ export function registerPreviewCommand(program: Command): void {
                     files.length === 0 &&
                     policyGrants.length === 0 &&
                     mcpServers.length === 0 &&
-                    hooks.length === 0
+                    hooks.length === 0 &&
+                    executionProfiles.length === 0
                 ) {
                     console.log('No files in overlay.');
                     return;
@@ -266,6 +286,26 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    endpoint: ${hook.endpoint}`);
                         }
                         for (const warning of hook.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (executionProfiles.length > 0) {
+                    console.log(`Execution Profiles: ${executionProfiles.length}`);
+                    for (const profile of executionProfiles) {
+                        console.log(`  - ${formatExecutionProfile(profile)}`);
+                        if (profile.workingDirectory) {
+                            console.log(`    workingDirectory: ${profile.workingDirectory}`);
+                        }
+                        if (profile.environment && Object.keys(profile.environment).length > 0) {
+                            const entries = Object.entries(profile.environment)
+                                .sort((left, right) => left[0].localeCompare(right[0]))
+                                .map(([key, value]) => `${key}=${value}`)
+                                .join(', ');
+                            console.log(`    environment: ${entries}`);
+                        }
+                        for (const warning of profile.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

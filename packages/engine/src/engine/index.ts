@@ -93,6 +93,11 @@ export {
 export { loadMcpServersForLayer, parseMcpServerContent, mcpServerConstants } from './mcpServer';
 export { loadHooksForLayer, parseHookContent, hookManifestConstants } from './hookManifest';
 export {
+    loadExecutionProfilesForLayer,
+    parseExecutionProfileContent,
+    executionProfileConstants,
+} from './executionProfile';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -108,6 +113,9 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    ExecutionIsolation,
+    ExecutionProfileMetadata,
+    ExecutionSurface,
     HookFailureBehavior,
     HookInvocationType,
     HookMetadata,

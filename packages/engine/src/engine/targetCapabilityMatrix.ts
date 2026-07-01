@@ -103,14 +103,16 @@ const CODEX_MATRIX: MatrixSeed[] = [
     ),
     row(
         'executionSurfaces',
-        'runtime-only',
-        ['local Codex CLI', 'Codex Cloud'],
+        'partial',
+        ['.metaflow/execution/*.json', 'local Codex CLI', 'Codex Cloud'],
         [
-            'MetaFlow records no canonical execution profile projection for Codex execution surfaces.',
+            'Canonical execution profile metadata is parsed and reported for adapter review.',
+            'Codex execution surface selection remains a runtime workflow until explicit projection adapters exist.',
         ],
         [
             'Execution surface selection changes filesystem, network, credential, and approval boundaries.',
         ],
+        ['RUN-035'],
     ),
     row(
         'memoryScopes',
@@ -223,12 +225,14 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     ),
     row(
         'executionSurfaces',
-        'runtime-only',
-        ['GitHub Copilot host runtime', 'GitHub cloud agent workflows'],
+        'partial',
+        ['.metaflow/execution/*.json', 'GitHub Copilot host runtime', 'GitHub cloud agent workflows'],
         [
-            'MetaFlow records no canonical execution profile projection for Copilot execution surfaces.',
+            'Canonical execution profile metadata is parsed and reported for adapter review.',
+            'Copilot and GitHub execution surface selection remains a runtime workflow until explicit projection adapters exist.',
         ],
         ['Execution surface selection changes repository, organization, and CI authority.'],
+        ['RUN-035'],
     ),
     row(
         'memoryScopes',

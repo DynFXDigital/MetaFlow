@@ -26,6 +26,7 @@ import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { loadPolicyGrantsForLayer } from './policyGrant';
 import { loadMcpServersForLayer } from './mcpServer';
 import { loadHooksForLayer } from './hookManifest';
+import { loadExecutionProfilesForLayer } from './executionProfile';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -311,6 +312,7 @@ function buildLayerContent(
         policyGrants,
         mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
         hooks: loadHooksForLayer(layerAbsPath, knownPolicyGrantIds),
+        executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
 
@@ -626,12 +628,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const hooksDir = path.join(metaFlowDirPath, 'hooks');
-        if (!fs.existsSync(hooksDir) || !fs.statSync(hooksDir).isDirectory()) {
+        if (fs.existsSync(hooksDir) && fs.statSync(hooksDir).isDirectory()) {
+            const hookEntries = fs.readdirSync(hooksDir, { withFileTypes: true });
+            const hasHook = hookEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasHook) {
+                return true;
+            }
+        }
+
+        const executionDir = path.join(metaFlowDirPath, 'execution');
+        if (!fs.existsSync(executionDir) || !fs.statSync(executionDir).isDirectory()) {
             return false;
         }
 
-        const hookEntries = fs.readdirSync(hooksDir, { withFileTypes: true });
-        return hookEntries.some(
+        const executionEntries = fs.readdirSync(executionDir, { withFileTypes: true });
+        return executionEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

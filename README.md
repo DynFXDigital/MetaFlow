@@ -105,6 +105,8 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - `.codex/**` project configuration and policy files synchronize root-relative with managed-state-only provenance; existing unmanaged `.codex/**` destinations block apply before overwrite.
 - Codex plugins use `.codex-plugin/plugin.json`; GitHub Copilot agent plugins use capability-root `plugin.json`.
 - Codex plugin marketplaces use `.agents/plugins/marketplace.json`; GitHub Copilot marketplace generation uses `.github/plugin/marketplace.json`.
+- Canonical `.metaflow/policies/*.json`, `.metaflow/mcp/*.json`, `.metaflow/hooks/*.json`, and `.metaflow/execution/*.json` manifests load as capability metadata and appear in CLI preview text and JSON with source provenance, diagnostics, target posture, and policy grant references.
+- Canonical MCP server, hook, and execution profile metadata describes adapter intent; it does not configure Codex, GitHub Copilot, MCP servers, lifecycle hooks, local sandboxes, cloud tasks, or CI runners by itself.
 
 ## Capability Plugin Metadata
 

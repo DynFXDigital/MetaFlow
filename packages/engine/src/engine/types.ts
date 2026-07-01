@@ -32,6 +32,8 @@ export interface LayerContent {
     mcpServers?: McpServerMetadata[];
     /** Hooks loaded from canonical MetaFlow hook manifests. */
     hooks?: HookMetadata[];
+    /** Execution profiles loaded from canonical MetaFlow execution manifests. */
+    executionProfiles?: ExecutionProfileMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -236,6 +238,52 @@ export interface HookMetadata {
     /** Policy grants required before the hook is used. */
     policyGrants: string[];
     /** Target harnesses or adapters this hook applies to. */
+    targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Execution surface declared by a canonical execution profile. */
+export type ExecutionSurface =
+    | 'localWorkstation'
+    | 'devContainer'
+    | 'cloudSandbox'
+    | 'ciRunner'
+    | 'longRunningVm';
+
+/** Isolation boundary declared by a canonical execution profile. */
+export type ExecutionIsolation =
+    | 'none'
+    | 'workspace-write'
+    | 'container'
+    | 'vm'
+    | 'cloud-sandbox';
+
+/** Canonical MetaFlow execution profile metadata associated with a layer. */
+export interface ExecutionProfileMetadata {
+    /** Stable execution profile identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied execution profile metadata. */
+    manifestPath: string;
+    /** Execution surface family for this profile. */
+    surface: ExecutionSurface;
+    /** Isolation boundary required by this profile. */
+    isolation: ExecutionIsolation;
+    /** Optional harness, runner, image, workflow, or environment reference. */
+    runner?: string;
+    /** Optional working directory used by the execution surface. */
+    workingDirectory?: string;
+    /** Optional positive timeout in seconds. */
+    timeoutSeconds?: number;
+    /** Required secret names referenced by this execution profile. */
+    requiredSecrets: string[];
+    /** Optional environment variables or symbolic environment references. */
+    environment?: Record<string, string>;
+    /** Policy grants required before this execution profile is used. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this execution profile applies to. */
     targets: string[];
     /** Optional user-facing description. */
     description?: string;

@@ -53,6 +53,7 @@ import {
     parsePolicyGrantContent,
     parseMcpServerContent,
     parseHookContent,
+    parseExecutionProfileContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -614,6 +615,34 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/hook-only']);
     });
 
+    it('discovers canonical .metaflow execution profile layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-execution-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'execution-only', '.metaflow', 'execution'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'execution-only',
+                '.metaflow',
+                'execution',
+                'local.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'local',
+                surface: 'localWorkstation',
+                isolation: 'workspace-write',
+                policyGrants: ['shell-test'],
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/execution-only']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
@@ -1056,6 +1085,106 @@ describe('Engine package: overlay pipeline', () => {
                 'HOOK_ARGS_INVALID',
                 'HOOK_TARGETS_INVALID',
                 'HOOK_SCOPE_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical execution profiles as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'execution'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-test.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-test',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'local.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'local',
+                surface: 'localWorkstation',
+                isolation: 'workspace-write',
+                runner: 'codex-cli',
+                workingDirectory: '.',
+                timeoutSeconds: 900,
+                requiredSecrets: ['OPENAI_API_KEY'],
+                environment: { NODE_ENV: 'test' },
+                policyGrants: ['shell-test'],
+                targets: ['codex'],
+                description: 'Run local Codex CLI checks.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].executionProfiles?.length, 1);
+        const profile = layers[0].executionProfiles?.[0];
+        assert.strictEqual(profile?.id, 'local');
+        assert.strictEqual(profile?.surface, 'localWorkstation');
+        assert.strictEqual(profile?.isolation, 'workspace-write');
+        assert.strictEqual(profile?.runner, 'codex-cli');
+        assert.strictEqual(profile?.workingDirectory, '.');
+        assert.strictEqual(profile?.timeoutSeconds, 900);
+        assert.deepStrictEqual(profile?.requiredSecrets, ['OPENAI_API_KEY']);
+        assert.deepStrictEqual(profile?.environment, { NODE_ENV: 'test' });
+        assert.deepStrictEqual(profile?.policyGrants, ['shell-test']);
+        assert.deepStrictEqual(profile?.targets, ['codex']);
+        assert.strictEqual(profile?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical execution profiles', () => {
+        const profile = parseExecutionProfileContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v0',
+                id: 'Invalid ID',
+                surface: 'desktop',
+                isolation: 'wide-open',
+                runner: '',
+                workingDirectory: '',
+                timeoutSeconds: 0,
+                requiredSecrets: ['TOKEN', 42],
+                environment: { NODE_ENV: 'test', EMPTY: '' },
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                description: '',
+                extra: true,
+            }),
+            'execution.json',
+            new Set(['shell-test']),
+        );
+
+        assert.strictEqual(profile.id, 'Invalid ID');
+        assert.strictEqual(profile.surface, 'localWorkstation');
+        assert.strictEqual(profile.isolation, 'workspace-write');
+        assert.deepStrictEqual(
+            profile.warnings.map((warning) => warning.code),
+            [
+                'EXECUTION_PROFILE_UNKNOWN_FIELD',
+                'EXECUTION_PROFILE_SCHEMA_VERSION_INVALID',
+                'EXECUTION_PROFILE_ID_INVALID',
+                'EXECUTION_PROFILE_SURFACE_INVALID',
+                'EXECUTION_PROFILE_ISOLATION_INVALID',
+                'EXECUTION_PROFILE_RUNNER_INVALID',
+                'EXECUTION_PROFILE_WORKING_DIRECTORY_INVALID',
+                'EXECUTION_PROFILE_TIMEOUT_INVALID',
+                'EXECUTION_PROFILE_REQUIRED_SECRETS_INVALID',
+                'EXECUTION_PROFILE_POLICY_GRANT_UNKNOWN',
+                'EXECUTION_PROFILE_ENVIRONMENT_INVALID',
+                'EXECUTION_PROFILE_TARGETS_INVALID',
+                'EXECUTION_PROFILE_DESCRIPTION_INVALID',
             ],
         );
     });
