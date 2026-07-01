@@ -226,6 +226,43 @@ describe('CLI: preview', () => {
         );
     });
 
+    it('shows target and lossiness metadata for canonical MetaFlow skill projections', async () => {
+        const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
+        const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: canonicalSkillPath,
+                        content: '# Release Readiness',
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes(`[codex] ${codexSkillPath}`));
+        assert.ok(textResult.stdout.includes('lossiness=none'));
+        assert.ok(textResult.stdout.includes('MetaFlow source projected to Codex'));
+
+        const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        const codexChange = data.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === codexSkillPath,
+        );
+        assert.strictEqual(codexChange.sourceRelativePath, canonicalSkillPath);
+        assert.strictEqual(codexChange.projection.target, 'codex');
+        assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(codexChange.projection.lossiness, 'none');
+        assert.strictEqual(codexChange.projection.pathTransformed, true);
+    });
+
     it('should show no files for empty overlay', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
@@ -246,14 +283,14 @@ describe('CLI: preview', () => {
 
         const previewResult = await runCli(['preview', '-w', ws.root]);
         assert.strictEqual(previewResult.exitCode, 0);
-        assert.ok(previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')));
+        assert.ok(
+            previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')),
+        );
         assert.ok(!previewResult.stdout.includes(synchronizedPath('skills/testing/SKILL.md')));
 
         const applyResult = await runCli(['apply', '-w', ws.root]);
         assert.strictEqual(applyResult.exitCode, 0);
-        assert.ok(
-            fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')),
-        );
+        assert.ok(fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')));
 
         const validateResult = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(validateResult.exitCode, 0);

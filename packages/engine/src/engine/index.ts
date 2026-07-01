@@ -105,10 +105,14 @@ export type {
     SurfacedFileConflict,
     SurfacedFileConflictSource,
     ArtifactClassification,
+    ProjectionLossiness,
+    ProjectionMetadata,
+    ProjectionTarget,
     OverlayResult,
     PendingAction,
     PendingChange,
 } from './types';
+export { describeProjection } from './projectionMetadata';
 export type { ProvenanceData } from './provenanceHeader';
 export type {
     ManagedState,

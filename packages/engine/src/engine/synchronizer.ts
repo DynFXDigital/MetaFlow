@@ -10,7 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { LayerSource, SyncFileNamingStrategy } from '../config/configSchema';
-import { EffectiveFile, PendingAction, PendingChange } from './types';
+import { EffectiveFile, PendingAction, PendingChange, ProjectionMetadata } from './types';
 import { generateProvenanceHeader, ProvenanceData } from './provenanceHeader';
 import {
     ManagedFileState,
@@ -21,6 +21,7 @@ import {
 } from './managedState';
 import { checkDrift } from './driftDetector';
 import { isCodexRootRelativeSynchronizedPath, usesInlineProvenanceHeader } from './codexPaths';
+import { describeProjection } from './projectionMetadata';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
@@ -38,6 +39,8 @@ export interface PlannedSynchronizedFile {
     sourceRepo?: string;
     /** Absolute path to the source file. */
     sourcePath: string;
+    /** Target and support metadata for this planned output. */
+    projection: ProjectionMetadata;
     /** Effective file backing this planned output. */
     file: EffectiveFile;
 }
@@ -264,15 +267,18 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
             continue;
         }
 
+        const destinationRelativePath = toSynchronizedRelativePath(
+            file,
+            resolveEffectiveFileNamingStrategy(file, fileNamingStrategy, strategyByLayer),
+        );
+        const sourceRelativePath = getSourceRelativePath(file);
         const entry: PlannedSynchronizedFile = {
-            destinationRelativePath: toSynchronizedRelativePath(
-                file,
-                resolveEffectiveFileNamingStrategy(file, fileNamingStrategy, strategyByLayer),
-            ),
-            sourceRelativePath: getSourceRelativePath(file),
+            destinationRelativePath,
+            sourceRelativePath,
             sourceLayer: file.sourceLayer,
             sourceRepo: file.sourceRepo,
             sourcePath: file.sourcePath,
+            projection: describeProjection(destinationRelativePath, sourceRelativePath),
             file,
         };
         synchronizedFiles.push(entry);
@@ -654,6 +660,9 @@ export function preview(
             reason,
             classification: file.classification,
             sourceLayer: file.sourceLayer,
+            sourceRepo: file.sourceRepo,
+            sourceRelativePath: entry.sourceRelativePath,
+            projection: entry.projection,
         });
     }
 
@@ -667,6 +676,12 @@ export function preview(
                 reason: drift.status === 'drifted' ? 'drifted' : undefined,
                 classification: 'synchronized',
                 sourceLayer: state.files[trackedPath].sourceLayer,
+                sourceRepo: state.files[trackedPath].sourceRepo,
+                sourceRelativePath: state.files[trackedPath].sourceRelativePath,
+                projection: describeProjection(
+                    trackedPath,
+                    state.files[trackedPath].sourceRelativePath ?? trackedPath,
+                ),
             });
         }
     }

@@ -1,5 +1,10 @@
 import { Command } from 'commander';
-import { computeSettingsEntries, preview } from '@metaflow/engine';
+import {
+    computeSettingsEntries,
+    describeProjection,
+    preview,
+    ProjectionMetadata,
+} from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
@@ -10,6 +15,11 @@ import {
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
     return sourceRepo ? `${sourceLayer} (${sourceRepo})` : sourceLayer;
+}
+
+function formatProjection(projection: ProjectionMetadata): string {
+    const notes = projection.notes.length > 0 ? `; ${projection.notes.join('; ')}` : '';
+    return `${projection.target}; lossiness=${projection.lossiness}${notes}`;
 }
 
 function summarizeSources(files: Array<{ sourceLayer: string; sourceRepo?: string }>): string[] {
@@ -84,14 +94,23 @@ export function registerPreviewCommand(program: Command): void {
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
+                            sourceRelativePath: f.sourceRelativePath ?? f.relativePath,
                             classification: f.classification,
                             sourceLayer: f.sourceLayer,
                             sourceRepo: f.sourceRepo ?? null,
+                            projection: describeProjection(
+                                f.relativePath,
+                                f.sourceRelativePath ?? f.relativePath,
+                            ),
                         })),
                         pendingChanges: changes.map((c) => ({
                             relativePath: c.relativePath,
+                            sourceRelativePath: c.sourceRelativePath ?? c.relativePath,
                             action: c.action,
                             reason: c.reason ?? null,
+                            sourceLayer: c.sourceLayer,
+                            sourceRepo: c.sourceRepo ?? null,
+                            projection: c.projection,
                         })),
                         settingsEntries,
                         sources: sourceSummary,
@@ -109,9 +128,16 @@ export function registerPreviewCommand(program: Command): void {
 
                 console.log('Effective files:');
                 for (const f of files) {
-                    console.log(
-                        `  [${f.classification}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+                    const projection = describeProjection(
+                        f.relativePath,
+                        f.sourceRelativePath ?? f.relativePath,
                     );
+                    console.log(
+                        `  [${f.classification}] [${projection.target}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+                    );
+                    if (projection.pathTransformed || projection.lossiness !== 'none') {
+                        console.log(`    projection: ${formatProjection(projection)}`);
+                    }
                 }
                 console.log(
                     `\nSummary: ${files.length} total (${settingsCount} settings, ${synchronizedCount} synchronized)`,
@@ -133,7 +159,12 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`\nPending changes (${changes.length}):`);
                     for (const c of changes) {
                         const suffix = c.reason ? ` (${c.reason})` : '';
-                        console.log(`  ${c.action} ${c.relativePath}${suffix}`);
+                        console.log(
+                            `  ${c.action} [${c.projection.target}] ${c.relativePath}${suffix}`,
+                        );
+                        if (c.projection.pathTransformed || c.projection.lossiness !== 'none') {
+                            console.log(`    projection: ${formatProjection(c.projection)}`);
+                        }
                     }
                 }
 

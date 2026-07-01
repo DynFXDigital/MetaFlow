@@ -138,6 +138,26 @@ export interface RepoMetadata {
 /** Classification of an artifact: settings-injected, plugin-activated, or synchronized. */
 export type ArtifactClassification = 'settings' | 'plugin' | 'synchronized';
 
+/** Agent harness or metadata format associated with a projected artifact. */
+export type ProjectionTarget = 'metaflow' | 'github-copilot' | 'codex' | 'generic';
+
+/** Projection support fidelity for a target artifact. */
+export type ProjectionLossiness = 'none' | 'lossy' | 'unsupported';
+
+/** Target and support metadata for an effective or synchronized artifact. */
+export interface ProjectionMetadata {
+    /** Metadata format or harness family of the authored source artifact. */
+    sourceFormat: ProjectionTarget;
+    /** Metadata format or harness family of the projected output artifact. */
+    target: ProjectionTarget;
+    /** Whether the projected target path differs from the authored source path. */
+    pathTransformed: boolean;
+    /** Whether the projection preserves the source semantics for the target. */
+    lossiness: ProjectionLossiness;
+    /** Human-readable support notes for preview and diagnostics. */
+    notes: string[];
+}
+
 /** An effective file after overlay resolution. */
 export interface EffectiveFile {
     /** Relative path in the output (e.g., `instructions/coding.md`). */
@@ -223,4 +243,10 @@ export interface PendingChange {
     classification: ArtifactClassification;
     /** Source layer. */
     sourceLayer: string;
+    /** Source repo. */
+    sourceRepo?: string;
+    /** Original relative source path when different from the projected output path. */
+    sourceRelativePath?: string;
+    /** Target and support metadata for this pending output. */
+    projection: ProjectionMetadata;
 }

@@ -1475,7 +1475,10 @@ describe('Engine: overlay multi-repo resolution', () => {
         const repoRoot = path.join(tmpDir, 'repos', 'company');
         const layerRoot = path.join(repoRoot, 'codex-policy');
         fs.mkdirSync(path.join(layerRoot, '.codex'), { recursive: true });
-        fs.writeFileSync(path.join(layerRoot, '.codex', 'config.toml'), 'sandbox_mode = "workspace-write"\n');
+        fs.writeFileSync(
+            path.join(layerRoot, '.codex', 'config.toml'),
+            'sandbox_mode = "workspace-write"\n',
+        );
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.ok(discovered.includes('codex-policy'));
@@ -2049,11 +2052,7 @@ describe('Engine: synchronizer advanced', () => {
     it('planSynchronization fails when Codex project instructions would overwrite unmanaged root files', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
-        fs.writeFileSync(
-            path.join(repoDir, 'core', 'AGENTS.md'),
-            '# Managed Guidance',
-            'utf-8',
-        );
+        fs.writeFileSync(path.join(repoDir, 'core', 'AGENTS.md'), '# Managed Guidance', 'utf-8');
         fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), '# User Guidance', 'utf-8');
 
         const config: MetaFlowConfig = {
@@ -2116,7 +2115,10 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(!writtenConfig.includes('metaflow:provenance'));
         assert.ok(!fs.existsSync(path.join(tmpDir, '.github', '.codex', 'config.toml')));
 
-        fs.writeFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'sandbox_mode = "read-only"\n');
+        fs.writeFileSync(
+            path.join(tmpDir, '.codex', 'config.toml'),
+            'sandbox_mode = "read-only"\n',
+        );
         const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
         assert.strictEqual(
             drift.find((entry) => entry.relativePath === '.codex/config.toml')?.status,
@@ -2234,15 +2236,30 @@ describe('Engine: synchronizer advanced', () => {
         const copilotSkill = fileMap.get(copilotSkillPath);
         const codexSkill = fileMap.get(codexSkillPath);
         assert.ok(copilotSkill, 'canonical skill should project to a Copilot skill artifact');
-        assert.ok(codexSkill, 'canonical skill should project to a Codex repository skill artifact');
+        assert.ok(
+            codexSkill,
+            'canonical skill should project to a Codex repository skill artifact',
+        );
         assert.strictEqual(copilotSkill?.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(codexSkill?.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(copilotSkill?.classification, 'plugin');
         assert.strictEqual(codexSkill?.classification, 'synchronized');
         assert.strictEqual(toSynchronizedRelativePath(codexSkill as EffectiveFile), codexSkillPath);
 
+        const plan = planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files });
+        const plannedCodexSkill = plan.synchronizedFiles.find(
+            (entry) => entry.destinationRelativePath === codexSkillPath,
+        );
+        assert.strictEqual(plannedCodexSkill?.projection.target, 'codex');
+        assert.strictEqual(plannedCodexSkill?.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(plannedCodexSkill?.projection.lossiness, 'none');
+        assert.strictEqual(plannedCodexSkill?.projection.pathTransformed, true);
+
         const pending = preview(tmpDir, files);
-        assert.ok(pending.some((change) => change.relativePath === codexSkillPath));
+        const pendingCodexSkill = pending.find((change) => change.relativePath === codexSkillPath);
+        assert.strictEqual(pendingCodexSkill?.projection.target, 'codex');
+        assert.strictEqual(pendingCodexSkill?.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(pendingCodexSkill?.projection.lossiness, 'none');
         assert.ok(!pending.some((change) => change.relativePath === copilotSkillPath));
 
         const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
@@ -2250,7 +2267,9 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(
             fs.existsSync(path.join(tmpDir, '.agents', 'skills', 'release-readiness', 'SKILL.md')),
         );
-        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', 'skills', 'release-readiness', 'SKILL.md')));
+        assert.ok(
+            !fs.existsSync(path.join(tmpDir, '.github', 'skills', 'release-readiness', 'SKILL.md')),
+        );
 
         const state = loadManagedState(tmpDir);
         assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, canonicalSkillPath);
