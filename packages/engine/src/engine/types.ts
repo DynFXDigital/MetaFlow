@@ -24,7 +24,7 @@ export interface LayerContent {
     repoId?: string;
     /** Files discovered in this layer. */
     files: LayerFile[];
-    /** Optional capability metadata loaded from CAPABILITY.md at layer root. */
+    /** Optional capability metadata loaded from a capability manifest at layer root. */
     capability?: CapabilityMetadata;
 }
 
@@ -91,7 +91,7 @@ export interface CapabilityPluginCatalogEntry {
     experimental?: boolean;
 }
 
-/** Parsed CAPABILITY.md metadata associated with a layer. */
+/** Parsed capability metadata associated with a layer. */
 export interface CapabilityMetadata {
     /** Internal capability identifier (currently derived from folder name). */
     id: string;
@@ -101,7 +101,7 @@ export interface CapabilityMetadata {
     previousIds?: string[];
     /** Historical repo-relative paths that can be used for migration/reconciliation. */
     previousPaths?: string[];
-    /** Absolute path to CAPABILITY.md. */
+    /** Absolute path to the manifest that supplied capability metadata. */
     manifestPath: string;
     /** User-facing capability name. */
     name?: string;

@@ -450,6 +450,26 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/empty-capability']);
     });
 
+    it('discovers canonical .metaflow capability manifest layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-capability-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'canonical-only', '.metaflow'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoRoot, 'capabilities', 'canonical-only', '.metaflow', 'capability.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.capability/v1',
+                id: 'metadata-authoring.canonical-only',
+                name: 'Canonical Only',
+                summary: 'Canonical manifest capability.',
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/canonical-only']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
@@ -569,6 +589,68 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(file.sourceCapabilityId, 'core');
         assert.strictEqual(file.sourceCapabilityName, 'SDLC Traceability');
         assert.strictEqual(file.sourceCapabilityDescription, 'Traceability metadata capability.');
+        assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
+        assert.strictEqual(file.sourceCapabilityExperimental, true);
+    });
+
+    it('loads canonical metadata from .metaflow/capability.json before CAPABILITY.md', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'instructions'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'capability.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.capability/v1',
+                id: 'traceability.canonical',
+                uid: '123e4567-e89b-12d3-a456-426614174000',
+                previousIds: ['traceability.legacy'],
+                previousPaths: ['old/core'],
+                name: 'Canonical Traceability',
+                summary: 'Canonical traceability metadata capability.',
+                license: 'MIT',
+                experimental: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', 'CAPABILITY.md'),
+            ['---', 'name: Legacy Traceability', 'description: Legacy.', '---'].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'instructions', 'coding.md'),
+            '# Coding',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers[0].capability?.id, 'traceability.canonical');
+        assert.strictEqual(layers[0].capability?.name, 'Canonical Traceability');
+        assert.strictEqual(
+            layers[0].capability?.description,
+            'Canonical traceability metadata capability.',
+        );
+        assert.strictEqual(layers[0].capability?.uid, '123e4567-e89b-12d3-a456-426614174000');
+        assert.deepStrictEqual(layers[0].capability?.previousIds, ['traceability.legacy']);
+        assert.deepStrictEqual(layers[0].capability?.previousPaths, ['old/core']);
+        assert.ok(
+            layers[0].capability?.manifestPath
+                .replace(/\\/g, '/')
+                .endsWith('.metaflow/capability.json'),
+        );
+
+        const fileMap = buildEffectiveFileMap(layers);
+        const file = Array.from(fileMap.values())[0];
+        assert.strictEqual(file.sourceCapabilityId, 'traceability.canonical');
+        assert.strictEqual(file.sourceCapabilityName, 'Canonical Traceability');
+        assert.strictEqual(
+            file.sourceCapabilityDescription,
+            'Canonical traceability metadata capability.',
+        );
         assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
         assert.strictEqual(file.sourceCapabilityExperimental, true);
     });

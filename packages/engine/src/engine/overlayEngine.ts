@@ -564,6 +564,11 @@ function hasCodexProjectConfigDir(codexDirPath: string): boolean {
 
 function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
     try {
+        const capabilityJsonPath = path.join(metaFlowDirPath, 'capability.json');
+        if (fs.existsSync(capabilityJsonPath) && fs.statSync(capabilityJsonPath).isFile()) {
+            return true;
+        }
+
         const skillsDir = path.join(metaFlowDirPath, 'skills');
         if (!fs.existsSync(skillsDir) || !fs.statSync(skillsDir).isDirectory()) {
             return false;

@@ -80,6 +80,7 @@ export {
 } from './settingsInjector';
 export {
     collectDuplicateCapabilityUidWarnings,
+    parseCanonicalCapabilityManifestContent,
     parseCapabilityManifestContent,
     loadCapabilityManifestForLayer,
     capabilityManifestConstants,

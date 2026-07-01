@@ -18,6 +18,8 @@ import {
 } from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
+const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
+const CANONICAL_CAPABILITY_FILE_NAME = 'capability.json';
 const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
 const KNOWN_FIELDS = new Set([
@@ -40,6 +42,21 @@ type ManifestFields = {
     license?: string;
     experimental?: string;
     agentPlugin?: string;
+};
+
+type CanonicalCapabilityFields = {
+    schemaVersion?: string;
+    id?: string;
+    uid?: string;
+    previousIds?: string[];
+    previousPaths?: string[];
+    name?: string;
+    description?: string;
+    summary?: string;
+    license?: string;
+    experimental?: boolean;
+    agentPlugin?: boolean;
+    kind?: string;
 };
 
 function parseBooleanField(value: string | undefined): boolean | undefined {
@@ -325,6 +342,19 @@ function normalizeStringArray(value: unknown): string[] | undefined {
     return normalized;
 }
 
+function normalizeNonEmptyStringArray(value: unknown): string[] | undefined {
+    const normalized = normalizeStringArray(value);
+    return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function getTrimmedString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    return value.trim() || undefined;
+}
+
 function parseAgentPluginManifestContent(
     rawText: string,
     pluginJsonPath: string,
@@ -501,7 +531,10 @@ function parseAgentPluginManifestContent(
     };
 }
 
-function loadAgentPluginManifestForLayer(layerPath: string): {
+function loadAgentPluginManifestForLayer(
+    layerPath: string,
+    declaringManifestName = CAPABILITY_FILE_NAME,
+): {
     metadata?: CapabilityAgentPluginManifest;
     warnings: CapabilityWarning[];
 } {
@@ -511,7 +544,7 @@ function loadAgentPluginManifestForLayer(layerPath: string): {
             warnings: [
                 toWarning(
                     'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING',
-                    'CAPABILITY.md declares "agentPlugin: true" but plugin.json is missing at the capability root.',
+                    `${declaringManifestName} declares agent plugin packaging but plugin.json is missing at the capability root.`,
                     pluginJsonPath,
                     'error',
                 ),
@@ -626,6 +659,246 @@ function validateManifestFields(fields: ManifestFields, filePath?: string): Capa
     return warnings;
 }
 
+function validateCanonicalCapabilityFields(
+    fields: CanonicalCapabilityFields,
+    original: Record<string, unknown>,
+    filePath: string,
+): CapabilityWarning[] {
+    const warnings: CapabilityWarning[] = [];
+
+    if (original.schemaVersion !== undefined && !fields.schemaVersion) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_SCHEMA_VERSION_INVALID',
+                '.metaflow/capability.json "schemaVersion" must be a non-empty string when present.',
+                filePath,
+                'error',
+            ),
+        );
+    }
+
+    if (original.id !== undefined && !fields.id) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_ID_INVALID',
+                '.metaflow/capability.json "id" must be a non-empty string when present.',
+                filePath,
+                'error',
+            ),
+        );
+    }
+
+    if (fields.uid !== undefined && !isValidCapabilityUid(fields.uid)) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_UID_INVALID',
+                '.metaflow/capability.json "uid" must be an RFC 4122 UUID such as 123e4567-e89b-12d3-a456-426614174000.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.previousIds !== undefined && !fields.previousIds) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_PREVIOUS_IDS_INVALID',
+                '.metaflow/capability.json "previousIds" must be an array of non-empty strings when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.previousPaths !== undefined && !fields.previousPaths) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_PREVIOUS_PATHS_INVALID',
+                '.metaflow/capability.json "previousPaths" must be an array of non-empty strings when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (!fields.name) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_NAME_REQUIRED',
+                '.metaflow/capability.json requires a non-empty "name" field.',
+                filePath,
+            ),
+        );
+    }
+
+    if (!fields.description && !fields.summary) {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_DESCRIPTION_REQUIRED',
+                '.metaflow/capability.json requires a non-empty "description" or "summary" field.',
+                filePath,
+            ),
+        );
+    }
+
+    if (fields.license) {
+        const licenseIsValid =
+            fields.license === FALLBACK_LICENSE_TOKEN || isLikelySpdxExpression(fields.license);
+        if (!licenseIsValid) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_LICENSE_INVALID',
+                    `.metaflow/capability.json "license" must be an SPDX identifier/expression or ${FALLBACK_LICENSE_TOKEN}.`,
+                    filePath,
+                ),
+            );
+        }
+    }
+
+    if (original.experimental !== undefined && typeof original.experimental !== 'boolean') {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_EXPERIMENTAL_INVALID',
+                '.metaflow/capability.json "experimental" must be true or false when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.agentPlugin !== undefined && typeof original.agentPlugin !== 'boolean') {
+        warnings.push(
+            toWarning(
+                'CAPABILITY_AGENT_PLUGIN_INVALID',
+                '.metaflow/capability.json "agentPlugin" must be true or false when present.',
+                filePath,
+                'error',
+            ),
+        );
+    }
+
+    if (original.kind !== undefined && !fields.kind) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_KIND_INVALID',
+                '.metaflow/capability.json "kind" must be a non-empty string when present.',
+                filePath,
+            ),
+        );
+    }
+
+    return warnings;
+}
+
+/**
+ * Parse .metaflow/capability.json into normalized metadata + warnings.
+ */
+export function parseCanonicalCapabilityManifestContent(
+    rawText: string,
+    fallbackCapabilityId: string,
+    manifestPath: string,
+): CapabilityMetadata {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(rawText) as unknown;
+    } catch (error) {
+        return {
+            id: fallbackCapabilityId,
+            manifestPath,
+            warnings: [
+                toWarning(
+                    'CANONICAL_CAPABILITY_JSON_INVALID',
+                    `.metaflow/capability.json could not be parsed: ${(error as Error).message}`,
+                    manifestPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return {
+            id: fallbackCapabilityId,
+            manifestPath,
+            warnings: [
+                toWarning(
+                    'CANONICAL_CAPABILITY_OBJECT_REQUIRED',
+                    '.metaflow/capability.json must contain a top-level JSON object.',
+                    manifestPath,
+                    'error',
+                ),
+            ],
+        };
+    }
+
+    const manifestObject = parsed as Record<string, unknown>;
+    const knownFields = new Set([
+        'schemaVersion',
+        'id',
+        'uid',
+        'previousIds',
+        'previousPaths',
+        'name',
+        'summary',
+        'description',
+        'domain',
+        'kind',
+        'lifecycle',
+        'owners',
+        'components',
+        'targets',
+        'license',
+        'experimental',
+        'agentPlugin',
+    ]);
+
+    const warnings: CapabilityWarning[] = [];
+    for (const key of Object.keys(manifestObject)) {
+        if (!knownFields.has(key)) {
+            warnings.push(
+                toWarning(
+                    'CANONICAL_CAPABILITY_UNKNOWN_FIELD',
+                    `Unknown .metaflow/capability.json field: "${key}".`,
+                    manifestPath,
+                ),
+            );
+        }
+    }
+
+    const fields: CanonicalCapabilityFields = {
+        schemaVersion: getTrimmedString(manifestObject.schemaVersion),
+        id: getTrimmedString(manifestObject.id),
+        uid: getTrimmedString(manifestObject.uid),
+        previousIds: normalizeNonEmptyStringArray(manifestObject.previousIds),
+        previousPaths: normalizeNonEmptyStringArray(manifestObject.previousPaths),
+        name: getTrimmedString(manifestObject.name),
+        description: getTrimmedString(manifestObject.description),
+        summary: getTrimmedString(manifestObject.summary),
+        license: getTrimmedString(manifestObject.license),
+        experimental:
+            typeof manifestObject.experimental === 'boolean'
+                ? manifestObject.experimental
+                : undefined,
+        agentPlugin:
+            typeof manifestObject.agentPlugin === 'boolean'
+                ? manifestObject.agentPlugin
+                : undefined,
+        kind: getTrimmedString(manifestObject.kind),
+    };
+
+    warnings.push(...validateCanonicalCapabilityFields(fields, manifestObject, manifestPath));
+
+    return {
+        id: fields.id ?? fallbackCapabilityId,
+        uid: fields.uid,
+        previousIds: fields.previousIds,
+        previousPaths: fields.previousPaths,
+        manifestPath,
+        name: fields.name,
+        description: fields.description ?? fields.summary,
+        license: fields.license,
+        experimental: fields.experimental,
+        agentPlugin: fields.agentPlugin ?? (fields.kind === 'agent-plugin' ? true : undefined),
+        warnings,
+    };
+}
+
 /**
  * Parse CAPABILITY.md content into normalized metadata + warnings.
  */
@@ -679,12 +952,52 @@ export function parseCapabilityManifestContent(
 }
 
 /**
- * Load CAPABILITY.md from a layer directory when present.
+ * Load capability metadata from a layer directory when present.
  */
 export function loadCapabilityManifestForLayer(
     layerPath: string,
     capabilityId: string,
 ): CapabilityMetadata | undefined {
+    const canonicalManifestPath = path.join(
+        layerPath,
+        CANONICAL_METAFLOW_DIR_NAME,
+        CANONICAL_CAPABILITY_FILE_NAME,
+    );
+    if (fs.existsSync(canonicalManifestPath)) {
+        let rawText: string;
+        try {
+            rawText = fs.readFileSync(canonicalManifestPath, 'utf-8');
+        } catch (err) {
+            return {
+                id: capabilityId,
+                manifestPath: canonicalManifestPath,
+                warnings: [
+                    toWarning(
+                        'CANONICAL_CAPABILITY_READ_ERROR',
+                        `Failed to read .metaflow/capability.json: ${(err as Error).message}`,
+                        canonicalManifestPath,
+                    ),
+                ],
+            };
+        }
+
+        const manifest = parseCanonicalCapabilityManifestContent(
+            rawText,
+            capabilityId,
+            canonicalManifestPath,
+        );
+        if (manifest.agentPlugin) {
+            const pluginResult = loadAgentPluginManifestForLayer(
+                layerPath,
+                '.metaflow/capability.json',
+            );
+            manifest.agentPluginManifest = pluginResult.metadata;
+            manifest.warnings.push(...pluginResult.warnings);
+        }
+
+        return manifest;
+    }
+
     const manifestPath = path.join(layerPath, CAPABILITY_FILE_NAME);
     if (!fs.existsSync(manifestPath)) {
         return undefined;
@@ -709,7 +1022,7 @@ export function loadCapabilityManifestForLayer(
 
     const manifest = parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
     if (manifest.agentPlugin) {
-        const pluginResult = loadAgentPluginManifestForLayer(layerPath);
+        const pluginResult = loadAgentPluginManifestForLayer(layerPath, CAPABILITY_FILE_NAME);
         manifest.agentPluginManifest = pluginResult.metadata;
         manifest.warnings.push(...pluginResult.warnings);
     }
@@ -759,6 +1072,8 @@ export function collectDuplicateCapabilityUidWarnings(
 
 export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
+    CANONICAL_METAFLOW_DIR_NAME,
+    CANONICAL_CAPABILITY_FILE_NAME,
     AGENT_PLUGIN_MANIFEST_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };
