@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import {
     buildAdapterReadinessReports,
     computeSettingsEntries,
-    describeProjection,
+    describeProjectionWithTargetAdapters,
     getTargetCapabilityMatrix,
     preview,
     AdapterReadinessReport,
@@ -37,7 +37,11 @@ function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string 
 
 function formatProjection(projection: ProjectionMetadata): string {
     const notes = projection.notes.length > 0 ? `; ${projection.notes.join('; ')}` : '';
-    return `${projection.target}; lossiness=${projection.lossiness}${notes}`;
+    const adapter =
+        projection.targetAdapterId !== undefined
+            ? `; adapter=${projection.targetAdapterId}; mode=${projection.targetAdapterMaterializationMode ?? 'unspecified'}; validation=${projection.targetAdapterValidationStatus ?? 'unverified'}`
+            : '';
+    return `${projection.target}; lossiness=${projection.lossiness}${adapter}${notes}`;
 }
 
 function summarizeTargetCapabilityMatrix(entries: TargetCapabilityMatrixEntry[]): string[] {
@@ -241,9 +245,10 @@ export function registerPreviewCommand(program: Command): void {
                             classification: f.classification,
                             sourceLayer: f.sourceLayer,
                             sourceRepo: f.sourceRepo ?? null,
-                            projection: describeProjection(
+                            projection: describeProjectionWithTargetAdapters(
                                 f.relativePath,
                                 f.sourceRelativePath ?? f.relativePath,
+                                f.sourceTargetAdapters,
                             ),
                         })),
                         pendingChanges: changes.map((c) => ({
@@ -291,9 +296,10 @@ export function registerPreviewCommand(program: Command): void {
                 if (files.length > 0) {
                     console.log('Effective files:');
                     for (const f of files) {
-                        const projection = describeProjection(
+                        const projection = describeProjectionWithTargetAdapters(
                             f.relativePath,
                             f.sourceRelativePath ?? f.relativePath,
+                            f.sourceTargetAdapters,
                         );
                         console.log(
                             `  [${f.classification}] [${projection.target}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,

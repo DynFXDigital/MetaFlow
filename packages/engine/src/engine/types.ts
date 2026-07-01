@@ -451,6 +451,20 @@ export interface ProjectionMetadata {
     lossiness: ProjectionLossiness;
     /** Human-readable support notes for preview and diagnostics. */
     notes: string[];
+    /** Canonical concept associated with the projected target path. */
+    targetAdapterConcept?: TargetCapabilityConcept;
+    /** Target adapter manifest that applies to this projection. */
+    targetAdapterId?: string;
+    /** Adapter contract version declared by the target adapter manifest. */
+    targetAdapterVersion?: string;
+    /** Materialization mode selected for this projected target artifact. */
+    targetAdapterMaterializationMode?: TargetAdapterMaterializationMode;
+    /** Validation status declared by the selected target adapter manifest. */
+    targetAdapterValidationStatus?: TargetAdapterValidationStatus;
+    /** Evidence identifiers declared by the selected target adapter manifest. */
+    targetAdapterValidationEvidence?: string[];
+    /** Policy grants required by the selected target adapter manifest. */
+    targetAdapterRequiredPolicyGrants?: string[];
 }
 
 /** Canonical concept covered by a target adapter capability matrix. */
@@ -568,6 +582,8 @@ export interface EffectiveFile {
     sourceCapabilityLicense?: string;
     /** Whether the source capability is explicitly marked experimental. */
     sourceCapabilityExperimental?: boolean;
+    /** Target adapter preferences associated with the source capability layer. */
+    sourceTargetAdapters?: TargetAdapterMetadata[];
     /** Classification for realization strategy. */
     classification: ArtifactClassification;
 }

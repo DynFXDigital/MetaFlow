@@ -169,7 +169,7 @@ export type {
     PendingAction,
     PendingChange,
 } from './types';
-export { describeProjection } from './projectionMetadata';
+export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 export { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
 export type { ProvenanceData } from './provenanceHeader';
 export type {

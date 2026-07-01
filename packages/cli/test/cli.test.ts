@@ -358,7 +358,13 @@ describe('CLI: preview', () => {
         assert.strictEqual(textResult.exitCode, 0);
         assert.ok(textResult.stdout.includes(`[codex] ${codexSkillPath}`));
         assert.ok(textResult.stdout.includes('lossiness=none'));
+        assert.ok(
+            textResult.stdout.includes(
+                'adapter=codex-default; mode=managed; validation=runtimeVerified',
+            ),
+        );
         assert.ok(textResult.stdout.includes('MetaFlow source projected to Codex'));
+        assert.ok(textResult.stdout.includes('target adapter concept skills'));
         assert.ok(textResult.stdout.includes('Target Capability Matrix:'));
         assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
         assert.ok(textResult.stdout.includes('skills=supported'));
@@ -448,6 +454,15 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
         assert.strictEqual(codexChange.projection.lossiness, 'none');
         assert.strictEqual(codexChange.projection.pathTransformed, true);
+        assert.strictEqual(codexChange.projection.targetAdapterConcept, 'skills');
+        assert.strictEqual(codexChange.projection.targetAdapterId, 'codex-default');
+        assert.strictEqual(codexChange.projection.targetAdapterVersion, 'codex-v0.1');
+        assert.strictEqual(codexChange.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(codexChange.projection.targetAdapterValidationStatus, 'runtimeVerified');
+        assert.deepStrictEqual(codexChange.projection.targetAdapterValidationEvidence, ['RUN-030']);
+        assert.deepStrictEqual(codexChange.projection.targetAdapterRequiredPolicyGrants, [
+            'github-pr-read',
+        ]);
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);

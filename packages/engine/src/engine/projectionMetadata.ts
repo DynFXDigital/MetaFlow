@@ -4,7 +4,13 @@ import {
     isCodexRepositorySkillPath,
     normalizeArtifactPath,
 } from './codexPaths';
-import { ProjectionLossiness, ProjectionMetadata, ProjectionTarget } from './types';
+import {
+    ProjectionLossiness,
+    ProjectionMetadata,
+    ProjectionTarget,
+    TargetAdapterMetadata,
+    TargetCapabilityConcept,
+} from './types';
 
 function inferFormat(relativePath: string): ProjectionTarget {
     const normalized = normalizeArtifactPath(relativePath);
@@ -44,6 +50,65 @@ function describeTarget(target: ProjectionTarget): string {
         default:
             return 'generic metadata';
     }
+}
+
+function inferTargetAdapterConcept(
+    sourceRelativePath: string,
+    destinationRelativePath: string,
+): TargetCapabilityConcept | undefined {
+    const normalizedSource = normalizeArtifactPath(sourceRelativePath);
+    const normalizedDestination = normalizeArtifactPath(destinationRelativePath);
+    const paths = [normalizedSource, normalizedDestination];
+
+    if (
+        paths.some(
+            (path) =>
+                /^\.metaflow\/skills\/[^/]+\/SKILL\.md$/.test(path) ||
+                isCodexRepositorySkillPath(path) ||
+                path.startsWith('skills/'),
+        )
+    ) {
+        return 'skills';
+    }
+
+    if (
+        paths.some(
+            (path) =>
+                isCodexProjectInstructionPath(path) ||
+                path === 'copilot-instructions.md' ||
+                path.startsWith('instructions/') ||
+                path.startsWith('.github/instructions/'),
+        )
+    ) {
+        return 'instructions';
+    }
+
+    if (paths.some((path) => path.startsWith('agents/') || path.startsWith('.github/agents/'))) {
+        return 'agents';
+    }
+
+    if (paths.some((path) => path.startsWith('hooks/') || path.startsWith('.github/hooks/'))) {
+        return 'hooks';
+    }
+
+    if (paths.some((path) => path === 'plugin.json' || path.endsWith('/plugin.json'))) {
+        return 'packageManifests';
+    }
+
+    return undefined;
+}
+
+function selectTargetAdapter(
+    target: ProjectionTarget,
+    targetAdapters?: TargetAdapterMetadata[],
+): TargetAdapterMetadata | undefined {
+    const candidates = (targetAdapters ?? [])
+        .filter((adapter) => adapter.target === target)
+        .sort(
+            (left, right) =>
+                Number(right.enabled) - Number(left.enabled) || left.id.localeCompare(right.id),
+        );
+    return candidates[0];
 }
 
 function inferLossiness(
@@ -101,17 +166,51 @@ export function describeProjection(
     destinationRelativePath: string,
     sourceRelativePath?: string,
 ): ProjectionMetadata {
+    return describeProjectionWithTargetAdapters(destinationRelativePath, sourceRelativePath);
+}
+
+export function describeProjectionWithTargetAdapters(
+    destinationRelativePath: string,
+    sourceRelativePath?: string,
+    targetAdapters?: TargetAdapterMetadata[],
+): ProjectionMetadata {
     const sourcePath = sourceRelativePath ?? destinationRelativePath;
     const sourceFormat = inferFormat(sourcePath);
     const target = inferFormat(destinationRelativePath);
     const pathTransformed =
         normalizeArtifactPath(sourcePath) !== normalizeArtifactPath(destinationRelativePath);
     const lossiness = inferLossiness(sourcePath, destinationRelativePath, sourceFormat, target);
+    const concept = inferTargetAdapterConcept(sourcePath, destinationRelativePath);
+    const adapter = selectTargetAdapter(target, targetAdapters);
+    const materializationMode =
+        adapter && !adapter.enabled
+            ? 'disabled'
+            : concept
+              ? adapter?.concepts[concept] ?? adapter?.materializationMode
+              : adapter?.materializationMode;
+    const notes = buildNotes(sourcePath, destinationRelativePath, sourceFormat, target, lossiness);
+    if (adapter) {
+        notes.push(`target adapter ${adapter.id} selected`);
+        if (concept) {
+            notes.push(`target adapter concept ${concept}`);
+        }
+        for (const note of adapter.notes) {
+            notes.push(note);
+        }
+    }
+
     return {
         sourceFormat,
         target,
         pathTransformed,
         lossiness,
-        notes: buildNotes(sourcePath, destinationRelativePath, sourceFormat, target, lossiness),
+        notes,
+        targetAdapterConcept: concept,
+        targetAdapterId: adapter?.id,
+        targetAdapterVersion: adapter?.adapterVersion,
+        targetAdapterMaterializationMode: materializationMode,
+        targetAdapterValidationStatus: adapter?.validationStatus,
+        targetAdapterValidationEvidence: adapter?.validationEvidence,
+        targetAdapterRequiredPolicyGrants: adapter?.requiredPolicyGrants,
     };
 }

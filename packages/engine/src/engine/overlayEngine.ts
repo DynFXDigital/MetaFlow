@@ -114,6 +114,7 @@ export function buildEffectiveFileMap(layers: LayerContent[]): Map<string, Effec
                 sourceCapabilityDescription: layer.capability?.description,
                 sourceCapabilityLicense: layer.capability?.license,
                 sourceCapabilityExperimental: layer.capability?.experimental,
+                sourceTargetAdapters: layer.targetAdapters,
                 classification: 'synchronized', // placeholder — set by classifier
             });
         }

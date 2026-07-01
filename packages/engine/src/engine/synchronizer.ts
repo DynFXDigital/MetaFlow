@@ -21,7 +21,7 @@ import {
 } from './managedState';
 import { checkDrift } from './driftDetector';
 import { isCodexRootRelativeSynchronizedPath, usesInlineProvenanceHeader } from './codexPaths';
-import { describeProjection } from './projectionMetadata';
+import { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 
 /** Default output directory relative to workspace root. */
 const DEFAULT_OUTPUT_DIR = '.github';
@@ -278,7 +278,11 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
             sourceLayer: file.sourceLayer,
             sourceRepo: file.sourceRepo,
             sourcePath: file.sourcePath,
-            projection: describeProjection(destinationRelativePath, sourceRelativePath),
+            projection: describeProjectionWithTargetAdapters(
+                destinationRelativePath,
+                sourceRelativePath,
+                file.sourceTargetAdapters,
+            ),
             file,
         };
         synchronizedFiles.push(entry);

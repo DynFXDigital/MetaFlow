@@ -51,6 +51,7 @@ import {
     normalizeConfigShape,
     getTargetCapabilityMatrix,
     buildAdapterReadinessReports,
+    describeProjectionWithTargetAdapters,
     parsePolicyGrantContent,
     parseMcpServerContent,
     parseHookContent,
@@ -141,6 +142,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof computeSettingsEntries, 'function');
         assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
         assert.strictEqual(typeof buildAdapterReadinessReports, 'function');
+        assert.strictEqual(typeof describeProjectionWithTargetAdapters, 'function');
         assert.strictEqual(typeof parsePolicyGrantContent, 'function');
         assert.strictEqual(typeof parseMcpServerContent, 'function');
         assert.strictEqual(typeof parseHookContent, 'function');
@@ -1646,6 +1648,46 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(adapter?.validationEvidence, ['RUN-030']);
         assert.deepStrictEqual(adapter?.notes, ['Root instructions stay candidate-only.']);
         assert.strictEqual(adapter?.warnings.length, 0);
+    });
+
+    it('applies target adapter preferences to projection metadata', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    skills: 'managed',
+                    instructions: 'candidate',
+                },
+                requiredPolicyGrants: ['github-pr-read'],
+                validationStatus: 'runtimeVerified',
+                validationEvidence: ['RUN-030'],
+                notes: ['Root instructions stay candidate-only.'],
+            }),
+            'codex.json',
+            new Set(['github-pr-read']),
+        );
+
+        const projection = describeProjectionWithTargetAdapters(
+            '.agents/skills/testing/SKILL.md',
+            '.metaflow/skills/testing/SKILL.md',
+            [adapter],
+        );
+
+        assert.strictEqual(projection.target, 'codex');
+        assert.strictEqual(projection.targetAdapterConcept, 'skills');
+        assert.strictEqual(projection.targetAdapterId, 'codex-default');
+        assert.strictEqual(projection.targetAdapterVersion, 'codex-v0.1');
+        assert.strictEqual(projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(projection.targetAdapterValidationStatus, 'runtimeVerified');
+        assert.deepStrictEqual(projection.targetAdapterValidationEvidence, ['RUN-030']);
+        assert.deepStrictEqual(projection.targetAdapterRequiredPolicyGrants, ['github-pr-read']);
+        assert.ok(projection.notes.includes('target adapter codex-default selected'));
+        assert.ok(projection.notes.includes('target adapter concept skills'));
     });
 
     it('reports validation diagnostics for invalid canonical target adapters', () => {
