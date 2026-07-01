@@ -58,6 +58,7 @@ import {
     parseExecutionProfileContent,
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
+    parseAgentProfileContent,
     parseTargetAdapterContent,
     // Types
     MetaFlowConfig,
@@ -283,11 +284,26 @@ describe('Engine package: public API', () => {
                     warnings: [],
                 },
             ],
+            agentProfiles: [
+                {
+                    id: 'reviewer',
+                    manifestPath: '/metadata/.metaflow/agents/reviewer.json',
+                    name: 'Reviewer',
+                    description: 'Reviews changes before handoff.',
+                    developerInstructions: 'Review the diff and report risks.',
+                    nicknameCandidates: ['reviewer'],
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    notes: [],
+                    warnings: [],
+                },
+            ],
         });
 
         const codexReport = reports.find((report) => report.target === 'codex');
         assert.strictEqual(codexReport?.adapterVersion, 'codex-v0.1');
         assert.deepStrictEqual(codexReport?.managedMetadata, {
+            agentProfiles: 1,
             policyGrants: 1,
             mcpServers: 1,
             hooks: 1,
@@ -307,6 +323,11 @@ describe('Engine package: public API', () => {
                 (item) =>
                     item.concept === 'evaluationSupport' &&
                     item.evidence.includes('RUN-037'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) => item.concept === 'agents' && item.evidence.includes('RUN-042'),
             ),
         );
         assert.ok(
@@ -824,6 +845,34 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/evaluation-only']);
+    });
+
+    it('discovers canonical .metaflow agent profile layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-agent-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'agent-only', '.metaflow', 'agents'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'agent-only',
+                '.metaflow',
+                'agents',
+                'reviewer.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/agent-only']);
     });
 
     it('discovers canonical .metaflow target adapter layer directories', () => {
@@ -1582,6 +1631,112 @@ describe('Engine package: overlay pipeline', () => {
                 'EVALUATION_PROFILE_POLICY_GRANT_UNKNOWN',
                 'EVALUATION_PROFILE_TARGETS_INVALID',
                 'EVALUATION_PROFILE_DESCRIPTION_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical agent profiles as layer metadata with Codex projection files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'review-agent.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'review-agent',
+                authority: 'agent.codex.reviewer',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                nicknameCandidates: ['reviewer', 'review agent'],
+                model: 'gpt-5-codex',
+                modelReasoningEffort: 'high',
+                sandboxMode: 'workspace-write',
+                policyGrants: ['review-agent'],
+                targets: ['codex'],
+                notes: ['Requires target custom-agent review.'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].agentProfiles?.length, 1);
+        const profile = layers[0].agentProfiles?.[0];
+        assert.strictEqual(profile?.id, 'reviewer');
+        assert.strictEqual(profile?.name, 'Reviewer');
+        assert.deepStrictEqual(profile?.nicknameCandidates, ['reviewer', 'review agent']);
+        assert.strictEqual(profile?.model, 'gpt-5-codex');
+        assert.strictEqual(profile?.modelReasoningEffort, 'high');
+        assert.strictEqual(profile?.sandboxMode, 'workspace-write');
+        assert.deepStrictEqual(profile?.policyGrants, ['review-agent']);
+        assert.deepStrictEqual(profile?.targets, ['codex']);
+        assert.strictEqual(profile?.warnings.length, 0);
+
+        const fileMap = buildEffectiveFileMap(layers);
+        const projected = fileMap.get('.codex/agents/reviewer.toml');
+        assert.ok(projected, 'canonical agent profile should project to Codex agent TOML');
+        assert.strictEqual(projected?.sourceRelativePath, '.metaflow/agents/reviewer.json');
+        assert.ok(
+            projected?.projectedContent?.includes('developer_instructions = "Review the diff and report risks."'),
+            'projected file should contain Codex developer instructions',
+        );
+    });
+
+    it('reports validation diagnostics for invalid canonical agent profiles', () => {
+        const profile = parseAgentProfileContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v0',
+                id: 'Invalid ID',
+                name: '',
+                description: '',
+                developerInstructions: '',
+                nicknameCandidates: ['reviewer', 'Reviewer', 42],
+                model: '',
+                modelReasoningEffort: '',
+                sandboxMode: '',
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                notes: ['ok', 42],
+                extra: true,
+            }),
+            'agent.json',
+            new Set(['review-agent']),
+        );
+
+        assert.strictEqual(profile.id, 'Invalid ID');
+        assert.deepStrictEqual(
+            profile.warnings.map((warning) => warning.code),
+            [
+                'AGENT_PROFILE_UNKNOWN_FIELD',
+                'AGENT_PROFILE_SCHEMA_VERSION_INVALID',
+                'AGENT_PROFILE_ID_INVALID',
+                'AGENT_PROFILE_NAME_REQUIRED',
+                'AGENT_PROFILE_DESCRIPTION_REQUIRED',
+                'AGENT_PROFILE_DEVELOPER_INSTRUCTIONS_REQUIRED',
+                'AGENT_PROFILE_NICKNAME_CANDIDATES_INVALID',
+                'AGENT_PROFILE_NICKNAME_CANDIDATE_DUPLICATE',
+                'AGENT_PROFILE_MODEL_INVALID',
+                'AGENT_PROFILE_REASONING_EFFORT_INVALID',
+                'AGENT_PROFILE_SANDBOX_MODE_INVALID',
+                'AGENT_PROFILE_POLICY_GRANT_UNKNOWN',
+                'AGENT_PROFILE_TARGETS_INVALID',
+                'AGENT_PROFILE_NOTES_INVALID',
             ],
         );
     });
@@ -3208,6 +3363,116 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(result.skipped.includes('AGENTS.md'));
         assert.ok(!result.written.includes('AGENTS.md'));
         assert.strictEqual(fs.readFileSync(path.join(tmpDir, 'AGENTS.md'), 'utf-8'), '# User Guidance');
+    });
+
+    it('managed target adapter projects canonical agent profiles to Codex custom agents', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                nicknameCandidates: ['reviewer'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { agents: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-042'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const agentFile = fileMap.get('.codex/agents/reviewer.toml');
+        assert.ok(agentFile, 'projected Codex agent file should be present');
+        assert.strictEqual(agentFile?.classification, 'synchronized');
+        assert.strictEqual(
+            toSynchronizedRelativePath(agentFile as EffectiveFile),
+            '.codex/agents/reviewer.toml',
+        );
+
+        const pending = preview(tmpDir, files);
+        const agentChange = pending.find(
+            (change) => change.relativePath === '.codex/agents/reviewer.toml',
+        );
+        assert.strictEqual(agentChange?.action, 'add');
+        assert.strictEqual(agentChange?.projection.targetAdapterConcept, 'agents');
+        assert.strictEqual(agentChange?.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(agentChange?.projection.lossiness, 'none');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/agents/reviewer.toml'));
+        const written = fs.readFileSync(path.join(tmpDir, '.codex', 'agents', 'reviewer.toml'), 'utf-8');
+        assert.ok(written.includes('developer_instructions = "Review the diff and report risks."'));
+        assert.ok(!written.includes('schemaVersion'));
+    });
+
+    it('canonical agent profile projection is candidate-only without a managed Codex target adapter', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'agents'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'agents', 'reviewer.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'reviewer',
+                name: 'Reviewer',
+                description: 'Reviews implementation changes.',
+                developerInstructions: 'Review the diff and report risks.',
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const agentChange = pending.find(
+            (change) => change.relativePath === '.codex/agents/reviewer.toml',
+        );
+        assert.strictEqual(agentChange?.action, 'skip');
+        assert.strictEqual(agentChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(agentChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            agentChange?.projection.notes.includes(
+                'target adapter required for managed agent materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.codex/agents/reviewer.toml'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'agents', 'reviewer.toml')));
     });
 
     it('discovers and synchronizes Codex project config without inline provenance', () => {

@@ -13,6 +13,7 @@ import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
     loadConfigOrExit,
+    resolveAgentProfiles,
     resolveEvaluationProfiles,
     resolveExecutionProfiles,
     resolveEffectiveFiles,
@@ -23,6 +24,7 @@ import {
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
     ResolvedMcpServer,
+    ResolvedAgentProfile,
     ResolvedPolicyGrant,
     ResolvedHook,
     ResolvedExecutionProfile,
@@ -148,6 +150,16 @@ function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
     return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatAgentProfile(profile: ResolvedAgentProfile): string {
+    const model = profile.model ? ` model=${profile.model}` : '';
+    const effort = profile.modelReasoningEffort ? ` reasoning=${profile.modelReasoningEffort}` : '';
+    const sandbox = profile.sandboxMode ? ` sandbox=${profile.sandboxMode}` : '';
+    const grants =
+        profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
+    const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
+    return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+}
+
 function formatTargetAdapter(adapter: ResolvedTargetAdapter): string {
     const enabled = adapter.enabled ? 'enabled' : 'disabled';
     const version = adapter.adapterVersion ? ` version=${adapter.adapterVersion}` : '';
@@ -202,6 +214,7 @@ export function registerPreviewCommand(program: Command): void {
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
+                const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
@@ -214,6 +227,7 @@ export function registerPreviewCommand(program: Command): void {
                     executionProfiles,
                     memoryScopes,
                     evaluationProfiles,
+                    agentProfiles,
                 });
                 const actionableAdapterReports = adapterReports.filter(
                     (report) => report.actionItems.length > 0 || report.warnings.length > 0,
@@ -236,6 +250,7 @@ export function registerPreviewCommand(program: Command): void {
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
+                            agentProfiles: agentProfiles.length,
                             targetAdapters: targetAdapters.length,
                             adapterReports: adapterReports.length,
                         },
@@ -266,6 +281,7 @@ export function registerPreviewCommand(program: Command): void {
                         executionProfiles,
                         memoryScopes,
                         evaluationProfiles,
+                        agentProfiles,
                         targetAdapters,
                         adapterReports,
                         settingsEntries,
@@ -286,6 +302,7 @@ export function registerPreviewCommand(program: Command): void {
                     executionProfiles.length === 0 &&
                     memoryScopes.length === 0 &&
                     evaluationProfiles.length === 0 &&
+                    agentProfiles.length === 0 &&
                     targetAdapters.length === 0 &&
                     actionableAdapterReports.length === 0
                 ) {
@@ -418,6 +435,27 @@ export function registerPreviewCommand(program: Command): void {
                         }
                         if (profile.successCriteria) {
                             console.log(`    successCriteria: ${profile.successCriteria}`);
+                        }
+                        for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (agentProfiles.length > 0) {
+                    console.log(`Agent Profiles: ${agentProfiles.length}`);
+                    for (const profile of agentProfiles) {
+                        console.log(`  - ${formatAgentProfile(profile)}`);
+                        if (profile.description) {
+                            console.log(`    description: ${profile.description}`);
+                        }
+                        if (profile.nicknameCandidates.length > 0) {
+                            console.log(
+                                `    nicknameCandidates: ${profile.nicknameCandidates.join(', ')}`,
+                            );
+                        }
+                        for (const note of profile.notes) {
+                            console.log(`    note: ${note}`);
                         }
                         for (const warning of profile.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';

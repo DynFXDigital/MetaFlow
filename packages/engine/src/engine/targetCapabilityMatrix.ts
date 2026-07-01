@@ -52,10 +52,10 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['.codex/agents/*.toml'],
         [
             'Target-native Codex agent files are materialized safely when authored.',
-            'Canonical MetaFlow agent profile projection is not implemented.',
+            'Canonical MetaFlow agent profiles project to Codex custom-agent TOML according to target adapter materialization gates.',
         ],
         ['Agent files can imply tool or model authority and require policy review.'],
-        ['RUN-024'],
+        ['RUN-024', 'RUN-042'],
     ),
     row(
         'mcpServers',

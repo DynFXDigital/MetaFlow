@@ -14,6 +14,8 @@ export interface LayerFile {
     sourceRelativePath?: string;
     /** Absolute path to the source file on disk. */
     absolutePath: string;
+    /** Optional projected content used when a target output is rendered from canonical metadata. */
+    projectedContent?: string;
 }
 
 /** Resolved content of a single layer. */
@@ -38,6 +40,8 @@ export interface LayerContent {
     memoryScopes?: MemoryScopeMetadata[];
     /** Evaluation profiles loaded from canonical MetaFlow evaluation manifests. */
     evaluationProfiles?: EvaluationProfileMetadata[];
+    /** Agent profiles loaded from canonical MetaFlow agent manifests. */
+    agentProfiles?: AgentProfileMetadata[];
     /** Target adapter preferences loaded from canonical MetaFlow target manifests. */
     targetAdapters?: TargetAdapterMetadata[];
 }
@@ -372,6 +376,36 @@ export interface EvaluationProfileMetadata {
     warnings: CapabilityWarning[];
 }
 
+/** Canonical MetaFlow agent profile metadata associated with a layer. */
+export interface AgentProfileMetadata {
+    /** Stable agent profile identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied agent profile metadata. */
+    manifestPath: string;
+    /** Agent name used by the target harness. */
+    name: string;
+    /** Human-facing guidance for when the agent is used. */
+    description: string;
+    /** Core developer instructions that define agent behavior. */
+    developerInstructions: string;
+    /** Optional display nickname candidates for spawned agents. */
+    nicknameCandidates: string[];
+    /** Optional target model override. */
+    model?: string;
+    /** Optional target model reasoning effort override. */
+    modelReasoningEffort?: string;
+    /** Optional target sandbox mode override. */
+    sandboxMode?: string;
+    /** Policy grants required before the agent profile is treated as operational. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this agent profile applies to. */
+    targets: string[];
+    /** Optional user-facing notes about target support or projection constraints. */
+    notes: string[];
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
 /** Materialization preference declared by a canonical target adapter manifest. */
 export type TargetAdapterMaterializationMode =
     | 'managed'
@@ -513,6 +547,8 @@ export interface TargetCapabilityMatrixEntry {
 
 /** Count of canonical metadata records considered by a target adapter report. */
 export interface AdapterReadinessMetadataCounts {
+    /** Canonical agent profiles considered for adapter readiness. */
+    agentProfiles: number;
     /** Canonical policy grants considered for adapter readiness. */
     policyGrants: number;
     /** Canonical MCP server manifests considered for adapter readiness. */
@@ -584,6 +620,8 @@ export interface EffectiveFile {
     sourceCapabilityExperimental?: boolean;
     /** Target adapter preferences associated with the source capability layer. */
     sourceTargetAdapters?: TargetAdapterMetadata[];
+    /** Optional projected content used when a target output is rendered from canonical metadata. */
+    projectedContent?: string;
     /** Classification for realization strategy. */
     classification: ArtifactClassification;
 }

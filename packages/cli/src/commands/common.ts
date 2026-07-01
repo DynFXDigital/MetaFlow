@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    AgentProfileMetadata,
     EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
@@ -56,6 +57,11 @@ export interface ResolvedMemoryScope extends MemoryScopeMetadata {
 }
 
 export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedAgentProfile extends AgentProfileMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -235,6 +241,20 @@ export function resolveEvaluationProfiles(
     const layers = resolveLayers(config, workspaceRoot);
     return layers.flatMap((layer) =>
         (layer.evaluationProfiles ?? []).map((profile) => ({
+            ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveAgentProfiles(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedAgentProfile[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.agentProfiles ?? []).map((profile) => ({
             ...profile,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,

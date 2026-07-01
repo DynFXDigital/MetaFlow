@@ -83,7 +83,15 @@ function inferTargetAdapterConcept(
         return 'instructions';
     }
 
-    if (paths.some((path) => path.startsWith('agents/') || path.startsWith('.github/agents/'))) {
+    if (
+        paths.some(
+            (path) =>
+                /^\.metaflow\/agents\/[^/]+\.json$/.test(path) ||
+                /^\.codex\/agents\/[^/]+\.toml$/.test(path) ||
+                path.startsWith('agents/') ||
+                path.startsWith('.github/agents/'),
+        )
+    ) {
         return 'agents';
     }
 
@@ -120,10 +128,18 @@ function inferLossiness(
     const normalizedSource = normalizeArtifactPath(sourceRelativePath);
     const normalizedDestination = normalizeArtifactPath(destinationRelativePath);
     const canonicalSkill = /^\.metaflow\/skills\/[^/]+\/SKILL\.md$/.test(normalizedSource);
+    const canonicalAgentProfile = /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSource);
     if (
         canonicalSkill &&
         (target === 'codex' || target === 'github-copilot') &&
         normalizedDestination.endsWith('/SKILL.md')
+    ) {
+        return 'none';
+    }
+    if (
+        canonicalAgentProfile &&
+        target === 'codex' &&
+        /^\.codex\/agents\/[^/]+\.toml$/.test(normalizedDestination)
     ) {
         return 'none';
     }
@@ -182,9 +198,15 @@ export function describeProjectionWithTargetAdapters(
     const lossiness = inferLossiness(sourcePath, destinationRelativePath, sourceFormat, target);
     const concept = inferTargetAdapterConcept(sourcePath, destinationRelativePath);
     const adapter = selectTargetAdapter(target, targetAdapters);
+    const requiresExplicitTargetAdapter =
+        /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizeArtifactPath(sourcePath)) &&
+        target === 'codex' &&
+        concept === 'agents';
     const materializationMode =
         adapter && !adapter.enabled
             ? 'disabled'
+            : requiresExplicitTargetAdapter && !adapter
+              ? 'candidate'
             : concept
               ? adapter?.concepts[concept] ?? adapter?.materializationMode
               : adapter?.materializationMode;
@@ -197,6 +219,8 @@ export function describeProjectionWithTargetAdapters(
         for (const note of adapter.notes) {
             notes.push(note);
         }
+    } else if (requiresExplicitTargetAdapter) {
+        notes.push('target adapter required for managed agent materialization');
     }
 
     return {

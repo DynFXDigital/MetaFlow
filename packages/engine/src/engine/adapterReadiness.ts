@@ -2,6 +2,7 @@ import {
     AdapterReadinessAction,
     AdapterReadinessMetadataCounts,
     AdapterReadinessReport,
+    AgentProfileMetadata,
     EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
@@ -23,6 +24,7 @@ export interface BuildAdapterReadinessReportsOptions {
     executionProfiles?: ExecutionProfileMetadata[];
     memoryScopes?: MemoryScopeMetadata[];
     evaluationProfiles?: EvaluationProfileMetadata[];
+    agentProfiles?: AgentProfileMetadata[];
 }
 
 function appliesToTarget(targets: string[] | undefined, target: ProjectionTarget): boolean {
@@ -100,6 +102,7 @@ export function buildAdapterReadinessReports(
     const executionProfiles = [...(options.executionProfiles ?? [])].sort(byId);
     const memoryScopes = [...(options.memoryScopes ?? [])].sort(byId);
     const evaluationProfiles = [...(options.evaluationProfiles ?? [])].sort(byId);
+    const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
 
     return targets.map((target) => {
         const rows = matrix.filter((entry) => entry.target === target);
@@ -115,7 +118,11 @@ export function buildAdapterReadinessReports(
         const targetEvaluationProfiles = evaluationProfiles.filter((profile) =>
             appliesToTarget(profile.targets, target),
         );
+        const targetAgentProfiles = agentProfiles.filter((profile) =>
+            appliesToTarget(profile.targets, target),
+        );
         const counts: AdapterReadinessMetadataCounts = {
+            agentProfiles: targetAgentProfiles.length,
             policyGrants: policyGrants.length,
             mcpServers: mcpServers.length,
             hooks: targetHooks.length,
@@ -129,6 +136,7 @@ export function buildAdapterReadinessReports(
         const executionRow = rowByConcept(rows, 'executionSurfaces');
         const memoryRow = rowByConcept(rows, 'memoryScopes');
         const evaluationRow = rowByConcept(rows, 'evaluationSupport');
+        const agentRow = rowByConcept(rows, 'agents');
         const actionItems: AdapterReadinessAction[] = [];
         const warnings: string[] = [];
 
@@ -202,6 +210,18 @@ export function buildAdapterReadinessReports(
             );
         }
 
+        for (const profile of targetAgentProfiles) {
+            actionItems.push(
+                action(
+                    'agents',
+                    profile.id,
+                    `${label} agent profile ${profile.id} requires target custom-agent review before operational use.`,
+                    rowEvidence(agentRow),
+                ),
+            );
+        }
+
+        addRowWarnings(warnings, agentRow, counts.agentProfiles);
         addRowWarnings(warnings, policyRow, counts.policyGrants);
         addRowWarnings(warnings, mcpRow, counts.mcpServers);
         addRowWarnings(warnings, hookRow, counts.hooks);

@@ -108,6 +108,12 @@ export {
     evaluationProfileConstants,
 } from './evaluationProfile';
 export {
+    codexAgentProfileDestination,
+    loadAgentProfilesForLayer,
+    parseAgentProfileContent,
+    renderCodexAgentProfileToml,
+} from './agentProfile';
+export {
     loadTargetAdaptersForLayer,
     parseTargetAdapterContent,
     targetAdapterConstants,
@@ -134,6 +140,7 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    AgentProfileMetadata,
     EvaluationProfileMetadata,
     EvaluationType,
     ExecutionIsolation,

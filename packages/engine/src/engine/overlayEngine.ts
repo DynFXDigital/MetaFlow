@@ -29,6 +29,11 @@ import { loadHooksForLayer } from './hookManifest';
 import { loadExecutionProfilesForLayer } from './executionProfile';
 import { loadMemoryScopesForLayer } from './memoryScope';
 import { loadEvaluationProfilesForLayer } from './evaluationProfile';
+import {
+    codexAgentProfileDestination,
+    loadAgentProfilesForLayer,
+    renderCodexAgentProfileToml,
+} from './agentProfile';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
@@ -115,6 +120,7 @@ export function buildEffectiveFileMap(layers: LayerContent[]): Map<string, Effec
                 sourceCapabilityLicense: layer.capability?.license,
                 sourceCapabilityExperimental: layer.capability?.experimental,
                 sourceTargetAdapters: layer.targetAdapters,
+                projectedContent: file.projectedContent,
                 classification: 'synchronized', // placeholder — set by classifier
             });
         }
@@ -308,10 +314,25 @@ function buildLayerContent(
 ): LayerContent {
     const policyGrants = loadPolicyGrantsForLayer(layerAbsPath);
     const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
+    const agentProfiles = loadAgentProfilesForLayer(layerAbsPath, knownPolicyGrantIds);
+    const agentProfileFiles: LayerFile[] = agentProfiles.flatMap((profile) => {
+        const destination = codexAgentProfileDestination(profile);
+        if (!destination) {
+            return [];
+        }
+        return [
+            {
+                relativePath: destination,
+                sourceRelativePath: `.metaflow/agents/${path.basename(profile.manifestPath)}`,
+                absolutePath: profile.manifestPath,
+                projectedContent: renderCodexAgentProfileToml(profile),
+            },
+        ];
+    });
     return {
         layerId,
         repoId,
-        files,
+        files: [...files, ...agentProfileFiles],
         capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         policyGrants,
         mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
@@ -319,6 +340,7 @@ function buildLayerContent(
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
+        agentProfiles,
         targetAdapters: loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
@@ -674,6 +696,17 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
                 (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
             );
             if (hasEvaluationProfile) {
+                return true;
+            }
+        }
+
+        const agentsDir = path.join(metaFlowDirPath, 'agents');
+        if (fs.existsSync(agentsDir) && fs.statSync(agentsDir).isDirectory()) {
+            const agentEntries = fs.readdirSync(agentsDir, { withFileTypes: true });
+            const hasAgentProfile = agentEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasAgentProfile) {
                 return true;
             }
         }

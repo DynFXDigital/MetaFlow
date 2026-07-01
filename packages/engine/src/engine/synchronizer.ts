@@ -520,12 +520,15 @@ export function apply(options: ApplyOptions): ApplyResult {
             continue;
         }
 
-        // Read source content
-        let sourceContent: string;
-        try {
-            sourceContent = fs.readFileSync(file.sourcePath, 'utf-8');
-        } catch {
-            result.warnings.push(`Cannot read source: ${file.sourcePath}`);
+        const sourceContent = file.projectedContent ?? (() => {
+            try {
+                return fs.readFileSync(file.sourcePath, 'utf-8');
+            } catch {
+                result.warnings.push(`Cannot read source: ${file.sourcePath}`);
+                return undefined;
+            }
+        })();
+        if (sourceContent === undefined) {
             continue;
         }
 
