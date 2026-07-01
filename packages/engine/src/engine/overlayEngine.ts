@@ -34,6 +34,11 @@ import {
     loadAgentProfilesForLayer,
     renderCodexAgentProfileToml,
 } from './agentProfile';
+import {
+    codexProjectConfigDestination,
+    loadCodexProjectConfigsForLayer,
+    renderCodexProjectConfigToml,
+} from './codexProjectConfig';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
 import {
     isCodexProjectConfigPath,
@@ -315,6 +320,7 @@ function buildLayerContent(
     const policyGrants = loadPolicyGrantsForLayer(layerAbsPath);
     const knownPolicyGrantIds = new Set(policyGrants.map((grant) => grant.id).filter(Boolean));
     const agentProfiles = loadAgentProfilesForLayer(layerAbsPath, knownPolicyGrantIds);
+    const codexProjectConfigs = loadCodexProjectConfigsForLayer(layerAbsPath, knownPolicyGrantIds);
     const agentProfileFiles: LayerFile[] = agentProfiles.flatMap((profile) => {
         const destination = codexAgentProfileDestination(profile);
         if (!destination) {
@@ -329,10 +335,24 @@ function buildLayerContent(
             },
         ];
     });
+    const codexProjectConfigFiles: LayerFile[] = codexProjectConfigs.flatMap((config) => {
+        const destination = codexProjectConfigDestination(config);
+        if (!destination) {
+            return [];
+        }
+        return [
+            {
+                relativePath: destination,
+                sourceRelativePath: `.metaflow/project-config/${path.basename(config.manifestPath)}`,
+                absolutePath: config.manifestPath,
+                projectedContent: renderCodexProjectConfigToml(config),
+            },
+        ];
+    });
     return {
         layerId,
         repoId,
-        files: [...files, ...agentProfileFiles],
+        files: [...files, ...agentProfileFiles, ...codexProjectConfigFiles],
         capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
         policyGrants,
         mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
@@ -341,6 +361,7 @@ function buildLayerContent(
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         agentProfiles,
+        codexProjectConfigs,
         targetAdapters: loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
@@ -707,6 +728,17 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
                 (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
             );
             if (hasAgentProfile) {
+                return true;
+            }
+        }
+
+        const projectConfigDir = path.join(metaFlowDirPath, 'project-config');
+        if (fs.existsSync(projectConfigDir) && fs.statSync(projectConfigDir).isDirectory()) {
+            const projectConfigEntries = fs.readdirSync(projectConfigDir, { withFileTypes: true });
+            const hasProjectConfig = projectConfigEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasProjectConfig) {
                 return true;
             }
         }

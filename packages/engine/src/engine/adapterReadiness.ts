@@ -3,6 +3,7 @@ import {
     AdapterReadinessMetadataCounts,
     AdapterReadinessReport,
     AgentProfileMetadata,
+    CodexProjectConfigMetadata,
     EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
@@ -25,6 +26,7 @@ export interface BuildAdapterReadinessReportsOptions {
     memoryScopes?: MemoryScopeMetadata[];
     evaluationProfiles?: EvaluationProfileMetadata[];
     agentProfiles?: AgentProfileMetadata[];
+    codexProjectConfigs?: CodexProjectConfigMetadata[];
 }
 
 function appliesToTarget(targets: string[] | undefined, target: ProjectionTarget): boolean {
@@ -103,6 +105,7 @@ export function buildAdapterReadinessReports(
     const memoryScopes = [...(options.memoryScopes ?? [])].sort(byId);
     const evaluationProfiles = [...(options.evaluationProfiles ?? [])].sort(byId);
     const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
+    const codexProjectConfigs = [...(options.codexProjectConfigs ?? [])].sort(byId);
 
     return targets.map((target) => {
         const rows = matrix.filter((entry) => entry.target === target);
@@ -121,8 +124,12 @@ export function buildAdapterReadinessReports(
         const targetAgentProfiles = agentProfiles.filter((profile) =>
             appliesToTarget(profile.targets, target),
         );
+        const targetCodexProjectConfigs = codexProjectConfigs.filter((config) =>
+            appliesToTarget(config.targets, target),
+        );
         const counts: AdapterReadinessMetadataCounts = {
             agentProfiles: targetAgentProfiles.length,
+            codexProjectConfigs: targetCodexProjectConfigs.length,
             policyGrants: policyGrants.length,
             mcpServers: mcpServers.length,
             hooks: targetHooks.length,
@@ -137,6 +144,7 @@ export function buildAdapterReadinessReports(
         const memoryRow = rowByConcept(rows, 'memoryScopes');
         const evaluationRow = rowByConcept(rows, 'evaluationSupport');
         const agentRow = rowByConcept(rows, 'agents');
+        const projectConfigRow = rowByConcept(rows, 'projectConfig');
         const actionItems: AdapterReadinessAction[] = [];
         const warnings: string[] = [];
 
@@ -221,7 +229,19 @@ export function buildAdapterReadinessReports(
             );
         }
 
+        for (const config of targetCodexProjectConfigs) {
+            actionItems.push(
+                action(
+                    'projectConfig',
+                    config.id,
+                    `${label} project config ${config.id} requires trusted-project and target configuration review before operational use.`,
+                    rowEvidence(projectConfigRow),
+                ),
+            );
+        }
+
         addRowWarnings(warnings, agentRow, counts.agentProfiles);
+        addRowWarnings(warnings, projectConfigRow, counts.codexProjectConfigs);
         addRowWarnings(warnings, policyRow, counts.policyGrants);
         addRowWarnings(warnings, mcpRow, counts.mcpServers);
         addRowWarnings(warnings, hookRow, counts.hooks);

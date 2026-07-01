@@ -14,6 +14,7 @@ import {
     getWorkspaceRoot,
     loadConfigOrExit,
     resolveAgentProfiles,
+    resolveCodexProjectConfigs,
     resolveEvaluationProfiles,
     resolveExecutionProfiles,
     resolveEffectiveFiles,
@@ -25,6 +26,7 @@ import {
     resolveTargetAdapters,
     ResolvedMcpServer,
     ResolvedAgentProfile,
+    ResolvedCodexProjectConfig,
     ResolvedPolicyGrant,
     ResolvedHook,
     ResolvedExecutionProfile,
@@ -160,6 +162,17 @@ function formatAgentProfile(profile: ResolvedAgentProfile): string {
     return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatCodexProjectConfig(config: ResolvedCodexProjectConfig): string {
+    const settings = config.settings;
+    const model = settings.model ? ` model=${settings.model}` : '';
+    const approval = settings.approvalPolicy ? ` approval=${settings.approvalPolicy}` : '';
+    const sandbox = settings.sandboxMode ? ` sandbox=${settings.sandboxMode}` : '';
+    const search = settings.webSearch ? ` webSearch=${settings.webSearch}` : '';
+    const grants = config.policyGrants.length > 0 ? ` grants=${config.policyGrants.join(',')}` : '';
+    const targets = config.targets.length > 0 ? ` targets=${config.targets.join(',')}` : '';
+    return `${config.id || '<invalid>'}${model}${approval}${sandbox}${search}${grants}${targets} @ ${formatFileProvenance(config.sourceLayer, config.sourceRepo)}`;
+}
+
 function formatTargetAdapter(adapter: ResolvedTargetAdapter): string {
     const enabled = adapter.enabled ? 'enabled' : 'disabled';
     const version = adapter.adapterVersion ? ` version=${adapter.adapterVersion}` : '';
@@ -215,6 +228,7 @@ export function registerPreviewCommand(program: Command): void {
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
                 const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
+                const codexProjectConfigs = resolveCodexProjectConfigs(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
@@ -228,6 +242,7 @@ export function registerPreviewCommand(program: Command): void {
                     memoryScopes,
                     evaluationProfiles,
                     agentProfiles,
+                    codexProjectConfigs,
                 });
                 const actionableAdapterReports = adapterReports.filter(
                     (report) => report.actionItems.length > 0 || report.warnings.length > 0,
@@ -251,6 +266,7 @@ export function registerPreviewCommand(program: Command): void {
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
                             agentProfiles: agentProfiles.length,
+                            codexProjectConfigs: codexProjectConfigs.length,
                             targetAdapters: targetAdapters.length,
                             adapterReports: adapterReports.length,
                         },
@@ -282,6 +298,7 @@ export function registerPreviewCommand(program: Command): void {
                         memoryScopes,
                         evaluationProfiles,
                         agentProfiles,
+                        codexProjectConfigs,
                         targetAdapters,
                         adapterReports,
                         settingsEntries,
@@ -303,6 +320,7 @@ export function registerPreviewCommand(program: Command): void {
                     memoryScopes.length === 0 &&
                     evaluationProfiles.length === 0 &&
                     agentProfiles.length === 0 &&
+                    codexProjectConfigs.length === 0 &&
                     targetAdapters.length === 0 &&
                     actionableAdapterReports.length === 0
                 ) {
@@ -458,6 +476,19 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    note: ${note}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (codexProjectConfigs.length > 0) {
+                    console.log(`Codex Project Configs: ${codexProjectConfigs.length}`);
+                    for (const config of codexProjectConfigs) {
+                        console.log(`  - ${formatCodexProjectConfig(config)}`);
+                        for (const note of config.notes) {
+                            console.log(`    note: ${note}`);
+                        }
+                        for (const warning of config.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

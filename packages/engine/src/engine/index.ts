@@ -114,6 +114,13 @@ export {
     renderCodexAgentProfileToml,
 } from './agentProfile';
 export {
+    codexProjectConfigConstants,
+    codexProjectConfigDestination,
+    loadCodexProjectConfigsForLayer,
+    parseCodexProjectConfigContent,
+    renderCodexProjectConfigToml,
+} from './codexProjectConfig';
+export {
     loadTargetAdaptersForLayer,
     parseTargetAdapterContent,
     targetAdapterConstants,
@@ -141,6 +148,8 @@ export type {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
     AgentProfileMetadata,
+    CodexProjectConfigMetadata,
+    CodexProjectConfigSettings,
     EvaluationProfileMetadata,
     EvaluationType,
     ExecutionIsolation,

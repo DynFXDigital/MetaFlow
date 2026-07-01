@@ -52,6 +52,7 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'instructions',
     'skills',
     'agents',
+    'projectConfig',
     'mcpServers',
     'hooks',
     'packageManifests',

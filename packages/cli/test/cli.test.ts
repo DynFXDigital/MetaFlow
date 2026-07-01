@@ -238,6 +238,8 @@ describe('CLI: preview', () => {
         const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
         const agentProfilePath = '.metaflow/agents/reviewer.json';
         const codexAgentPath = '.codex/agents/reviewer.toml';
+        const codexProjectConfigPath = '.metaflow/project-config/codex.json';
+        const codexConfigPath = '.codex/config.toml';
         const targetAdapterPath = '.metaflow/targets/codex.json';
         ws = createTestWorkspace({
             config: {
@@ -353,6 +355,22 @@ describe('CLI: preview', () => {
                         }),
                     },
                     {
+                        relativePath: codexProjectConfigPath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.codexProjectConfig/v1',
+                            id: 'default',
+                            settings: {
+                                model: 'gpt-5-codex',
+                                approvalPolicy: 'on-request',
+                                sandboxMode: 'workspace-write',
+                                webSearch: 'cached',
+                            },
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            notes: ['Requires trusted project review.'],
+                        }),
+                    },
+                    {
                         relativePath: targetAdapterPath,
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.targetAdapter/v1',
@@ -366,6 +384,7 @@ describe('CLI: preview', () => {
                                 skills: 'managed',
                                 instructions: 'candidate',
                                 mcpServers: 'report-only',
+                                projectConfig: 'managed',
                             },
                             requiredPolicyGrants: ['github-pr-read'],
                             validationStatus: 'runtimeVerified',
@@ -444,6 +463,13 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('description: Reviews implementation changes.'));
+        assert.ok(textResult.stdout.includes('Codex Project Configs: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'default model=gpt-5-codex approval=on-request sandbox=workspace-write webSearch=cached grants=github-pr-read targets=codex',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('note: Requires trusted project review.'));
         assert.ok(textResult.stdout.includes('Target Adapters: 1'));
         assert.ok(
             textResult.stdout.includes(
@@ -452,7 +478,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(
             textResult.stdout.includes(
-                'concepts: agents=managed, instructions=candidate, mcpServers=report-only, skills=managed',
+                'concepts: agents=managed, instructions=candidate, mcpServers=report-only, projectConfig=managed, skills=managed',
             ),
         );
         assert.ok(textResult.stdout.includes('note: Root instructions stay candidate-only.'));
@@ -478,6 +504,11 @@ describe('CLI: preview', () => {
                 'Codex agent profile reviewer requires target custom-agent review before operational use',
             ),
         );
+        assert.ok(
+            textResult.stdout.includes(
+                'Codex project config default requires trusted-project and target configuration review before operational use',
+            ),
+        );
         assert.ok(textResult.stdout.includes('github-copilot (github-copilot-v0.1):'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
@@ -491,6 +522,9 @@ describe('CLI: preview', () => {
         );
         const codexAgentChange = data.pendingChanges.find(
             (change: { relativePath: string }) => change.relativePath === codexAgentPath,
+        );
+        const codexConfigChange = data.pendingChanges.find(
+            (change: { relativePath: string }) => change.relativePath === codexConfigPath,
         );
         assert.strictEqual(codexChange.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(codexChange.projection.target, 'codex');
@@ -519,6 +553,16 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexAgentChange.projection.lossiness, 'none');
         assert.strictEqual(codexAgentChange.projection.targetAdapterConcept, 'agents');
         assert.strictEqual(codexAgentChange.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(codexConfigChange.sourceRelativePath, codexProjectConfigPath);
+        assert.strictEqual(codexConfigChange.action, 'add');
+        assert.strictEqual(codexConfigChange.projection.target, 'codex');
+        assert.strictEqual(codexConfigChange.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(codexConfigChange.projection.lossiness, 'none');
+        assert.strictEqual(codexConfigChange.projection.targetAdapterConcept, 'projectConfig');
+        assert.strictEqual(
+            codexConfigChange.projection.targetAdapterMaterializationMode,
+            'managed',
+        );
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);
@@ -526,6 +570,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
+        assert.strictEqual(data.summary.codexProjectConfigs, 1);
         assert.strictEqual(data.summary.targetAdapters, 1);
         assert.strictEqual(data.summary.adapterReports, 2);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
@@ -595,6 +640,16 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.agentProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.agentProfiles[0].targets, ['codex']);
         assert.strictEqual(data.agentProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.codexProjectConfigs[0].id, 'default');
+        assert.strictEqual(data.codexProjectConfigs[0].settings.model, 'gpt-5-codex');
+        assert.strictEqual(data.codexProjectConfigs[0].settings.approvalPolicy, 'on-request');
+        assert.strictEqual(data.codexProjectConfigs[0].settings.sandboxMode, 'workspace-write');
+        assert.deepStrictEqual(data.codexProjectConfigs[0].policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(data.codexProjectConfigs[0].targets, ['codex']);
+        assert.deepStrictEqual(data.codexProjectConfigs[0].notes, [
+            'Requires trusted project review.',
+        ]);
+        assert.strictEqual(data.codexProjectConfigs[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.targetAdapters[0].id, 'codex-default');
         assert.strictEqual(data.targetAdapters[0].target, 'codex');
         assert.strictEqual(data.targetAdapters[0].enabled, true);
@@ -605,6 +660,7 @@ describe('CLI: preview', () => {
             skills: 'managed',
             instructions: 'candidate',
             mcpServers: 'report-only',
+            projectConfig: 'managed',
         });
         assert.deepStrictEqual(data.targetAdapters[0].requiredPolicyGrants, ['github-pr-read']);
         assert.strictEqual(data.targetAdapters[0].validationStatus, 'runtimeVerified');
@@ -629,6 +685,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexAgentSupport.support, 'partial');
         assert.ok(codexAgentSupport.evidence.includes('RUN-042'));
+        const codexProjectConfigSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'projectConfig',
+        );
+        assert.strictEqual(codexProjectConfigSupport.support, 'partial');
+        assert.ok(codexProjectConfigSupport.evidence.includes('RUN-043'));
         const codexPolicySupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'policyGrants',
@@ -670,6 +732,7 @@ describe('CLI: preview', () => {
         );
         assert.deepStrictEqual(codexAdapterReport.managedMetadata, {
             agentProfiles: 1,
+            codexProjectConfigs: 1,
             policyGrants: 1,
             mcpServers: 1,
             hooks: 1,
@@ -687,6 +750,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(codexAdapterReport.evidence.includes('RUN-037'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-042'));
+        assert.ok(codexAdapterReport.evidence.includes('RUN-043'));
         const copilotAdapterReport = data.adapterReports.find(
             (report: { target: string }) => report.target === 'github-copilot',
         );

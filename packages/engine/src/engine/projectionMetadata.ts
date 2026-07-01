@@ -95,6 +95,16 @@ function inferTargetAdapterConcept(
         return 'agents';
     }
 
+    if (
+        paths.some(
+            (path) =>
+                /^\.metaflow\/project-config\/[^/]+\.json$/.test(path) ||
+                path === '.codex/config.toml',
+        )
+    ) {
+        return 'projectConfig';
+    }
+
     if (paths.some((path) => path.startsWith('hooks/') || path.startsWith('.github/hooks/'))) {
         return 'hooks';
     }
@@ -129,6 +139,9 @@ function inferLossiness(
     const normalizedDestination = normalizeArtifactPath(destinationRelativePath);
     const canonicalSkill = /^\.metaflow\/skills\/[^/]+\/SKILL\.md$/.test(normalizedSource);
     const canonicalAgentProfile = /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSource);
+    const canonicalProjectConfig = /^\.metaflow\/project-config\/[^/]+\.json$/.test(
+        normalizedSource,
+    );
     if (
         canonicalSkill &&
         (target === 'codex' || target === 'github-copilot') &&
@@ -140,6 +153,13 @@ function inferLossiness(
         canonicalAgentProfile &&
         target === 'codex' &&
         /^\.codex\/agents\/[^/]+\.toml$/.test(normalizedDestination)
+    ) {
+        return 'none';
+    }
+    if (
+        canonicalProjectConfig &&
+        target === 'codex' &&
+        normalizedDestination === '.codex/config.toml'
     ) {
         return 'none';
     }
@@ -198,10 +218,12 @@ export function describeProjectionWithTargetAdapters(
     const lossiness = inferLossiness(sourcePath, destinationRelativePath, sourceFormat, target);
     const concept = inferTargetAdapterConcept(sourcePath, destinationRelativePath);
     const adapter = selectTargetAdapter(target, targetAdapters);
+    const normalizedSourcePath = normalizeArtifactPath(sourcePath);
     const requiresExplicitTargetAdapter =
-        /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizeArtifactPath(sourcePath)) &&
         target === 'codex' &&
-        concept === 'agents';
+        ((concept === 'agents' && /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSourcePath)) ||
+            (concept === 'projectConfig' &&
+                /^\.metaflow\/project-config\/[^/]+\.json$/.test(normalizedSourcePath)));
     const materializationMode =
         adapter && !adapter.enabled
             ? 'disabled'
@@ -220,7 +242,11 @@ export function describeProjectionWithTargetAdapters(
             notes.push(note);
         }
     } else if (requiresExplicitTargetAdapter) {
-        notes.push('target adapter required for managed agent materialization');
+        if (concept === 'projectConfig') {
+            notes.push('target adapter required for managed project config materialization');
+        } else {
+            notes.push('target adapter required for managed agent materialization');
+        }
     }
 
     return {

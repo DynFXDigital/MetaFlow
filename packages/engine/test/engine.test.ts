@@ -59,6 +59,7 @@ import {
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
     parseAgentProfileContent,
+    parseCodexProjectConfigContent,
     parseTargetAdapterContent,
     // Types
     MetaFlowConfig,
@@ -150,6 +151,8 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseExecutionProfileContent, 'function');
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
         assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
+        assert.strictEqual(typeof parseAgentProfileContent, 'function');
+        assert.strictEqual(typeof parseCodexProjectConfigContent, 'function');
         assert.strictEqual(typeof parseTargetAdapterContent, 'function');
     });
 
@@ -158,6 +161,7 @@ describe('Engine package: public API', () => {
         const requiredConcepts = [
             'skills',
             'agents',
+            'projectConfig',
             'mcpServers',
             'hooks',
             'packageManifests',
@@ -298,12 +302,28 @@ describe('Engine package: public API', () => {
                     warnings: [],
                 },
             ],
+            codexProjectConfigs: [
+                {
+                    id: 'default',
+                    manifestPath: '/metadata/.metaflow/project-config/codex.json',
+                    settings: {
+                        model: 'gpt-5-codex',
+                        approvalPolicy: 'on-request',
+                        sandboxMode: 'workspace-write',
+                    },
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    notes: [],
+                    warnings: [],
+                },
+            ],
         });
 
         const codexReport = reports.find((report) => report.target === 'codex');
         assert.strictEqual(codexReport?.adapterVersion, 'codex-v0.1');
         assert.deepStrictEqual(codexReport?.managedMetadata, {
             agentProfiles: 1,
+            codexProjectConfigs: 1,
             policyGrants: 1,
             mcpServers: 1,
             hooks: 1,
@@ -328,6 +348,14 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexReport?.actionItems.some(
                 (item) => item.concept === 'agents' && item.evidence.includes('RUN-042'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'projectConfig' &&
+                    item.evidence.includes('RUN-043') &&
+                    item.message.includes('trusted-project'),
             ),
         );
         assert.ok(
@@ -1698,6 +1726,87 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('loads canonical Codex project configs as layer metadata with TOML projection files', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'codex-project-config.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'codex-project-config',
+                authority: 'codex.project.config',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    modelReasoningEffort: 'high',
+                    approvalPolicy: 'on-request',
+                    approvalsReviewer: 'auto_review',
+                    sandboxMode: 'workspace-write',
+                    webSearch: 'cached',
+                    projectRootMarkers: ['.metaflow/config.jsonc'],
+                    features: { hooks: true, memories: false },
+                    sandboxWorkspaceWrite: {
+                        writableRoots: ['C:/tmp'],
+                        networkAccess: false,
+                        excludeSlashTmp: false,
+                    },
+                    shellEnvironmentPolicy: {
+                        inherit: 'core',
+                        includeOnly: ['PATH'],
+                        exclude: ['SECRET_*'],
+                        set: { NODE_ENV: 'test' },
+                        ignoreDefaultExcludes: false,
+                    },
+                },
+                policyGrants: ['codex-project-config'],
+                targets: ['codex'],
+                notes: ['Requires trusted project review.'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].codexProjectConfigs?.length, 1);
+        const projectConfig = layers[0].codexProjectConfigs?.[0];
+        assert.strictEqual(projectConfig?.id, 'default');
+        assert.strictEqual(projectConfig?.settings.model, 'gpt-5-codex');
+        assert.strictEqual(projectConfig?.settings.approvalPolicy, 'on-request');
+        assert.strictEqual(projectConfig?.settings.sandboxMode, 'workspace-write');
+        assert.deepStrictEqual(projectConfig?.policyGrants, ['codex-project-config']);
+        assert.deepStrictEqual(projectConfig?.targets, ['codex']);
+        assert.strictEqual(projectConfig?.warnings.length, 0);
+
+        const fileMap = buildEffectiveFileMap(layers);
+        const projected = fileMap.get('.codex/config.toml');
+        assert.ok(projected, 'canonical Codex project config should project to Codex TOML');
+        assert.strictEqual(projected?.sourceRelativePath, '.metaflow/project-config/codex.json');
+        assert.ok(projected?.projectedContent?.includes('model = "gpt-5-codex"'));
+        assert.ok(projected?.projectedContent?.includes('[features]'));
+        assert.ok(projected?.projectedContent?.includes('hooks = true'));
+        assert.ok(projected?.projectedContent?.includes('[sandbox_workspace_write]'));
+        assert.ok(projected?.projectedContent?.includes('network_access = false'));
+        assert.ok(projected?.projectedContent?.includes('[shell_environment_policy]'));
+        assert.ok(projected?.projectedContent?.includes('set = { "NODE_ENV" = "test" }'));
+    });
+
     it('reports validation diagnostics for invalid canonical agent profiles', () => {
         const profile = parseAgentProfileContent(
             JSON.stringify({
@@ -1739,6 +1848,77 @@ describe('Engine package: overlay pipeline', () => {
                 'AGENT_PROFILE_NOTES_INVALID',
             ],
         );
+    });
+
+    it('reports validation diagnostics for invalid canonical Codex project configs', () => {
+        const config = parseCodexProjectConfigContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v0',
+                id: 'Invalid ID',
+                settings: {
+                    model: '',
+                    approvalPolicy: 'automatic',
+                    approvalsReviewer: 'bot',
+                    sandboxMode: 'host',
+                    webSearch: 'always',
+                    projectRootMarkers: ['.git', 42],
+                    features: { hooks: 'yes', unknownFeature: true },
+                    sandboxWorkspaceWrite: {
+                        writableRoots: ['C:/tmp', 42],
+                        networkAccess: 'no',
+                        mystery: true,
+                    },
+                    shellEnvironmentPolicy: {
+                        inherit: 'everything',
+                        includeOnly: ['PATH', 42],
+                        exclude: ['SECRET_*', 42],
+                        set: { NODE_ENV: '' },
+                        ignoreDefaultExcludes: 'no',
+                        mystery: true,
+                    },
+                    modelProvider: 'forbidden',
+                    unknown: true,
+                },
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                notes: ['ok', 42],
+                extra: true,
+            }),
+            'codex.json',
+            new Set(['codex-project-config']),
+        );
+
+        assert.strictEqual(config.id, 'Invalid ID');
+        const codes = config.warnings.map((warning) => warning.code);
+        for (const code of [
+            'CODEX_PROJECT_CONFIG_UNKNOWN_FIELD',
+            'CODEX_PROJECT_CONFIG_SCHEMA_VERSION_INVALID',
+            'CODEX_PROJECT_CONFIG_ID_INVALID',
+            'CODEX_PROJECT_CONFIG_SETTING_FORBIDDEN',
+            'CODEX_PROJECT_CONFIG_SETTING_UNKNOWN',
+            'CODEX_PROJECT_CONFIG_MODEL_INVALID',
+            'CODEX_PROJECT_CONFIG_APPROVAL_POLICY_INVALID',
+            'CODEX_PROJECT_CONFIG_APPROVALS_REVIEWER_INVALID',
+            'CODEX_PROJECT_CONFIG_SANDBOX_MODE_INVALID',
+            'CODEX_PROJECT_CONFIG_WEB_SEARCH_INVALID',
+            'CODEX_PROJECT_CONFIG_PROJECT_ROOT_MARKERS_INVALID',
+            'CODEX_PROJECT_CONFIG_FEATURE_UNKNOWN',
+            'CODEX_PROJECT_CONFIG_FEATURES_INVALID',
+            'CODEX_PROJECT_CONFIG_SANDBOX_WORKSPACE_WRITE_FIELD_UNKNOWN',
+            'CODEX_PROJECT_CONFIG_SANDBOX_WORKSPACE_WRITE_ROOTS_INVALID',
+            'CODEX_PROJECT_CONFIG_SANDBOX_WORKSPACE_WRITE_BOOLEAN_INVALID',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_FIELD_UNKNOWN',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_INHERIT_INVALID',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_INCLUDE_ONLY_INVALID',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_EXCLUDE_INVALID',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_SET_INVALID',
+            'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_IGNORE_DEFAULT_EXCLUDES_INVALID',
+            'CODEX_PROJECT_CONFIG_POLICY_GRANT_UNKNOWN',
+            'CODEX_PROJECT_CONFIG_TARGETS_INVALID',
+            'CODEX_PROJECT_CONFIG_NOTES_INVALID',
+        ]) {
+            assert.ok(codes.includes(code), `${code} should be reported`);
+        }
     });
 
     it('loads canonical target adapter preferences as layer metadata', () => {
@@ -3473,6 +3653,117 @@ describe('Engine: synchronizer advanced', () => {
         const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
         assert.ok(result.skipped.includes('.codex/agents/reviewer.toml'));
         assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'agents', 'reviewer.toml')));
+    });
+
+    it('managed target adapter projects canonical Codex project config to config TOML', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    approvalPolicy: 'on-request',
+                    sandboxMode: 'workspace-write',
+                },
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { projectConfig: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-043'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const projectConfigFile = fileMap.get('.codex/config.toml');
+        assert.ok(projectConfigFile, 'projected Codex config should be present');
+        assert.strictEqual(projectConfigFile?.classification, 'synchronized');
+
+        const pending = preview(tmpDir, files);
+        const configChange = pending.find((change) => change.relativePath === '.codex/config.toml');
+        assert.strictEqual(configChange?.action, 'add');
+        assert.strictEqual(configChange?.projection.targetAdapterConcept, 'projectConfig');
+        assert.strictEqual(configChange?.projection.targetAdapterMaterializationMode, 'managed');
+        assert.strictEqual(configChange?.projection.lossiness, 'none');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.codex/config.toml'));
+        const written = fs.readFileSync(path.join(tmpDir, '.codex', 'config.toml'), 'utf-8');
+        assert.ok(written.includes('model = "gpt-5-codex"'));
+        assert.ok(written.includes('approval_policy = "on-request"'));
+        assert.ok(written.includes('sandbox_mode = "workspace-write"'));
+        assert.ok(!written.includes('schemaVersion'));
+    });
+
+    it('canonical Codex project config projection is candidate-only without a managed target adapter', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    approvalPolicy: 'on-request',
+                    sandboxMode: 'workspace-write',
+                },
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const configChange = pending.find((change) => change.relativePath === '.codex/config.toml');
+        assert.strictEqual(configChange?.action, 'skip');
+        assert.strictEqual(configChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(configChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            configChange?.projection.notes.includes(
+                'target adapter required for managed project config materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.codex/config.toml'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'config.toml')));
     });
 
     it('discovers and synchronizes Codex project config without inline provenance', () => {

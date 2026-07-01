@@ -58,6 +58,19 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-024', 'RUN-042'],
     ),
     row(
+        'projectConfig',
+        'partial',
+        ['.codex/config.toml', '.metaflow/project-config/*.json'],
+        [
+            'Canonical MetaFlow Codex project configs project to Codex TOML according to target adapter materialization gates.',
+            'Codex project configs are loaded by Codex only in trusted projects and cannot override provider, profile, notification, or telemetry keys.',
+        ],
+        [
+            'Project configuration can alter sandbox, approval, hooks, MCP, model, and search behavior and requires explicit review.',
+        ],
+        ['RUN-024', 'RUN-043'],
+    ),
+    row(
         'mcpServers',
         'partial',
         ['.metaflow/mcp/*.json', 'Codex MCP configuration and runtime MCP server registry'],
@@ -184,6 +197,16 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ],
         ['Agents can imply tool or repository authority and require policy review.'],
         ['RUN-022'],
+    ),
+    row(
+        'projectConfig',
+        'unsupported',
+        [],
+        [
+            'Codex project config is target-specific.',
+            'GitHub Copilot uses separate host settings and agent-plugin surfaces instead of Codex project TOML.',
+        ],
+        ['Project configuration authority must be represented through the target harness controls.'],
     ),
     row(
         'mcpServers',

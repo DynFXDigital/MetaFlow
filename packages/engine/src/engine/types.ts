@@ -42,6 +42,8 @@ export interface LayerContent {
     evaluationProfiles?: EvaluationProfileMetadata[];
     /** Agent profiles loaded from canonical MetaFlow agent manifests. */
     agentProfiles?: AgentProfileMetadata[];
+    /** Codex project configurations loaded from canonical MetaFlow project-config manifests. */
+    codexProjectConfigs?: CodexProjectConfigMetadata[];
     /** Target adapter preferences loaded from canonical MetaFlow target manifests. */
     targetAdapters?: TargetAdapterMetadata[];
 }
@@ -406,6 +408,67 @@ export interface AgentProfileMetadata {
     warnings: CapabilityWarning[];
 }
 
+/** Safe subset of Codex project configuration settings represented by MetaFlow. */
+export interface CodexProjectConfigSettings {
+    /** Optional default model for the project. */
+    model?: string;
+    /** Optional model reasoning effort for the project. */
+    modelReasoningEffort?: string;
+    /** Optional model reasoning summary setting for the project. */
+    modelReasoningSummary?: string;
+    /** Optional model verbosity setting for the project. */
+    modelVerbosity?: string;
+    /** Optional project approval policy. */
+    approvalPolicy?: string;
+    /** Optional approval reviewer. */
+    approvalsReviewer?: string;
+    /** Optional sandbox mode. */
+    sandboxMode?: string;
+    /** Optional web search mode. */
+    webSearch?: string;
+    /** Optional personality setting. */
+    personality?: string;
+    /** Optional model instruction file path, resolved by Codex relative to `.codex/`. */
+    modelInstructionsFile?: string;
+    /** Optional project root markers. */
+    projectRootMarkers?: string[];
+    /** Optional feature flags. */
+    features?: Record<string, boolean>;
+    /** Optional workspace-write sandbox controls. */
+    sandboxWorkspaceWrite?: {
+        writableRoots?: string[];
+        networkAccess?: boolean;
+        excludeTmpdirEnvVar?: boolean;
+        excludeSlashTmp?: boolean;
+    };
+    /** Optional shell environment forwarding policy. */
+    shellEnvironmentPolicy?: {
+        inherit?: string;
+        includeOnly?: string[];
+        exclude?: string[];
+        set?: Record<string, string>;
+        ignoreDefaultExcludes?: boolean;
+    };
+}
+
+/** Canonical MetaFlow Codex project config metadata associated with a layer. */
+export interface CodexProjectConfigMetadata {
+    /** Stable project config identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied project config metadata. */
+    manifestPath: string;
+    /** Safe Codex project settings represented by the manifest. */
+    settings: CodexProjectConfigSettings;
+    /** Policy grants required before the project config is treated as operational. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this project config applies to. */
+    targets: string[];
+    /** Optional user-facing notes about target support or projection constraints. */
+    notes: string[];
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
 /** Materialization preference declared by a canonical target adapter manifest. */
 export type TargetAdapterMaterializationMode =
     | 'managed'
@@ -506,6 +569,7 @@ export type TargetCapabilityConcept =
     | 'instructions'
     | 'skills'
     | 'agents'
+    | 'projectConfig'
     | 'mcpServers'
     | 'hooks'
     | 'packageManifests'
@@ -549,6 +613,8 @@ export interface TargetCapabilityMatrixEntry {
 export interface AdapterReadinessMetadataCounts {
     /** Canonical agent profiles considered for adapter readiness. */
     agentProfiles: number;
+    /** Canonical Codex project configurations considered for adapter readiness. */
+    codexProjectConfigs: number;
     /** Canonical policy grants considered for adapter readiness. */
     policyGrants: number;
     /** Canonical MCP server manifests considered for adapter readiness. */
