@@ -229,6 +229,7 @@ describe('CLI: preview', () => {
     it('shows target and lossiness metadata for canonical MetaFlow skill projections', async () => {
         const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
         const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
+        const policyGrantPath = '.metaflow/policies/github-pr-read.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -239,6 +240,17 @@ describe('CLI: preview', () => {
                     {
                         relativePath: canonicalSkillPath,
                         content: '# Release Readiness',
+                    },
+                    {
+                        relativePath: policyGrantPath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.policyGrant/v1',
+                            id: 'github-pr-read',
+                            authority: 'github.pullRequest.read',
+                            approval: 'auto',
+                            scope: { repository: 'current' },
+                            audit: true,
+                        }),
                     },
                 ],
             },
@@ -252,7 +264,10 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Target Capability Matrix:'));
         assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
         assert.ok(textResult.stdout.includes('skills=supported'));
-        assert.ok(textResult.stdout.includes('policyGrants=unsupported'));
+        assert.ok(textResult.stdout.includes('policyGrants=partial'));
+        assert.ok(textResult.stdout.includes('Policy Grants: 1'));
+        assert.ok(textResult.stdout.includes('github-pr-read [github]'));
+        assert.ok(textResult.stdout.includes('approval=auto audit=true'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -265,6 +280,14 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexChange.projection.sourceFormat, 'metaflow');
         assert.strictEqual(codexChange.projection.lossiness, 'none');
         assert.strictEqual(codexChange.projection.pathTransformed, true);
+        assert.strictEqual(data.summary.policyGrants, 1);
+        assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
+        assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
+        assert.strictEqual(data.policyGrants[0].category, 'github');
+        assert.strictEqual(data.policyGrants[0].approval, 'auto');
+        assert.deepStrictEqual(data.policyGrants[0].scope, { repository: 'current' });
+        assert.strictEqual(data.policyGrants[0].audit, true);
+        assert.strictEqual(data.policyGrants[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -279,7 +302,7 @@ describe('CLI: preview', () => {
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'policyGrants',
         );
-        assert.strictEqual(codexPolicySupport.support, 'unsupported');
+        assert.strictEqual(codexPolicySupport.support, 'partial');
         assert.ok(codexPolicySupport.authorityImplications.length > 0);
     });
 

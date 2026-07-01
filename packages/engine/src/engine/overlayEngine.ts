@@ -23,6 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
+import { loadPolicyGrantsForLayer } from './policyGrant';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -185,6 +186,7 @@ function resolveSingleRepoLayers(
             layerId: normalizedLayerPath,
             files,
             capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
+            policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
         });
     }
 
@@ -207,6 +209,7 @@ function resolveSingleRepoLayers(
                 layerId: layerPath,
                 files,
                 capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
+                policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
             });
         }
     }
@@ -290,6 +293,7 @@ function resolveMultiRepoLayers(
             repoId: ls.repoId,
             files,
             capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
+            policyGrants: loadPolicyGrantsForLayer(layerAbsPath),
         });
     }
 
@@ -463,10 +467,7 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         const hasCodexRepositorySkills =
             childNames.has('.agents') &&
             hasCodexRepositorySkillsDir(path.join(currentDir, '.agents'));
-        const hasCodexProjectInstructions = hasCodexProjectInstructionFile(
-            childNames,
-            currentDir,
-        );
+        const hasCodexProjectInstructions = hasCodexProjectInstructionFile(childNames, currentDir);
         const hasCodexProjectConfig =
             childNames.has('.codex') && hasCodexProjectConfigDir(path.join(currentDir, '.codex'));
         const hasCanonicalMetaFlowArtifacts =
@@ -570,22 +571,33 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const skillsDir = path.join(metaFlowDirPath, 'skills');
-        if (!fs.existsSync(skillsDir) || !fs.statSync(skillsDir).isDirectory()) {
+        if (fs.existsSync(skillsDir) && fs.statSync(skillsDir).isDirectory()) {
+            const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+            const hasSkill = entries.some((entry) => {
+                if (!entry.isDirectory()) {
+                    return false;
+                }
+                const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
+                try {
+                    return fs.existsSync(skillPath) && fs.statSync(skillPath).isFile();
+                } catch {
+                    return false;
+                }
+            });
+            if (hasSkill) {
+                return true;
+            }
+        }
+
+        const policiesDir = path.join(metaFlowDirPath, 'policies');
+        if (!fs.existsSync(policiesDir) || !fs.statSync(policiesDir).isDirectory()) {
             return false;
         }
 
-        const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-        return entries.some((entry) => {
-            if (!entry.isDirectory()) {
-                return false;
-            }
-            const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
-            try {
-                return fs.existsSync(skillPath) && fs.statSync(skillPath).isFile();
-            } catch {
-                return false;
-            }
-        });
+        const policyEntries = fs.readdirSync(policiesDir, { withFileTypes: true });
+        return policyEntries.some(
+            (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+        );
     } catch {
         return false;
     }

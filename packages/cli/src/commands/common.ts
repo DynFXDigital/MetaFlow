@@ -13,6 +13,7 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    PolicyGrantMetadata,
     SurfacedFileConflict,
     toAuthoredConfig,
 } from '@metaflow/engine';
@@ -21,6 +22,11 @@ export interface LoadedConfig {
     config: MetaFlowConfig;
     configPath: string;
     workspaceRoot: string;
+}
+
+export interface ResolvedPolicyGrant extends PolicyGrantMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
 }
 
 const CONFIG_ROOT_KEYS = new Set([
@@ -117,6 +123,20 @@ export function resolveSurfacedFileConflicts(
         layerSources: config.layerSources,
         profile,
     });
+}
+
+export function resolvePolicyGrants(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedPolicyGrant[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.policyGrants ?? []).map((grant) => ({
+            ...grant,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
 }
 
 export function formatSurfacedConflictWarnings(conflicts: SurfacedFileConflict[]): string[] {

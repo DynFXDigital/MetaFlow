@@ -50,6 +50,7 @@ import {
     toAuthoredConfig,
     normalizeConfigShape,
     getTargetCapabilityMatrix,
+    parsePolicyGrantContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -132,6 +133,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof preview, 'function');
         assert.strictEqual(typeof computeSettingsEntries, 'function');
         assert.strictEqual(typeof getTargetCapabilityMatrix, 'function');
+        assert.strictEqual(typeof parsePolicyGrantContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -172,7 +174,7 @@ describe('Engine package: public API', () => {
         const codexPolicy = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'policyGrants',
         );
-        assert.strictEqual(codexPolicy?.support, 'unsupported');
+        assert.strictEqual(codexPolicy?.support, 'partial');
         assert.ok(
             codexPolicy?.authorityImplications.some((note) =>
                 note.includes('Authority-sensitive projections'),
@@ -519,6 +521,34 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['capabilities/canonical-only']);
     });
 
+    it('discovers canonical .metaflow policy grant layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-policy-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'policy-only', '.metaflow', 'policies'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'policy-only',
+                '.metaflow',
+                'policies',
+                'github-pr-read.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                audit: true,
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/policy-only']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {
@@ -702,6 +732,92 @@ describe('Engine package: overlay pipeline', () => {
         );
         assert.strictEqual(file.sourceCapabilityLicense, 'MIT');
         assert.strictEqual(file.sourceCapabilityExperimental, true);
+    });
+
+    it('loads canonical policy grants as layer metadata', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'auto',
+                scope: { repository: 'current' },
+                audit: true,
+                description: 'Read pull request metadata for review workflows.',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'shell-test.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'shell-test',
+                authority: 'shell.test.run',
+                approval: 'on-request',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].files.length, 0);
+        assert.strictEqual(layers[0].policyGrants?.length, 2);
+
+        const githubGrant = layers[0].policyGrants?.find((grant) => grant.id === 'github-pr-read');
+        assert.strictEqual(githubGrant?.authority, 'github.pullRequest.read');
+        assert.strictEqual(githubGrant?.category, 'github');
+        assert.strictEqual(githubGrant?.approval, 'auto');
+        assert.deepStrictEqual(githubGrant?.scope, { repository: 'current' });
+        assert.strictEqual(githubGrant?.audit, true);
+        assert.strictEqual(githubGrant?.warnings.length, 0);
+
+        const shellGrant = layers[0].policyGrants?.find((grant) => grant.id === 'shell-test');
+        assert.strictEqual(shellGrant?.category, 'shell');
+        assert.strictEqual(shellGrant?.audit, false);
+    });
+
+    it('reports validation diagnostics for invalid canonical policy grants', () => {
+        const grant = parsePolicyGrantContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v0',
+                id: 'Invalid ID',
+                approval: 'maybe',
+                scope: ['repo'],
+                audit: 'yes',
+                extra: true,
+            }),
+            'policy.json',
+        );
+
+        assert.strictEqual(grant.id, 'Invalid ID');
+        assert.strictEqual(grant.approval, 'manual');
+        assert.strictEqual(grant.category, 'other');
+        assert.deepStrictEqual(
+            grant.warnings.map((warning) => warning.code),
+            [
+                'POLICY_GRANT_UNKNOWN_FIELD',
+                'POLICY_GRANT_SCHEMA_VERSION_INVALID',
+                'POLICY_GRANT_ID_INVALID',
+                'POLICY_GRANT_AUTHORITY_REQUIRED',
+                'POLICY_GRANT_APPROVAL_INVALID',
+                'POLICY_GRANT_SCOPE_INVALID',
+                'POLICY_GRANT_AUDIT_INVALID',
+            ],
+        );
+        assert.ok(
+            grant.warnings.every(
+                (warning) =>
+                    warning.severity === 'error' || warning.code === 'POLICY_GRANT_UNKNOWN_FIELD',
+            ),
+        );
     });
 });
 

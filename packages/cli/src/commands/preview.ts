@@ -12,7 +12,9 @@ import {
     getWorkspaceRoot,
     loadConfigOrExit,
     resolveEffectiveFiles,
+    resolvePolicyGrants,
     resolveSurfacedFileConflicts,
+    ResolvedPolicyGrant,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -75,6 +77,11 @@ function summarizeSettingsEntries(
         .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
 }
 
+function formatPolicyGrant(grant: ResolvedPolicyGrant): string {
+    const audit = grant.audit ? 'true' : 'false';
+    return `${grant.id || '<invalid>'} [${grant.category}] ${grant.authority || '<missing authority>'} approval=${grant.approval} audit=${audit} @ ${formatFileProvenance(grant.sourceLayer, grant.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -101,6 +108,7 @@ export function registerPreviewCommand(program: Command): void {
                 const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
                 const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
                 const sourceSummary = summarizeSources(files);
+                const policyGrants = resolvePolicyGrants(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -116,6 +124,7 @@ export function registerPreviewCommand(program: Command): void {
                             settings: settingsCount,
                             synchronized: synchronizedCount,
                             sourceCount: sourceSummary.length,
+                            policyGrants: policyGrants.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -137,6 +146,7 @@ export function registerPreviewCommand(program: Command): void {
                             sourceRepo: c.sourceRepo ?? null,
                             projection: c.projection,
                         })),
+                        policyGrants,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -147,23 +157,27 @@ export function registerPreviewCommand(program: Command): void {
                     return;
                 }
 
-                if (files.length === 0) {
+                if (files.length === 0 && policyGrants.length === 0) {
                     console.log('No files in overlay.');
                     return;
                 }
 
-                console.log('Effective files:');
-                for (const f of files) {
-                    const projection = describeProjection(
-                        f.relativePath,
-                        f.sourceRelativePath ?? f.relativePath,
-                    );
-                    console.log(
-                        `  [${f.classification}] [${projection.target}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
-                    );
-                    if (projection.pathTransformed || projection.lossiness !== 'none') {
-                        console.log(`    projection: ${formatProjection(projection)}`);
+                if (files.length > 0) {
+                    console.log('Effective files:');
+                    for (const f of files) {
+                        const projection = describeProjection(
+                            f.relativePath,
+                            f.sourceRelativePath ?? f.relativePath,
+                        );
+                        console.log(
+                            `  [${f.classification}] [${projection.target}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+                        );
+                        if (projection.pathTransformed || projection.lossiness !== 'none') {
+                            console.log(`    projection: ${formatProjection(projection)}`);
+                        }
                     }
+                } else {
+                    console.log('No files in overlay.');
                 }
                 console.log(
                     `\nSummary: ${files.length} total (${settingsCount} settings, ${synchronizedCount} synchronized)`,
@@ -178,6 +192,16 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`Sources: ${sourceSummary.length}`);
                     for (const source of sourceSummary) {
                         console.log(`  - ${source}`);
+                    }
+                }
+                if (policyGrants.length > 0) {
+                    console.log(`Policy Grants: ${policyGrants.length}`);
+                    for (const grant of policyGrants) {
+                        console.log(`  - ${formatPolicyGrant(grant)}`);
+                        for (const warning of grant.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
                     }
                 }
                 if (targetCapabilitySummary.length > 0) {

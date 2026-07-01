@@ -86,6 +86,11 @@ export {
     capabilityManifestConstants,
 } from './capabilityManifest';
 export {
+    loadPolicyGrantsForLayer,
+    parsePolicyGrantContent,
+    policyGrantConstants,
+} from './policyGrant';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -101,6 +106,9 @@ export type {
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    PolicyGrantApproval,
+    PolicyGrantAuthorityCategory,
+    PolicyGrantMetadata,
     RepoMetadata,
     SurfacedFileConflict,
     SurfacedFileConflictSource,

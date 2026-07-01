@@ -89,10 +89,14 @@ const CODEX_MATRIX: MatrixSeed[] = [
     ),
     row(
         'policyGrants',
-        'unsupported',
-        [],
-        ['Canonical policy grant metadata is not implemented.'],
-        ['Authority-sensitive projections remain guarded until policy grants exist.'],
+        'partial',
+        ['.metaflow/policies/*.json'],
+        [
+            'Canonical policy grant metadata is parsed and reported for adapter review.',
+            'Policy grants do not directly grant Codex runtime authority.',
+        ],
+        ['Authority-sensitive projections remain guarded until explicit harness adapters exist.'],
+        ['RUN-032'],
     ),
     row(
         'executionSurfaces',
@@ -201,10 +205,14 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     ),
     row(
         'policyGrants',
-        'unsupported',
-        [],
-        ['Canonical policy grant metadata is not implemented.'],
-        ['Authority-sensitive projections remain guarded until policy grants exist.'],
+        'partial',
+        ['.metaflow/policies/*.json'],
+        [
+            'Canonical policy grant metadata is parsed and reported for adapter review.',
+            'Policy grants do not directly grant GitHub Copilot runtime authority.',
+        ],
+        ['Authority-sensitive projections remain guarded until explicit harness adapters exist.'],
+        ['RUN-032'],
     ),
     row(
         'executionSurfaces',

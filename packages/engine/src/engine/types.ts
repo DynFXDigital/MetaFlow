@@ -26,6 +26,8 @@ export interface LayerContent {
     files: LayerFile[];
     /** Optional capability metadata loaded from a capability manifest at layer root. */
     capability?: CapabilityMetadata;
+    /** Policy grants loaded from canonical MetaFlow policy manifests. */
+    policyGrants?: PolicyGrantMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -117,6 +119,42 @@ export interface CapabilityMetadata {
     agentPluginManifest?: CapabilityAgentPluginManifest;
     /** Markdown content after frontmatter. */
     body?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Authority category derived from a canonical policy grant authority string. */
+export type PolicyGrantAuthorityCategory =
+    | 'shell'
+    | 'browser'
+    | 'mcp'
+    | 'github'
+    | 'cloudTask'
+    | 'memory'
+    | 'notification'
+    | 'other';
+
+/** Approval posture declared by a canonical policy grant. */
+export type PolicyGrantApproval = 'auto' | 'on-request' | 'manual' | 'forbidden';
+
+/** Canonical MetaFlow policy grant metadata associated with a layer. */
+export interface PolicyGrantMetadata {
+    /** Stable policy grant identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied policy grant metadata. */
+    manifestPath: string;
+    /** Harness-neutral authority string such as github.pullRequest.read. */
+    authority: string;
+    /** Authority category derived from the authority prefix. */
+    category: PolicyGrantAuthorityCategory;
+    /** Approval posture required for this authority. */
+    approval: PolicyGrantApproval;
+    /** Optional structured authority scope. */
+    scope?: Record<string, unknown>;
+    /** Whether this authority requires audit evidence. */
+    audit: boolean;
+    /** Optional user-facing description. */
+    description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
     warnings: CapabilityWarning[];
 }
