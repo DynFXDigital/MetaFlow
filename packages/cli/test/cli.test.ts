@@ -233,6 +233,7 @@ describe('CLI: preview', () => {
         const mcpServerPath = '.metaflow/mcp/github.json';
         const hookPath = '.metaflow/hooks/release-gate.json';
         const executionProfilePath = '.metaflow/execution/local.json';
+        const memoryScopePath = '.metaflow/memory/repo-decisions.json';
         ws = createTestWorkspace({
             config: {
                 metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -298,6 +299,21 @@ describe('CLI: preview', () => {
                             targets: ['codex'],
                         }),
                     },
+                    {
+                        relativePath: memoryScopePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.memoryScope/v1',
+                            id: 'repo-decisions',
+                            scopeType: 'repository',
+                            storage: 'persistent',
+                            retention: '180d',
+                            sharing: 'repository-maintainers',
+                            readPolicy: 'maintainers-only',
+                            writePolicy: 'approved-agents',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                        }),
+                    },
                 ],
             },
         });
@@ -334,6 +350,14 @@ describe('CLI: preview', () => {
         );
         assert.ok(textResult.stdout.includes('secrets=OPENAI_API_KEY'));
         assert.ok(textResult.stdout.includes('environment: NODE_ENV=test'));
+        assert.ok(textResult.stdout.includes('Memory Scopes: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'repo-decisions [repository/persistent] retention=180d sharing=repository-maintainers',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('readPolicy: maintainers-only'));
+        assert.ok(textResult.stdout.includes('writePolicy: approved-agents'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -350,6 +374,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.hooks, 1);
         assert.strictEqual(data.summary.executionProfiles, 1);
+        assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.policyGrants[0].id, 'github-pr-read');
         assert.strictEqual(data.policyGrants[0].authority, 'github.pullRequest.read');
         assert.strictEqual(data.policyGrants[0].category, 'github');
@@ -388,6 +413,16 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.executionProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.executionProfiles[0].targets, ['codex']);
         assert.strictEqual(data.executionProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.memoryScopes[0].id, 'repo-decisions');
+        assert.strictEqual(data.memoryScopes[0].scopeType, 'repository');
+        assert.strictEqual(data.memoryScopes[0].storage, 'persistent');
+        assert.strictEqual(data.memoryScopes[0].retention, '180d');
+        assert.strictEqual(data.memoryScopes[0].sharing, 'repository-maintainers');
+        assert.strictEqual(data.memoryScopes[0].readPolicy, 'maintainers-only');
+        assert.strictEqual(data.memoryScopes[0].writePolicy, 'approved-agents');
+        assert.deepStrictEqual(data.memoryScopes[0].policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(data.memoryScopes[0].targets, ['codex']);
+        assert.strictEqual(data.memoryScopes[0].sourceLayer, 'primary/company/core');
         const codexSkillSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'skills',
@@ -422,6 +457,12 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexExecutionSupport.support, 'partial');
         assert.ok(codexExecutionSupport.evidence.includes('RUN-035'));
+        const codexMemorySupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'memoryScopes',
+        );
+        assert.strictEqual(codexMemorySupport.support, 'partial');
+        assert.ok(codexMemorySupport.evidence.includes('RUN-036'));
     });
 
     it('should show no files for empty overlay', async () => {

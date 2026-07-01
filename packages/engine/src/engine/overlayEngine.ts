@@ -27,6 +27,7 @@ import { loadPolicyGrantsForLayer } from './policyGrant';
 import { loadMcpServersForLayer } from './mcpServer';
 import { loadHooksForLayer } from './hookManifest';
 import { loadExecutionProfilesForLayer } from './executionProfile';
+import { loadMemoryScopesForLayer } from './memoryScope';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -313,6 +314,7 @@ function buildLayerContent(
         mcpServers: loadMcpServersForLayer(layerAbsPath, knownPolicyGrantIds),
         hooks: loadHooksForLayer(layerAbsPath, knownPolicyGrantIds),
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
+        memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
     };
 }
 
@@ -639,12 +641,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const executionDir = path.join(metaFlowDirPath, 'execution');
-        if (!fs.existsSync(executionDir) || !fs.statSync(executionDir).isDirectory()) {
+        if (fs.existsSync(executionDir) && fs.statSync(executionDir).isDirectory()) {
+            const executionEntries = fs.readdirSync(executionDir, { withFileTypes: true });
+            const hasExecutionProfile = executionEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasExecutionProfile) {
+                return true;
+            }
+        }
+
+        const memoryDir = path.join(metaFlowDirPath, 'memory');
+        if (!fs.existsSync(memoryDir) || !fs.statSync(memoryDir).isDirectory()) {
             return false;
         }
 
-        const executionEntries = fs.readdirSync(executionDir, { withFileTypes: true });
-        return executionEntries.some(
+        const memoryEntries = fs.readdirSync(memoryDir, { withFileTypes: true });
+        return memoryEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

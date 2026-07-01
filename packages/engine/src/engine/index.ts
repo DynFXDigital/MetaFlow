@@ -98,6 +98,11 @@ export {
     executionProfileConstants,
 } from './executionProfile';
 export {
+    loadMemoryScopesForLayer,
+    parseMemoryScopeContent,
+    memoryScopeConstants,
+} from './memoryScope';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -123,6 +128,9 @@ export type {
     McpServerInvocation,
     McpServerMetadata,
     McpServerTransport,
+    MemoryScopeMetadata,
+    MemoryScopeStorage,
+    MemoryScopeType,
     PolicyGrantApproval,
     PolicyGrantAuthorityCategory,
     PolicyGrantMetadata,

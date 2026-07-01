@@ -54,6 +54,7 @@ import {
     parseMcpServerContent,
     parseHookContent,
     parseExecutionProfileContent,
+    parseMemoryScopeContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -139,6 +140,8 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parsePolicyGrantContent, 'function');
         assert.strictEqual(typeof parseMcpServerContent, 'function');
         assert.strictEqual(typeof parseHookContent, 'function');
+        assert.strictEqual(typeof parseExecutionProfileContent, 'function');
+        assert.strictEqual(typeof parseMemoryScopeContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -641,6 +644,34 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/execution-only']);
+    });
+
+    it('discovers canonical .metaflow memory scope layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-memory-repo');
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'memory-only', '.metaflow', 'memory'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'memory-only',
+                '.metaflow',
+                'memory',
+                'repo-decisions.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.memoryScope/v1',
+                id: 'repo-decisions',
+                scopeType: 'repository',
+                storage: 'persistent',
+                policyGrants: ['memory-repo'],
+            }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/memory-only']);
     });
 
     it('does not discover artifact roots as standalone layer directories', () => {
@@ -1185,6 +1216,102 @@ describe('Engine package: overlay pipeline', () => {
                 'EXECUTION_PROFILE_ENVIRONMENT_INVALID',
                 'EXECUTION_PROFILE_TARGETS_INVALID',
                 'EXECUTION_PROFILE_DESCRIPTION_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical memory scopes as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'memory'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'memory-repo.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'memory-repo',
+                authority: 'memory.repository.readWrite',
+                approval: 'manual',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'memory', 'repo-decisions.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.memoryScope/v1',
+                id: 'repo-decisions',
+                scopeType: 'repository',
+                storage: 'persistent',
+                retention: '180d',
+                sharing: 'repository-maintainers',
+                readPolicy: 'maintainers-only',
+                writePolicy: 'approved-agents',
+                policyGrants: ['memory-repo'],
+                targets: ['codex', 'github-copilot'],
+                description: 'Repository decision memory for repeated engineering work.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].memoryScopes?.length, 1);
+        const scope = layers[0].memoryScopes?.[0];
+        assert.strictEqual(scope?.id, 'repo-decisions');
+        assert.strictEqual(scope?.scopeType, 'repository');
+        assert.strictEqual(scope?.storage, 'persistent');
+        assert.strictEqual(scope?.retention, '180d');
+        assert.strictEqual(scope?.sharing, 'repository-maintainers');
+        assert.strictEqual(scope?.readPolicy, 'maintainers-only');
+        assert.strictEqual(scope?.writePolicy, 'approved-agents');
+        assert.deepStrictEqual(scope?.policyGrants, ['memory-repo']);
+        assert.deepStrictEqual(scope?.targets, ['codex', 'github-copilot']);
+        assert.strictEqual(scope?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical memory scopes', () => {
+        const scope = parseMemoryScopeContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.memoryScope/v0',
+                id: 'Invalid ID',
+                scopeType: 'global',
+                storage: 'forever',
+                retention: '',
+                sharing: '',
+                readPolicy: '',
+                writePolicy: '',
+                policyGrants: ['missing-grant'],
+                targets: ['codex', 42],
+                description: '',
+                extra: true,
+            }),
+            'memory.json',
+            new Set(['memory-repo']),
+        );
+
+        assert.strictEqual(scope.id, 'Invalid ID');
+        assert.strictEqual(scope.scopeType, 'task');
+        assert.strictEqual(scope.storage, 'ephemeral');
+        assert.deepStrictEqual(
+            scope.warnings.map((warning) => warning.code),
+            [
+                'MEMORY_SCOPE_UNKNOWN_FIELD',
+                'MEMORY_SCOPE_SCHEMA_VERSION_INVALID',
+                'MEMORY_SCOPE_ID_INVALID',
+                'MEMORY_SCOPE_TYPE_INVALID',
+                'MEMORY_SCOPE_STORAGE_INVALID',
+                'MEMORY_SCOPE_RETENTION_INVALID',
+                'MEMORY_SCOPE_SHARING_INVALID',
+                'MEMORY_SCOPE_READ_POLICY_INVALID',
+                'MEMORY_SCOPE_WRITE_POLICY_INVALID',
+                'MEMORY_SCOPE_POLICY_GRANT_UNKNOWN',
+                'MEMORY_SCOPE_TARGETS_INVALID',
+                'MEMORY_SCOPE_DESCRIPTION_INVALID',
             ],
         );
     });

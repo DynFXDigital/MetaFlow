@@ -116,10 +116,14 @@ const CODEX_MATRIX: MatrixSeed[] = [
     ),
     row(
         'memoryScopes',
-        'unsupported',
-        [],
-        ['Canonical memory scope metadata is not implemented for Codex.'],
+        'partial',
+        ['.metaflow/memory/*.json'],
+        [
+            'Canonical memory scope metadata is parsed and reported for adapter review.',
+            'Codex memory behavior remains a runtime workflow until explicit projection adapters exist.',
+        ],
         ['Persistent memory requires explicit authorization and retention policy.'],
+        ['RUN-036'],
     ),
     row(
         'localCloudHandoff',
@@ -236,10 +240,14 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     ),
     row(
         'memoryScopes',
-        'unsupported',
-        [],
-        ['Canonical memory scope metadata is not implemented for Copilot.'],
+        'partial',
+        ['.metaflow/memory/*.json'],
+        [
+            'Canonical memory scope metadata is parsed and reported for adapter review.',
+            'Copilot memory behavior remains a runtime workflow until explicit projection adapters exist.',
+        ],
         ['Persistent memory requires explicit authorization and retention policy.'],
+        ['RUN-036'],
     ),
     row(
         'localCloudHandoff',

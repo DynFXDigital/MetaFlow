@@ -15,6 +15,7 @@ import {
     EffectiveFile,
     ExecutionProfileMetadata,
     HookMetadata,
+    MemoryScopeMetadata,
     McpServerMetadata,
     PolicyGrantMetadata,
     SurfacedFileConflict,
@@ -43,6 +44,11 @@ export interface ResolvedHook extends HookMetadata {
 }
 
 export interface ResolvedExecutionProfile extends ExecutionProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedMemoryScope extends MemoryScopeMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -190,6 +196,20 @@ export function resolveExecutionProfiles(
     return layers.flatMap((layer) =>
         (layer.executionProfiles ?? []).map((profile) => ({
             ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveMemoryScopes(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedMemoryScope[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.memoryScopes ?? []).map((scope) => ({
+            ...scope,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

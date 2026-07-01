@@ -15,12 +15,14 @@ import {
     resolveEffectiveFiles,
     resolveHooks,
     resolveMcpServers,
+    resolveMemoryScopes,
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
     ResolvedMcpServer,
     ResolvedPolicyGrant,
     ResolvedHook,
     ResolvedExecutionProfile,
+    ResolvedMemoryScope,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -117,6 +119,15 @@ function formatExecutionProfile(profile: ResolvedExecutionProfile): string {
     return `${profile.id || '<invalid>'} [${profile.surface}/${profile.isolation}]${runner}${timeout}${grants}${targets}${secrets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatMemoryScope(scope: ResolvedMemoryScope): string {
+    const retention = scope.retention ? ` retention=${scope.retention}` : '';
+    const sharing = scope.sharing ? ` sharing=${scope.sharing}` : '';
+    const grants =
+        scope.policyGrants.length > 0 ? ` grants=${scope.policyGrants.join(',')}` : '';
+    const targets = scope.targets.length > 0 ? ` targets=${scope.targets.join(',')}` : '';
+    return `${scope.id || '<invalid>'} [${scope.scopeType}/${scope.storage}]${retention}${sharing}${grants}${targets} @ ${formatFileProvenance(scope.sourceLayer, scope.sourceRepo)}`;
+}
+
 export function registerPreviewCommand(program: Command): void {
     program
         .command('preview')
@@ -147,6 +158,7 @@ export function registerPreviewCommand(program: Command): void {
                 const mcpServers = resolveMcpServers(config, workspaceRoot);
                 const hooks = resolveHooks(config, workspaceRoot);
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
+                const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -166,6 +178,7 @@ export function registerPreviewCommand(program: Command): void {
                             mcpServers: mcpServers.length,
                             hooks: hooks.length,
                             executionProfiles: executionProfiles.length,
+                            memoryScopes: memoryScopes.length,
                         },
                         effectiveFiles: files.map((f) => ({
                             relativePath: f.relativePath,
@@ -191,6 +204,7 @@ export function registerPreviewCommand(program: Command): void {
                         mcpServers,
                         hooks,
                         executionProfiles,
+                        memoryScopes,
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
@@ -206,7 +220,8 @@ export function registerPreviewCommand(program: Command): void {
                     policyGrants.length === 0 &&
                     mcpServers.length === 0 &&
                     hooks.length === 0 &&
-                    executionProfiles.length === 0
+                    executionProfiles.length === 0 &&
+                    memoryScopes.length === 0
                 ) {
                     console.log('No files in overlay.');
                     return;
@@ -306,6 +321,22 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    environment: ${entries}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (memoryScopes.length > 0) {
+                    console.log(`Memory Scopes: ${memoryScopes.length}`);
+                    for (const scope of memoryScopes) {
+                        console.log(`  - ${formatMemoryScope(scope)}`);
+                        if (scope.readPolicy) {
+                            console.log(`    readPolicy: ${scope.readPolicy}`);
+                        }
+                        if (scope.writePolicy) {
+                            console.log(`    writePolicy: ${scope.writePolicy}`);
+                        }
+                        for (const warning of scope.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

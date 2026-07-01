@@ -34,6 +34,8 @@ export interface LayerContent {
     hooks?: HookMetadata[];
     /** Execution profiles loaded from canonical MetaFlow execution manifests. */
     executionProfiles?: ExecutionProfileMetadata[];
+    /** Memory scopes loaded from canonical MetaFlow memory manifests. */
+    memoryScopes?: MemoryScopeMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -284,6 +286,45 @@ export interface ExecutionProfileMetadata {
     /** Policy grants required before this execution profile is used. */
     policyGrants: string[];
     /** Target harnesses or adapters this execution profile applies to. */
+    targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Memory boundary declared by a canonical memory scope manifest. */
+export type MemoryScopeType =
+    | 'repository'
+    | 'user'
+    | 'organization'
+    | 'task'
+    | 'decisionHistory';
+
+/** Storage durability declared by a canonical memory scope manifest. */
+export type MemoryScopeStorage = 'ephemeral' | 'session' | 'persistent' | 'external';
+
+/** Canonical MetaFlow memory scope metadata associated with a layer. */
+export interface MemoryScopeMetadata {
+    /** Stable memory scope identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied memory scope metadata. */
+    manifestPath: string;
+    /** Boundary for memory access and retention. */
+    scopeType: MemoryScopeType;
+    /** Storage durability model for this memory scope. */
+    storage: MemoryScopeStorage;
+    /** Optional retention expression or policy reference. */
+    retention?: string;
+    /** Optional sharing boundary expression or policy reference. */
+    sharing?: string;
+    /** Optional read policy reference. */
+    readPolicy?: string;
+    /** Optional write policy reference. */
+    writePolicy?: string;
+    /** Policy grants required before this memory scope is used. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this memory scope applies to. */
     targets: string[];
     /** Optional user-facing description. */
     description?: string;
