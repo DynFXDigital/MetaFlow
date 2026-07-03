@@ -4,6 +4,7 @@ import {
     AdapterReadinessReport,
     AgentProfileMetadata,
     CodexProjectConfigMetadata,
+    ContentMetadata,
     EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
@@ -28,6 +29,8 @@ export interface BuildAdapterReadinessReportsOptions {
     memoryScopes?: MemoryScopeMetadata[];
     evaluationProfiles?: EvaluationProfileMetadata[];
     agentProfiles?: AgentProfileMetadata[];
+    instructions?: ContentMetadata[];
+    prompts?: ContentMetadata[];
     codexProjectConfigs?: CodexProjectConfigMetadata[];
     packageManifests?: PackageManifestMetadata[];
     tools?: ToolMetadata[];
@@ -126,6 +129,8 @@ export function buildAdapterReadinessReports(
     const memoryScopes = [...(options.memoryScopes ?? [])].sort(byId);
     const evaluationProfiles = [...(options.evaluationProfiles ?? [])].sort(byId);
     const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
+    const instructions = [...(options.instructions ?? [])].sort(byId);
+    const prompts = [...(options.prompts ?? [])].sort(byId);
     const codexProjectConfigs = [...(options.codexProjectConfigs ?? [])].sort(byId);
     const packageManifests = [...(options.packageManifests ?? [])].sort(byId);
     const tools = [...(options.tools ?? [])].sort(byId);
@@ -147,6 +152,10 @@ export function buildAdapterReadinessReports(
         const targetAgentProfiles = agentProfiles.filter((profile) =>
             appliesToTarget(profile.targets, target),
         );
+        const targetInstructions = instructions.filter((instruction) =>
+            appliesToTarget(instruction.targets, target),
+        );
+        const targetPrompts = prompts.filter((prompt) => appliesToTarget(prompt.targets, target));
         const targetCodexProjectConfigs = codexProjectConfigs.filter((config) =>
             appliesToTarget(config.targets, target),
         );
@@ -155,6 +164,8 @@ export function buildAdapterReadinessReports(
         );
         const targetTools = tools.filter((tool) => appliesToTarget(tool.targets, target));
         const counts: AdapterReadinessMetadataCounts = {
+            instructions: targetInstructions.length,
+            prompts: targetPrompts.length,
             agentProfiles: targetAgentProfiles.length,
             codexProjectConfigs: targetCodexProjectConfigs.length,
             policyGrants: policyGrants.length,

@@ -133,6 +133,12 @@ export {
     parseAgentProfileContent,
     renderCodexAgentProfileToml,
 } from './agentProfile';
+export {
+    contentManifestConstants,
+    loadInstructionsForLayer,
+    loadPromptsForLayer,
+    parseContentManifestContent,
+} from './contentManifest';
 export { loadSkillsForLayer, parseSkillManifestContent, skillManifestConstants } from './skillManifest';
 export {
     codexProjectConfigConstants,
@@ -183,6 +189,9 @@ export type {
     AgentProfileMetadata,
     CodexProjectConfigMetadata,
     CodexProjectConfigSettings,
+    ContentMetadata,
+    ContentRisk,
+    ContentType,
     EvaluationProfileMetadata,
     EvaluationType,
     ExecutionIsolation,

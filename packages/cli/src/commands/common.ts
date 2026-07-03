@@ -15,6 +15,7 @@ import {
     EffectiveFile,
     AgentProfileMetadata,
     CodexProjectConfigMetadata,
+    ContentMetadata,
     EvaluationProfileMetadata,
     ExecutionProfileMetadata,
     HookMetadata,
@@ -66,6 +67,11 @@ export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
 }
 
 export interface ResolvedAgentProfile extends AgentProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedContent extends ContentMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -280,6 +286,31 @@ export function resolveAgentProfiles(
     return layers.flatMap((layer) =>
         (layer.agentProfiles ?? []).map((profile) => ({
             ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveInstructions(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedContent[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.instructions ?? []).map((instruction) => ({
+            ...instruction,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolvePrompts(config: MetaFlowConfig, workspaceRoot: string): ResolvedContent[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.prompts ?? []).map((prompt) => ({
+            ...prompt,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

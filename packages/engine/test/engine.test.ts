@@ -62,6 +62,7 @@ import {
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
     parseAgentProfileContent,
+    parseContentManifestContent,
     parseSkillManifestContent,
     parseCodexProjectConfigContent,
     parseTargetAdapterContent,
@@ -157,6 +158,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
         assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
         assert.strictEqual(typeof parseAgentProfileContent, 'function');
+        assert.strictEqual(typeof parseContentManifestContent, 'function');
         assert.strictEqual(typeof parseSkillManifestContent, 'function');
         assert.strictEqual(typeof parseCodexProjectConfigContent, 'function');
         assert.strictEqual(typeof parseTargetAdapterContent, 'function');
@@ -204,6 +206,22 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexSkills?.nativeSurfaces.includes('.metaflow/skills/<skill-id>/skill.json'),
             'Codex skills row should name the structured canonical skill metadata surface',
+        );
+
+        const codexInstructions = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'instructions',
+        );
+        assert.ok(
+            codexInstructions?.nativeSurfaces.includes('.metaflow/instructions/*.json'),
+            'Codex instructions row should name the structured canonical instruction metadata surface',
+        );
+
+        const copilotPrompts = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'prompts',
+        );
+        assert.ok(
+            copilotPrompts?.nativeSurfaces.includes('.metaflow/prompts/*.json'),
+            'GitHub Copilot prompts row should name the structured canonical prompt metadata surface',
         );
 
         const codexPolicy = matrix.find(
@@ -506,6 +524,8 @@ describe('Engine package: public API', () => {
         const codexReport = reports.find((report) => report.target === 'codex');
         assert.strictEqual(codexReport?.adapterVersion, 'codex-v0.1');
         assert.deepStrictEqual(codexReport?.managedMetadata, {
+            instructions: 0,
+            prompts: 0,
             agentProfiles: 1,
             codexProjectConfigs: 1,
             policyGrants: 1,
@@ -5901,6 +5921,142 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('SKILL_ENTRYPOINT_UNSUPPORTED'));
         assert.ok(codes.includes('SKILL_ENTRYPOINT_MISSING'));
         assert.ok(codes.includes('SKILL_RISK_INVALID'));
+    });
+
+    it('loads structured canonical instruction and prompt metadata without changing Markdown projection', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        const instructionsDir = path.join(layerDir, '.metaflow', 'instructions');
+        const promptsDir = path.join(layerDir, '.metaflow', 'prompts');
+        fs.mkdirSync(instructionsDir, { recursive: true });
+        fs.mkdirSync(promptsDir, { recursive: true });
+        fs.writeFileSync(path.join(instructionsDir, 'release-policy.md'), '# Release Policy', 'utf-8');
+        fs.writeFileSync(path.join(promptsDir, 'release-review.md'), '# Release Review', 'utf-8');
+        fs.writeFileSync(
+            path.join(instructionsDir, 'release-policy.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.instruction/v1',
+                id: 'release-policy',
+                name: 'Release Policy',
+                entrypoint: 'release-policy.md',
+                appliesTo: ['release', 'governance'],
+                risk: 'governed',
+                targets: ['codex', 'github-copilot'],
+                description: 'Repository guidance for release evidence.',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(promptsDir, 'release-review.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.prompt/v1',
+                id: 'release-review',
+                name: 'Release Review',
+                entrypoint: 'release-review.md',
+                appliesTo: ['review'],
+                risk: 'standard',
+                targets: ['github-copilot'],
+                description: 'Prompt for reviewing release metadata.',
+            }),
+            'utf-8',
+        );
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'packages'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'packages', 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                instructions: ['release-policy'],
+                prompts: ['release-review'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers[0].instructions?.length, 1);
+        assert.strictEqual(layers[0].instructions?.[0].id, 'release-policy');
+        assert.strictEqual(layers[0].instructions?.[0].name, 'Release Policy');
+        assert.strictEqual(layers[0].instructions?.[0].contentType, 'instruction');
+        assert.strictEqual(layers[0].instructions?.[0].entrypoint, 'release-policy.md');
+        assert.deepStrictEqual(layers[0].instructions?.[0].warnings, []);
+        assert.strictEqual(layers[0].prompts?.length, 1);
+        assert.strictEqual(layers[0].prompts?.[0].id, 'release-review');
+        assert.strictEqual(layers[0].prompts?.[0].contentType, 'prompt');
+        assert.deepStrictEqual(layers[0].prompts?.[0].warnings, []);
+
+        const packageWarnings = layers[0].packageManifests?.[0].warnings ?? [];
+        assert.ok(
+            !packageWarnings.some(
+                (warning) =>
+                    warning.code === 'PACKAGE_INSTRUCTION_UNKNOWN' ||
+                    warning.code === 'PACKAGE_PROMPT_UNKNOWN',
+            ),
+            'package references should resolve against structured content metadata',
+        );
+
+        const fileMap = buildEffectiveFileMap(layers);
+        assert.ok(fileMap.has('instructions/release-policy.md'));
+        assert.ok(fileMap.has('prompts/release-review.md'));
+        assert.ok(
+            !fileMap.has('instructions/release-policy.json'),
+            'structured instruction metadata should not be projected as target content',
+        );
+        assert.ok(
+            !fileMap.has('prompts/release-review.json'),
+            'structured prompt metadata should not be projected as target content',
+        );
+    });
+
+    it('reports structured instruction and prompt metadata warnings', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        const instructionsDir = path.join(layerDir, '.metaflow', 'instructions');
+        const promptsDir = path.join(layerDir, '.metaflow', 'prompts');
+        fs.mkdirSync(instructionsDir, { recursive: true });
+        fs.mkdirSync(promptsDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(instructionsDir, 'release-policy.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.instruction/v1',
+                id: 'release-helper',
+                entrypoint: 'release-policy.md',
+                risk: 'unknown',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(promptsDir, 'release-review.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.prompt/v1',
+                id: 'Release Review',
+                entrypoint: '../release-review.md',
+                appliesTo: 'review',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const instructionCodes =
+            layers[0].instructions?.[0].warnings.map((warning) => warning.code) ?? [];
+        assert.ok(instructionCodes.includes('INSTRUCTION_ID_ENTRYPOINT_MISMATCH'));
+        assert.ok(instructionCodes.includes('INSTRUCTION_ENTRYPOINT_MISSING'));
+        assert.ok(instructionCodes.includes('INSTRUCTION_RISK_INVALID'));
+        const promptCodes = layers[0].prompts?.[0].warnings.map((warning) => warning.code) ?? [];
+        assert.ok(promptCodes.includes('PROMPT_ID_INVALID'));
+        assert.ok(promptCodes.includes('PROMPT_ENTRYPOINT_INVALID'));
+        assert.ok(promptCodes.includes('PROMPT_FIELD_INVALID'));
     });
 
     it('validates package component references against canonical layer metadata', () => {

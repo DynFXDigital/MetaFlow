@@ -42,6 +42,10 @@ export interface LayerContent {
     evaluationProfiles?: EvaluationProfileMetadata[];
     /** Agent profiles loaded from canonical MetaFlow agent manifests. */
     agentProfiles?: AgentProfileMetadata[];
+    /** Instruction metadata loaded from canonical MetaFlow instruction manifests. */
+    instructions?: ContentMetadata[];
+    /** Prompt metadata loaded from canonical MetaFlow prompt manifests. */
+    prompts?: ContentMetadata[];
     /** Skills loaded from canonical MetaFlow skill manifests. */
     skills?: SkillMetadata[];
     /** Codex project configurations loaded from canonical MetaFlow project-config manifests. */
@@ -466,6 +470,38 @@ export interface EvaluationProfileMetadata {
     warnings: CapabilityWarning[];
 }
 
+/** Markdown-first content metadata type. */
+export type ContentType = 'instruction' | 'prompt';
+
+/** Risk posture declared by canonical content metadata. */
+export type ContentRisk = 'standard' | 'governed' | 'experimental';
+
+/** Canonical MetaFlow instruction or prompt metadata associated with a layer. */
+export interface ContentMetadata {
+    /** Stable content identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied content metadata. */
+    manifestPath: string;
+    /** Absolute path to the containing canonical content directory. */
+    contentDirectory: string;
+    /** Content family described by this manifest. */
+    contentType: ContentType;
+    /** Markdown entrypoint rendered for target adapters. */
+    entrypoint: string;
+    /** Optional user-facing content name. */
+    name?: string;
+    /** Optional routing, workflow, or topic tags. */
+    appliesTo: string[];
+    /** Optional content risk posture. */
+    risk?: ContentRisk;
+    /** Target harnesses or adapters this content applies to. */
+    targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
 /** Canonical MetaFlow agent profile metadata associated with a layer. */
 export interface AgentProfileMetadata {
     /** Stable agent profile identifier. */
@@ -857,6 +893,10 @@ export interface TargetCapabilitySupportReference {
 
 /** Count of canonical metadata records considered by a target adapter report. */
 export interface AdapterReadinessMetadataCounts {
+    /** Canonical instruction manifests considered for adapter readiness. */
+    instructions: number;
+    /** Canonical prompt manifests considered for adapter readiness. */
+    prompts: number;
     /** Canonical agent profiles considered for adapter readiness. */
     agentProfiles: number;
     /** Canonical Codex project configurations considered for adapter readiness. */

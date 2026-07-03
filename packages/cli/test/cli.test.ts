@@ -478,8 +478,34 @@ describe('CLI: preview', () => {
                         content: '# Release Policy',
                     },
                     {
+                        relativePath: '.metaflow/instructions/release-policy.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.instruction/v1',
+                            id: 'release-policy',
+                            name: 'Release Policy',
+                            entrypoint: 'release-policy.md',
+                            appliesTo: ['release', 'governance'],
+                            risk: 'governed',
+                            targets: ['codex', 'github-copilot'],
+                            description: 'Guides release evidence review.',
+                        }),
+                    },
+                    {
                         relativePath: canonicalPromptPath,
                         content: '# Review Prompt',
+                    },
+                    {
+                        relativePath: '.metaflow/prompts/review.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.prompt/v1',
+                            id: 'review',
+                            name: 'Review Prompt',
+                            entrypoint: 'review.md',
+                            appliesTo: ['review'],
+                            risk: 'standard',
+                            targets: ['github-copilot'],
+                            description: 'Prompts release metadata review.',
+                        }),
                     },
                     {
                         relativePath: codexInstructionsPath,
@@ -719,6 +745,20 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('description: Reviews implementation changes.'));
+        assert.ok(textResult.stdout.includes('Instruction Manifests: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'release-policy [Release Policy] entrypoint=release-policy.md risk=governed appliesTo=release,governance targets=codex,github-copilot',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('description: Guides release evidence review.'));
+        assert.ok(textResult.stdout.includes('Prompt Manifests: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'review [Review Prompt] entrypoint=review.md risk=standard appliesTo=review targets=github-copilot',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('description: Prompts release metadata review.'));
         assert.ok(textResult.stdout.includes('Skill Manifests: 1'));
         assert.ok(
             textResult.stdout.includes(
@@ -867,6 +907,8 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
+        assert.strictEqual(data.summary.instructionManifests, 1);
+        assert.strictEqual(data.summary.promptManifests, 1);
         assert.strictEqual(data.summary.skills, 1);
         assert.strictEqual(data.summary.codexProjectConfigs, 1);
         assert.strictEqual(data.summary.targetAdapters, 1);
@@ -962,6 +1004,30 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.agentProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.agentProfiles[0].targets, ['codex']);
         assert.strictEqual(data.agentProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.instructionManifests[0].id, 'release-policy');
+        assert.strictEqual(data.instructionManifests[0].name, 'Release Policy');
+        assert.strictEqual(data.instructionManifests[0].contentType, 'instruction');
+        assert.strictEqual(data.instructionManifests[0].entrypoint, 'release-policy.md');
+        assert.strictEqual(data.instructionManifests[0].risk, 'governed');
+        assert.deepStrictEqual(data.instructionManifests[0].appliesTo, [
+            'release',
+            'governance',
+        ]);
+        assert.deepStrictEqual(data.instructionManifests[0].targets, [
+            'codex',
+            'github-copilot',
+        ]);
+        assert.deepStrictEqual(data.instructionManifests[0].warnings, []);
+        assert.strictEqual(data.instructionManifests[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.promptManifests[0].id, 'review');
+        assert.strictEqual(data.promptManifests[0].name, 'Review Prompt');
+        assert.strictEqual(data.promptManifests[0].contentType, 'prompt');
+        assert.strictEqual(data.promptManifests[0].entrypoint, 'review.md');
+        assert.strictEqual(data.promptManifests[0].risk, 'standard');
+        assert.deepStrictEqual(data.promptManifests[0].appliesTo, ['review']);
+        assert.deepStrictEqual(data.promptManifests[0].targets, ['github-copilot']);
+        assert.deepStrictEqual(data.promptManifests[0].warnings, []);
+        assert.strictEqual(data.promptManifests[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.skills[0].id, 'release-readiness');
         assert.strictEqual(data.skills[0].name, 'Release Readiness');
         assert.strictEqual(data.skills[0].entrypoint, 'SKILL.md');
@@ -1033,11 +1099,13 @@ describe('CLI: preview', () => {
                 entry.target === 'codex' && entry.concept === 'prompts',
         );
         assert.strictEqual(codexPromptSupport.support, 'partial');
+        assert.ok(codexPromptSupport.nativeSurfaces.includes('.metaflow/prompts/*.json'));
         const copilotPromptSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'github-copilot' && entry.concept === 'prompts',
         );
         assert.strictEqual(copilotPromptSupport.support, 'supported');
+        assert.ok(copilotPromptSupport.nativeSurfaces.includes('.metaflow/prompts/*.json'));
         const codexAgentSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'agents',
@@ -1097,6 +1165,8 @@ describe('CLI: preview', () => {
             (report: { target: string }) => report.target === 'codex',
         );
         assert.deepStrictEqual(codexAdapterReport.managedMetadata, {
+            instructions: 1,
+            prompts: 0,
             agentProfiles: 1,
             codexProjectConfigs: 1,
             policyGrants: 1,

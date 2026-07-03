@@ -22,10 +22,12 @@ import {
     resolveExecutionProfiles,
     resolveEffectiveFiles,
     resolveHooks,
+    resolveInstructions,
     resolveMcpServers,
     resolveMemoryScopes,
     resolvePackageManifests,
     resolvePolicyGrants,
+    resolvePrompts,
     resolveSkills,
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
@@ -39,6 +41,7 @@ import {
     ResolvedEvaluationProfile,
     ResolvedMemoryScope,
     ResolvedPackageManifest,
+    ResolvedContent,
     ResolvedSkill,
     ResolvedTargetAdapter,
     ResolvedTool,
@@ -174,6 +177,15 @@ function formatAgentProfile(profile: ResolvedAgentProfile): string {
     return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${tools}${mcpServers}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatContent(content: ResolvedContent): string {
+    const name = content.name ? ` [${content.name}]` : '';
+    const risk = content.risk ? ` risk=${content.risk}` : '';
+    const appliesTo =
+        content.appliesTo.length > 0 ? ` appliesTo=${content.appliesTo.join(',')}` : '';
+    const targets = content.targets.length > 0 ? ` targets=${content.targets.join(',')}` : '';
+    return `${content.id || '<invalid>'}${name} entrypoint=${content.entrypoint}${risk}${appliesTo}${targets} @ ${formatFileProvenance(content.sourceLayer, content.sourceRepo)}`;
+}
+
 function formatSkill(skill: ResolvedSkill): string {
     const name = skill.name ? ` [${skill.name}]` : '';
     const risk = skill.risk ? ` risk=${skill.risk}` : '';
@@ -288,6 +300,8 @@ export function registerPreviewCommand(program: Command): void {
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
                 const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
+                const instructionManifests = resolveInstructions(config, workspaceRoot);
+                const promptManifests = resolvePrompts(config, workspaceRoot);
                 const skills = resolveSkills(config, workspaceRoot);
                 const codexProjectConfigs = resolveCodexProjectConfigs(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
@@ -307,6 +321,8 @@ export function registerPreviewCommand(program: Command): void {
                     memoryScopes,
                     evaluationProfiles,
                     agentProfiles,
+                    instructions: instructionManifests,
+                    prompts: promptManifests,
                     codexProjectConfigs,
                     packageManifests,
                     tools,
@@ -335,6 +351,8 @@ export function registerPreviewCommand(program: Command): void {
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
                             agentProfiles: agentProfiles.length,
+                            instructionManifests: instructionManifests.length,
+                            promptManifests: promptManifests.length,
                             skills: skills.length,
                             codexProjectConfigs: codexProjectConfigs.length,
                             targetAdapters: targetAdapters.length,
@@ -371,6 +389,8 @@ export function registerPreviewCommand(program: Command): void {
                         memoryScopes,
                         evaluationProfiles,
                         agentProfiles,
+                        instructionManifests,
+                        promptManifests,
                         skills,
                         codexProjectConfigs,
                         targetAdapters,
@@ -581,6 +601,32 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    note: ${note}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (instructionManifests.length > 0) {
+                    console.log(`Instruction Manifests: ${instructionManifests.length}`);
+                    for (const instruction of instructionManifests) {
+                        console.log(`  - ${formatContent(instruction)}`);
+                        if (instruction.description) {
+                            console.log(`    description: ${instruction.description}`);
+                        }
+                        for (const warning of instruction.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (promptManifests.length > 0) {
+                    console.log(`Prompt Manifests: ${promptManifests.length}`);
+                    for (const prompt of promptManifests) {
+                        console.log(`  - ${formatContent(prompt)}`);
+                        if (prompt.description) {
+                            console.log(`    description: ${prompt.description}`);
+                        }
+                        for (const warning of prompt.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

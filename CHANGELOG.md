@@ -25,6 +25,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Package runtime validation now warns when records omit both a validation command and evidence references.
 - Target capability support reports now identify `.metaflow/packages/*.json` as the canonical package metadata surface for Codex and GitHub Copilot package-manifest rows.
 - Canonical skills can now include `.metaflow/skills/<skill-id>/skill.json` structured metadata while `SKILL.md` remains the projected Codex and GitHub Copilot skill body.
+- Canonical instructions and prompts can now include same-name `.json` structured metadata while Markdown remains the projected Codex and GitHub Copilot content body.
 
 ### Changed
 

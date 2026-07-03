@@ -46,6 +46,7 @@ import {
     renderCodexAgentProfileToml,
     renderGitHubCopilotAgentProfileMarkdown,
 } from './agentProfile';
+import { loadInstructionsForLayer, loadPromptsForLayer } from './contentManifest';
 import { loadSkillsForLayer } from './skillManifest';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
 import { loadPackageManifestsForLayer, PackageReferenceIndex } from './packageManifest';
@@ -344,6 +345,8 @@ function buildLayerContent(
         knownPolicyGrantIds,
         knownMcpServerIds,
     );
+    const instructions = loadInstructionsForLayer(layerAbsPath);
+    const prompts = loadPromptsForLayer(layerAbsPath);
     const skills = loadSkillsForLayer(layerAbsPath);
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const tools = loadToolsForLayer(layerAbsPath, knownPolicyGrantIds);
@@ -355,6 +358,8 @@ function buildLayerContent(
         hooks,
         tools,
         skills,
+        instructions,
+        prompts,
     );
     const packageManifests = loadPackageManifestsForLayer(
         layerAbsPath,
@@ -452,6 +457,8 @@ function buildLayerContent(
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         agentProfiles,
+        instructions,
+        prompts,
         skills,
         codexProjectConfigs,
         targetAdapters,
@@ -472,15 +479,19 @@ function buildPackageReferenceIndex(
     hooks: { id: string }[],
     tools: { id: string }[],
     skills: { id: string }[] = [],
+    instructions: { id: string }[] = [],
+    prompts: { id: string }[] = [],
 ): PackageReferenceIndex {
     return {
         agents: idsFromMetadata(agentProfiles),
         skills: mergeIds(idsFromPaths(files, skillIdFromPath), idsFromMetadata(skills)),
-        instructions: idsFromPaths(files, (filePath) =>
-            markdownArtifactIdFromPath(filePath, 'instructions'),
+        instructions: mergeIds(
+            idsFromPaths(files, (filePath) => markdownArtifactIdFromPath(filePath, 'instructions')),
+            idsFromMetadata(instructions),
         ),
-        prompts: idsFromPaths(files, (filePath) =>
-            markdownArtifactIdFromPath(filePath, 'prompts'),
+        prompts: mergeIds(
+            idsFromPaths(files, (filePath) => markdownArtifactIdFromPath(filePath, 'prompts')),
+            idsFromMetadata(prompts),
         ),
         mcpServers: idsFromMetadata(mcpServers),
         tools: idsFromMetadata(tools),
@@ -1238,12 +1249,12 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const instructionsDir = path.join(metaFlowDirPath, 'instructions');
-        if (hasMarkdownFile(instructionsDir)) {
+        if (hasMarkdownOrJsonFile(instructionsDir)) {
             return true;
         }
 
         const promptsDir = path.join(metaFlowDirPath, 'prompts');
-        if (hasMarkdownFile(promptsDir)) {
+        if (hasMarkdownOrJsonFile(promptsDir)) {
             return true;
         }
 
@@ -1371,13 +1382,18 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
     }
 }
 
-function hasMarkdownFile(dirPath: string): boolean {
+function hasMarkdownOrJsonFile(dirPath: string): boolean {
     try {
         if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
             return false;
         }
         const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-        return entries.some((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
+        return entries.some(
+            (entry) =>
+                entry.isFile() &&
+                (entry.name.toLowerCase().endsWith('.md') ||
+                    entry.name.toLowerCase().endsWith('.json')),
+        );
     } catch {
         return false;
     }
