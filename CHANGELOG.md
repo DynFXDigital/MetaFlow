@@ -14,6 +14,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Smoother metadata repository setup, including automatic migration for older preview configs and better support for local git-backed metadata repositories.
 - Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
 - Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
+- Codex operator walkthrough covering preview, adapter readiness, guarded native outputs, package marketplace export, and runtime-validation evidence.
 
 ### Changed
 

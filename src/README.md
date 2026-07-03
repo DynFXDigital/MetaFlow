@@ -114,6 +114,7 @@ Codex support is separate from VS Code and GitHub Copilot plugin mode.
 - Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's capability plugin maintenance commands generate that manifest separately from the GitHub Copilot `plugin.json`.
 - Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow generates that marketplace separately from `.github/plugin/marketplace.json` so Codex and GitHub Copilot discovery stay host-native.
 - `MetaFlow: Export GitHub Copilot MCP Handoff` opens a reviewable `.vscode/mcp.json` candidate from canonical `.metaflow/mcp/*.json` metadata, or saves it after explicit confirmation and overwrite review.
+- For the operator review loop around Codex preview, adapter readiness, apply, export, and runtime validation, see [Codex Operator Walkthrough](../docs/CODEX-OPERATOR-WALKTHROUGH.md).
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 

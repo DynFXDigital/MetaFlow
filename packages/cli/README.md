@@ -215,3 +215,7 @@ All business logic lives in `@metaflow/engine` — the CLI is a thin Commander.j
 For Codex-specific support boundaries, including runtime-only cloud, channel,
 review, and MCP behavior that cannot be proven by repository projection alone,
 see [Codex Support Boundaries](../../docs/CODEX-SUPPORT.md).
+
+For the Codex operator review loop around `preview`, adapter readiness, guarded
+native outputs, package marketplace export, and runtime-validation records, see
+[Codex Operator Walkthrough](../../docs/CODEX-OPERATOR-WALKTHROUGH.md).
