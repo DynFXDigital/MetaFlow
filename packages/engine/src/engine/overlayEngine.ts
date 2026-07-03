@@ -28,6 +28,9 @@ import {
     EffectiveFile,
     LayerContent,
     LayerFile,
+    PackageManifestMetadata,
+    TargetCapabilityConcept,
+    TargetCapabilityMatrixEntry,
 } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { loadPolicyGrantsForLayer } from './policyGrant';
@@ -355,6 +358,7 @@ function buildLayerContent(
         knownPolicyGrantIds,
         packageReferenceIndex,
     );
+    validatePackageTargetCompatibility(packageManifests);
     const capability = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
     validateCapabilityLayerDeclarations(capability, {
         ...packageReferenceIndex,
@@ -508,6 +512,119 @@ function capabilityWarning(
     severity: CapabilityDiagnosticSeverity = 'warning',
 ): CapabilityWarning {
     return { code, message, filePath, severity };
+}
+
+function packageWarning(
+    code: string,
+    message: string,
+    filePath?: string,
+    severity: CapabilityDiagnosticSeverity = 'warning',
+): CapabilityWarning {
+    return { code, message, filePath, severity };
+}
+
+function validatePackageTargetCompatibility(packageManifests: PackageManifestMetadata[]): void {
+    if (packageManifests.length === 0) {
+        return;
+    }
+
+    const matrix = getTargetCapabilityMatrix();
+    for (const manifest of packageManifests) {
+        for (const [targetId, declaration] of Object.entries(manifest.targets)) {
+            if (declaration.enabled === false) {
+                continue;
+            }
+            validatePackageTarget(manifest, targetId, matrix);
+        }
+    }
+}
+
+function validatePackageTarget(
+    manifest: PackageManifestMetadata,
+    targetId: string,
+    matrix: TargetCapabilityMatrixEntry[],
+): void {
+    const rows = matrix.filter((entry) => entry.target === targetId);
+    if (rows.length === 0) {
+        manifest.warnings.push(
+            packageWarning(
+                'PACKAGE_TARGET_UNKNOWN',
+                `Package target "${targetId}" has no known target capability matrix entry.`,
+                manifest.manifestPath,
+            ),
+        );
+        return;
+    }
+
+    warnOnPackageConceptSupport(manifest, targetId, 'packageManifests', 1, rows);
+    warnOnPackageConceptSupport(manifest, targetId, 'agents', manifest.agents.length, rows);
+    warnOnPackageConceptSupport(manifest, targetId, 'skills', manifest.skills.length, rows);
+    warnOnPackageConceptSupport(
+        manifest,
+        targetId,
+        'instructions',
+        manifest.instructions.length,
+        rows,
+    );
+    warnOnPackageConceptSupport(manifest, targetId, 'prompts', manifest.prompts.length, rows);
+    warnOnPackageConceptSupport(
+        manifest,
+        targetId,
+        'mcpServers',
+        manifest.mcpServers.length,
+        rows,
+    );
+    warnOnPackageConceptSupport(manifest, targetId, 'tools', manifest.tools.length, rows);
+    warnOnPackageConceptSupport(manifest, targetId, 'hooks', manifest.hooks.length, rows);
+    warnOnPackageConceptSupport(
+        manifest,
+        targetId,
+        'policyGrants',
+        manifest.policyGrants.length,
+        rows,
+    );
+}
+
+function warnOnPackageConceptSupport(
+    manifest: PackageManifestMetadata,
+    targetId: string,
+    concept: TargetCapabilityConcept,
+    count: number,
+    rows: TargetCapabilityMatrixEntry[],
+): void {
+    if (count === 0) {
+        return;
+    }
+
+    const row = rows.find((entry) => entry.concept === concept);
+    if (!row) {
+        manifest.warnings.push(
+            packageWarning(
+                'PACKAGE_TARGET_CONCEPT_UNKNOWN',
+                `Package target "${targetId}" has no capability matrix row for ${concept}.`,
+                manifest.manifestPath,
+            ),
+        );
+        return;
+    }
+
+    if (row.support === 'supported' || row.support === 'generated-substitute') {
+        return;
+    }
+
+    const severity = row.support === 'unsupported' ? 'error' : 'warning';
+    const code =
+        row.support === 'unsupported'
+            ? 'PACKAGE_TARGET_CONCEPT_UNSUPPORTED'
+            : 'PACKAGE_TARGET_CONCEPT_PARTIAL';
+    manifest.warnings.push(
+        packageWarning(
+            code,
+            `Package target "${targetId}" includes ${concept} metadata whose target support is ${row.support}.`,
+            manifest.manifestPath,
+            severity,
+        ),
+    );
 }
 
 function validateCapabilityLayerDeclarations(

@@ -5506,6 +5506,49 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('CANONICAL_CAPABILITY_TARGET_UNKNOWN'));
     });
 
+    it('reports package target capability matrix compatibility warnings', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'packages'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'prompts'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'prompts', 'release-review.md'),
+            '# Release Review',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'packages', 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                prompts: ['release-review'],
+                targets: {
+                    codex: { enabled: true },
+                    'future-agent': { enabled: true },
+                    'disabled-target': { enabled: false },
+                },
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const warnings = layers[0].packageManifests?.[0].warnings ?? [];
+        const codes = warnings.map((warning) => warning.code);
+        assert.ok(codes.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
+        assert.ok(codes.includes('PACKAGE_TARGET_UNKNOWN'));
+        assert.ok(
+            !warnings.some((warning) => warning.message.includes('disabled-target')),
+            'disabled package targets should not emit compatibility warnings',
+        );
+    });
+
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';

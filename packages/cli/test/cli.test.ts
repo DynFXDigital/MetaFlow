@@ -1013,6 +1013,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('components: agents=release-steward'));
         assert.ok(textResult.stdout.includes('skills=release-readiness'));
         assert.ok(textResult.stdout.includes('tools=create-pr'));
+        assert.ok(textResult.stdout.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
         assert.ok(textResult.stdout.includes('[packageManifests]'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
@@ -1021,6 +1022,11 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.packageManifests, 1);
         assert.strictEqual(data.packageManifests[0].id, 'release-operations');
         assert.strictEqual(data.packageManifests[0].targets.codex.enabled, true);
+        assert.ok(
+            data.packageManifests[0].warnings.some(
+                (warning: { code: string }) => warning.code === 'PACKAGE_TARGET_CONCEPT_PARTIAL',
+            ),
+        );
         assert.ok(
             data.adapterReports.some(
                 (report: { managedMetadata: { packageManifests?: number } }) =>
