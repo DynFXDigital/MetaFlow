@@ -5,6 +5,7 @@
 ### Patch Changes
 
 - Warn when a capability declares multiple enabled target adapters for the same target, keeping Codex and Copilot projection policy unambiguous.
+- Parse and validate richer `.metaflow/capability.json` target declarations with support posture, required policy grants, validation evidence, and notes.
 
 ## 0.3.2
 

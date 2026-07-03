@@ -262,7 +262,13 @@ describe('CLI: status', () => {
                                 packages: ['codex-metadata-authoring'],
                             },
                             targets: {
-                                codex: { enabled: true },
+                                codex: {
+                                    enabled: true,
+                                    support: 'partial',
+                                    requiredPolicyGrants: ['github-pr-read'],
+                                    validationEvidence: ['RUN-052'],
+                                    notes: ['Runtime integrations require harness evidence.'],
+                                },
                                 'github-copilot': { enabled: false },
                             },
                             packages: ['codex-metadata-authoring'],
@@ -288,6 +294,10 @@ describe('CLI: status', () => {
         assert.ok(textResult.stdout.includes('Components: agents=codex-steward'));
         assert.ok(textResult.stdout.includes('skills=codex-metadata'));
         assert.ok(textResult.stdout.includes('Targets: codex=enabled'));
+        assert.ok(textResult.stdout.includes('support=partial'));
+        assert.ok(textResult.stdout.includes('grants=github-pr-read'));
+        assert.ok(textResult.stdout.includes('evidence=RUN-052'));
+        assert.ok(textResult.stdout.includes('notes=1'));
         assert.ok(textResult.stdout.includes('github-copilot=disabled'));
         assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
         assert.ok(textResult.stdout.includes('Target Capability Support: 30'));
@@ -313,6 +323,12 @@ describe('CLI: status', () => {
         assert.deepStrictEqual(capability.owners, ['metaflow']);
         assert.deepStrictEqual(capability.components.skills, ['codex-metadata']);
         assert.strictEqual(capability.targets.codex.enabled, true);
+        assert.strictEqual(capability.targets.codex.support, 'partial');
+        assert.deepStrictEqual(capability.targets.codex.requiredPolicyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(capability.targets.codex.validationEvidence, ['RUN-052']);
+        assert.deepStrictEqual(capability.targets.codex.notes, [
+            'Runtime integrations require harness evidence.',
+        ]);
         assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
         assert.strictEqual(data.targetCapabilitySupport.entries, 30);
         const codexTargetSupport = data.targetCapabilitySupport.targets.find(

@@ -14,7 +14,9 @@ import {
     CapabilityAgentPluginManifest,
     CapabilityDiagnosticSeverity,
     CapabilityMetadata,
+    CapabilityTargetDeclaration,
     CapabilityWarning,
+    TargetCapabilitySupportStatus,
 } from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
@@ -57,7 +59,7 @@ type CanonicalCapabilityFields = {
     lifecycle?: string;
     owners?: string[];
     components?: Record<string, string[]>;
-    targets?: Record<string, { enabled?: boolean }>;
+    targets?: Record<string, CapabilityTargetDeclaration>;
     packages?: string[];
     description?: string;
     summary?: string;
@@ -65,6 +67,15 @@ type CanonicalCapabilityFields = {
     experimental?: boolean;
     agentPlugin?: boolean;
 };
+
+const TARGET_SUPPORT_STATUSES = new Set<TargetCapabilitySupportStatus>([
+    'supported',
+    'partial',
+    'unsupported',
+    'runtime-only',
+    'requires-policy-grant',
+    'generated-substitute',
+]);
 
 function parseBooleanField(value: string | undefined): boolean | undefined {
     const normalized = value?.trim().toLowerCase();
@@ -374,12 +385,12 @@ function normalizeStringArrayRecord(value: unknown): Record<string, string[]> | 
 
 function normalizeTargetDeclarationRecord(
     value: unknown,
-): Record<string, { enabled?: boolean }> | undefined {
+): Record<string, CapabilityTargetDeclaration> | undefined {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return undefined;
     }
 
-    const normalized: Record<string, { enabled?: boolean }> = {};
+    const normalized: Record<string, CapabilityTargetDeclaration> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
         const normalizedKey = key.trim();
         if (!normalizedKey || !entry || typeof entry !== 'object' || Array.isArray(entry)) {
@@ -389,8 +400,41 @@ function normalizeTargetDeclarationRecord(
         if (entryObject.enabled !== undefined && typeof entryObject.enabled !== 'boolean') {
             return undefined;
         }
+        const support =
+            typeof entryObject.support === 'string'
+                ? (entryObject.support.trim() as TargetCapabilitySupportStatus)
+                : undefined;
+        if (
+            entryObject.support !== undefined &&
+            (!support || !TARGET_SUPPORT_STATUSES.has(support))
+        ) {
+            return undefined;
+        }
+        const requiredPolicyGrants =
+            entryObject.requiredPolicyGrants === undefined
+                ? []
+                : normalizeStringArray(entryObject.requiredPolicyGrants);
+        if (!requiredPolicyGrants) {
+            return undefined;
+        }
+        const validationEvidence =
+            entryObject.validationEvidence === undefined
+                ? []
+                : normalizeStringArray(entryObject.validationEvidence);
+        if (!validationEvidence) {
+            return undefined;
+        }
+        const notes =
+            entryObject.notes === undefined ? [] : normalizeStringArray(entryObject.notes);
+        if (!notes) {
+            return undefined;
+        }
         normalized[normalizedKey] = {
             ...(typeof entryObject.enabled === 'boolean' ? { enabled: entryObject.enabled } : {}),
+            ...(support ? { support } : {}),
+            requiredPolicyGrants,
+            validationEvidence,
+            notes,
         };
     }
 

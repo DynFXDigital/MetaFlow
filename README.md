@@ -131,6 +131,7 @@ MetaFlow can also treat a capability as an agent-plugin-compatible manifest when
 When `.metaflow/capability.json` exists inside a capability directory, MetaFlow loads structured capability identity from it before falling back to root `CAPABILITY.md`. Root `CAPABILITY.md` remains supported for existing metadata repositories and compatibility stubs.
 
 - Set `agentPlugin: true` in `CAPABILITY.md` frontmatter, or set `agentPlugin: true` or `kind: "agent-plugin"` in `.metaflow/capability.json`.
+- Use `.metaflow/capability.json` `targets.<target>` declarations to describe capability-level target support posture, required policy grants, validation evidence, and review notes for Codex, GitHub Copilot, or other known target adapters.
 - Place a `plugin.json` file beside `CAPABILITY.md` at the capability root.
 - MetaFlow validates the embedded plugin manifest and surfaces errors or warnings in the normal Problems and diagnostics flows.
 - Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.

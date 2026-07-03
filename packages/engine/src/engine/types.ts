@@ -92,6 +92,14 @@ export type CapabilityComponentReferences = Record<string, string[]>;
 export interface CapabilityTargetDeclaration {
     /** Whether this target is enabled for the capability. */
     enabled?: boolean;
+    /** Capability-level support posture for this target. */
+    support?: TargetCapabilitySupportStatus;
+    /** Policy grants required before this target claim is operational. */
+    requiredPolicyGrants: string[];
+    /** Evidence references supporting this target claim. */
+    validationEvidence: string[];
+    /** Support, lossiness, or operational notes for this target claim. */
+    notes: string[];
 }
 
 /** Canonical target declarations keyed by target id. */

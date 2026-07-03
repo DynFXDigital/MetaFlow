@@ -77,17 +77,43 @@ function summarizeStringArrayRecord(record: Record<string, string[]> | undefined
 }
 
 function summarizeTargetDeclarations(
-    targets: Record<string, { enabled?: boolean }> | undefined,
+    targets:
+        | Record<
+              string,
+              {
+                  enabled?: boolean;
+                  support?: string;
+                  requiredPolicyGrants?: string[];
+                  validationEvidence?: string[];
+                  notes?: string[];
+              }
+          >
+        | undefined,
 ): string[] {
     if (!targets) {
         return [];
     }
     return Object.entries(targets)
         .map(([targetId, declaration]) => {
+            const parts: string[] = [];
             if (declaration.enabled === undefined) {
-                return targetId;
+                parts.push(targetId);
+            } else {
+                parts.push(`${targetId}=${declaration.enabled ? 'enabled' : 'disabled'}`);
             }
-            return `${targetId}=${declaration.enabled ? 'enabled' : 'disabled'}`;
+            if (declaration.support) {
+                parts.push(`support=${declaration.support}`);
+            }
+            if (declaration.requiredPolicyGrants && declaration.requiredPolicyGrants.length > 0) {
+                parts.push(`grants=${declaration.requiredPolicyGrants.join(',')}`);
+            }
+            if (declaration.validationEvidence && declaration.validationEvidence.length > 0) {
+                parts.push(`evidence=${declaration.validationEvidence.join(',')}`);
+            }
+            if (declaration.notes && declaration.notes.length > 0) {
+                parts.push(`notes=${declaration.notes.length}`);
+            }
+            return parts.join(' ');
         })
         .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
 }

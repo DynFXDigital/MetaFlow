@@ -5738,7 +5738,10 @@ describe('Engine: synchronizer advanced', () => {
                 },
                 packages: ['missing-package'],
                 targets: {
-                    'future-agent': { enabled: true },
+                    'future-agent': {
+                        enabled: true,
+                        requiredPolicyGrants: ['missing-target-grant'],
+                    },
                 },
             }),
             'utf-8',
@@ -5755,6 +5758,7 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('CANONICAL_CAPABILITY_COMPONENT_KIND_UNKNOWN'));
         assert.ok(codes.includes('CANONICAL_CAPABILITY_PACKAGE_UNKNOWN'));
         assert.ok(codes.includes('CANONICAL_CAPABILITY_TARGET_UNKNOWN'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_TARGET_POLICY_GRANT_UNKNOWN'));
     });
 
     it('reports package target capability matrix compatibility warnings', () => {

@@ -6,6 +6,7 @@
 
 - `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.
 - Target-aware lifecycle output for `metaflow status`, `metaflow validate`, `metaflow apply`, and `metaflow clean`, including target support summaries and `[codex]`-style mutation labels from managed projection metadata.
+- `metaflow status` now displays capability-level target support posture, policy grants, validation evidence, and review-note counts from `.metaflow/capability.json`.
 
 ## 0.3.2
 

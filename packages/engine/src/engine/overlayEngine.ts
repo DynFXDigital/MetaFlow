@@ -756,7 +756,7 @@ function validateCapabilityLayerDeclarations(
     const manifestPath = capability.manifestPath;
     validateCapabilityComponentReferences(capability, referenceIndex, manifestPath);
     validateCapabilityPackageReferences(capability, referenceIndex.packages, manifestPath);
-    validateCapabilityTargetDeclarations(capability, manifestPath);
+    validateCapabilityTargetDeclarations(capability, referenceIndex, manifestPath);
 }
 
 function validateCapabilityComponentReferences(
@@ -817,6 +817,7 @@ function validateCapabilityPackageReferences(
 
 function validateCapabilityTargetDeclarations(
     capability: CapabilityMetadata,
+    referenceIndex: CapabilityReferenceIndex,
     manifestPath: string,
 ): void {
     if (!capability.targets) {
@@ -837,6 +838,18 @@ function validateCapabilityTargetDeclarations(
                     manifestPath,
                 ),
             );
+        }
+        for (const grantId of capability.targets[targetId].requiredPolicyGrants) {
+            if (!referenceIndex.policyGrants.has(grantId)) {
+                capability.warnings.push(
+                    capabilityWarning(
+                        'CANONICAL_CAPABILITY_TARGET_POLICY_GRANT_UNKNOWN',
+                        `.metaflow/capability.json targets.${targetId}.requiredPolicyGrants references unknown policy grant "${grantId}".`,
+                        manifestPath,
+                        'error',
+                    ),
+                );
+            }
         }
     }
 }

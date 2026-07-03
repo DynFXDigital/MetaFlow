@@ -640,7 +640,13 @@ describe('capabilityManifest parser', () => {
                     packages: ['codex-metadata-authoring'],
                 },
                 targets: {
-                    codex: { enabled: true },
+                    codex: {
+                        enabled: true,
+                        support: 'partial',
+                        requiredPolicyGrants: ['github-pr-read'],
+                        validationEvidence: ['RUN-052'],
+                        notes: ['Runtime integrations require harness evidence.'],
+                    },
                     'github-copilot': { enabled: false },
                 },
                 packages: ['codex-metadata-authoring'],
@@ -667,8 +673,19 @@ describe('capabilityManifest parser', () => {
             packages: ['codex-metadata-authoring'],
         });
         assert.deepStrictEqual(parsed.targets, {
-            codex: { enabled: true },
-            'github-copilot': { enabled: false },
+            codex: {
+                enabled: true,
+                support: 'partial',
+                requiredPolicyGrants: ['github-pr-read'],
+                validationEvidence: ['RUN-052'],
+                notes: ['Runtime integrations require harness evidence.'],
+            },
+            'github-copilot': {
+                enabled: false,
+                requiredPolicyGrants: [],
+                validationEvidence: [],
+                notes: [],
+            },
         });
         assert.deepStrictEqual(parsed.packages, ['codex-metadata-authoring']);
         assert.strictEqual(parsed.description, 'Helps agents author Codex-compatible metadata.');
