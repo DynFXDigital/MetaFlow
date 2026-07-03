@@ -2259,6 +2259,28 @@ describe('CLI: codex-support-boundaries', () => {
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
         assert.strictEqual(data.runtimeOnlyCount, 2);
+        assert.ok(
+            data.fileBackedRows.some(
+                (entry: { target: string; concept: string; support: string }) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'skills' &&
+                    entry.support === 'supported',
+            ),
+        );
+        assert.deepStrictEqual(
+            data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
+            ['issuePrOperation', 'localCloudHandoff'],
+        );
+        assert.ok(
+            data.notAchievableByRepositoryProjection.some((item: string) =>
+                item.includes('Creating Codex Cloud environments'),
+            ),
+        );
+        assert.ok(
+            data.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Cloud or channel delegation'),
+            ),
+        );
         assert.deepStrictEqual(data.relatedGuides, [
             'docs/CODEX-SUPPORT.md',
             'docs/CODEX-OPERATOR-WALKTHROUGH.md',
@@ -2322,6 +2344,8 @@ describe('CLI: codex-support-boundaries', () => {
         const data = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
         assert.strictEqual(data.runtimeOnlyCount, 2);
+        assert.strictEqual(data.runtimeOnlyRows.length, 2);
+        assert.ok(data.notAchievableByRepositoryProjection.length > 0);
     });
 
     it('rejects Codex support boundary output paths outside the workspace', async () => {

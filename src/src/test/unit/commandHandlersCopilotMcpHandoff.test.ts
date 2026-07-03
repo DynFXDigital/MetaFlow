@@ -235,6 +235,28 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             'metaflow extension codex-support-boundaries',
         );
         assert.strictEqual(document.runtimeOnlyCount, 2);
+        assert.ok(
+            document.fileBackedRows.some(
+                (entry: { target: string; concept: string; support: string }) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'skills' &&
+                    entry.support === 'supported',
+            ),
+        );
+        assert.deepStrictEqual(
+            document.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
+            ['issuePrOperation', 'localCloudHandoff'],
+        );
+        assert.ok(
+            document.notAchievableByRepositoryProjection.some((item: string) =>
+                item.includes('Creating Codex Cloud environments'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Cloud or channel delegation'),
+            ),
+        );
         assert.ok(document.content.includes('# Codex Support Boundaries'));
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
         assert.ok(document.content.includes('localCloudHandoff'));

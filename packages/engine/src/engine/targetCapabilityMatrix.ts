@@ -15,6 +15,10 @@ const GITHUB_COPILOT_ADAPTER_VERSION = 'github-copilot-v0.1';
 export interface CodexSupportBoundariesDocument {
     generatedBy: string;
     runtimeOnlyCount: number;
+    fileBackedRows: TargetCapabilityMatrixEntry[];
+    runtimeOnlyRows: TargetCapabilityMatrixEntry[];
+    notAchievableByRepositoryProjection: string[];
+    runtimeEvidenceExpected: string[];
     relatedGuides: string[];
     content: string;
 }
@@ -489,6 +493,20 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
         'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
     ];
+    const notAchievableByRepositoryProjection = [
+        'Creating or approving ChatGPT workspace connectors.',
+        'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
+        'Creating Codex Cloud environments or setting cloud task secrets.',
+        'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
+        'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
+        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, or remote MCP behavior without a harness-native run.',
+    ];
+    const runtimeEvidenceExpected = [
+        'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
+        'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
+        'MCP runtime: startup, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
+        'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
+    ];
     const lines: string[] = [
         '# Codex Support Boundaries',
         '',
@@ -526,19 +544,11 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         '## Not Achievable By Repository Projection Alone',
         '',
-        '- Creating or approving ChatGPT workspace connectors.',
-        '- Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
-        '- Creating Codex Cloud environments or setting cloud task secrets.',
-        '- Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
-        '- Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
-        '- Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, or remote MCP behavior without a harness-native run.',
+        ...notAchievableByRepositoryProjection.map((item) => `- ${item}`),
         '',
         '## Runtime Evidence Expected',
         '',
-        '- Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
-        '- Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
-        '- MCP runtime: startup, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
-        '- Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
+        ...runtimeEvidenceExpected.map((item) => `- ${item}`),
         '',
         '## Related Operator Guides',
         '',
@@ -549,6 +559,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
     return {
         generatedBy,
         runtimeOnlyCount: runtimeOnlyRows.length,
+        fileBackedRows: supportedRows,
+        runtimeOnlyRows,
+        notAchievableByRepositoryProjection,
+        runtimeEvidenceExpected,
         relatedGuides,
         content: `${lines.join('\n')}\n`,
     };
