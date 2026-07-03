@@ -454,6 +454,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-081'],
     ),
     row(
+        'modelProviderRuntime',
+        'runtime-only',
+        [
+            'Codex model provider selection',
+            'amazon-bedrock model provider',
+            '~/.codex/config.toml model_provider',
+            '~/.codex/.env provider credentials',
+            'AWS IAM or Bedrock API key authentication',
+        ],
+        [
+            'Codex model-provider selection is user or environment runtime configuration and is not safe project metadata projection.',
+            'Repository metadata can describe provider intent and evidence requirements, but it cannot select the active Codex model provider, write user-global config or credential files, configure AWS IAM or Bedrock API keys, choose AWS Regions, grant model access, restart apps or extensions, or prove provider routing.',
+            'Amazon Bedrock support is local-workflow provider routing; OpenAI-hosted cloud services, hosted tools, cloud-managed discovery, Fast Mode, and ChatGPT-authenticated connector behavior require separate runtime evidence.',
+        ],
+        [
+            'Model-provider configuration can route code and prompts through external provider infrastructure, expose AWS identity and billing posture, require regional model availability, depend on local environment inheritance, and change which hosted Codex features are available.',
+        ],
+        ['RUN-083'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -992,6 +1012,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-081'],
     ),
     row(
+        'modelProviderRuntime',
+        'unsupported',
+        ['Codex amazon-bedrock model provider'],
+        [
+            'Codex model-provider selection, including Amazon Bedrock, is a Codex runtime configuration surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot and Agent HQ model routing, entitlement, and organization policy must be represented through GitHub-specific provider, policy, or runtime evidence rather than Codex provider metadata.',
+        ],
+        ['Provider routing authority must be represented through the target harness controls.'],
+        ['RUN-083'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1270,6 +1301,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating Appshots, selecting or capturing the frontmost window, granting macOS Screen & System Audio Recording or Accessibility permissions, attaching appshots to the intended Codex thread, or proving appshot-thread behavior from repository metadata alone.',
         'Recording UI actions or window content, generating or refining Record & Replay skills, enabling Computer Use, or proving replay behavior from repository metadata alone.',
         'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
+        'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1292,6 +1324,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Appshots runtime: Codex app and macOS host identity, Appshots hotkey or trigger path, frontmost app and window scope, Screen & System Audio Recording and Accessibility permission posture, captured image and available text review, thread destination behavior, sensitive-content review, and known limitations.',
         'Record & Replay runtime: Codex app version, macOS and region eligibility, Computer Use availability and policy, recorded workflow scope, generated skill artifact, replay environment, representative replay result, sensitive-data review, and known limitations.',
         'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
+        'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

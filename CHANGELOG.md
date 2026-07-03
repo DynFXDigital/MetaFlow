@@ -23,6 +23,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex operator guidance now spells out guarded native conflict ownership decisions for root/host files and the GitHub Copilot MCP handoff review workflow.
 - Codex prompt support now distinguishes canonical MetaFlow prompt metadata from deprecated local-only Codex custom prompts, and directs shared Codex workflows to skills.
 - Codex memory runtime support now distinguishes canonical `.metaflow/memory/**` boundary metadata from opt-in Codex Memories runtime state under the Codex home directory.
+- Codex model-provider runtime support now distinguishes provider intent from user-global provider config, AWS authentication, regional model availability, and provider routing proof.
 - Codex Appshots runtime support now distinguishes context-capture intent from Codex app frontmost-window image/text capture, macOS permission grants, session attachments, thread destination behavior, and runtime proof.
 - Codex Record & Replay and Import to Codex runtime support now distinguishes reusable workflow and import-review metadata from Codex app recording, generated skill creation, Computer Use replay, imported setup migration, connector authorization, and runtime proof.
 - Codex evaluation runtime support now distinguishes canonical `.metaflow/evaluation/**` evidence metadata from harness-native benchmark, reviewer-agent, CI, hosted trace, and runtime scoring execution evidence.

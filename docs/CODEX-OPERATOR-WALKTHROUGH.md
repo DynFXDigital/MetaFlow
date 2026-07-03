@@ -392,6 +392,10 @@ Runtime validation is required for:
 - Import to Codex source and item selection, generated Codex destinations,
   plugin or connector follow-up authorization, imported permission and MCP
   review, and imported setup proof.
+- Codex model-provider selection, provider config source, selected model, AWS
+  Region or provider endpoint, credential source, identity and permission
+  posture, local app or extension environment inheritance, representative
+  request behavior, unavailable hosted features, and known limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

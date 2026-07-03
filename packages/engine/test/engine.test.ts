@@ -192,6 +192,7 @@ describe('Engine package: public API', () => {
             'appshotsRuntime',
             'recordReplayRuntime',
             'importRuntime',
+            'modelProviderRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -479,6 +480,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexImportRuntime?.evidence.includes('RUN-081'),
             'Codex import runtime row should point to runtime-boundary evidence',
+        );
+        const codexModelProviderRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'modelProviderRuntime',
+        );
+        assert.strictEqual(codexModelProviderRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexModelProviderRuntime?.nativeSurfaces.includes('amazon-bedrock model provider'),
+            'Codex model provider row should name the Bedrock provider',
+        );
+        assert.ok(
+            codexModelProviderRuntime?.notes.some((note) =>
+                note.includes('cannot select the active Codex model provider'),
+            ),
+            'Codex model provider row should document provider selection boundary',
+        );
+        assert.ok(
+            codexModelProviderRuntime?.evidence.includes('RUN-083'),
+            'Codex model provider row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -991,17 +1010,28 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot import row should document unsupported Codex-only surface',
         );
+        const copilotModelProviderRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'modelProviderRuntime',
+        );
+        assert.strictEqual(copilotModelProviderRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotModelProviderRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot model provider row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 41,
+            runtimeOnlyCount: 42,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 25,
+                    runtimeOnlyCount: 26,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

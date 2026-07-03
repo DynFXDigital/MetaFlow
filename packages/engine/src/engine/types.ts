@@ -884,6 +884,7 @@ export type TargetCapabilityConcept =
     | 'appshotsRuntime'
     | 'recordReplayRuntime'
     | 'importRuntime'
+    | 'modelProviderRuntime'
     | 'cloudEnvironmentRuntime'
     | 'appConnectorRuntime'
     | 'localCloudHandoff'
