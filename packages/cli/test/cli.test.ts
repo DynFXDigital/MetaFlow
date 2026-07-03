@@ -605,6 +605,13 @@ describe('CLI: preview', () => {
                             args: ['run', 'gate:quick'],
                             successCriteria: 'Gate exits 0 with no failing tests.',
                             artifacts: ['doc/ftr/latest.md'],
+                            evidenceKind: 'harnessRuntime',
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Generated Codex metadata passes the release gate.',
+                            validationCommand: 'npm run gate:quick',
+                            evidence: ['RUN-060'],
+                            limitations: ['Hosted Codex Cloud execution is not covered.'],
                             policyGrants: ['github-pr-read'],
                             targets: ['codex'],
                         }),
@@ -749,13 +756,25 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Evaluation Profiles: 1'));
         assert.ok(
             textResult.stdout.includes(
-                'release-gate [regressionGate] command=npm artifacts=doc/ftr/latest.md',
+                'release-gate [regressionGate] command=npm artifacts=doc/ftr/latest.md evidenceKind=harnessRuntime harness=Codex CLI adapter=codex-v0.1',
             ),
         );
         assert.ok(textResult.stdout.includes('args: run gate:quick'));
         assert.ok(
             textResult.stdout.includes(
                 'successCriteria: Gate exits 0 with no failing tests.',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'scenario: Generated Codex metadata passes the release gate.',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('validationCommand: npm run gate:quick'));
+        assert.ok(textResult.stdout.includes('evidence: RUN-060'));
+        assert.ok(
+            textResult.stdout.includes(
+                'limitations: Hosted Codex Cloud execution is not covered.',
             ),
         );
         assert.ok(textResult.stdout.includes('Agent Profiles: 1'));
@@ -826,7 +845,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(
             textResult.stdout.includes(
-                'Codex evaluation profile release-gate (regressionGate) requires evaluation runner or check integration',
+                'Codex evaluation profile release-gate (regressionGate) requires evaluation runner or check integration. evidenceKind=harnessRuntime harness=Codex CLI adapter=codex-v0.1 scenario="Generated Codex metadata passes the release gate." limitations=Hosted Codex Cloud execution is not covered.',
             ),
         );
         assert.ok(
@@ -1017,6 +1036,18 @@ describe('CLI: preview', () => {
             'Gate exits 0 with no failing tests.',
         );
         assert.deepStrictEqual(data.evaluationProfiles[0].artifacts, ['doc/ftr/latest.md']);
+        assert.strictEqual(data.evaluationProfiles[0].evidenceKind, 'harnessRuntime');
+        assert.strictEqual(data.evaluationProfiles[0].harness, 'Codex CLI');
+        assert.strictEqual(data.evaluationProfiles[0].adapterVersion, 'codex-v0.1');
+        assert.strictEqual(
+            data.evaluationProfiles[0].scenario,
+            'Generated Codex metadata passes the release gate.',
+        );
+        assert.strictEqual(data.evaluationProfiles[0].validationCommand, 'npm run gate:quick');
+        assert.deepStrictEqual(data.evaluationProfiles[0].evidence, ['RUN-060']);
+        assert.deepStrictEqual(data.evaluationProfiles[0].limitations, [
+            'Hosted Codex Cloud execution is not covered.',
+        ]);
         assert.deepStrictEqual(data.evaluationProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.evaluationProfiles[0].targets, ['codex']);
         assert.strictEqual(data.evaluationProfiles[0].sourceLayer, 'primary/company/core');
@@ -1217,13 +1248,20 @@ describe('CLI: preview', () => {
         );
         assert.ok(
             codexAdapterReport.actionItems.some(
-                (item: { concept: string; metadataId: string; message: string }) =>
+                (item: { concept: string; metadataId: string; message: string; evidence: string[] }) =>
                     item.concept === 'evaluationSupport' &&
                     item.metadataId === 'release-gate' &&
-                    item.message.includes('evaluation runner or check integration'),
+                    item.message.includes('evaluation runner or check integration') &&
+                    item.message.includes('evidenceKind=harnessRuntime') &&
+                    item.message.includes('harness=Codex CLI') &&
+                    item.message.includes(
+                        'scenario="Generated Codex metadata passes the release gate."',
+                    ) &&
+                    item.evidence.includes('RUN-060'),
             ),
         );
         assert.ok(codexAdapterReport.evidence.includes('RUN-037'));
+        assert.ok(codexAdapterReport.evidence.includes('RUN-060'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-042'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-043'));
         assert.ok(codexAdapterReport.evidence.includes('RUN-044'));

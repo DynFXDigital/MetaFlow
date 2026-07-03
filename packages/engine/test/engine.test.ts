@@ -467,6 +467,13 @@ describe('Engine package: public API', () => {
                     args: ['run', 'gate:quick'],
                     successCriteria: 'Gate exits 0.',
                     artifacts: ['doc/ftr/latest.md'],
+                    evidenceKind: 'harnessRuntime',
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Generated Codex metadata passes the release gate.',
+                    validationCommand: 'npm run gate:quick',
+                    evidence: ['RUN-060'],
+                    limitations: ['Hosted Codex Cloud execution is not covered.'],
                     policyGrants: ['github-pr-read'],
                     targets: ['codex'],
                     warnings: [],
@@ -604,6 +611,19 @@ describe('Engine package: public API', () => {
                 (item) =>
                     item.concept === 'evaluationSupport' &&
                     item.evidence.includes('RUN-037'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'evaluationSupport' &&
+                    item.evidence.includes('RUN-060') &&
+                    item.message.includes('evidenceKind=harnessRuntime') &&
+                    item.message.includes('harness=Codex CLI') &&
+                    item.message.includes(
+                        'scenario="Generated Codex metadata passes the release gate."',
+                    ) &&
+                    item.message.includes('Hosted Codex Cloud execution is not covered.'),
             ),
         );
         assert.ok(
@@ -2442,6 +2462,13 @@ describe('Engine package: overlay pipeline', () => {
                 args: ['run', 'gate:quick'],
                 successCriteria: 'Gate exits 0 with no failing tests.',
                 artifacts: ['doc/ftr/latest.md'],
+                evidenceKind: 'harnessRuntime',
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Generated Codex metadata passes the release gate.',
+                validationCommand: 'npm run gate:quick',
+                evidence: ['RUN-060'],
+                limitations: ['Hosted Codex Cloud execution is not covered.'],
                 policyGrants: ['shell-test'],
                 targets: ['codex', 'github-copilot'],
                 description: 'Release gate evidence for agent-generated changes.',
@@ -2464,6 +2491,15 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(profile?.args, ['run', 'gate:quick']);
         assert.strictEqual(profile?.successCriteria, 'Gate exits 0 with no failing tests.');
         assert.deepStrictEqual(profile?.artifacts, ['doc/ftr/latest.md']);
+        assert.strictEqual(profile?.evidenceKind, 'harnessRuntime');
+        assert.strictEqual(profile?.harness, 'Codex CLI');
+        assert.strictEqual(profile?.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(profile?.scenario, 'Generated Codex metadata passes the release gate.');
+        assert.strictEqual(profile?.validationCommand, 'npm run gate:quick');
+        assert.deepStrictEqual(profile?.evidence, ['RUN-060']);
+        assert.deepStrictEqual(profile?.limitations, [
+            'Hosted Codex Cloud execution is not covered.',
+        ]);
         assert.deepStrictEqual(profile?.policyGrants, ['shell-test']);
         assert.deepStrictEqual(profile?.targets, ['codex', 'github-copilot']);
         assert.strictEqual(profile?.warnings.length, 0);
@@ -2479,6 +2515,13 @@ describe('Engine package: overlay pipeline', () => {
                 args: ['run', 42],
                 successCriteria: '',
                 artifacts: ['doc/ftr/latest.md', 42],
+                evidenceKind: 'hosted',
+                harness: '',
+                adapterVersion: '',
+                scenario: '',
+                validationCommand: '',
+                evidence: ['RUN-060', 42],
+                limitations: ['known', 42],
                 policyGrants: ['missing-grant'],
                 targets: ['codex', 42],
                 description: '',
@@ -2501,6 +2544,13 @@ describe('Engine package: overlay pipeline', () => {
                 'EVALUATION_PROFILE_ARGS_INVALID',
                 'EVALUATION_PROFILE_SUCCESS_CRITERIA_INVALID',
                 'EVALUATION_PROFILE_ARTIFACTS_INVALID',
+                'EVALUATION_PROFILE_EVIDENCE_KIND_INVALID',
+                'EVALUATION_PROFILE_HARNESS_INVALID',
+                'EVALUATION_PROFILE_ADAPTER_VERSION_INVALID',
+                'EVALUATION_PROFILE_SCENARIO_INVALID',
+                'EVALUATION_PROFILE_VALIDATION_COMMAND_INVALID',
+                'EVALUATION_PROFILE_EVIDENCE_INVALID',
+                'EVALUATION_PROFILE_LIMITATIONS_INVALID',
                 'EVALUATION_PROFILE_POLICY_GRANT_UNKNOWN',
                 'EVALUATION_PROFILE_TARGETS_INVALID',
                 'EVALUATION_PROFILE_DESCRIPTION_INVALID',

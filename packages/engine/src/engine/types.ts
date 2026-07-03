@@ -446,6 +446,9 @@ export type EvaluationType =
     | 'regressionGate'
     | 'reviewerAgent';
 
+/** Evidence boundary declared by a canonical evaluation profile. */
+export type EvaluationEvidenceKind = 'staticProjection' | 'harnessRuntime';
+
 /** Canonical MetaFlow evaluation profile metadata associated with a layer. */
 export interface EvaluationProfileMetadata {
     /** Stable evaluation profile identifier. */
@@ -462,6 +465,20 @@ export interface EvaluationProfileMetadata {
     successCriteria: string;
     /** Artifact paths, globs, or evidence references produced by this evaluation. */
     artifacts: string[];
+    /** Whether this profile validates static projection correctness or harness runtime behavior. */
+    evidenceKind?: EvaluationEvidenceKind;
+    /** Human-readable harness or surface tested, such as Codex CLI. */
+    harness?: string;
+    /** Adapter version or contract used during validation. */
+    adapterVersion?: string;
+    /** Scenario validated by the evaluation profile. */
+    scenario?: string;
+    /** Optional command or procedure used to validate the scenario. */
+    validationCommand?: string;
+    /** Evidence identifiers, paths, or external references. */
+    evidence?: string[];
+    /** Known limitations observed or expected during validation. */
+    limitations?: string[];
     /** Policy grants required before this evaluation is used. */
     policyGrants: string[];
     /** Target harnesses or adapters this evaluation profile applies to. */

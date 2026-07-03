@@ -158,10 +158,13 @@ function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
     const command = profile.command ? ` command=${profile.command}` : '';
     const artifacts =
         profile.artifacts.length > 0 ? ` artifacts=${profile.artifacts.join(',')}` : '';
+    const evidenceKind = profile.evidenceKind ? ` evidenceKind=${profile.evidenceKind}` : '';
+    const harness = profile.harness ? ` harness=${profile.harness}` : '';
+    const adapter = profile.adapterVersion ? ` adapter=${profile.adapterVersion}` : '';
     const grants =
         profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
     const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
-    return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+    return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${evidenceKind}${harness}${adapter}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
 function formatAgentProfile(profile: ResolvedAgentProfile): string {
@@ -578,6 +581,18 @@ export function registerPreviewCommand(program: Command): void {
                         }
                         if (profile.successCriteria) {
                             console.log(`    successCriteria: ${profile.successCriteria}`);
+                        }
+                        if (profile.scenario) {
+                            console.log(`    scenario: ${profile.scenario}`);
+                        }
+                        if (profile.validationCommand) {
+                            console.log(`    validationCommand: ${profile.validationCommand}`);
+                        }
+                        if (profile.evidence && profile.evidence.length > 0) {
+                            console.log(`    evidence: ${profile.evidence.join(',')}`);
+                        }
+                        if (profile.limitations && profile.limitations.length > 0) {
+                            console.log(`    limitations: ${profile.limitations.join('; ')}`);
                         }
                         for (const warning of profile.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';

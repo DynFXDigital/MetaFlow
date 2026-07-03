@@ -235,6 +235,13 @@ This handoff is not a Codex MCP projection. Codex MCP configuration remains in
 
 ## Record Runtime Validation
 
+Use `.metaflow/evaluation/*.json` evaluation profiles to describe capability
+checks that apply beyond a single package. Evaluation profiles distinguish
+`staticProjection` evidence from `harnessRuntime` evidence and can record the
+tested harness, adapter version, scenario, validation command, evidence
+references, and known limitations. `metaflow preview` and adapter readiness
+reports surface those fields without executing the evaluation.
+
 Use `.metaflow/packages/*.json` `runtimeValidation` records for claims that
 depend on a harness run. Each record identifies the target, harness, adapter
 version, scenario, status, validation command, target capability concepts,

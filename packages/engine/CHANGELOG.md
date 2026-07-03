@@ -16,6 +16,7 @@
 - Parse package runtime validation concept links and warn on unknown target capability concept IDs.
 - Surface package runtime validation concept links in adapter readiness output and warn when those concepts are unsupported for the target.
 - Add issue/PR-native and always-on workflow orchestration surface values to canonical execution profiles.
+- Add static-projection versus harness-runtime evidence metadata to canonical evaluation profiles and adapter readiness output.
 - Identify `.metaflow/packages/*.json` as the canonical package metadata surface in package-manifest target capability matrix rows.
 - Parse canonical `.metaflow/skills/<skill-id>/skill.json` metadata for skill identity, entrypoint, routing tags, risk posture, target constraints, and package reference validation.
 - Parse same-name `.metaflow/instructions/*.json` and `.metaflow/prompts/*.json` metadata for content identity, entrypoint, routing tags, risk posture, target constraints, and package reference validation.

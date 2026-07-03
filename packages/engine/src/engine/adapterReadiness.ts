@@ -253,12 +253,22 @@ export function buildAdapterReadinessReports(
         }
 
         for (const profile of targetEvaluationProfiles) {
+            const evidenceKind = profile.evidenceKind ? ` evidenceKind=${profile.evidenceKind}` : '';
+            const harness = profile.harness ? ` harness=${profile.harness}` : '';
+            const adapter = profile.adapterVersion ? ` adapter=${profile.adapterVersion}` : '';
+            const scenario = profile.scenario ? ` scenario="${profile.scenario}"` : '';
+            const profileEvidence = profile.evidence ?? [];
+            const profileLimitations = profile.limitations ?? [];
+            const limitations =
+                profileLimitations.length > 0
+                    ? ` limitations=${profileLimitations.join('; ')}`
+                    : '';
             actionItems.push(
                 action(
                     'evaluationSupport',
                     profile.id,
-                    `${label} evaluation profile ${profile.id} (${profile.evaluationType}) requires evaluation runner or check integration.`,
-                    rowEvidence(evaluationRow),
+                    `${label} evaluation profile ${profile.id} (${profile.evaluationType}) requires evaluation runner or check integration.${evidenceKind}${harness}${adapter}${scenario}${limitations}`,
+                    uniqueSorted([...rowEvidence(evaluationRow), ...profileEvidence]),
                 ),
             );
         }

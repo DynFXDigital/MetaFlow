@@ -10,6 +10,7 @@ import * as path from 'path';
 import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    EvaluationEvidenceKind,
     EvaluationProfileMetadata,
     EvaluationType,
 } from './types';
@@ -26,6 +27,13 @@ const KNOWN_FIELDS = new Set([
     'args',
     'successCriteria',
     'artifacts',
+    'evidenceKind',
+    'harness',
+    'adapterVersion',
+    'scenario',
+    'validationCommand',
+    'evidence',
+    'limitations',
     'policyGrants',
     'targets',
     'description',
@@ -39,6 +47,10 @@ const EVALUATION_TYPE_VALUES = new Set<EvaluationType>([
     'regressionGate',
     'reviewerAgent',
 ]);
+const EVALUATION_EVIDENCE_KIND_VALUES = new Set<EvaluationEvidenceKind>([
+    'staticProjection',
+    'harnessRuntime',
+]);
 
 type EvaluationProfileFields = {
     schemaVersion?: unknown;
@@ -48,6 +60,13 @@ type EvaluationProfileFields = {
     args?: unknown;
     successCriteria?: unknown;
     artifacts?: unknown;
+    evidenceKind?: unknown;
+    harness?: unknown;
+    adapterVersion?: unknown;
+    scenario?: unknown;
+    validationCommand?: unknown;
+    evidence?: unknown;
+    limitations?: unknown;
     policyGrants?: unknown;
     targets?: unknown;
     description?: unknown;
@@ -126,6 +145,8 @@ function emptyEvaluationProfile(
         args: [],
         successCriteria: '',
         artifacts: [],
+        evidence: [],
+        limitations: [],
         policyGrants: [],
         targets: [],
         warnings,
@@ -277,6 +298,81 @@ export function parseEvaluationProfileContent(
         manifestPath,
         warnings,
     );
+    const evidenceKindText = parseNonEmptyString(fields.evidenceKind);
+    const evidenceKind = EVALUATION_EVIDENCE_KIND_VALUES.has(
+        evidenceKindText as EvaluationEvidenceKind,
+    )
+        ? (evidenceKindText as EvaluationEvidenceKind)
+        : undefined;
+    if (fields.evidenceKind !== undefined && !evidenceKind) {
+        warnings.push(
+            toWarning(
+                'EVALUATION_PROFILE_EVIDENCE_KIND_INVALID',
+                'Evaluation profile evidenceKind must be staticProjection or harnessRuntime when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+
+    const harness = parseNonEmptyString(fields.harness);
+    if (fields.harness !== undefined && !harness) {
+        warnings.push(
+            toWarning(
+                'EVALUATION_PROFILE_HARNESS_INVALID',
+                'Evaluation profile harness must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const adapterVersion = parseNonEmptyString(fields.adapterVersion);
+    if (fields.adapterVersion !== undefined && !adapterVersion) {
+        warnings.push(
+            toWarning(
+                'EVALUATION_PROFILE_ADAPTER_VERSION_INVALID',
+                'Evaluation profile adapterVersion must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const scenario = parseNonEmptyString(fields.scenario);
+    if (fields.scenario !== undefined && !scenario) {
+        warnings.push(
+            toWarning(
+                'EVALUATION_PROFILE_SCENARIO_INVALID',
+                'Evaluation profile scenario must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const validationCommand = parseNonEmptyString(fields.validationCommand);
+    if (fields.validationCommand !== undefined && !validationCommand) {
+        warnings.push(
+            toWarning(
+                'EVALUATION_PROFILE_VALIDATION_COMMAND_INVALID',
+                'Evaluation profile validationCommand must be a non-empty string when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+    }
+    const evidence = parseStringArray(
+        fields.evidence,
+        'evidence',
+        'EVALUATION_PROFILE_EVIDENCE_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const limitations = parseStringArray(
+        fields.limitations,
+        'limitations',
+        'EVALUATION_PROFILE_LIMITATIONS_INVALID',
+        manifestPath,
+        warnings,
+    );
     const policyGrants = parseStringArray(
         fields.policyGrants,
         'policyGrants',
@@ -324,6 +420,13 @@ export function parseEvaluationProfileContent(
         args,
         successCriteria: successCriteria ?? '',
         artifacts,
+        evidenceKind,
+        harness,
+        adapterVersion,
+        scenario,
+        validationCommand,
+        evidence,
+        limitations,
         policyGrants,
         targets,
         description,

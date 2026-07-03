@@ -12,6 +12,7 @@
 - Codex package maintainer guide documents the package metadata and marketplace export workflow used by `preview`, `target-support`, `codex-support-boundaries`, and `export-package-marketplace`.
 - Codex tool authority guide documents the `.metaflow/tools/*.json` metadata reviewed by `preview` and target support reports before any runtime tool claim is treated as operational.
 - `metaflow status` now displays capability-level target support posture, policy grants, validation evidence, and review-note counts from `.metaflow/capability.json`.
+- `metaflow preview` now reports canonical evaluation profile runtime evidence fields, including evidence kind, harness, adapter version, scenario, evidence references, and limitations.
 - `metaflow preview` now reports canonical `.metaflow/skills/<skill-id>/skill.json` metadata and validation warnings.
 - `metaflow preview` now reports canonical `.metaflow/instructions/*.json` and `.metaflow/prompts/*.json` metadata and validation warnings.
 
