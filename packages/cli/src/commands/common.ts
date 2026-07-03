@@ -22,6 +22,7 @@ import {
     McpServerMetadata,
     PackageManifestMetadata,
     PolicyGrantMetadata,
+    SkillMetadata,
     SurfacedFileConflict,
     TargetAdapterMetadata,
     ToolMetadata,
@@ -65,6 +66,11 @@ export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
 }
 
 export interface ResolvedAgentProfile extends AgentProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedSkill extends SkillMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -274,6 +280,17 @@ export function resolveAgentProfiles(
     return layers.flatMap((layer) =>
         (layer.agentProfiles ?? []).map((profile) => ({
             ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveSkills(config: MetaFlowConfig, workspaceRoot: string): ResolvedSkill[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.skills ?? []).map((skill) => ({
+            ...skill,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

@@ -46,6 +46,7 @@ import {
     renderCodexAgentProfileToml,
     renderGitHubCopilotAgentProfileMarkdown,
 } from './agentProfile';
+import { loadSkillsForLayer } from './skillManifest';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
 import { loadPackageManifestsForLayer, PackageReferenceIndex } from './packageManifest';
 import { loadToolsForLayer } from './toolManifest';
@@ -343,6 +344,7 @@ function buildLayerContent(
         knownPolicyGrantIds,
         knownMcpServerIds,
     );
+    const skills = loadSkillsForLayer(layerAbsPath);
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const tools = loadToolsForLayer(layerAbsPath, knownPolicyGrantIds);
     const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
@@ -352,6 +354,7 @@ function buildLayerContent(
         mcpServers,
         hooks,
         tools,
+        skills,
     );
     const packageManifests = loadPackageManifestsForLayer(
         layerAbsPath,
@@ -449,6 +452,7 @@ function buildLayerContent(
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         agentProfiles,
+        skills,
         codexProjectConfigs,
         targetAdapters,
         packageManifests,
@@ -467,10 +471,11 @@ function buildPackageReferenceIndex(
     mcpServers: { id: string }[],
     hooks: { id: string }[],
     tools: { id: string }[],
+    skills: { id: string }[] = [],
 ): PackageReferenceIndex {
     return {
         agents: idsFromMetadata(agentProfiles),
-        skills: idsFromPaths(files, skillIdFromPath),
+        skills: mergeIds(idsFromPaths(files, skillIdFromPath), idsFromMetadata(skills)),
         instructions: idsFromPaths(files, (filePath) =>
             markdownArtifactIdFromPath(filePath, 'instructions'),
         ),
@@ -485,6 +490,16 @@ function buildPackageReferenceIndex(
 
 function idsFromMetadata(items: { id: string }[]): Set<string> {
     return new Set(items.map((item) => item.id).filter(Boolean));
+}
+
+function mergeIds(...sets: Set<string>[]): Set<string> {
+    const merged = new Set<string>();
+    for (const set of sets) {
+        for (const id of set) {
+            merged.add(id);
+        }
+    }
+    return merged;
 }
 
 function idsFromPaths(
@@ -1206,8 +1221,13 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
                     return false;
                 }
                 const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
+                const skillManifestPath = path.join(skillsDir, entry.name, 'skill.json');
                 try {
-                    return fs.existsSync(skillPath) && fs.statSync(skillPath).isFile();
+                    return (
+                        (fs.existsSync(skillPath) && fs.statSync(skillPath).isFile()) ||
+                        (fs.existsSync(skillManifestPath) &&
+                            fs.statSync(skillManifestPath).isFile())
+                    );
                 } catch {
                     return false;
                 }

@@ -133,6 +133,7 @@ export {
     parseAgentProfileContent,
     renderCodexAgentProfileToml,
 } from './agentProfile';
+export { loadSkillsForLayer, parseSkillManifestContent, skillManifestConstants } from './skillManifest';
 export {
     codexProjectConfigConstants,
     codexProjectConfigDestination,
@@ -202,6 +203,8 @@ export type {
     PolicyGrantAuthorityCategory,
     PolicyGrantMetadata,
     RepoMetadata,
+    SkillMetadata,
+    SkillRisk,
     SurfacedFileConflict,
     SurfacedFileConflictSource,
     ArtifactClassification,

@@ -24,6 +24,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Target adapter validation now warns when managed concepts are unsupported or runtime-only in the current target capability matrix.
 - Package runtime validation now warns when records omit both a validation command and evidence references.
 - Target capability support reports now identify `.metaflow/packages/*.json` as the canonical package metadata surface for Codex and GitHub Copilot package-manifest rows.
+- Canonical skills can now include `.metaflow/skills/<skill-id>/skill.json` structured metadata while `SKILL.md` remains the projected Codex and GitHub Copilot skill body.
 
 ### Changed
 

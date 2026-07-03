@@ -461,6 +461,19 @@ describe('CLI: preview', () => {
                         content: '# Release Readiness',
                     },
                     {
+                        relativePath: '.metaflow/skills/release-readiness/skill.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.skill/v1',
+                            id: 'release-readiness',
+                            name: 'Release Readiness',
+                            entrypoint: 'SKILL.md',
+                            appliesTo: ['release', 'validation'],
+                            risk: 'governed',
+                            targets: ['codex', 'github-copilot'],
+                            description: 'Validates release evidence before publication.',
+                        }),
+                    },
+                    {
                         relativePath: canonicalInstructionPath,
                         content: '# Release Policy',
                     },
@@ -706,6 +719,15 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('description: Reviews implementation changes.'));
+        assert.ok(textResult.stdout.includes('Skill Manifests: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'release-readiness [Release Readiness] entrypoint=SKILL.md risk=governed appliesTo=release,validation targets=codex,github-copilot',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes('description: Validates release evidence before publication.'),
+        );
         assert.ok(textResult.stdout.includes('Codex Project Configs: 1'));
         assert.ok(
             textResult.stdout.includes(
@@ -845,6 +867,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
+        assert.strictEqual(data.summary.skills, 1);
         assert.strictEqual(data.summary.codexProjectConfigs, 1);
         assert.strictEqual(data.summary.targetAdapters, 1);
         assert.strictEqual(data.summary.adapterReports, 2);
@@ -939,6 +962,14 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.agentProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.agentProfiles[0].targets, ['codex']);
         assert.strictEqual(data.agentProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.skills[0].id, 'release-readiness');
+        assert.strictEqual(data.skills[0].name, 'Release Readiness');
+        assert.strictEqual(data.skills[0].entrypoint, 'SKILL.md');
+        assert.strictEqual(data.skills[0].risk, 'governed');
+        assert.deepStrictEqual(data.skills[0].appliesTo, ['release', 'validation']);
+        assert.deepStrictEqual(data.skills[0].targets, ['codex', 'github-copilot']);
+        assert.deepStrictEqual(data.skills[0].warnings, []);
+        assert.strictEqual(data.skills[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.codexProjectConfigs[0].id, 'default');
         assert.strictEqual(data.codexProjectConfigs[0].settings.model, 'gpt-5-codex');
         assert.strictEqual(data.codexProjectConfigs[0].settings.approvalPolicy, 'on-request');
@@ -975,6 +1006,9 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexSkillSupport.adapterVersion, 'codex-v0.1');
         assert.strictEqual(codexSkillSupport.support, 'supported');
+        assert.ok(
+            codexSkillSupport.nativeSurfaces.includes('.metaflow/skills/<skill-id>/skill.json'),
+        );
         assert.ok(
             codexSkillSupport.evidence.includes('RUN-030'),
             'Codex skill support should point to the live canonical consumer smoke',

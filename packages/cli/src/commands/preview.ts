@@ -26,6 +26,7 @@ import {
     resolveMemoryScopes,
     resolvePackageManifests,
     resolvePolicyGrants,
+    resolveSkills,
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
     resolveTools,
@@ -38,6 +39,7 @@ import {
     ResolvedEvaluationProfile,
     ResolvedMemoryScope,
     ResolvedPackageManifest,
+    ResolvedSkill,
     ResolvedTargetAdapter,
     ResolvedTool,
 } from './common';
@@ -172,6 +174,14 @@ function formatAgentProfile(profile: ResolvedAgentProfile): string {
     return `${profile.id || '<invalid>'} [${profile.name || '<missing name>'}]${model}${effort}${sandbox}${tools}${mcpServers}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
 }
 
+function formatSkill(skill: ResolvedSkill): string {
+    const name = skill.name ? ` [${skill.name}]` : '';
+    const risk = skill.risk ? ` risk=${skill.risk}` : '';
+    const appliesTo = skill.appliesTo.length > 0 ? ` appliesTo=${skill.appliesTo.join(',')}` : '';
+    const targets = skill.targets.length > 0 ? ` targets=${skill.targets.join(',')}` : '';
+    return `${skill.id || '<invalid>'}${name} entrypoint=${skill.entrypoint}${risk}${appliesTo}${targets} @ ${formatFileProvenance(skill.sourceLayer, skill.sourceRepo)}`;
+}
+
 function formatCodexProjectConfig(config: ResolvedCodexProjectConfig): string {
     const settings = config.settings;
     const model = settings.model ? ` model=${settings.model}` : '';
@@ -278,6 +288,7 @@ export function registerPreviewCommand(program: Command): void {
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
                 const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
+                const skills = resolveSkills(config, workspaceRoot);
                 const codexProjectConfigs = resolveCodexProjectConfigs(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
                 const packageManifests = resolvePackageManifests(config, workspaceRoot);
@@ -324,6 +335,7 @@ export function registerPreviewCommand(program: Command): void {
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
                             agentProfiles: agentProfiles.length,
+                            skills: skills.length,
                             codexProjectConfigs: codexProjectConfigs.length,
                             targetAdapters: targetAdapters.length,
                             packageManifests: packageManifests.length,
@@ -359,6 +371,7 @@ export function registerPreviewCommand(program: Command): void {
                         memoryScopes,
                         evaluationProfiles,
                         agentProfiles,
+                        skills,
                         codexProjectConfigs,
                         targetAdapters,
                         packageManifests,
@@ -385,6 +398,7 @@ export function registerPreviewCommand(program: Command): void {
                     memoryScopes.length === 0 &&
                     evaluationProfiles.length === 0 &&
                     agentProfiles.length === 0 &&
+                    skills.length === 0 &&
                     codexProjectConfigs.length === 0 &&
                     targetAdapters.length === 0 &&
                     packageManifests.length === 0 &&
@@ -567,6 +581,19 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    note: ${note}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (skills.length > 0) {
+                    console.log(`Skill Manifests: ${skills.length}`);
+                    for (const skill of skills) {
+                        console.log(`  - ${formatSkill(skill)}`);
+                        if (skill.description) {
+                            console.log(`    description: ${skill.description}`);
+                        }
+                        for (const warning of skill.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

@@ -42,6 +42,8 @@ export interface LayerContent {
     evaluationProfiles?: EvaluationProfileMetadata[];
     /** Agent profiles loaded from canonical MetaFlow agent manifests. */
     agentProfiles?: AgentProfileMetadata[];
+    /** Skills loaded from canonical MetaFlow skill manifests. */
+    skills?: SkillMetadata[];
     /** Codex project configurations loaded from canonical MetaFlow project-config manifests. */
     codexProjectConfigs?: CodexProjectConfigMetadata[];
     /** Target adapter preferences loaded from canonical MetaFlow target manifests. */
@@ -494,6 +496,33 @@ export interface AgentProfileMetadata {
     targets: string[];
     /** Optional user-facing notes about target support or projection constraints. */
     notes: string[];
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Risk posture declared by a canonical skill manifest. */
+export type SkillRisk = 'standard' | 'governed' | 'experimental';
+
+/** Canonical MetaFlow skill metadata associated with a layer. */
+export interface SkillMetadata {
+    /** Stable skill identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied skill metadata. */
+    manifestPath: string;
+    /** Absolute path to the skill directory containing skill.json and SKILL.md. */
+    skillDirectory: string;
+    /** Optional user-facing skill name. */
+    name?: string;
+    /** Markdown entrypoint for target skill projection. */
+    entrypoint: string;
+    /** Optional authoring or routing tags. */
+    appliesTo: string[];
+    /** Optional risk posture for review and packaging. */
+    risk?: SkillRisk;
+    /** Target harnesses or adapters this skill applies to. */
+    targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
     warnings: CapabilityWarning[];
 }

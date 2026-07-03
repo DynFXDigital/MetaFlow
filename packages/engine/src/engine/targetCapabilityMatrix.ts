@@ -54,7 +54,11 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'skills',
         'supported',
-        ['.agents/skills/<skill-id>/SKILL.md'],
+        [
+            '.metaflow/skills/<skill-id>/skill.json',
+            '.metaflow/skills/<skill-id>/SKILL.md',
+            '.agents/skills/<skill-id>/SKILL.md',
+        ],
         [
             'Canonical MetaFlow skills project to Codex repository skills without known semantic loss.',
         ],
@@ -233,7 +237,12 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'skills',
         'supported',
-        ['skills/<skill-id>/SKILL.md', '.github/skills/**'],
+        [
+            '.metaflow/skills/<skill-id>/skill.json',
+            '.metaflow/skills/<skill-id>/SKILL.md',
+            'skills/<skill-id>/SKILL.md',
+            '.github/skills/**',
+        ],
         ['Canonical MetaFlow skills project to Copilot skill packaging paths.'],
         [],
         ['RUN-028', 'RUN-029'],

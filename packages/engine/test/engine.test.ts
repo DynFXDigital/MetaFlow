@@ -62,6 +62,7 @@ import {
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
     parseAgentProfileContent,
+    parseSkillManifestContent,
     parseCodexProjectConfigContent,
     parseTargetAdapterContent,
     parseToolContent,
@@ -156,6 +157,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
         assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
         assert.strictEqual(typeof parseAgentProfileContent, 'function');
+        assert.strictEqual(typeof parseSkillManifestContent, 'function');
         assert.strictEqual(typeof parseCodexProjectConfigContent, 'function');
         assert.strictEqual(typeof parseTargetAdapterContent, 'function');
         assert.strictEqual(typeof parseToolContent, 'function');
@@ -198,6 +200,10 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexSkills?.nativeSurfaces.includes('.agents/skills/<skill-id>/SKILL.md'),
             'Codex skills row should name the generated repository skill surface',
+        );
+        assert.ok(
+            codexSkills?.nativeSurfaces.includes('.metaflow/skills/<skill-id>/skill.json'),
+            'Codex skills row should name the structured canonical skill metadata surface',
         );
 
         const codexPolicy = matrix.find(
@@ -5806,6 +5812,95 @@ describe('Engine: synchronizer advanced', () => {
         const state = loadManagedState(tmpDir);
         assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, canonicalSkillPath);
         assert.strictEqual(state.files[codexSkillPath]?.projectionTarget, 'codex');
+    });
+
+    it('loads structured canonical skill metadata without changing SKILL.md projection', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        const skillDir = path.join(layerDir, '.metaflow', 'skills', 'release-readiness');
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Release Readiness', 'utf-8');
+        fs.writeFileSync(
+            path.join(skillDir, 'skill.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.skill/v1',
+                id: 'release-readiness',
+                name: 'Release Readiness',
+                entrypoint: 'SKILL.md',
+                appliesTo: ['release', 'validation'],
+                risk: 'governed',
+                targets: ['codex', 'github-copilot'],
+                description: 'Checks release evidence before publication.',
+            }),
+            'utf-8',
+        );
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'packages'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'packages', 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                skills: ['release-readiness'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers[0].skills?.length, 1);
+        assert.strictEqual(layers[0].skills?.[0].id, 'release-readiness');
+        assert.strictEqual(layers[0].skills?.[0].name, 'Release Readiness');
+        assert.strictEqual(layers[0].skills?.[0].risk, 'governed');
+        assert.deepStrictEqual(layers[0].skills?.[0].appliesTo, ['release', 'validation']);
+        assert.deepStrictEqual(layers[0].skills?.[0].warnings, []);
+
+        const packageWarnings = layers[0].packageManifests?.[0].warnings ?? [];
+        assert.ok(
+            !packageWarnings.some((warning) => warning.code === 'PACKAGE_SKILL_UNKNOWN'),
+            'package references should resolve against structured skill metadata',
+        );
+
+        const fileMap = buildEffectiveFileMap(layers);
+        assert.ok(fileMap.has('skills/release-readiness/SKILL.md'));
+        assert.ok(fileMap.has('.agents/skills/release-readiness/SKILL.md'));
+        assert.ok(
+            !fileMap.has('skills/release-readiness/skill.json'),
+            'structured skill metadata should not be projected as target skill content',
+        );
+    });
+
+    it('reports structured skill metadata warnings', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const skillDir = path.join(repoDir, 'core', '.metaflow', 'skills', 'release-readiness');
+        fs.mkdirSync(skillDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(skillDir, 'skill.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.skill/v1',
+                id: 'release-helper',
+                entrypoint: 'README.md',
+                risk: 'unknown',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const codes = layers[0].skills?.[0].warnings.map((warning) => warning.code) ?? [];
+        assert.ok(codes.includes('SKILL_ID_PATH_MISMATCH'));
+        assert.ok(codes.includes('SKILL_ENTRYPOINT_UNSUPPORTED'));
+        assert.ok(codes.includes('SKILL_ENTRYPOINT_MISSING'));
+        assert.ok(codes.includes('SKILL_RISK_INVALID'));
     });
 
     it('validates package component references against canonical layer metadata', () => {
