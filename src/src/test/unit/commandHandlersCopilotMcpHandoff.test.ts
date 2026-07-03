@@ -522,6 +522,9 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
         );
+        assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
+        assert.ok(document.content.includes('- Evidence without diagnostics: none'));
+        assert.ok(document.content.includes('- Evidence with diagnostics: none'));
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item: {

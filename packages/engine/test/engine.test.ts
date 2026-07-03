@@ -1354,6 +1354,9 @@ describe('Engine package: public API', () => {
             ),
         );
         assert.ok(document.content.includes('## Runtime Evidence Coverage Summary'));
+        assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
+        assert.ok(document.content.includes('- Evidence without diagnostics: none'));
+        assert.ok(document.content.includes('- Evidence with diagnostics: none'));
         assert.ok(document.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(
             document.content.includes(
@@ -1487,6 +1490,14 @@ describe('Engine package: public API', () => {
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
         assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 3 | 1 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(
+            document.content.includes(
+                '- Evidence with diagnostics: issuePrOperation, modelProviderRuntime, reviewRuntime',
+            ),
+        );
+        assert.ok(
+            document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
+        );
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

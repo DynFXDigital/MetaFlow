@@ -1665,6 +1665,10 @@ function hasRuntimeEvidenceDiagnosticSeverity(
     return record.warnings.some((warning) => (warning.severity ?? 'warning') === severity);
 }
 
+function formatRuntimeEvidenceConceptQueue(concepts: TargetCapabilityConcept[]): string {
+    return concepts.length > 0 ? concepts.join(', ') : 'none';
+}
+
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
     runtimeEvidenceRecords?: RuntimeEvidenceMetadata[];
@@ -1866,6 +1870,13 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records | Records with diagnostics | Records with error diagnostics | Concepts with diagnostics | Concepts with error diagnostics | Passed | Partial | Failed | Not run | Waived |',
         '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
         `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
+        '',
+        '## Runtime Evidence Review Queues',
+        '',
+        `- Missing evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.missing)}`,
+        `- Evidence without diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords)}`,
+        `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
+        `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
         '',
         '## Runtime Evidence Checklist By Concept',
         '',

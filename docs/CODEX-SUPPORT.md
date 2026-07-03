@@ -14,7 +14,10 @@ runtime evidence diagnostics by severity so warning-bearing or error-bearing
 proof does not appear as clean coverage. It also separates concepts that have
 evidence without diagnostics from concepts that have evidence with diagnostics,
 so runtime support can be reviewed without treating all recorded proof as
-equally ready.
+equally ready. The Markdown report includes runtime evidence review queues for
+missing evidence, clean evidence, diagnostic-bearing evidence, and
+error-diagnostic evidence so operators can triage the next runtime validation
+work without scanning every checklist row.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

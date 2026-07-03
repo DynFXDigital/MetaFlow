@@ -3005,6 +3005,9 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('ideExtensionRuntime'));
         assert.ok(result.stdout.includes('## Runtime Evidence Coverage Summary'));
         assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records |'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
+        assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
+        assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
         assert.ok(result.stdout.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(result.stdout.includes('Creating Codex Cloud environments'));
         assert.ok(result.stdout.includes('Enabling Codex Memories'));
@@ -3332,6 +3335,7 @@ describe('CLI: codex-support-boundaries', () => {
             'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
         ]);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
+        assert.ok(data.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(data.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });
@@ -3425,6 +3429,8 @@ describe('CLI: codex-support-boundaries', () => {
         );
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
         assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
+        assert.ok(data.content.includes('- Evidence without diagnostics: issuePrOperation'));
+        assert.ok(data.content.includes('- Evidence with diagnostics: none'));
     });
 
     it('surfaces stale local runtime evidence artifact references in Codex support boundaries', async () => {
@@ -3503,6 +3509,8 @@ describe('CLI: codex-support-boundaries', () => {
             data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords,
             ['issuePrOperation'],
         );
+        assert.ok(data.content.includes('- Evidence without diagnostics: none'));
+        assert.ok(data.content.includes('- Evidence with diagnostics: issuePrOperation'));
     });
 
     it('surfaces stale local runtime evidence artifact hashes in Codex support boundaries', async () => {
