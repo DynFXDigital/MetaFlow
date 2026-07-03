@@ -87,6 +87,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'recordReplayRuntime',
     'importRuntime',
     'modelProviderRuntime',
+    'windowsPlatformRuntime',
     'cloudEnvironmentRuntime',
     'appConnectorRuntime',
     'localCloudHandoff',

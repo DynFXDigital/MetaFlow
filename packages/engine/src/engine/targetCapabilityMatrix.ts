@@ -474,6 +474,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-083'],
     ),
     row(
+        'windowsPlatformRuntime',
+        'runtime-only',
+        [
+            'Codex Windows app',
+            'native Windows elevated sandbox',
+            'native Windows unelevated sandbox',
+            'windows.sandbox_private_desktop',
+            'WSL2 Linux sandbox',
+            '/sandbox-add-read-dir',
+        ],
+        [
+            'Codex Windows platform behavior is host runtime state across native Windows, fallback native sandboxing, and WSL2 execution.',
+            'Repository metadata can describe Windows platform intent and evidence requirements, but it cannot select the effective Windows sandbox, perform administrator-approved setup, change enterprise requirements, grant session read directories, move repositories into WSL2, verify ConPTY or winget availability, or prove sandbox enforcement.',
+            'WSL2 uses the Linux sandbox implementation and WSL1 is not supported by current Codex Linux sandbox behavior.',
+        ],
+        [
+            'Windows platform configuration controls filesystem boundaries, network isolation, private desktop behavior, administrator setup, enterprise policy compatibility, WSL repository location, and command access to local directories.',
+        ],
+        ['RUN-084'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1023,6 +1044,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-083'],
     ),
     row(
+        'windowsPlatformRuntime',
+        'unsupported',
+        ['Codex Windows app and Windows sandbox'],
+        [
+            'Codex Windows platform behavior is a Codex runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot Windows, WSL, Dev Container, or Codespaces behavior must be represented through GitHub-specific editor, execution, or environment concepts instead.',
+        ],
+        ['Windows platform authority must be represented through the target harness controls.'],
+        ['RUN-084'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1302,6 +1334,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Recording UI actions or window content, generating or refining Record & Replay skills, enabling Computer Use, or proving replay behavior from repository metadata alone.',
         'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
         'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
+        'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1325,6 +1358,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Record & Replay runtime: Codex app version, macOS and region eligibility, Computer Use availability and policy, recorded workflow scope, generated skill artifact, replay environment, representative replay result, sensitive-data review, and known limitations.',
         'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
         'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
+        'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

@@ -193,6 +193,7 @@ describe('Engine package: public API', () => {
             'recordReplayRuntime',
             'importRuntime',
             'modelProviderRuntime',
+            'windowsPlatformRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -498,6 +499,26 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexModelProviderRuntime?.evidence.includes('RUN-083'),
             'Codex model provider row should point to runtime-boundary evidence',
+        );
+        const codexWindowsPlatformRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'windowsPlatformRuntime',
+        );
+        assert.strictEqual(codexWindowsPlatformRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexWindowsPlatformRuntime?.nativeSurfaces.includes(
+                'native Windows elevated sandbox',
+            ),
+            'Codex Windows platform row should name the elevated sandbox',
+        );
+        assert.ok(
+            codexWindowsPlatformRuntime?.notes.some((note) =>
+                note.includes('cannot select the effective Windows sandbox'),
+            ),
+            'Codex Windows platform row should document sandbox selection boundary',
+        );
+        assert.ok(
+            codexWindowsPlatformRuntime?.evidence.includes('RUN-084'),
+            'Codex Windows platform row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -1021,17 +1042,28 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot model provider row should document unsupported Codex-only surface',
         );
+        const copilotWindowsPlatformRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'windowsPlatformRuntime',
+        );
+        assert.strictEqual(copilotWindowsPlatformRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotWindowsPlatformRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot Windows platform row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 42,
+            runtimeOnlyCount: 43,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 26,
+                    runtimeOnlyCount: 27,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
