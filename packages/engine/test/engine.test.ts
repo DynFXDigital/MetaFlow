@@ -192,6 +192,7 @@ describe('Engine package: public API', () => {
             'computerUseRuntime',
             'sitesRuntime',
             'evaluationSupport',
+            'evaluationRuntime',
         ];
         for (const target of ['codex', 'github-copilot']) {
             const rows = matrix.filter((entry) => entry.target === target);
@@ -392,6 +393,31 @@ describe('Engine package: public API', () => {
             copilotEvaluation?.evidence.includes('RUN-060'),
             'GitHub Copilot evaluation row should point to the runtime evidence metadata proof',
         );
+        const codexEvaluationRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'evaluationRuntime',
+        );
+        assert.strictEqual(codexEvaluationRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexEvaluationRuntime?.nativeSurfaces.includes('harness benchmark runs'),
+            'Codex evaluation runtime row should name benchmark runs',
+        );
+        assert.ok(
+            codexEvaluationRuntime?.notes.some((note) => note.includes('cannot execute benchmark tasks')),
+            'Codex evaluation runtime row should document repository projection boundary',
+        );
+        assert.ok(
+            codexEvaluationRuntime?.evidence.includes('RUN-068'),
+            'Codex evaluation runtime row should cite evaluation runtime boundary evidence',
+        );
+        const copilotEvaluationRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'evaluationRuntime',
+        );
+        assert.strictEqual(copilotEvaluationRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotEvaluationRuntime?.notes.some((note) => note.includes('cannot execute benchmark tasks')),
+            'GitHub Copilot evaluation runtime row should document repository projection boundary',
+        );
 
         const codexHandoff = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',
@@ -521,16 +547,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 16,
+            runtimeOnlyCount: 18,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 10,
+                    runtimeOnlyCount: 11,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 6,
+                    runtimeOnlyCount: 7,
                     documentation: 'README.md',
                 },
             ],

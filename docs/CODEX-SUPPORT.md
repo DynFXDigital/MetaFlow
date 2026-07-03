@@ -50,6 +50,7 @@ the service connection or prove the behavior.
 | Remote MCP reachability | Codex supports Streamable HTTP MCP configuration, but reachable endpoints, TLS behavior, hosted-agent network policy, and remote executor behavior are runtime concerns. | Project supported config fields where managed, and keep reachability and tool-call proof as validation evidence. |
 | OAuth MCP login | Codex supports OAuth metadata for MCP servers, but login, callback URLs, token handling, and account authorization are runtime concerns. | Project supported OAuth fields where managed, and keep login and callback proof as validation evidence. |
 | Side-effecting MCP tools | MCP tools can read or change external systems, and approval behavior depends on runtime tool authority. Static metadata cannot grant authority safely. | Require policy grants, approval posture, bounded tool-call proof, and audit evidence before package or adapter claims are treated as operational. |
+| Harness-native evaluation execution | Evaluation runs depend on the selected Codex runtime, repository checkout, model or agent identity, credentials, sandbox and tool policy, network access, scoring harness, and artifact retention. | Record evaluation intent and expected evidence in `.metaflow/evaluation/*.json`; require harness-native benchmark, reviewer-agent, smoke, CI, or hosted task evidence before treating runtime scoring as operational. |
 
 ## Not Technically Achievable By Repository Projection Alone
 
@@ -66,10 +67,12 @@ MetaFlow does not claim the following outcomes from generated repository files:
   authority merely because a package manifest references those capabilities.
 - Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and
   their app, website, OS, hosting, or workspace permissions.
+- Executing harness-native evaluations, benchmark tasks, reviewer-agent
+  scoring, hosted traces, or runtime scoring workflows.
 - Proving hosted Codex Cloud, Slack, Linear, GitHub review, remote MCP
   reachability, OAuth MCP login, side-effecting MCP behavior, browser
-  interaction, Chrome profile operation, desktop automation, or Sites
-  deployment without a harness-native run.
+  interaction, Chrome profile operation, desktop automation, Sites deployment,
+  or harness-native evaluation execution without a harness-native run.
 
 These are operator-owned or harness-owned runtime states. MetaFlow records the
 intent and validation requirements, then leaves the authority transition to the
@@ -90,6 +93,7 @@ Static projection support and runtime support use different evidence.
 | Tool runtime works | Tool manifest review, policy grant approval, target runtime configuration, approval behavior, and at least one bounded tool call in the intended environment. |
 | Codex memory runtime works | Enabled Codex memory settings, thread-level memory controls, generated memory artifact review, recall evidence, and known retention or sharing limits. |
 | Browser, Chrome, Computer Use, or Sites runtime works | Installed plugin or app state, approval scope, target site, app, or hosted project identity, representative operation, result, and known limitations. |
+| Evaluation runtime works | Selected Codex surface, repository checkout, model or agent identity, sandbox and tool policy, validation command, benchmark or scoring result, artifacts, traces where available, cost or data limits, and known limitations. |
 
 For the package maintainer workflow, see
 [Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md).

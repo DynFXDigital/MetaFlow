@@ -174,6 +174,13 @@ per-thread controls, so a memory claim needs enabled settings, generated memory
 artifact review, recall evidence, and known retention or sharing limits before
 operators treat it as operational.
 
+Evaluation metadata follows the same split. Canonical
+`.metaflow/evaluation/*.json` records expected checks, evidence, limitations,
+and target posture. Codex evaluation execution is a runtime activity: benchmark
+tasks, reviewer-agent scoring, hosted traces, CI or cloud runs, model or agent
+identity, sandbox and tool policy, artifacts, and cost or data limits require
+evidence from the target harness.
+
 ## Review Migration Candidates
 
 Use migration suggestions when a metadata repository still contains legacy or

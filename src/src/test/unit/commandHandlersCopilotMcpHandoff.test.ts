@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 16);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 18);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 10 &&
+                    target.runtimeOnlyCount === 11 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -242,7 +242,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 10);
+        assert.strictEqual(document.runtimeOnlyCount, 11);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -257,6 +257,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 'browserRuntime',
                 'chromeRuntime',
                 'computerUseRuntime',
+                'evaluationRuntime',
                 'issuePrOperation',
                 'localCloudHandoff',
                 'memoryRuntime',
@@ -284,6 +285,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('oauthMcpRuntime'));
         assert.ok(document.content.includes('sideEffectMcpRuntime'));
         assert.ok(document.content.includes('memoryRuntime'));
+        assert.ok(document.content.includes('evaluationRuntime'));
         assert.ok(document.content.includes('browserRuntime'));
         assert.ok(document.content.includes('chromeRuntime'));
         assert.ok(document.content.includes('computerUseRuntime'));

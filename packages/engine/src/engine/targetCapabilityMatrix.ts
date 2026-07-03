@@ -357,6 +357,19 @@ const CODEX_MATRIX: MatrixSeed[] = [
         [],
         ['RUN-027', 'RUN-030', 'RUN-037', 'RUN-060'],
     ),
+    row(
+        'evaluationRuntime',
+        'runtime-only',
+        ['Codex Cloud tasks', 'Codex CLI smoke runs', 'Codex GitHub Action', 'Codex SDK', 'harness benchmark runs'],
+        [
+            'Harness-native evaluation execution depends on the selected Codex runtime, repository checkout, credentials, sandbox, network, model, tool approvals, and evaluation harness configuration.',
+            'Repository metadata can describe evaluation profiles and expected evidence, but it cannot execute benchmark tasks, create hosted evaluation environments, invoke reviewer agents, collect traces, or prove scoring behavior by projection alone.',
+        ],
+        [
+            'Evaluation runtime execution can consume credentials, mutate test systems, incur cost, publish artifacts, or expose repository and task data to hosted services.',
+        ],
+        ['RUN-068'],
+    ),
 ];
 
 const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
@@ -634,6 +647,19 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         [],
         ['RUN-026', 'RUN-037', 'RUN-060'],
     ),
+    row(
+        'evaluationRuntime',
+        'runtime-only',
+        ['GitHub Copilot cloud agent', 'GitHub Agent HQ', 'GitHub Actions', 'harness benchmark runs'],
+        [
+            'Harness-native evaluation execution depends on the selected GitHub or Copilot runtime, repository checkout, credentials, runner permissions, model or agent selection, tool approvals, and evaluation harness configuration.',
+            'Repository metadata can describe evaluation profiles and expected evidence, but it cannot execute benchmark tasks, route cloud agents, collect traces, or prove scoring behavior by projection alone.',
+        ],
+        [
+            'Evaluation runtime execution can consume credentials, mutate test systems, incur cost, publish artifacts, or expose repository and task data to hosted services.',
+        ],
+        ['RUN-068'],
+    ),
 ];
 
 const MATRIX_BY_TARGET: Record<
@@ -728,7 +754,8 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
-        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, or Sites deployment without a harness-native run.',
+        'Executing harness-native evaluations, benchmark tasks, reviewer-agent scoring, hosted traces, or runtime scoring workflows.',
+        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, Sites deployment, or harness-native evaluation execution without a harness-native run.',
     ];
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
@@ -737,6 +764,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
         'Memory runtime: enabled Codex memory setting, thread-level memory controls, generated memory artifact review, recall evidence, and known retention or sharing limits.',
         'Browser, Chrome, Computer Use, and Sites runtime: installed plugin or app state, approval scope, target site/app/project identity, representative operation, result, and known limitations.',
+        'Evaluation runtime: selected harness, repository checkout, model or agent identity, sandbox and tool policy, validation command, benchmark or scoring result, artifacts, traces where available, cost/data limits, and known limitations.',
     ];
     const lines: string[] = [
         '# Codex Support Boundaries',

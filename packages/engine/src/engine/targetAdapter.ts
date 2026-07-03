@@ -75,6 +75,7 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'computerUseRuntime',
     'sitesRuntime',
     'evaluationSupport',
+    'evaluationRuntime',
 ]);
 const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
     'agents',
@@ -96,6 +97,7 @@ const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
     'computerUseRuntime',
     'sitesRuntime',
     'evaluationSupport',
+    'evaluationRuntime',
 ]);
 const CURRENT_ADAPTER_VERSION_BY_TARGET = new Map<ProjectionTarget, string>(
     getTargetCapabilityMatrix().map((entry) => [entry.target, entry.adapterVersion]),

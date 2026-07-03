@@ -883,7 +883,8 @@ export type TargetCapabilityConcept =
     | 'chromeRuntime'
     | 'computerUseRuntime'
     | 'sitesRuntime'
-    | 'evaluationSupport';
+    | 'evaluationSupport'
+    | 'evaluationRuntime';
 
 /** Support state for one canonical concept on one target adapter. */
 export type TargetCapabilitySupportStatus =

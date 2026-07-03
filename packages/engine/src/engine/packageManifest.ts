@@ -86,6 +86,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'computerUseRuntime',
     'sitesRuntime',
     'evaluationSupport',
+    'evaluationRuntime',
 ]);
 
 export interface PackageReferenceIndex {
