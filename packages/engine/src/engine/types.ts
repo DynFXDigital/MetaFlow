@@ -874,6 +874,7 @@ export type TargetCapabilityConcept =
     | 'agentRuntime'
     | 'automationRuntime'
     | 'authenticationRuntime'
+    | 'permissionRuntime'
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'

@@ -182,6 +182,7 @@ describe('Engine package: public API', () => {
             'agentRuntime',
             'automationRuntime',
             'authenticationRuntime',
+            'permissionRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -294,6 +295,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexAuthenticationRuntime?.evidence.includes('RUN-074'),
             'Codex authentication runtime row should point to runtime-boundary evidence',
+        );
+        const codexPermissionRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'permissionRuntime',
+        );
+        assert.strictEqual(codexPermissionRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexPermissionRuntime?.nativeSurfaces.includes('Codex sandbox enforcement'),
+            'Codex permission runtime row should name sandbox enforcement',
+        );
+        assert.ok(
+            codexPermissionRuntime?.notes.some((note) =>
+                note.includes('cannot grant runtime permissions'),
+            ),
+            'Codex permission runtime row should document permission grant boundary',
+        );
+        assert.ok(
+            codexPermissionRuntime?.evidence.includes('RUN-075'),
+            'Codex permission runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -710,22 +729,33 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot authentication runtime row should document entitlement boundary',
         );
+        const copilotPermissionRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'permissionRuntime',
+        );
+        assert.strictEqual(copilotPermissionRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotPermissionRuntime?.notes.some((note) =>
+                note.includes('grant repository or organization permissions'),
+            ),
+            'GitHub Copilot permission runtime row should document host permission boundary',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 30,
+            runtimeOnlyCount: 32,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 17,
+                    runtimeOnlyCount: 18,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 13,
+                    runtimeOnlyCount: 14,
                     documentation: 'README.md',
                 },
             ],

@@ -162,6 +162,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-074'],
     ),
     row(
+        'permissionRuntime',
+        'runtime-only',
+        [
+            'Codex sandbox enforcement',
+            'approval prompts',
+            'permission profiles',
+            'auto-review reviewer decisions',
+            'managed requirements',
+            'network policy enforcement',
+        ],
+        [
+            'Codex permissions are enforced by the active runtime through sandbox mode, approval policy, permission profiles, network controls, managed requirements, app and MCP tool annotations, and optional auto-review.',
+            'Repository metadata can describe desired permission posture, command rules, policy grants, and validation evidence, but it cannot grant runtime permissions, approve boundary-crossing actions, select effective managed requirements, run auto-review decisions, enforce OS sandboxing, or prove permission behavior.',
+            'Permission behavior depends on the active Codex surface, trusted project state, OS sandbox support, user or admin settings, interactive approvals, granular approval policy, permission profile selection, and managed configuration precedence.',
+        ],
+        [
+            'Runtime permissions control filesystem writes, network access, command escalation, app and MCP side effects, browser domains, protected paths, credential exposure, and organization policy enforcement.',
+        ],
+        ['RUN-075'],
+    ),
+    row(
         'projectConfig',
         'partial',
         ['.codex/config.toml', '.metaflow/project-config/*.json'],
@@ -588,6 +609,26 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-074'],
     ),
     row(
+        'permissionRuntime',
+        'runtime-only',
+        [
+            'GitHub Copilot tool and repository permissions',
+            'GitHub organization policy',
+            'GitHub App installation permissions',
+            'MCP and connector approvals',
+            'Agent HQ policy routing',
+        ],
+        [
+            'GitHub Copilot and Agent HQ permissions are enforced by host runtime policy, GitHub account authority, GitHub App installation permissions, organization settings, connector approvals, MCP tool policy, and hosted agent routing.',
+            'Repository metadata can describe desired permission posture and validation evidence, but it cannot grant repository or organization permissions, approve tool calls, change branch protection, satisfy enterprise policy, route Agent HQ authority, or prove hosted permission behavior.',
+            'Permission behavior depends on the active GitHub identity, repository permissions, organization policy, branch protection, app installation scope, connector authorization, MCP server configuration, and hosted runtime approvals.',
+        ],
+        [
+            'Runtime permissions control repository reads and writes, issue and pull request mutation, branch operations, connector side effects, secrets access, MCP tool authority, and audit obligations.',
+        ],
+        ['RUN-075'],
+    ),
+    row(
         'projectConfig',
         'unsupported',
         [],
@@ -963,6 +1004,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Spawning subagents, selecting custom agents at runtime, managing active agent threads, satisfying interactive approvals, or proving custom-agent execution from repository metadata alone.',
         'Creating or updating scheduled automations, keeping the Codex app or host runtime available, selecting automation worktrees, managing automation inbox or archive state, or proving scheduled background execution from repository metadata alone.',
         'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
+        'Granting runtime permissions, approving boundary-crossing actions, selecting effective managed requirements, running auto-review decisions, enforcing OS sandboxing, or proving permission behavior from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -980,6 +1022,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Agent runtime: selected subagent or custom agent, spawned thread identity, inherited sandbox and approval posture, runtime overrides, tool activity, result, token/cost posture, and known limitations.',
         'Automation runtime: automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token/cost posture, and known limitations.',
         'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
+        'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

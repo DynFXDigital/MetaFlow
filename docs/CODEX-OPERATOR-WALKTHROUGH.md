@@ -49,7 +49,7 @@ Review these sections in the preview output:
   `.codex/agents/*.toml`.
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
-  automation runtime, authentication runtime, app connector runtime,
+  automation runtime, authentication runtime, permission runtime, app connector runtime,
   local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
@@ -166,6 +166,12 @@ authentication posture, credential-storage expectations, policy grants, and
 evidence requirements, but ChatGPT sign-in, API key sign-in, Codex access
 tokens, workspace identity, MFA, SSO, RBAC, Codex Local permissions, and
 connected GitHub account state require Codex or ChatGPT runtime evidence.
+
+Codex permissions are runtime-enforced. MetaFlow can record desired permission
+posture, policy grants, command rules, and evidence requirements, but sandbox
+mode, approval policy, permission profiles, managed requirements, auto-review
+decisions, protected path enforcement, network controls, and side-effecting app
+or MCP approvals require Codex runtime evidence.
 
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix
