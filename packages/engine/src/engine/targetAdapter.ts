@@ -353,7 +353,20 @@ export function parseTargetAdapterContent(
     }
 
     const adapterVersion = parseNonEmptyString(fields.adapterVersion);
-    if (fields.adapterVersion !== undefined && !adapterVersion) {
+    if (
+        fields.adapterVersion === undefined &&
+        target &&
+        CURRENT_ADAPTER_VERSION_BY_TARGET.has(target)
+    ) {
+        const expectedAdapterVersion = CURRENT_ADAPTER_VERSION_BY_TARGET.get(target);
+        warnings.push(
+            toWarning(
+                'TARGET_ADAPTER_VERSION_RECOMMENDED',
+                `Target adapter target "${target}" should declare adapterVersion "${expectedAdapterVersion}" to prove the manifest was reviewed against the current target capability matrix.`,
+                manifestPath,
+            ),
+        );
+    } else if (fields.adapterVersion !== undefined && !adapterVersion) {
         warnings.push(
             toWarning(
                 'TARGET_ADAPTER_VERSION_INVALID',

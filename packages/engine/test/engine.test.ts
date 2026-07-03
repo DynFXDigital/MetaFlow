@@ -2792,6 +2792,29 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('reports missing target adapter versions for known targets', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: {
+                    skills: 'managed',
+                },
+            }),
+            'codex.json',
+        );
+
+        assert.strictEqual(adapter.adapterVersion, undefined);
+        assert.ok(
+            adapter.warnings.some(
+                (warning) => warning.code === 'TARGET_ADAPTER_VERSION_RECOMMENDED',
+            ),
+        );
+    });
+
     it('reports validation diagnostics for invalid canonical target adapters', () => {
         const adapter = parseTargetAdapterContent(
             JSON.stringify({

@@ -88,7 +88,9 @@ configuration in the trusted project.
 
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix
-before an adapter can prove current projection readiness.
+before an adapter can prove current projection readiness. A missing
+`adapterVersion` keeps the adapter loadable, but it remains review-warning
+material until the current matrix version is declared.
 
 ## Export Review Candidates
 
