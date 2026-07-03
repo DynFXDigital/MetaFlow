@@ -1,6 +1,28 @@
 import { Command } from 'commander';
-import { apply } from '@metaflow/engine';
+import {
+    apply,
+    planSynchronization,
+    ProjectionMetadata,
+} from '@metaflow/engine';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+
+function formatTargetLabel(projection: ProjectionMetadata | undefined): string {
+    if (
+        !projection ||
+        projection.target === 'generic' ||
+        projection.target === 'metaflow'
+    ) {
+        return '';
+    }
+    return `[${projection.target}] `;
+}
+
+function formatApplyPath(
+    relPath: string,
+    projectionsByDestination: Map<string, ProjectionMetadata>,
+): string {
+    return `${formatTargetLabel(projectionsByDestination.get(relPath))}${relPath}`;
+}
 
 export function registerApplyCommand(program: Command): void {
     program
@@ -16,6 +38,18 @@ export function registerApplyCommand(program: Command): void {
             try {
                 const { config } = loaded;
                 const files = resolveEffectiveFiles(config, workspaceRoot);
+                const plan = planSynchronization({
+                    workspaceRoot,
+                    effectiveFiles: files,
+                    fileNamingStrategy: config.fileNamingStrategy,
+                    layerSources: config.layerSources,
+                });
+                const projectionsByDestination = new Map<string, ProjectionMetadata>(
+                    plan.synchronizedFiles.map((entry) => [
+                        entry.destinationRelativePath,
+                        entry.projection,
+                    ]),
+                );
 
                 const result = apply({
                     workspaceRoot,
@@ -27,13 +61,13 @@ export function registerApplyCommand(program: Command): void {
                 });
 
                 for (const rel of result.written) {
-                    console.log(`write  ${rel}`);
+                    console.log(`write  ${formatApplyPath(rel, projectionsByDestination)}`);
                 }
                 for (const rel of result.removed) {
-                    console.log(`remove ${rel}`);
+                    console.log(`remove ${formatApplyPath(rel, projectionsByDestination)}`);
                 }
                 for (const rel of result.skipped) {
-                    console.log(`skip   ${rel}`);
+                    console.log(`skip   ${formatApplyPath(rel, projectionsByDestination)}`);
                 }
 
                 if (result.warnings.length > 0) {

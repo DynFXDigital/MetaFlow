@@ -2168,6 +2168,7 @@ describe('CLI: apply', () => {
 
         const applyResult = await runCli(['apply', '-w', ws.root]);
         assert.strictEqual(applyResult.exitCode, 0);
+        assert.ok(applyResult.stdout.includes(`write  [codex] ${codexSkillPath}`));
 
         const rootSkillPath = path.join(ws.root, '.agents', 'skills', 'codex-metadata', 'SKILL.md');
         assert.ok(fs.existsSync(rootSkillPath), 'Codex skill should be synchronized at repo root');
