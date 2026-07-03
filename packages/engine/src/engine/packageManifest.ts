@@ -76,6 +76,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'policyGrants',
     'executionSurfaces',
     'memoryScopes',
+    'cloudEnvironmentRuntime',
     'localCloudHandoff',
     'issuePrOperation',
     'remoteMcpRuntime',

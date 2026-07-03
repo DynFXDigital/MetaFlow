@@ -191,13 +191,21 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 20);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 22);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 12 &&
+                    target.runtimeOnlyCount === 13 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'cloudEnvironmentRuntime' &&
+                    entry.support === 'runtime-only',
             ),
         );
         assert.ok(
@@ -242,7 +250,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 12);
+        assert.strictEqual(document.runtimeOnlyCount, 13);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -256,6 +264,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             [
                 'browserRuntime',
                 'chromeRuntime',
+                'cloudEnvironmentRuntime',
                 'computerUseRuntime',
                 'evaluationRuntime',
                 'issuePrOperation',
@@ -278,8 +287,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 item.includes('Cloud or channel delegation'),
             ),
         );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Cloud environment runtime'),
+            ),
+        );
         assert.ok(document.content.includes('# Codex Support Boundaries'));
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
+        assert.ok(document.content.includes('cloudEnvironmentRuntime'));
         assert.ok(document.content.includes('localCloudHandoff'));
         assert.ok(document.content.includes('issuePrOperation'));
         assert.ok(document.content.includes('remoteMcpRuntime'));

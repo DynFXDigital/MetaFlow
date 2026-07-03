@@ -874,6 +874,7 @@ export type TargetCapabilityConcept =
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'
+    | 'cloudEnvironmentRuntime'
     | 'localCloudHandoff'
     | 'issuePrOperation'
     | 'remoteMcpRuntime'

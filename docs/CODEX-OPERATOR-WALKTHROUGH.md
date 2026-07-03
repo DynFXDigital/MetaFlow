@@ -48,8 +48,8 @@ Review these sections in the preview output:
   `AGENTS.md`, `.codex/config.toml`, `.codex/hooks.json`, and
   `.codex/agents/*.toml`.
 - Target capability matrix: support posture for Codex concepts such as skills,
-  agents, MCP servers, hooks, execution surfaces, local/cloud handoff, issue/PR
-  operation, and evaluation support.
+  agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
+  local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
 - Boundary rows: runtime-only Codex behavior that repository projection cannot
@@ -286,13 +286,17 @@ accepted as a known limitation.
 Runtime validation concept links identify the target-support rows proven or
 bounded by the evidence. Use them to review package claims against concepts such
 as `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
-`sideEffectMcpRuntime`. Adapter readiness action items include the concept links
-beside the runtime validation scenario so package evidence and target-support
-boundaries can be reviewed together.
+`sideEffectMcpRuntime`. Cloud execution claims also map to
+`cloudEnvironmentRuntime` when they depend on a hosted environment, setup
+script, secrets, dependency state, internet-access policy, or hosted sandbox.
+Adapter readiness action items include the concept links beside the runtime
+validation scenario so package evidence and target-support boundaries can be
+reviewed together.
 
 Runtime validation is required for:
 
 - Codex Cloud task execution.
+- Codex Cloud environment provisioning, setup, secrets, and internet access.
 - Slack or Linear delegation.
 - GitHub-triggered Codex review.
 - PR feedback handling in the Codex app.

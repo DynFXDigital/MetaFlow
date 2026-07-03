@@ -183,6 +183,7 @@ describe('Engine package: public API', () => {
             'executionSurfaces',
             'memoryScopes',
             'memoryRuntime',
+            'cloudEnvironmentRuntime',
             'localCloudHandoff',
             'issuePrOperation',
             'remoteMcpRuntime',
@@ -445,6 +446,23 @@ describe('Engine package: public API', () => {
             'GitHub Copilot evaluation runtime row should document repository projection boundary',
         );
 
+        const codexCloudEnvironment = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'cloudEnvironmentRuntime',
+        );
+        assert.strictEqual(codexCloudEnvironment?.support, 'runtime-only');
+        assert.ok(
+            codexCloudEnvironment?.nativeSurfaces.includes('Codex Cloud environments'),
+            'Codex cloud environment row should name Codex Cloud environments',
+        );
+        assert.ok(
+            codexCloudEnvironment?.notes.some((note) => note.includes('internet access policy')),
+            'Codex cloud environment row should document internet access requirements',
+        );
+        assert.ok(
+            codexCloudEnvironment?.evidence.includes('RUN-070'),
+            'Codex cloud environment row should cite hosted environment evidence',
+        );
+
         const codexHandoff = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',
         );
@@ -559,6 +577,18 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'github-copilot' && entry.concept === 'issuePrOperation',
         );
         assert.strictEqual(copilotIssuePr?.documentation, 'README.md');
+        const copilotCloudEnvironment = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' &&
+                entry.concept === 'cloudEnvironmentRuntime',
+        );
+        assert.strictEqual(copilotCloudEnvironment?.support, 'runtime-only');
+        assert.ok(
+            copilotCloudEnvironment?.notes.some((note) =>
+                note.includes('configure hosted secrets'),
+            ),
+            'GitHub Copilot cloud environment row should document hosted secret boundaries',
+        );
         const copilotBrowserRuntime = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'browserRuntime',
         );
@@ -573,16 +603,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 20,
+            runtimeOnlyCount: 22,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 12,
+                    runtimeOnlyCount: 13,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 8,
+                    runtimeOnlyCount: 9,
                     documentation: 'README.md',
                 },
             ],

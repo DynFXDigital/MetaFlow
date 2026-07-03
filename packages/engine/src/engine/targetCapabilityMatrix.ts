@@ -260,6 +260,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-067'],
     ),
     row(
+        'cloudEnvironmentRuntime',
+        'runtime-only',
+        [
+            'Codex Cloud environments',
+            'hosted containers',
+            'setup scripts',
+            'cloud secrets',
+            'agent internet access',
+            'repository checkout',
+        ],
+        [
+            'Codex Cloud environments are hosted runtime configuration and execution state rather than repository metadata projection.',
+            'Repository metadata can describe intended execution profiles and validation evidence, but it cannot create or select cloud environments, configure hosted secrets, run setup scripts, choose internet access policy, install dependencies, or prove hosted task behavior.',
+        ],
+        [
+            'Cloud environments can expose repository data to hosted execution, consume secrets, run setup commands, access networks, mutate branches, and incur cost or audit obligations.',
+        ],
+        ['RUN-070'],
+    ),
+    row(
         'localCloudHandoff',
         'runtime-only',
         ['Codex CLI', 'Codex IDE extension', 'Codex app', 'Codex Cloud'],
@@ -574,6 +594,24 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-067'],
     ),
     row(
+        'cloudEnvironmentRuntime',
+        'runtime-only',
+        [
+            'GitHub Copilot cloud agent environment',
+            'GitHub-hosted runners or sandboxes',
+            'repository checkout',
+            'secrets and organization policy',
+        ],
+        [
+            'GitHub Copilot or GitHub cloud agent environments are hosted runtime state rather than repository metadata projection.',
+            'Repository metadata can describe intended execution profiles and evidence, but it cannot create hosted environments, grant repository or organization access, configure hosted secrets, run setup, or prove hosted agent behavior.',
+        ],
+        [
+            'Hosted agent environments can expose repository data, consume secrets, mutate branches or pull requests, and depend on organization policy and audit controls.',
+        ],
+        ['RUN-070'],
+    ),
+    row(
         'localCloudHandoff',
         'runtime-only',
         ['GitHub Copilot host runtime', 'GitHub Agent HQ'],
@@ -776,6 +814,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating or approving ChatGPT workspace connectors.',
         'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
+        'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
@@ -787,6 +826,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
+        'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
         'Plugin runtime: installed plugin identity and version, enabled state, marketplace source, app or MCP authentication state, restart/discovery evidence, representative invocation, result, and known limitations.',
