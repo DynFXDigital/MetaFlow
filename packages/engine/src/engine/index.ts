@@ -257,6 +257,7 @@ export type {
     PendingAction,
     PendingChange,
 } from './types';
+export { TARGET_CAPABILITY_CONCEPTS } from './types';
 export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 export {
     buildCodexSupportBoundariesDocument,

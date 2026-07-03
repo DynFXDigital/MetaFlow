@@ -14,6 +14,7 @@ import {
     RuntimeEvidenceArtifactMetadata,
     RuntimeEvidenceMetadata,
     RuntimeEvidenceStatus,
+    TARGET_CAPABILITY_CONCEPTS,
     TargetCapabilityConcept,
 } from './types';
 
@@ -48,57 +49,7 @@ const LOCAL_EVIDENCE_ARTIFACT_KINDS = new Set([
     'artifact',
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
-const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
-    'instructions',
-    'prompts',
-    'skills',
-    'agents',
-    'projectConfig',
-    'commandRules',
-    'worktreeInclude',
-    'mcpServers',
-    'tools',
-    'hooks',
-    'packageManifests',
-    'pluginRuntime',
-    'agentRuntime',
-    'automationRuntime',
-    'authenticationRuntime',
-    'permissionRuntime',
-    'enterprisePolicyRuntime',
-    'policyGrants',
-    'executionSurfaces',
-    'memoryScopes',
-    'chronicleRuntime',
-    'appshotsRuntime',
-    'recordReplayRuntime',
-    'importRuntime',
-    'modelProviderRuntime',
-    'nonInteractiveRuntime',
-    'sdkRuntime',
-    'appServerRuntime',
-    'ideExtensionRuntime',
-    'windowsPlatformRuntime',
-    'linuxPlatformRuntime',
-    'macosPlatformRuntime',
-    'localEnvironmentRuntime',
-    'cloudEnvironmentRuntime',
-    'appConnectorRuntime',
-    'localCloudHandoff',
-    'issuePrOperation',
-    'reviewRuntime',
-    'remoteConnectionRuntime',
-    'remoteMcpRuntime',
-    'oauthMcpRuntime',
-    'sideEffectMcpRuntime',
-    'memoryRuntime',
-    'browserRuntime',
-    'chromeRuntime',
-    'computerUseRuntime',
-    'sitesRuntime',
-    'evaluationSupport',
-    'evaluationRuntime',
-]);
+const TARGET_CAPABILITY_CONCEPT_SET = new Set<TargetCapabilityConcept>(TARGET_CAPABILITY_CONCEPTS);
 const KNOWN_FIELDS = new Set([
     'schemaVersion',
     'id',
@@ -514,7 +465,7 @@ export function parseRuntimeEvidenceContent(
         manifestPath,
         warnings,
     ).filter((concept): concept is TargetCapabilityConcept => {
-        if (TARGET_CAPABILITY_CONCEPTS.has(concept as TargetCapabilityConcept)) {
+        if (TARGET_CAPABILITY_CONCEPT_SET.has(concept as TargetCapabilityConcept)) {
             return true;
         }
         warnings.push(

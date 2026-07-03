@@ -70,6 +70,7 @@ import {
     parseCodexProjectConfigContent,
     parseTargetAdapterContent,
     parseToolContent,
+    TARGET_CAPABILITY_CONCEPTS,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -171,6 +172,23 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseCodexProjectConfigContent, 'function');
         assert.strictEqual(typeof parseTargetAdapterContent, 'function');
         assert.strictEqual(typeof parseToolContent, 'function');
+        assert.ok(Array.isArray(TARGET_CAPABILITY_CONCEPTS));
+    });
+
+    it('keeps the shared target capability concept vocabulary aligned with the matrix', () => {
+        const conceptVocabulary = new Set(TARGET_CAPABILITY_CONCEPTS);
+        const matrixConcepts = new Set(
+            getTargetCapabilityMatrix().map((entry) => entry.concept),
+        );
+
+        assert.deepStrictEqual(
+            [...matrixConcepts].filter((concept) => !conceptVocabulary.has(concept)).sort(),
+            [],
+        );
+        assert.deepStrictEqual(
+            [...conceptVocabulary].filter((concept) => !matrixConcepts.has(concept)).sort(),
+            [],
+        );
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {

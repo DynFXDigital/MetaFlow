@@ -925,57 +925,61 @@ export interface ProjectionMetadata {
     targetAdapterRequiredPolicyGrants?: string[];
 }
 
+/** Canonical concepts covered by target adapter capability matrices. */
+export const TARGET_CAPABILITY_CONCEPTS = [
+    'instructions',
+    'prompts',
+    'skills',
+    'agents',
+    'projectConfig',
+    'commandRules',
+    'worktreeInclude',
+    'mcpServers',
+    'tools',
+    'hooks',
+    'packageManifests',
+    'pluginRuntime',
+    'agentRuntime',
+    'automationRuntime',
+    'authenticationRuntime',
+    'permissionRuntime',
+    'enterprisePolicyRuntime',
+    'policyGrants',
+    'executionSurfaces',
+    'memoryScopes',
+    'chronicleRuntime',
+    'appshotsRuntime',
+    'recordReplayRuntime',
+    'importRuntime',
+    'modelProviderRuntime',
+    'nonInteractiveRuntime',
+    'sdkRuntime',
+    'appServerRuntime',
+    'ideExtensionRuntime',
+    'windowsPlatformRuntime',
+    'linuxPlatformRuntime',
+    'macosPlatformRuntime',
+    'localEnvironmentRuntime',
+    'cloudEnvironmentRuntime',
+    'appConnectorRuntime',
+    'localCloudHandoff',
+    'issuePrOperation',
+    'reviewRuntime',
+    'remoteConnectionRuntime',
+    'remoteMcpRuntime',
+    'oauthMcpRuntime',
+    'sideEffectMcpRuntime',
+    'memoryRuntime',
+    'browserRuntime',
+    'chromeRuntime',
+    'computerUseRuntime',
+    'sitesRuntime',
+    'evaluationSupport',
+    'evaluationRuntime',
+] as const;
+
 /** Canonical concept covered by a target adapter capability matrix. */
-export type TargetCapabilityConcept =
-    | 'instructions'
-    | 'prompts'
-    | 'skills'
-    | 'agents'
-    | 'projectConfig'
-    | 'commandRules'
-    | 'worktreeInclude'
-    | 'mcpServers'
-    | 'tools'
-    | 'hooks'
-    | 'packageManifests'
-    | 'pluginRuntime'
-    | 'agentRuntime'
-    | 'automationRuntime'
-    | 'authenticationRuntime'
-    | 'permissionRuntime'
-    | 'enterprisePolicyRuntime'
-    | 'policyGrants'
-    | 'executionSurfaces'
-    | 'memoryScopes'
-    | 'chronicleRuntime'
-    | 'appshotsRuntime'
-    | 'recordReplayRuntime'
-    | 'importRuntime'
-    | 'modelProviderRuntime'
-    | 'nonInteractiveRuntime'
-    | 'sdkRuntime'
-    | 'appServerRuntime'
-    | 'ideExtensionRuntime'
-    | 'windowsPlatformRuntime'
-    | 'linuxPlatformRuntime'
-    | 'macosPlatformRuntime'
-    | 'localEnvironmentRuntime'
-    | 'cloudEnvironmentRuntime'
-    | 'appConnectorRuntime'
-    | 'localCloudHandoff'
-    | 'issuePrOperation'
-    | 'reviewRuntime'
-    | 'remoteConnectionRuntime'
-    | 'remoteMcpRuntime'
-    | 'oauthMcpRuntime'
-    | 'sideEffectMcpRuntime'
-    | 'memoryRuntime'
-    | 'browserRuntime'
-    | 'chromeRuntime'
-    | 'computerUseRuntime'
-    | 'sitesRuntime'
-    | 'evaluationSupport'
-    | 'evaluationRuntime';
+export type TargetCapabilityConcept = (typeof TARGET_CAPABILITY_CONCEPTS)[number];
 
 /** Support state for one canonical concept on one target adapter. */
 export type TargetCapabilitySupportStatus =
