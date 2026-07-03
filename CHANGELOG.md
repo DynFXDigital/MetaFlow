@@ -15,6 +15,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
 - Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
 - Codex operator walkthrough covering preview, adapter readiness, guarded native outputs, package marketplace export, and runtime-validation evidence.
+- Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, and unsupported surfaces.
 
 ### Changed
 

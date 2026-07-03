@@ -24,6 +24,7 @@
 
 - Folder branch checkboxes in the Capabilities tree for enabling or disabling all descendant capabilities in tree mode.
 - Browse-only artifact folders and files beneath Capabilities tree artifact rows, using user-facing metadata names and tooltip details when available.
+- `MetaFlow: Open Target Support Report` command for reviewing target capability support, runtime-only behavior, and unsupported surfaces from the VS Code command palette.
 
 ### Changed
 

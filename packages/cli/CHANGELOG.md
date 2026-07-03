@@ -1,5 +1,11 @@
 # @metaflow/cli
 
+## Unreleased
+
+### Added
+
+- `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.
+
 ## 0.3.2
 
 ### Patch Changes
