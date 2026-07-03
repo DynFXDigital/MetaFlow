@@ -1125,6 +1125,7 @@ describe('CLI: preview', () => {
                             enabled: true,
                             materializationMode: 'candidate',
                             concepts: {
+                                localCloudHandoff: 'managed',
                                 projectConfig: 'managed',
                                 skills: 'managed',
                             },
@@ -1140,6 +1141,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('Target Adapters: 1'));
         assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
         assert.ok(textResult.stdout.includes('TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED'));
+        assert.ok(textResult.stdout.includes('TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE'));
         assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
@@ -1150,6 +1152,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(warningCodes.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
         assert.ok(warningCodes.includes('TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED'));
+        assert.ok(warningCodes.includes('TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE'));
         assert.ok(warningCodes.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 

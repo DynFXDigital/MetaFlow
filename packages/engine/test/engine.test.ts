@@ -2994,6 +2994,83 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('reports managed target adapter concepts unsupported by the current target matrix', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'github-copilot-default',
+                target: 'github-copilot',
+                enabled: true,
+                adapterVersion: 'github-copilot-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    projectConfig: 'managed',
+                },
+                requiredPolicyGrants: ['copilot-project-config-review'],
+            }),
+            'github-copilot.json',
+        );
+
+        assert.ok(
+            adapter.warnings.some(
+                (entry) =>
+                    entry.code === 'TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE' &&
+                    entry.message.includes('projectConfig') &&
+                    entry.message.includes('unsupported'),
+            ),
+        );
+    });
+
+    it('reports managed target adapter concepts that are runtime-only in the current target matrix', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    localCloudHandoff: 'managed',
+                },
+                requiredPolicyGrants: ['codex-cloud-review'],
+            }),
+            'codex.json',
+        );
+
+        assert.ok(
+            adapter.warnings.some(
+                (entry) =>
+                    entry.code === 'TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE' &&
+                    entry.message.includes('localCloudHandoff') &&
+                    entry.message.includes('runtime-only'),
+            ),
+        );
+    });
+
+    it('does not report target support warnings for report-only unsupported target adapter concepts', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'github-copilot-default',
+                target: 'github-copilot',
+                enabled: true,
+                adapterVersion: 'github-copilot-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    projectConfig: 'report-only',
+                },
+            }),
+            'github-copilot.json',
+        );
+
+        assert.ok(
+            !adapter.warnings.some(
+                (entry) => entry.code === 'TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE',
+            ),
+        );
+    });
+
     it('reports validation diagnostics for invalid canonical target adapters', () => {
         const adapter = parseTargetAdapterContent(
             JSON.stringify({

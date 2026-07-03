@@ -8,6 +8,7 @@
 - Parse and validate richer `.metaflow/capability.json` target declarations with support posture, required policy grants, validation evidence, and notes.
 - Warn when managed authority-sensitive target adapter concepts omit adapter-level policy grant metadata.
 - Treat authority-sensitive target adapter concepts as candidate output until adapter-level policy grants are declared.
+- Warn when managed target adapter concepts are unsupported or runtime-only in the current target capability matrix.
 
 ## 0.3.2
 

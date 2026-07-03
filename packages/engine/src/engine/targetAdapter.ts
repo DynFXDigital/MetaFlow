@@ -16,6 +16,7 @@ import {
     TargetAdapterMetadata,
     TargetAdapterValidationStatus,
     TargetCapabilityConcept,
+    TargetCapabilitySupportStatus,
 } from './types';
 
 const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
@@ -80,6 +81,12 @@ const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
 ]);
 const CURRENT_ADAPTER_VERSION_BY_TARGET = new Map<ProjectionTarget, string>(
     getTargetCapabilityMatrix().map((entry) => [entry.target, entry.adapterVersion]),
+);
+const SUPPORT_BY_TARGET_AND_CONCEPT = new Map<string, TargetCapabilitySupportStatus>(
+    getTargetCapabilityMatrix().map((entry) => [
+        `${entry.target}:${entry.concept}`,
+        entry.support,
+    ]),
 );
 
 type TargetAdapterFields = {
@@ -239,6 +246,45 @@ function managedAuthoritySensitiveConcepts(
         }
     }
     return managedConcepts.sort();
+}
+
+function conceptSupportForTarget(
+    target: ProjectionTarget | undefined,
+    concept: TargetCapabilityConcept,
+): TargetCapabilitySupportStatus | undefined {
+    if (!target) {
+        return undefined;
+    }
+    return SUPPORT_BY_TARGET_AND_CONCEPT.get(`${target}:${concept}`);
+}
+
+function validateConceptSupport(
+    target: ProjectionTarget | undefined,
+    enabled: boolean,
+    materializationMode: TargetAdapterMaterializationMode,
+    concepts: Partial<Record<TargetCapabilityConcept, TargetAdapterMaterializationMode>>,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): void {
+    if (!target || !enabled) {
+        return;
+    }
+    for (const concept of CONCEPT_VALUES) {
+        const conceptMode = concepts[concept] ?? materializationMode;
+        if (conceptMode !== 'managed') {
+            continue;
+        }
+        const support = conceptSupportForTarget(target, concept);
+        if (support === 'unsupported' || support === 'runtime-only') {
+            warnings.push(
+                toWarning(
+                    'TARGET_ADAPTER_CONCEPT_SUPPORT_UNAVAILABLE',
+                    `Target adapter target "${target}" cannot manage concept "${concept}" because the current target capability matrix marks it as ${support}.`,
+                    manifestPath,
+                ),
+            );
+        }
+    }
 }
 
 export function isAuthoritySensitiveTargetAdapterConcept(
@@ -488,6 +534,14 @@ export function parseTargetAdapterContent(
             ),
         );
     }
+    validateConceptSupport(
+        target,
+        enabled,
+        materializationMode ?? 'report-only',
+        concepts,
+        manifestPath,
+        warnings,
+    );
 
     const validationStatusText = parseNonEmptyString(fields.validationStatus);
     const validationStatus =

@@ -113,6 +113,10 @@ Target adapters that mark authority-sensitive concepts as `managed` need
 adapter-level `requiredPolicyGrants`. Without those grants, preview keeps the
 affected files as candidate output and apply skips them.
 
+Target adapters also compare managed concepts with the target capability matrix.
+Unsupported or runtime-only concepts remain review warnings; repository
+projection does not make those surfaces operational.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.
