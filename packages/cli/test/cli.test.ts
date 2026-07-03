@@ -1703,6 +1703,81 @@ describe('CLI: export-package-marketplace', () => {
         assert.strictEqual(data.marketplaces['github-copilot'], undefined);
     });
 
+    it('should export Codex marketplace-shaped package candidates', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli([
+            'export-package-marketplace',
+            '--format',
+            'codex-marketplace',
+            '--marketplace-name',
+            'Release Packages',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.name, 'release-packages');
+        assert.deepStrictEqual(data.plugins, [
+            {
+                name: 'release-operations',
+                source: {
+                    source: 'local',
+                    path: './.ai/ai-metadata/company/core',
+                },
+                policy: {
+                    installation: 'AVAILABLE',
+                    authentication: 'ON_INSTALL',
+                },
+                category: 'release',
+                interface: {
+                    displayName: 'Release Operations',
+                    description: 'Release workflow package.',
+                },
+            },
+        ]);
+        assert.ok(!result.stderr.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'));
+    });
+
+    it('should export GitHub Copilot marketplace-shaped package candidates', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli([
+            'export-package-marketplace',
+            '--format',
+            'github-copilot-marketplace',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.name, 'metaflow-marketplace');
+        assert.strictEqual(data.owner.name, path.basename(ws.root));
+        assert.deepStrictEqual(data.plugins, [
+            {
+                name: 'release-operations',
+                source: './.ai/ai-metadata/company/core',
+            },
+        ]);
+        assert.ok(result.stderr.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'));
+    });
+
+    it('should reject host-shaped package marketplace exports for mismatched targets', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli([
+            'export-package-marketplace',
+            '--format',
+            'codex-marketplace',
+            '--target',
+            'github-copilot',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('only supports target "codex"'));
+    });
+
     it('should write package marketplace exports to an explicit output path', async () => {
         ws = createPackageMarketplaceWorkspace();
         const outputPath = path.join(ws.root, 'exports', 'package-marketplace.json');

@@ -83,6 +83,21 @@ metaflow export-copilot-mcp --out .vscode/mcp.json --force
 
 By default, the command writes `.vscode/mcp.json` content to stdout and review warnings to stderr. It does not mutate workspace MCP configuration unless an explicit `--out` path is provided, and existing output files require `--force`.
 
+#### `export-package-marketplace`
+
+Export canonical `.metaflow/packages/*.json` marketplace entries as reviewable package marketplace candidates.
+
+```bash
+metaflow export-package-marketplace
+metaflow export-package-marketplace --json
+metaflow export-package-marketplace --target codex
+metaflow export-package-marketplace --format codex-marketplace
+metaflow export-package-marketplace --format github-copilot-marketplace
+metaflow export-package-marketplace --out exports/package-marketplace.json --force
+```
+
+The default output is a compact target-grouped review object. `--json` includes source provenance, package warnings, and runtime validation records. Host-shaped formats emit Codex `.agents/plugins/marketplace.json` or GitHub Copilot `.github/plugin/marketplace.json` candidate payloads from canonical package metadata, but the command does not mutate host marketplace files unless an explicit `--out` path is provided.
+
 #### `clean`
 
 Remove all managed files (preserves drifted files).
@@ -185,6 +200,7 @@ packages/cli/
       preview.ts        # Preview effective files
       apply.ts          # Synchronize to .github/
       clean.ts          # Remove managed files
+      exportPackageMarketplace.ts # Export package marketplace candidates
       promote.ts        # Detect drift
       validate.ts       # CI validation
       watch.ts          # File-system watcher
