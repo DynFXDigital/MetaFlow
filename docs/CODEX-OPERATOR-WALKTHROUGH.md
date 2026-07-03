@@ -418,6 +418,12 @@ Runtime validation is required for:
   worktree path, dependency and cache state, action identity,
   integrated-terminal execution result, host credential exposure posture,
   representative setup/action behavior, and known limitations.
+- Codex non-interactive execution, `codex exec` invocation, working directory
+  and Git repository state, authentication method and credential scope, sandbox
+  and approval settings, JSON or output-schema configuration, stdin and output
+  handling, session resume posture, representative command or tool activity,
+  produced artifacts, exit status, audit or billing posture, and known
+  limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

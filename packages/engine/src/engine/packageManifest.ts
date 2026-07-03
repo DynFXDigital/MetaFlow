@@ -87,6 +87,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'recordReplayRuntime',
     'importRuntime',
     'modelProviderRuntime',
+    'nonInteractiveRuntime',
     'windowsPlatformRuntime',
     'linuxPlatformRuntime',
     'macosPlatformRuntime',

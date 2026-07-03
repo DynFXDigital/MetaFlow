@@ -885,6 +885,7 @@ export type TargetCapabilityConcept =
     | 'recordReplayRuntime'
     | 'importRuntime'
     | 'modelProviderRuntime'
+    | 'nonInteractiveRuntime'
     | 'windowsPlatformRuntime'
     | 'linuxPlatformRuntime'
     | 'macosPlatformRuntime'

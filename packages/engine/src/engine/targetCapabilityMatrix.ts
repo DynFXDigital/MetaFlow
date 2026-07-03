@@ -474,6 +474,28 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-083'],
     ),
     row(
+        'nonInteractiveRuntime',
+        'runtime-only',
+        [
+            'codex exec',
+            'Codex non-interactive mode',
+            'CI, pre-merge, scheduled, or scripted automation',
+            'CODEX_API_KEY',
+            'CODEX_ACCESS_TOKEN',
+            'codex exec --json',
+            'codex exec --output-schema',
+        ],
+        [
+            'Codex non-interactive mode is a CLI runtime for scripted or pipeline execution and is not repository metadata projection.',
+            'Repository metadata can describe automation intent, policy expectations, structured output requirements, and evidence requirements, but it cannot invoke `codex exec`, choose live credentials, select the active sandbox or approval posture, create JSONL or schema-constrained output, resume sessions, satisfy the Git repository safety check, or prove run behavior.',
+            'For GitHub Actions, the Codex GitHub Action is the preferred hosted automation surface; standalone `codex exec` still requires runtime authentication and safety controls.',
+        ],
+        [
+            'Non-interactive Codex execution can read and edit files, run commands, use configured tools and MCP servers, consume credentials, emit CI artifacts, and drive downstream automation; it requires explicit sandbox, approval, credential, repository-trust, and output-handling controls.',
+        ],
+        ['RUN-088'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'runtime-only',
         [
@@ -1107,6 +1129,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-083'],
     ),
     row(
+        'nonInteractiveRuntime',
+        'unsupported',
+        ['codex exec and Codex non-interactive mode'],
+        [
+            'Codex non-interactive mode is a Codex CLI runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot or Agent HQ scripted, CI, and hosted task behavior must be represented through GitHub-specific execution, Actions, policy, or runtime-evidence concepts instead.',
+        ],
+        ['Non-interactive execution authority must be represented through the target harness controls.'],
+        ['RUN-088'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'unsupported',
         ['Codex Windows app and Windows sandbox'],
@@ -1430,6 +1463,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Recording UI actions or window content, generating or refining Record & Replay skills, enabling Computer Use, or proving replay behavior from repository metadata alone.',
         'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
         'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
+        'Invoking `codex exec`, selecting live non-interactive credentials, choosing sandbox or approval posture, streaming JSONL, writing schema-constrained output, resuming sessions, satisfying repository trust checks, or proving scripted Codex execution from repository metadata alone.',
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
         'Granting macOS Screen Recording or Accessibility permissions, installing the Codex app, opening workspaces in the app, configuring MDM managed preferences, running local environment actions, changing active macOS privacy settings, or proving Seatbelt sandbox enforcement from repository metadata alone.',
@@ -1457,6 +1491,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Record & Replay runtime: Codex app version, macOS and region eligibility, Computer Use availability and policy, recorded workflow scope, generated skill artifact, replay environment, representative replay result, sensitive-data review, and known limitations.',
         'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
         'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
+        'Non-interactive runtime: Codex CLI version, command invocation, working directory and Git repository state, authentication method and credential scope, sandbox and approval settings, JSON or output-schema configuration, stdin and output handling, session resume posture, representative command/tool activity, produced artifacts, exit status, audit or billing posture, and known limitations.',
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
         'macOS platform runtime: Codex surface, Codex app availability, Seatbelt sandbox behavior, macOS Privacy & Security permission posture, writable root policy, local environment action behavior, managed preference state, representative sandboxed command behavior, and known limitations.',

@@ -193,6 +193,7 @@ describe('Engine package: public API', () => {
             'recordReplayRuntime',
             'importRuntime',
             'modelProviderRuntime',
+            'nonInteractiveRuntime',
             'windowsPlatformRuntime',
             'linuxPlatformRuntime',
             'macosPlatformRuntime',
@@ -502,6 +503,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexModelProviderRuntime?.evidence.includes('RUN-083'),
             'Codex model provider row should point to runtime-boundary evidence',
+        );
+        const codexNonInteractiveRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'nonInteractiveRuntime',
+        );
+        assert.strictEqual(codexNonInteractiveRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexNonInteractiveRuntime?.nativeSurfaces.includes('codex exec'),
+            'Codex non-interactive row should name codex exec',
+        );
+        assert.ok(
+            codexNonInteractiveRuntime?.notes.some((note) =>
+                note.includes('cannot invoke `codex exec`'),
+            ),
+            'Codex non-interactive row should document invocation boundary',
+        );
+        assert.ok(
+            codexNonInteractiveRuntime?.evidence.includes('RUN-088'),
+            'Codex non-interactive row should point to runtime-boundary evidence',
         );
         const codexWindowsPlatformRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'windowsPlatformRuntime',
@@ -1081,6 +1100,17 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot model provider row should document unsupported Codex-only surface',
         );
+        const copilotNonInteractiveRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'nonInteractiveRuntime',
+        );
+        assert.strictEqual(copilotNonInteractiveRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotNonInteractiveRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot non-interactive row should document unsupported Codex-only surface',
+        );
         const copilotWindowsPlatformRuntime = matrix.find(
             (entry) =>
                 entry.target === 'github-copilot' && entry.concept === 'windowsPlatformRuntime',
@@ -1151,11 +1181,11 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 46,
+            runtimeOnlyCount: 47,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 30,
+                    runtimeOnlyCount: 31,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
