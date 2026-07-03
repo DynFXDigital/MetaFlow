@@ -32,6 +32,15 @@ describe('packageManifest parser', () => {
             }),
             '/tmp/.metaflow/packages/release-operations.json',
             new Set(['github-pr-read']),
+            {
+                agents: new Set(['release-steward']),
+                skills: new Set(['release-readiness']),
+                instructions: new Set(['release-policy']),
+                prompts: new Set(['release-prompt']),
+                mcpServers: new Set(['github']),
+                tools: new Set(['create-pr']),
+                hooks: new Set(['release-gate']),
+            },
         );
 
         assert.strictEqual(parsed.id, 'release-operations');
@@ -87,6 +96,46 @@ describe('packageManifest parser', () => {
         assert.ok(codes.includes('PACKAGE_VALIDATION_EVIDENCE_INVALID'));
         assert.ok(codes.includes('PACKAGE_DESCRIPTION_INVALID'));
         assert.ok(codes.includes('PACKAGE_UNKNOWN_FIELD'));
+    });
+
+    it('warns on unknown canonical package component references', () => {
+        const parsed = parsePackageManifestContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                agents: ['missing-agent'],
+                skills: ['missing-skill'],
+                instructions: ['missing-instruction'],
+                prompts: ['missing-prompt'],
+                mcpServers: ['missing-mcp'],
+                tools: ['missing-tool'],
+                hooks: ['missing-hook'],
+                policyGrants: ['missing-grant'],
+            }),
+            '/tmp/.metaflow/packages/release-operations.json',
+            new Set(['known-grant']),
+            {
+                agents: new Set(['known-agent']),
+                skills: new Set(['known-skill']),
+                instructions: new Set(['known-instruction']),
+                prompts: new Set(['known-prompt']),
+                mcpServers: new Set(['known-mcp']),
+                tools: new Set(['known-tool']),
+                hooks: new Set(['known-hook']),
+            },
+        );
+
+        const codes = parsed.warnings.map((warning) => warning.code);
+        assert.ok(codes.includes('PACKAGE_AGENT_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_SKILL_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_INSTRUCTION_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_PROMPT_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_MCP_SERVER_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_TOOL_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_HOOK_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_POLICY_GRANT_UNKNOWN'));
     });
 
     it('loads package manifests from a capability layer', () => {

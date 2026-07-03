@@ -37,7 +37,7 @@ import {
     renderGitHubCopilotAgentProfileMarkdown,
 } from './agentProfile';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
-import { loadPackageManifestsForLayer } from './packageManifest';
+import { loadPackageManifestsForLayer, PackageReferenceIndex } from './packageManifest';
 import { loadToolsForLayer } from './toolManifest';
 import { renderCodexConfigProjection } from './codexConfigProjection';
 import {
@@ -333,9 +333,20 @@ function buildLayerContent(
         knownMcpServerIds,
     );
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
-    const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
-    const packageManifests = loadPackageManifestsForLayer(layerAbsPath, knownPolicyGrantIds);
     const tools = loadToolsForLayer(layerAbsPath, knownPolicyGrantIds);
+    const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
+    const packageReferenceIndex = buildPackageReferenceIndex(
+        files,
+        agentProfiles,
+        mcpServers,
+        hooks,
+        tools,
+    );
+    const packageManifests = loadPackageManifestsForLayer(
+        layerAbsPath,
+        knownPolicyGrantIds,
+        packageReferenceIndex,
+    );
     const hasTargetNativeCodexConfig = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
     );
@@ -424,6 +435,68 @@ function buildLayerContent(
         packageManifests,
         tools,
     };
+}
+
+function buildPackageReferenceIndex(
+    files: LayerFile[],
+    agentProfiles: { id: string }[],
+    mcpServers: { id: string }[],
+    hooks: { id: string }[],
+    tools: { id: string }[],
+): PackageReferenceIndex {
+    return {
+        agents: idsFromMetadata(agentProfiles),
+        skills: idsFromPaths(files, skillIdFromPath),
+        instructions: idsFromPaths(files, (filePath) =>
+            markdownArtifactIdFromPath(filePath, 'instructions'),
+        ),
+        prompts: idsFromPaths(files, (filePath) =>
+            markdownArtifactIdFromPath(filePath, 'prompts'),
+        ),
+        mcpServers: idsFromMetadata(mcpServers),
+        tools: idsFromMetadata(tools),
+        hooks: idsFromMetadata(hooks),
+    };
+}
+
+function idsFromMetadata(items: { id: string }[]): Set<string> {
+    return new Set(items.map((item) => item.id).filter(Boolean));
+}
+
+function idsFromPaths(
+    files: LayerFile[],
+    idResolver: (filePath: string) => string | undefined,
+): Set<string> {
+    const ids = new Set<string>();
+    for (const file of files) {
+        for (const filePath of [file.relativePath, file.sourceRelativePath]) {
+            if (!filePath) {
+                continue;
+            }
+            const id = idResolver(normalizeInputPath(filePath));
+            if (id) {
+                ids.add(id);
+            }
+        }
+    }
+    return ids;
+}
+
+function skillIdFromPath(filePath: string): string | undefined {
+    const match = filePath.match(
+        /^(?:\.metaflow\/skills|\.agents\/skills|skills)\/([^/]+)\/SKILL\.md$/i,
+    );
+    return match?.[1];
+}
+
+function markdownArtifactIdFromPath(
+    filePath: string,
+    artifactRoot: 'instructions' | 'prompts',
+): string | undefined {
+    const match = filePath.match(
+        new RegExp(`^(?:\\.metaflow/)?${artifactRoot}/([^/]+)\\.md$`, 'i'),
+    );
+    return match?.[1];
 }
 
 /**

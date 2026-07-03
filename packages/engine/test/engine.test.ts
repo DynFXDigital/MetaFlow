@@ -5319,6 +5319,130 @@ describe('Engine: synchronizer advanced', () => {
         assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, canonicalSkillPath);
     });
 
+    it('validates package component references against canonical layer metadata', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'agents'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'hooks'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'mcp'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'packages'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'prompts'), { recursive: true });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'skills', 'release-readiness'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'tools'), { recursive: true });
+
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'on-request',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'agents', 'release-steward.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.agentProfile/v1',
+                id: 'release-steward',
+                name: 'Release Steward',
+                description: 'Reviews release readiness.',
+                developerInstructions: 'Review release metadata and report risks.',
+                nicknameCandidates: ['release-steward'],
+                policyGrants: ['github-pr-read'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'skills', 'release-readiness', 'SKILL.md'),
+            '# Release Readiness',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'instructions', 'release-policy.md'),
+            '# Release Policy',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'prompts', 'release-review.md'),
+            '# Release Review',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'mcp', 'github.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.mcpServer/v1',
+                id: 'github',
+                transport: 'stdio',
+                invocation: { command: 'github-mcp-server', args: ['stdio'] },
+                requiredSecrets: ['GITHUB_TOKEN'],
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'tools', 'create-pr.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.tool/v1',
+                id: 'create-pr',
+                kind: 'mcp',
+                mcpServer: 'github',
+                mcpTool: 'create_pull_request',
+                policyGrants: ['github-pr-read'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'hooks', 'release-gate.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.hook/v1',
+                id: 'release-gate',
+                triggerPhase: 'preApply',
+                invocationType: 'command',
+                command: 'npm',
+                args: ['test'],
+                failureBehavior: 'block',
+                policyGrants: ['github-pr-read'],
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'packages', 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                agents: ['release-steward'],
+                skills: ['release-readiness'],
+                instructions: ['release-policy'],
+                prompts: ['release-review'],
+                mcpServers: ['github'],
+                tools: ['create-pr'],
+                hooks: ['release-gate'],
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].packageManifests?.length, 1);
+        assert.deepStrictEqual(layers[0].packageManifests?.[0].warnings, []);
+    });
+
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';

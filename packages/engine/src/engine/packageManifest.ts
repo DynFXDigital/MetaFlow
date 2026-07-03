@@ -53,6 +53,16 @@ type PackageFields = {
     description?: unknown;
 };
 
+export interface PackageReferenceIndex {
+    agents?: Set<string>;
+    skills?: Set<string>;
+    instructions?: Set<string>;
+    prompts?: Set<string>;
+    mcpServers?: Set<string>;
+    tools?: Set<string>;
+    hooks?: Set<string>;
+}
+
 function toWarning(
     code: string,
     message: string,
@@ -180,6 +190,32 @@ function parseTargets(
     return targets;
 }
 
+function warnOnUnknownReferences(
+    values: string[],
+    knownIds: Set<string> | undefined,
+    componentKind: string,
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): void {
+    if (!knownIds) {
+        return;
+    }
+
+    for (const value of values) {
+        if (!knownIds.has(value)) {
+            warnings.push(
+                toWarning(
+                    warningCode,
+                    `Package references unknown ${componentKind} "${value}".`,
+                    manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
+}
+
 function emptyPackage(
     manifestPath: string | undefined,
     warnings: CapabilityWarning[],
@@ -207,6 +243,7 @@ export function parsePackageManifestContent(
     rawText: string,
     manifestPath?: string,
     knownPolicyGrantIds: Set<string> = new Set(),
+    referenceIndex: PackageReferenceIndex = {},
 ): PackageManifestMetadata {
     let data: unknown;
     try {
@@ -324,6 +361,62 @@ export function parsePackageManifestContent(
     );
     const tools = parseStringArray(fields.tools, 'tools', 'PACKAGE_TOOLS_INVALID', manifestPath, warnings);
     const hooks = parseStringArray(fields.hooks, 'hooks', 'PACKAGE_HOOKS_INVALID', manifestPath, warnings);
+    warnOnUnknownReferences(
+        agents,
+        referenceIndex.agents,
+        'agent profile',
+        'PACKAGE_AGENT_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        skills,
+        referenceIndex.skills,
+        'skill',
+        'PACKAGE_SKILL_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        instructions,
+        referenceIndex.instructions,
+        'instruction',
+        'PACKAGE_INSTRUCTION_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        prompts,
+        referenceIndex.prompts,
+        'prompt',
+        'PACKAGE_PROMPT_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        mcpServers,
+        referenceIndex.mcpServers,
+        'MCP server',
+        'PACKAGE_MCP_SERVER_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        tools,
+        referenceIndex.tools,
+        'tool',
+        'PACKAGE_TOOL_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
+    warnOnUnknownReferences(
+        hooks,
+        referenceIndex.hooks,
+        'hook',
+        'PACKAGE_HOOK_UNKNOWN',
+        manifestPath,
+        warnings,
+    );
     const policyGrants = parseStringArray(
         fields.policyGrants,
         'policyGrants',
@@ -387,6 +480,7 @@ export function parsePackageManifestContent(
 export function loadPackageManifestsForLayer(
     layerPath: string,
     knownPolicyGrantIds: Set<string> = new Set(),
+    referenceIndex: PackageReferenceIndex = {},
 ): PackageManifestMetadata[] {
     const packagesDir = path.join(layerPath, CANONICAL_METAFLOW_DIR_NAME, PACKAGES_DIR_NAME);
     if (!fs.existsSync(packagesDir) || !fs.statSync(packagesDir).isDirectory()) {
@@ -402,6 +496,7 @@ export function loadPackageManifestsForLayer(
                 fs.readFileSync(manifestPath, 'utf-8'),
                 manifestPath,
                 knownPolicyGrantIds,
+                referenceIndex,
             );
         })
         .sort((left, right) => {
