@@ -20,6 +20,7 @@ import type {
     GovernanceContract,
     GovernanceViolation,
     GitHubCopilotMcpHandoff,
+    MigrationSuggestionsReport,
     McpServerMetadata,
     PackageMarketplaceReport,
     ResolvedPackageMarketplaceManifest,
@@ -30,6 +31,7 @@ import type {
 import {
     buildGitHubCopilotMcpHandoff,
     buildCodexSupportBoundariesDocument,
+    buildMigrationSuggestionsReport,
     buildTargetCapabilitySupportReference,
     evaluateGovernanceCompliance,
     loadConfig,
@@ -48,6 +50,7 @@ import {
     buildCapabilityPluginMarketplaceManifest,
     buildCodexPluginMarketplaceManifest,
     buildPackageMarketplaceReport,
+    formatMigrationSuggestionsReport,
     resolvePathFromWorkspace,
     applyFilters,
     applyProfile,
@@ -857,6 +860,29 @@ export function buildPackageMarketplaceReportForExtension(
     return {
         ...report,
         content: JSON.stringify(report, null, 2) + '\n',
+    };
+}
+
+export function buildMigrationSuggestionsReportForExtension(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): MigrationSuggestionsReport & { content: string; markdown: string } {
+    const report = buildMigrationSuggestionsReport(resolveLayers(config, workspaceRoot));
+    return {
+        ...report,
+        generatedBy: 'metaflow extension migration-suggestions',
+        content: JSON.stringify(
+            {
+                ...report,
+                generatedBy: 'metaflow extension migration-suggestions',
+            },
+            null,
+            2,
+        ) + '\n',
+        markdown: formatMigrationSuggestionsReport({
+            ...report,
+            generatedBy: 'metaflow extension migration-suggestions',
+        }),
     };
 }
 
@@ -6288,6 +6314,46 @@ export function registerCommands(
                 await vscode.window.showTextDocument(doc, { preview: false });
                 vscode.window.showInformationMessage(
                     'MetaFlow: Opened package marketplace report. Review Codex and GitHub Copilot payloads before applying them to host marketplace files.',
+                );
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+            }
+        }),
+    );
+
+    // ── metaflow.openMigrationSuggestionsReport ───────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.openMigrationSuggestionsReport', async () => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
+                return;
+            }
+
+            try {
+                const report = buildMigrationSuggestionsReportForExtension(
+                    state.config,
+                    ws.uri.fsPath,
+                );
+                showOutputChannel();
+                logInfo('=== Migration Suggestions Report ===');
+                logInfo(
+                    `${report.summary.suggestions} migration suggestion(s), ${report.summary.duplicates} duplicate review item(s), review-only.`,
+                );
+                for (const warning of report.warnings) {
+                    logWarn(`  ${warning}`);
+                }
+
+                const doc = await vscode.workspace.openTextDocument({
+                    language: 'json',
+                    content: report.content,
+                });
+                await vscode.window.showTextDocument(doc, { preview: false });
+                vscode.window.showInformationMessage(
+                    'MetaFlow: Opened migration suggestions report. Review canonical candidates before moving host-native metadata.',
                 );
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);

@@ -170,6 +170,9 @@ The command is review-only. It suggests canonical paths for files such as
 operator review. It does not write canonical files, translate Codex TOML or
 hook JSON automatically, or remove the original host-native files.
 
+In VS Code, use `MetaFlow: Open Migration Suggestions Report` to open the same
+inventory as an unsaved JSON document.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.

@@ -381,4 +381,54 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             ),
         );
     });
+
+    test('builds migration suggestions report content for extension review', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-migration-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerPath = path.join(metadataRepo, 'company', 'core');
+        fs.mkdirSync(path.join(layerPath, '.agents', 'skills', 'release-readiness'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(layerPath, '.metaflow', 'skills', 'release-readiness'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(layerPath, '.agents', 'skills', 'release-readiness', 'SKILL.md'),
+            '# Release Readiness\nCheck release readiness.',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerPath, '.metaflow', 'skills', 'release-readiness', 'SKILL.md'),
+            '# Release Readiness\nCheck release readiness.',
+            'utf-8',
+        );
+
+        const { buildMigrationSuggestionsReportForExtension } = loadCommandHandlers();
+        const report = buildMigrationSuggestionsReportForExtension(
+            {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+                filters: { include: ['**'], exclude: [] },
+            } as never,
+            tmpDir,
+        );
+        const content = JSON.parse(report.content);
+
+        assert.strictEqual(report.generatedBy, 'metaflow extension migration-suggestions');
+        assert.strictEqual(report.managed, false);
+        assert.strictEqual(report.writesFiles, false);
+        assert.strictEqual(report.summary.suggestions, 1);
+        assert.strictEqual(report.summary.duplicates, 1);
+        assert.strictEqual(content.suggestions[0].action, 'review-duplicate');
+        assert.strictEqual(
+            content.suggestions[0].canonicalPath,
+            '.metaflow/skills/release-readiness/SKILL.md',
+        );
+        assert.ok(report.markdown.includes('MetaFlow Migration Suggestions'));
+        assert.ok(
+            content.warnings[0].includes(
+                '.agents/skills/release-readiness/SKILL.md maps to .metaflow/skills/release-readiness/SKILL.md',
+            ),
+        );
+    });
 });

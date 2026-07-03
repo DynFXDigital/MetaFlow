@@ -300,6 +300,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(command?.icon, '$(package)');
     });
 
+    test('migration suggestions report is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.openMigrationSuggestionsReport',
+        );
+        assert.ok(command, 'Expected metaflow.openMigrationSuggestionsReport command contribution');
+        assert.strictEqual(command?.icon, '$(git-compare)');
+    });
+
     test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

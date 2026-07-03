@@ -256,6 +256,14 @@ export {
     getTargetCapabilityMatrix,
 } from './targetCapabilityMatrix';
 export type { CodexSupportBoundariesDocument } from './targetCapabilityMatrix';
+export {
+    buildMigrationSuggestionsReport,
+    formatMigrationSuggestionsReport,
+} from './migrationSuggestions';
+export type {
+    MigrationSuggestion,
+    MigrationSuggestionsReport,
+} from './migrationSuggestions';
 export type { ProvenanceData } from './provenanceHeader';
 export type {
     ManagedState,

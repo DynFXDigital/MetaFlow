@@ -64,6 +64,11 @@
         "icon": "$(package)"
       },
       {
+        "command": "metaflow.openMigrationSuggestionsReport",
+        "title": "MetaFlow: Open Migration Suggestions Report",
+        "icon": "$(git-compare)"
+      },
+      {
         "command": "metaflow.apply",
         "title": "MetaFlow: Apply Overlay",
         "icon": "$(check)"
