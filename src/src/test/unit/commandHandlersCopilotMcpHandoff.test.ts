@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 38);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 40);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 22 &&
+                    target.runtimeOnlyCount === 24 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -292,6 +292,22 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             report.entries.some(
                 (entry) =>
                     entry.target === 'codex' &&
+                    entry.concept === 'recordReplayRuntime' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'importRuntime' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
                     entry.concept === 'tools' &&
                     entry.documentation === 'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
             ),
@@ -322,7 +338,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 22);
+        assert.strictEqual(document.runtimeOnlyCount, 24);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -345,12 +361,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 'computerUseRuntime',
                 'enterprisePolicyRuntime',
                 'evaluationRuntime',
+                'importRuntime',
                 'issuePrOperation',
                 'localCloudHandoff',
                 'memoryRuntime',
                 'oauthMcpRuntime',
                 'permissionRuntime',
                 'pluginRuntime',
+                'recordReplayRuntime',
                 'remoteConnectionRuntime',
                 'remoteMcpRuntime',
                 'reviewRuntime',
@@ -415,6 +433,16 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.ok(
             document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Record & Replay runtime'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Import runtime'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
                 item.includes('Cloud environment runtime'),
             ),
         );
@@ -427,6 +455,8 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('reviewRuntime'));
         assert.ok(document.content.includes('remoteConnectionRuntime'));
         assert.ok(document.content.includes('chronicleRuntime'));
+        assert.ok(document.content.includes('recordReplayRuntime'));
+        assert.ok(document.content.includes('importRuntime'));
         assert.ok(document.content.includes('appConnectorRuntime'));
         assert.ok(document.content.includes('cloudEnvironmentRuntime'));
         assert.ok(document.content.includes('localCloudHandoff'));
@@ -445,6 +475,8 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('Creating Codex Cloud environments'));
         assert.ok(document.content.includes('Enabling Codex Memories'));
         assert.ok(document.content.includes('Enabling Chronicle'));
+        assert.ok(document.content.includes('Recording UI actions'));
+        assert.ok(document.content.includes('Launching the Codex import flow'));
         assert.ok(document.content.includes('Signing in users'));
         assert.ok(document.content.includes('Granting runtime permissions'));
         assert.ok(document.content.includes('MCP OAuth'));

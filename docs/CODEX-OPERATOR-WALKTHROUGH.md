@@ -51,7 +51,8 @@ Review these sections in the preview output:
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
-  enterprise policy runtime, remote connection runtime, Chronicle runtime, app connector runtime,
+  enterprise policy runtime, remote connection runtime, Chronicle runtime,
+  Record & Replay runtime, import runtime, app connector runtime,
   local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
@@ -230,6 +231,19 @@ Recording and Accessibility permissions, pause or resume state, temporary
 screen-capture storage, generated Chronicle memory files, screen-content prompt
 injection risk, and recall proof.
 
+Record & Replay is also app-owned runtime state. MetaFlow can record workflow
+intent, reusable skill expectations, policy grants, and evidence requirements,
+but the Codex app owns recording start and stop, observed UI actions and window
+content, generated skill creation and refinement, Computer Use availability,
+browser or desktop replay authority, sensitive-data review, and replay proof.
+
+Import to Codex is app-owned runtime state. MetaFlow can record import review
+expectations and target compatibility notes, but the Codex app owns source
+agent detection, item selection, user and project setup migration, existing
+setup preservation, generated Codex destinations, plugin or connector follow-up
+authorization, and proof that imported instructions, skills, plugins, MCP,
+hooks, prompts, subagents, projects, or sessions behave as intended.
+
 Evaluation metadata follows the same split. Canonical
 `.metaflow/evaluation/*.json` records expected checks, evidence, limitations,
 and target posture. Codex evaluation execution is a runtime activity: benchmark
@@ -364,6 +378,11 @@ Runtime validation is required for:
   project execution.
 - Chronicle opt-in, consent, macOS screen permissions, generated memories,
   prompt-injection controls, and recall proof.
+- Record & Replay recording, generated skill review, Computer Use or browser
+  replay authority, sensitive-data review, and replay proof.
+- Import to Codex source and item selection, generated Codex destinations,
+  plugin or connector follow-up authorization, imported permission and MCP
+  review, and imported setup proof.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

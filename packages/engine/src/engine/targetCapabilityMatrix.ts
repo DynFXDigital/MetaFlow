@@ -395,6 +395,45 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-078'],
     ),
     row(
+        'recordReplayRuntime',
+        'runtime-only',
+        [
+            'Codex app Record & Replay',
+            'Record a skill',
+            'generated Codex skills',
+            'Computer Use and browser replay',
+        ],
+        [
+            'Record & Replay is Codex app runtime state on macOS, requires Computer Use availability, and is not repository metadata projection.',
+            'Repository metadata can describe reusable workflow intent and expected evidence, but it cannot start a recording, capture UI actions or window content, generate or refine the resulting skill, enable Computer Use, or prove replay behavior.',
+            'Generated Record & Replay skills require sensitive-data review before sharing; stable team packages still use plugin packaging and skills metadata.',
+        ],
+        [
+            'Record & Replay can expose app and window content, preferences, credentials if demonstrated, plugins, browser and Computer Use authority, and external accounts; it requires consent and data review.',
+        ],
+        ['RUN-081'],
+    ),
+    row(
+        'importRuntime',
+        'runtime-only',
+        [
+            'Codex app Import other agent setup',
+            'AGENTS.md import',
+            'config.toml import',
+            'skills, plugins, MCP, hooks, and subagents import',
+            'recent chat session import',
+        ],
+        [
+            'Import to Codex is Codex app runtime state that detects supported user and project setup, imports selected items, leaves existing setup unchanged, and flags plugins or connections needing follow-up setup.',
+            'Repository metadata can describe import review expectations, but it cannot launch the app import flow, select external agent sources or items, migrate local user settings or sessions, authorize plugins or connectors, or prove imported setup behavior.',
+            'Imported permissions, tool restrictions, MCP auth, hooks, plugins, prompts, and subagents require operator review after import.',
+        ],
+        [
+            'Import can carry tool restrictions, hooks, MCP auth, environment or header configuration, plugins, marketplaces, subagents, project folders, recent sessions, and connection setup obligations; it requires review.',
+        ],
+        ['RUN-081'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -900,6 +939,28 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-078'],
     ),
     row(
+        'recordReplayRuntime',
+        'unsupported',
+        ['Codex app Record & Replay'],
+        [
+            'Record & Replay is a Codex app workflow for recording a demonstrated workflow into a Codex skill and is not a GitHub Copilot target surface.',
+            'GitHub Copilot and Agent HQ use separate workflow, custom-agent, plugin, and automation mechanisms that must be represented through GitHub-specific target concepts.',
+        ],
+        ['Recorded workflow authority must be represented through the target harness controls.'],
+        ['RUN-081'],
+    ),
+    row(
+        'importRuntime',
+        'unsupported',
+        ['Codex app Import other agent setup'],
+        [
+            'Import to Codex is a Codex app workflow for importing selected setup from other agent harnesses and is not a GitHub Copilot target surface.',
+            'GitHub Copilot and Agent HQ use their own setup, organization policy, Agent HQ, and marketplace flows that must be represented through GitHub-specific target concepts.',
+        ],
+        ['Imported agent setup authority must be represented through the target harness controls.'],
+        ['RUN-081'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1175,6 +1236,8 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Enabling Chronicle, granting macOS Screen Recording or Accessibility permissions, capturing screen context, processing Chronicle screenshot frames or OCR text, creating Chronicle memories, pausing or resuming Chronicle, or proving Chronicle recall behavior from repository metadata alone.',
+        'Recording UI actions or window content, generating or refining Record & Replay skills, enabling Computer Use, or proving replay behavior from repository metadata alone.',
+        'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1194,6 +1257,8 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
         'Chronicle runtime: Codex app and macOS host identity, ChatGPT plan eligibility, Memories setting state, Chronicle opt-in and consent state, Screen Recording and Accessibility permission posture, pause or resume state, temporary screen-capture storage posture, Chronicle memory artifact review, representative recall behavior, prompt-injection risk controls, and known limitations.',
+        'Record & Replay runtime: Codex app version, macOS and region eligibility, Computer Use availability and policy, recorded workflow scope, generated skill artifact, replay environment, representative replay result, sensitive-data review, and known limitations.',
+        'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

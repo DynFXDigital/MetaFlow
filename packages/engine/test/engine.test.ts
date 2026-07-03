@@ -189,6 +189,8 @@ describe('Engine package: public API', () => {
             'executionSurfaces',
             'memoryScopes',
             'chronicleRuntime',
+            'recordReplayRuntime',
+            'importRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -422,6 +424,42 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexChronicleRuntime?.evidence.includes('RUN-078'),
             'Codex Chronicle runtime row should point to runtime-boundary evidence',
+        );
+        const codexRecordReplayRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'recordReplayRuntime',
+        );
+        assert.strictEqual(codexRecordReplayRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexRecordReplayRuntime?.nativeSurfaces.includes('Codex app Record & Replay'),
+            'Codex Record & Replay runtime row should name the app workflow',
+        );
+        assert.ok(
+            codexRecordReplayRuntime?.notes.some((note) =>
+                note.includes('cannot start a recording'),
+            ),
+            'Codex Record & Replay runtime row should document recording boundary',
+        );
+        assert.ok(
+            codexRecordReplayRuntime?.evidence.includes('RUN-081'),
+            'Codex Record & Replay runtime row should point to runtime-boundary evidence',
+        );
+        const codexImportRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'importRuntime',
+        );
+        assert.strictEqual(codexImportRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexImportRuntime?.nativeSurfaces.includes('Codex app Import other agent setup'),
+            'Codex import runtime row should name the app workflow',
+        );
+        assert.ok(
+            codexImportRuntime?.notes.some((note) =>
+                note.includes('cannot launch the app import flow'),
+            ),
+            'Codex import runtime row should document import boundary',
+        );
+        assert.ok(
+            codexImportRuntime?.evidence.includes('RUN-081'),
+            'Codex import runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -902,17 +940,38 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot Chronicle row should document unsupported Codex-only surface',
         );
+        const copilotRecordReplayRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'recordReplayRuntime',
+        );
+        assert.strictEqual(copilotRecordReplayRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotRecordReplayRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot Record & Replay row should document unsupported Codex-only surface',
+        );
+        const copilotImportRuntime = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'importRuntime',
+        );
+        assert.strictEqual(copilotImportRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotImportRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot import row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 38,
+            runtimeOnlyCount: 40,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 22,
+                    runtimeOnlyCount: 24,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

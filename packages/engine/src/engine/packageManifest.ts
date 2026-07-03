@@ -83,6 +83,8 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'executionSurfaces',
     'memoryScopes',
     'chronicleRuntime',
+    'recordReplayRuntime',
+    'importRuntime',
     'cloudEnvironmentRuntime',
     'appConnectorRuntime',
     'localCloudHandoff',

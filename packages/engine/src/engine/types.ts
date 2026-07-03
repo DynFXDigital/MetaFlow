@@ -881,6 +881,8 @@ export type TargetCapabilityConcept =
     | 'executionSurfaces'
     | 'memoryScopes'
     | 'chronicleRuntime'
+    | 'recordReplayRuntime'
+    | 'importRuntime'
     | 'cloudEnvironmentRuntime'
     | 'appConnectorRuntime'
     | 'localCloudHandoff'
