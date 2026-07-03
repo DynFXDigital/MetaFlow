@@ -245,6 +245,20 @@ describe('Engine package: public API', () => {
             copilotPrompts?.nativeSurfaces.includes('.metaflow/prompts/*.json'),
             'GitHub Copilot prompts row should name the structured canonical prompt metadata surface',
         );
+        const codexPrompts = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'prompts',
+        );
+        assert.strictEqual(codexPrompts?.support, 'partial');
+        assert.ok(
+            codexPrompts?.nativeSurfaces.includes('~/.codex/prompts/*.md (deprecated local-only)'),
+            'Codex prompts row should identify deprecated local-only custom prompts',
+        );
+        assert.ok(
+            codexPrompts?.notes.some((note) =>
+                note.includes('Shared reusable Codex workflows should be represented as skills'),
+            ),
+            'Codex prompts row should direct shared workflows to skills',
+        );
 
         const codexPolicy = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'policyGrants',

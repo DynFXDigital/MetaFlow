@@ -133,6 +133,12 @@ Codex surface being claimed. Examples include checking that generated
 repository skills are visible to Codex or that Codex accepts generated MCP
 configuration in the trusted project.
 
+Prompt metadata has a narrower Codex boundary than skill metadata. Codex custom
+prompts are deprecated, explicitly invoked slash-command files under the local
+Codex home directory, so they are not a repository-shared projection target.
+Use canonical skills for shared Codex workflows, and keep canonical prompts as
+reviewable metadata unless another target consumes projected prompt files.
+
 Custom-agent projection has a narrower proof boundary. MetaFlow can write
 `.codex/agents/*.toml`, and Codex documents project-scoped custom agents as
 subagent configuration layers. Installed Codex CLI 0.142.3 does not expose a

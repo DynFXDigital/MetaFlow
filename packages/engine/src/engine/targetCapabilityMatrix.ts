@@ -63,13 +63,18 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'prompts',
         'partial',
-        ['.metaflow/prompts/*.json', '.metaflow/prompts/*.md', 'prompts/*.md'],
         [
-            'Canonical MetaFlow prompt files project to shared prompt artifacts.',
-            'Codex does not expose a direct repository prompt-file surface equivalent to GitHub Copilot prompts.',
+            '.metaflow/prompts/*.json',
+            '.metaflow/prompts/*.md',
+            '~/.codex/prompts/*.md (deprecated local-only)',
+        ],
+        [
+            'Canonical MetaFlow prompt metadata is parsed and reported for adapter review.',
+            'Codex custom prompts are deprecated explicit slash-command files in the local Codex home directory, not repository-shared metadata.',
+            'Shared reusable Codex workflows should be represented as skills rather than projected prompt files.',
         ],
         [],
-        ['RUN-052'],
+        ['RUN-052', 'RUN-066'],
     ),
     row(
         'skills',

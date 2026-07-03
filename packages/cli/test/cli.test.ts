@@ -1235,6 +1235,16 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(codexPromptSupport.support, 'partial');
         assert.ok(codexPromptSupport.nativeSurfaces.includes('.metaflow/prompts/*.json'));
+        assert.ok(
+            codexPromptSupport.nativeSurfaces.includes(
+                '~/.codex/prompts/*.md (deprecated local-only)',
+            ),
+        );
+        assert.ok(
+            codexPromptSupport.notes.some((note: string) =>
+                note.includes('Shared reusable Codex workflows should be represented as skills'),
+            ),
+        );
         const copilotPromptSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'github-copilot' && entry.concept === 'prompts',
