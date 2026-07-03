@@ -557,6 +557,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-070'],
     ),
     row(
+        'localEnvironmentRuntime',
+        'runtime-only',
+        [
+            'Codex app local environments',
+            'project .codex local environment configuration',
+            'worktree setup scripts',
+            'project actions',
+            'platform-specific local scripts',
+            'integrated terminal actions',
+        ],
+        [
+            'Codex local environments are Codex app runtime configuration for project worktree setup scripts and common project actions.',
+            'Repository metadata can describe local environment intent and evidence requirements, but it cannot open the Codex app settings pane, select a project directory, create or update app-local environment state, run setup scripts in a new worktree, start integrated-terminal actions, install dependencies, satisfy platform prerequisites, or prove action behavior.',
+            'Checked-in `.codex` local environment files remain operator-reviewed Codex app configuration and do not prove that a user has opened the matching project, run a thread, or accepted the resulting setup and action behavior.',
+        ],
+        [
+            'Local environments can run shell commands, install dependencies, start development servers, expose local files or services, inherit host credentials, and behave differently across macOS, Windows, and Linux scripts.',
+        ],
+        ['RUN-087'],
+    ),
+    row(
         'appConnectorRuntime',
         'runtime-only',
         [
@@ -1137,6 +1158,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-070'],
     ),
     row(
+        'localEnvironmentRuntime',
+        'unsupported',
+        ['Codex app local environments and project .codex setup/action configuration'],
+        [
+            'Codex local environment behavior is a Codex app runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot project setup, VS Code tasks, Dev Container setup, Codespaces setup, or Actions runner setup must be represented through GitHub-specific execution or environment concepts instead.',
+        ],
+        ['Local environment authority must be represented through the target harness controls.'],
+        ['RUN-087'],
+    ),
+    row(
         'appConnectorRuntime',
         'runtime-only',
         [
@@ -1401,6 +1433,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
         'Granting macOS Screen Recording or Accessibility permissions, installing the Codex app, opening workspaces in the app, configuring MDM managed preferences, running local environment actions, changing active macOS privacy settings, or proving Seatbelt sandbox enforcement from repository metadata alone.',
+        'Opening the Codex app settings pane, selecting project local environments, creating or updating app-local environment state, running setup scripts in new worktrees, starting integrated-terminal actions, installing dependencies, satisfying platform prerequisites, or proving local action behavior from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1427,6 +1460,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
         'macOS platform runtime: Codex surface, Codex app availability, Seatbelt sandbox behavior, macOS Privacy & Security permission posture, writable root policy, local environment action behavior, managed preference state, representative sandboxed command behavior, and known limitations.',
+        'Local environment runtime: Codex app version, selected project directory, checked-in `.codex` environment file posture, setup script content, platform-specific script selection, created worktree path, dependency and cache state, action identity, integrated-terminal execution result, host credential exposure posture, representative setup/action behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

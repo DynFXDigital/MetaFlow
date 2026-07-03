@@ -90,6 +90,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'windowsPlatformRuntime',
     'linuxPlatformRuntime',
     'macosPlatformRuntime',
+    'localEnvironmentRuntime',
     'cloudEnvironmentRuntime',
     'appConnectorRuntime',
     'localCloudHandoff',

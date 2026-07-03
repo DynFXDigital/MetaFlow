@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 45);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 46);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 29 &&
+                    target.runtimeOnlyCount === 30 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -378,7 +378,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 29);
+        assert.strictEqual(document.runtimeOnlyCount, 30);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -406,6 +406,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 'issuePrOperation',
                 'linuxPlatformRuntime',
                 'localCloudHandoff',
+                'localEnvironmentRuntime',
                 'macosPlatformRuntime',
                 'memoryRuntime',
                 'modelProviderRuntime',
@@ -537,6 +538,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('windowsPlatformRuntime'));
         assert.ok(document.content.includes('linuxPlatformRuntime'));
         assert.ok(document.content.includes('macosPlatformRuntime'));
+        assert.ok(document.content.includes('localEnvironmentRuntime'));
         assert.ok(document.content.includes('appConnectorRuntime'));
         assert.ok(document.content.includes('cloudEnvironmentRuntime'));
         assert.ok(document.content.includes('localCloudHandoff'));

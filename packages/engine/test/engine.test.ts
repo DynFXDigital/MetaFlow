@@ -196,6 +196,7 @@ describe('Engine package: public API', () => {
             'windowsPlatformRuntime',
             'linuxPlatformRuntime',
             'macosPlatformRuntime',
+            'localEnvironmentRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -1113,17 +1114,48 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot macOS platform row should document unsupported Codex-only surface',
         );
+
+        const codexLocalEnvironmentRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'localEnvironmentRuntime',
+        );
+        assert.strictEqual(codexLocalEnvironmentRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexLocalEnvironmentRuntime?.nativeSurfaces.includes('Codex app local environments'),
+            'Codex local environment row should name Codex app local environments',
+        );
+        assert.ok(
+            codexLocalEnvironmentRuntime?.notes.some((note) =>
+                note.includes('integrated-terminal actions'),
+            ),
+            'Codex local environment row should document app action proof requirements',
+        );
+        assert.ok(
+            codexLocalEnvironmentRuntime?.evidence.includes('RUN-087'),
+            'Codex local environment row should cite local environment runtime evidence',
+        );
+        const copilotLocalEnvironmentRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' &&
+                entry.concept === 'localEnvironmentRuntime',
+        );
+        assert.strictEqual(copilotLocalEnvironmentRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotLocalEnvironmentRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot local environment row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 45,
+            runtimeOnlyCount: 46,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 29,
+                    runtimeOnlyCount: 30,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

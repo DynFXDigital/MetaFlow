@@ -372,6 +372,10 @@ as `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
 `sideEffectMcpRuntime`. Cloud execution claims also map to
 `cloudEnvironmentRuntime` when they depend on a hosted environment, setup
 script, secrets, dependency state, internet-access policy, or hosted sandbox.
+Local setup claims map to `localEnvironmentRuntime` when they depend on Codex
+app project setup scripts, platform-specific local setup, top-bar project
+actions, integrated-terminal execution, dependency installation, or local
+worktree setup proof.
 Adapter readiness action items include the concept links beside the runtime
 validation scenario so package evidence and target-support boundaries can be
 reviewed together.
@@ -409,6 +413,11 @@ Runtime validation is required for:
   behavior, macOS Privacy & Security permission posture, writable root policy,
   local environment action behavior, managed preference state, representative
   sandboxed command behavior, and known limitations.
+- Codex local environment selection, checked-in `.codex` environment file
+  posture, setup script content, platform-specific script selection, created
+  worktree path, dependency and cache state, action identity,
+  integrated-terminal execution result, host credential exposure posture,
+  representative setup/action behavior, and known limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

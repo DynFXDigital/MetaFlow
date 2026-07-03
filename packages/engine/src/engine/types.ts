@@ -888,6 +888,7 @@ export type TargetCapabilityConcept =
     | 'windowsPlatformRuntime'
     | 'linuxPlatformRuntime'
     | 'macosPlatformRuntime'
+    | 'localEnvironmentRuntime'
     | 'cloudEnvironmentRuntime'
     | 'appConnectorRuntime'
     | 'localCloudHandoff'
