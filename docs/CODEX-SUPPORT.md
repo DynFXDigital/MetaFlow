@@ -69,9 +69,12 @@ Static projection support and runtime support use different evidence.
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
 | MCP runtime works | Codex MCP startup, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
+| Tool runtime works | Tool manifest review, policy grant approval, target runtime configuration, approval behavior, and at least one bounded tool call in the intended environment. |
 
 For the package maintainer workflow, see
 [Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md).
+For command, MCP, HTTP, and manual tool authority, see
+[Codex Tool Authority Guide](CODEX-TOOL-AUTHORITY-GUIDE.md).
 
 ## Source Map
 

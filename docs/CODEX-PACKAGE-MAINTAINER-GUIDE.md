@@ -5,7 +5,9 @@ metadata from canonical MetaFlow package definitions while keeping runtime
 authority and marketplace claims reviewable.
 
 Use this guide with [Codex Support Boundaries](CODEX-SUPPORT.md) and
-[Codex Operator Walkthrough](CODEX-OPERATOR-WALKTHROUGH.md).
+[Codex Operator Walkthrough](CODEX-OPERATOR-WALKTHROUGH.md). Use
+[Codex Tool Authority Guide](CODEX-TOOL-AUTHORITY-GUIDE.md) for package
+components that reference command, MCP, HTTP, or manual tools.
 
 ## Maintainer Contract
 

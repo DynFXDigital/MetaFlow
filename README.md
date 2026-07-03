@@ -129,6 +129,7 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - See [Codex Support Boundaries](docs/CODEX-SUPPORT.md) for the file-backed surfaces MetaFlow can project and the runtime-only surfaces that require operator or harness evidence.
 - See [Codex Operator Walkthrough](docs/CODEX-OPERATOR-WALKTHROUGH.md) for the preview, adapter readiness, apply, export, and runtime-validation review loop.
 - See [Codex Package Maintainer Guide](docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md) for authoring canonical package metadata, marketplace entries, policy grants, and runtime-validation evidence for Codex-compatible packages.
+- See [Codex Tool Authority Guide](docs/CODEX-TOOL-AUTHORITY-GUIDE.md) for modeling command, MCP, HTTP, and manual tools without treating static metadata as runtime authority.
 
 ## Capability Plugin Metadata
 

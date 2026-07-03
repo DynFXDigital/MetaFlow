@@ -238,4 +238,6 @@ Before publishing or advertising Codex support for a package:
 See [Codex Support Boundaries](CODEX-SUPPORT.md) for the complete list of
 file-backed and runtime-only Codex surfaces. See
 [Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md) for the
-canonical package authoring and marketplace-review contract.
+canonical package authoring and marketplace-review contract. See
+[Codex Tool Authority Guide](CODEX-TOOL-AUTHORITY-GUIDE.md) for reviewing
+command, MCP, HTTP, and manual tool authority.
