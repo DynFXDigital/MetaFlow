@@ -3003,6 +3003,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('evaluationRuntime'));
         assert.ok(result.stdout.includes('pluginRuntime'));
         assert.ok(result.stdout.includes('ideExtensionRuntime'));
+        assert.ok(result.stdout.includes('Codex adapter version `codex-v0.1`.'));
         assert.ok(result.stdout.includes('## Runtime Evidence Coverage Summary'));
         assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records |'));
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
@@ -3023,6 +3024,8 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
+        assert.match(data.generatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+        assert.strictEqual(data.adapterVersion, 'codex-v0.1');
         assert.strictEqual(data.runtimeOnlyCount, 34);
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary, {
             totalRuntimeOnlyConcepts: 34,

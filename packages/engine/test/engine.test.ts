@@ -1313,12 +1313,18 @@ describe('Engine package: public API', () => {
     });
 
     it('builds concept-keyed Codex runtime evidence checklist rows', () => {
-        const document = buildCodexSupportBoundariesDocument();
+        const document = buildCodexSupportBoundariesDocument({
+            generatedAt: '2026-07-03T00:00:00.000Z',
+        });
         const runtimeOnlyConcepts = document.runtimeOnlyRows.map((row) => row.concept).sort();
         const checklistConcepts = document.runtimeEvidenceChecklist
             .map((item) => item.concept)
             .sort();
 
+        assert.strictEqual(document.generatedAt, '2026-07-03T00:00:00.000Z');
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
+        assert.ok(document.content.includes('Generated at `2026-07-03T00:00:00.000Z`.'));
+        assert.ok(document.content.includes('Codex adapter version `codex-v0.1`.'));
         assert.deepStrictEqual(checklistConcepts, runtimeOnlyConcepts);
         assert.strictEqual(document.runtimeEvidenceChecklist.length, document.runtimeOnlyCount);
         assert.strictEqual(

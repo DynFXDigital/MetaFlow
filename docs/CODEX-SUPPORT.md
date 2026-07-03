@@ -17,7 +17,10 @@ so runtime support can be reviewed without treating all recorded proof as
 equally ready. The Markdown report includes runtime evidence review queues for
 missing evidence, clean evidence, diagnostic-bearing evidence, and
 error-diagnostic evidence so operators can triage the next runtime validation
-work without scanning every checklist row.
+work without scanning every checklist row. The report includes structured
+generator metadata: the emitting MetaFlow command or extension surface, the
+generation timestamp, and the Codex target adapter version used to classify
+file-backed and runtime-only support.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

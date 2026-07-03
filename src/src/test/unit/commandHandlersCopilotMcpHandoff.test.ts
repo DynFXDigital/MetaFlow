@@ -410,6 +410,8 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
+        assert.match(document.generatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
         assert.strictEqual(document.runtimeOnlyCount, 34);
         assert.ok(
             document.fileBackedRows.some(
