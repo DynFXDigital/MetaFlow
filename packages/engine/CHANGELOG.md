@@ -14,6 +14,7 @@
 - Warn when managed target adapter concepts are unsupported or runtime-only in the current target capability matrix.
 - Warn when package runtime validation records omit both a validation command and evidence references.
 - Parse package runtime validation concept links and warn on unknown target capability concept IDs.
+- Surface package runtime validation concept links in adapter readiness output and warn when those concepts are unsupported for the target.
 - Identify `.metaflow/packages/*.json` as the canonical package metadata surface in package-manifest target capability matrix rows.
 - Parse canonical `.metaflow/skills/<skill-id>/skill.json` metadata for skill identity, entrypoint, routing tags, risk posture, target constraints, and package reference validation.
 - Parse same-name `.metaflow/instructions/*.json` and `.metaflow/prompts/*.json` metadata for content identity, entrypoint, routing tags, risk posture, target constraints, and package reference validation.

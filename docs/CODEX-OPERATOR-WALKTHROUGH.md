@@ -254,7 +254,9 @@ accepted as a known limitation.
 Runtime validation concept links identify the target-support rows proven or
 bounded by the evidence. Use them to review package claims against concepts such
 as `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
-`sideEffectMcpRuntime`.
+`sideEffectMcpRuntime`. Adapter readiness action items include the concept links
+beside the runtime validation scenario so package evidence and target-support
+boundaries can be reviewed together.
 
 Runtime validation is required for:
 

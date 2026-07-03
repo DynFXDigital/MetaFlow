@@ -100,7 +100,7 @@ metaflow export-package-marketplace --format github-copilot-marketplace
 metaflow export-package-marketplace --out exports/package-marketplace.json --force
 ```
 
-The default output is a compact target-grouped review object. `--json` includes source provenance, package warnings, and runtime validation records. Host-shaped formats emit Codex `.agents/plugins/marketplace.json` or GitHub Copilot `.github/plugin/marketplace.json` candidate payloads from canonical package metadata, but the command does not mutate host marketplace files unless an explicit `--out` path is provided.
+The default output is a compact target-grouped review object. `--json` includes source provenance, package warnings, and runtime validation records, including target capability concept links when package evidence names them. Host-shaped formats emit Codex `.agents/plugins/marketplace.json` or GitHub Copilot `.github/plugin/marketplace.json` candidate payloads from canonical package metadata, but the command does not mutate host marketplace files unless an explicit `--out` path is provided.
 
 #### `target-support`
 

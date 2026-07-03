@@ -1403,6 +1403,7 @@ describe('CLI: preview', () => {
                     item.message.includes('Required package policy grants: github-pr-read') &&
                     item.message.includes('Validation evidence: RUN-055') &&
                     item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.message.includes('concepts=packageManifests,sideEffectMcpRuntime') &&
                     item.message.includes('Marketplace entries: codex/release-operations') &&
                     item.evidence.includes('RUN-056'),
             ),

@@ -314,8 +314,13 @@ export function buildAdapterReadinessReports(
                 runtimeValidation.length > 0
                     ? ` Runtime validation: ${runtimeValidation
                           .map(
-                              (record) =>
-                                  `${record.harness}/${record.adapterVersion} ${record.status} "${record.scenario}"`,
+                              (record) => {
+                                  const concepts =
+                                      record.concepts && record.concepts.length > 0
+                                          ? ` concepts=${record.concepts.join(',')}`
+                                          : '';
+                                  return `${record.harness}/${record.adapterVersion} ${record.status}${concepts} "${record.scenario}"`;
+                              },
                           )
                           .join('; ')}.`
                     : '';

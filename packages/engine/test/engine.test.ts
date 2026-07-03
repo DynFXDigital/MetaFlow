@@ -553,6 +553,7 @@ describe('Engine package: public API', () => {
                     runtimeValidation: [
                         {
                             target: 'codex',
+                            concepts: ['packageManifests', 'sideEffectMcpRuntime'],
                             harness: 'Codex CLI',
                             adapterVersion: 'codex-v0.1',
                             scenario: 'Generated package appears in local marketplace.',
@@ -647,6 +648,7 @@ describe('Engine package: public API', () => {
                     item.message.includes('Required package policy grants: github-pr-read') &&
                     item.message.includes('Validation evidence: RUN-055') &&
                     item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.message.includes('concepts=packageManifests,sideEffectMcpRuntime') &&
                     item.message.includes('Marketplace entries: codex/release-operations') &&
                     item.evidence.includes('RUN-056'),
             ),
@@ -6372,9 +6374,21 @@ describe('Engine: synchronizer advanced', () => {
                 prompts: ['release-review'],
                 targets: {
                     codex: { enabled: true },
+                    'github-copilot': { enabled: true },
                     'future-agent': { enabled: true },
                     'disabled-target': { enabled: false },
                 },
+                runtimeValidation: [
+                    {
+                        target: 'github-copilot',
+                        concepts: ['projectConfig'],
+                        harness: 'GitHub Copilot',
+                        adapterVersion: 'github-copilot-v0.1',
+                        scenario: 'Project config package evidence.',
+                        status: 'not-run',
+                        command: 'manual review',
+                    },
+                ],
             }),
             'utf-8',
         );
@@ -6389,6 +6403,7 @@ describe('Engine: synchronizer advanced', () => {
         const codes = warnings.map((warning) => warning.code);
         assert.ok(codes.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
         assert.ok(codes.includes('PACKAGE_TARGET_UNKNOWN'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_CONCEPT_UNSUPPORTED'));
         assert.ok(
             !warnings.some((warning) => warning.message.includes('disabled-target')),
             'disabled package targets should not emit compatibility warnings',

@@ -165,7 +165,9 @@ or `evidence` so the claim is reproducible during package review.
 Concept links connect package evidence to target support concepts such as
 `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
 `sideEffectMcpRuntime`. Unknown concept IDs remain diagnostics so package
-reviews use the same vocabulary as `metaflow target-support`.
+reviews use the same vocabulary as `metaflow target-support`. Concept links are
+also included in adapter readiness output, and concept links that are unsupported
+for the selected target remain package diagnostics.
 
 Runtime validation is required for:
 

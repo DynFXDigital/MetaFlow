@@ -736,6 +736,41 @@ function validatePackageTarget(
         manifest.policyGrants.length,
         rows,
     );
+    for (const record of manifest.runtimeValidation.filter((entry) => entry.target === targetId)) {
+        warnOnRuntimeValidationConceptSupport(manifest, targetId, record.concepts ?? [], rows);
+    }
+}
+
+function warnOnRuntimeValidationConceptSupport(
+    manifest: PackageManifestMetadata,
+    targetId: string,
+    concepts: TargetCapabilityConcept[],
+    rows: TargetCapabilityMatrixEntry[],
+): void {
+    for (const concept of concepts) {
+        const row = rows.find((entry) => entry.concept === concept);
+        if (!row) {
+            manifest.warnings.push(
+                packageWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_CONCEPT_TARGET_UNKNOWN',
+                    `Package runtimeValidation target "${targetId}" concept "${concept}" has no target capability matrix row.`,
+                    manifest.manifestPath,
+                ),
+            );
+            continue;
+        }
+
+        if (row.support === 'unsupported') {
+            manifest.warnings.push(
+                packageWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_CONCEPT_UNSUPPORTED',
+                    `Package runtimeValidation target "${targetId}" concept "${concept}" is unsupported by the target capability matrix.`,
+                    manifest.manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
 }
 
 function warnOnPackageConceptSupport(
