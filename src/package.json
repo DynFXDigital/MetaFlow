@@ -49,6 +49,11 @@
         "icon": "$(list-tree)"
       },
       {
+        "command": "metaflow.openCodexSupportBoundaries",
+        "title": "MetaFlow: Open Codex Support Boundaries",
+        "icon": "$(book)"
+      },
+      {
         "command": "metaflow.exportCopilotMcpHandoff",
         "title": "MetaFlow: Export GitHub Copilot MCP Handoff",
         "icon": "$(json)"

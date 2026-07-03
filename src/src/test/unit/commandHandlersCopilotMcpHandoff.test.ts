@@ -210,6 +210,24 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
     });
 
+    test('builds Codex support boundaries markdown for extension review', () => {
+        const { buildCodexSupportBoundariesDocumentForExtension } = loadCommandHandlers();
+        const document = buildCodexSupportBoundariesDocumentForExtension();
+
+        assert.strictEqual(
+            document.generatedBy,
+            'metaflow extension codex-support-boundaries',
+        );
+        assert.strictEqual(document.runtimeOnlyCount, 2);
+        assert.ok(document.content.includes('# Codex Support Boundaries'));
+        assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
+        assert.ok(document.content.includes('localCloudHandoff'));
+        assert.ok(document.content.includes('issuePrOperation'));
+        assert.ok(document.content.includes('## Not Achievable By Repository Projection Alone'));
+        assert.ok(document.content.includes('Creating Codex Cloud environments'));
+        assert.ok(document.content.includes('MCP OAuth'));
+    });
+
     test('builds package marketplace report content for extension review', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-package-marketplace-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
