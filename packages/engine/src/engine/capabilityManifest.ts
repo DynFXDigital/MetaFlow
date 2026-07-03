@@ -20,6 +20,7 @@ import {
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
 const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
 const CANONICAL_CAPABILITY_FILE_NAME = 'capability.json';
+const CANONICAL_README_FILE_NAME = 'README.md';
 const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
 const KNOWN_FIELDS = new Set([
@@ -958,9 +959,9 @@ export function loadCapabilityManifestForLayer(
     layerPath: string,
     capabilityId: string,
 ): CapabilityMetadata | undefined {
+    const canonicalMetaFlowDirPath = path.join(layerPath, CANONICAL_METAFLOW_DIR_NAME);
     const canonicalManifestPath = path.join(
-        layerPath,
-        CANONICAL_METAFLOW_DIR_NAME,
+        canonicalMetaFlowDirPath,
         CANONICAL_CAPABILITY_FILE_NAME,
     );
     if (fs.existsSync(canonicalManifestPath)) {
@@ -993,6 +994,24 @@ export function loadCapabilityManifestForLayer(
             );
             manifest.agentPluginManifest = pluginResult.metadata;
             manifest.warnings.push(...pluginResult.warnings);
+        }
+
+        const canonicalReadmePath = path.join(
+            canonicalMetaFlowDirPath,
+            CANONICAL_README_FILE_NAME,
+        );
+        if (fs.existsSync(canonicalReadmePath)) {
+            try {
+                manifest.body = fs.readFileSync(canonicalReadmePath, 'utf-8');
+            } catch (err) {
+                manifest.warnings.push(
+                    toWarning(
+                        'CANONICAL_CAPABILITY_README_READ_ERROR',
+                        `Failed to read .metaflow/README.md: ${(err as Error).message}`,
+                        canonicalReadmePath,
+                    ),
+                );
+            }
         }
 
         return manifest;
@@ -1074,6 +1093,7 @@ export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
     CANONICAL_METAFLOW_DIR_NAME,
     CANONICAL_CAPABILITY_FILE_NAME,
+    CANONICAL_README_FILE_NAME,
     AGENT_PLUGIN_MANIFEST_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };

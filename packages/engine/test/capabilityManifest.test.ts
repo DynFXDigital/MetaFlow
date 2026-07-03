@@ -723,6 +723,57 @@ describe('capabilityManifest parser', () => {
         }
     });
 
+    it('loads canonical .metaflow README as the capability narrative body', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canonical-capability-readme-test-'));
+        try {
+            fs.mkdirSync(path.join(tmpDir, '.metaflow'));
+            fs.writeFileSync(
+                path.join(tmpDir, '.metaflow', 'capability.json'),
+                JSON.stringify({
+                    schemaVersion: 'metaflow.capability/v1',
+                    id: 'canonical-narrative',
+                    name: 'Canonical Narrative',
+                    summary: 'Structured identity with markdown narrative.',
+                }),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, '.metaflow', 'README.md'),
+                '# Canonical Narrative\n\nAuthor the long-form capability story here.\n',
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'fallback-id');
+            assert.strictEqual(loaded?.id, 'canonical-narrative');
+            assert.ok(loaded?.body?.includes('Author the long-form capability story here.'));
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('warns when canonical .metaflow README cannot be read as a file', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'canonical-capability-readme-test-'));
+        try {
+            fs.mkdirSync(path.join(tmpDir, '.metaflow'));
+            fs.writeFileSync(
+                path.join(tmpDir, '.metaflow', 'capability.json'),
+                JSON.stringify({
+                    schemaVersion: 'metaflow.capability/v1',
+                    id: 'canonical-narrative',
+                    name: 'Canonical Narrative',
+                    summary: 'Structured identity with markdown narrative.',
+                }),
+                'utf-8',
+            );
+            fs.mkdirSync(path.join(tmpDir, '.metaflow', 'README.md'));
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'fallback-id');
+            assert.ok(hasCode(loaded, 'CANONICAL_CAPABILITY_README_READ_ERROR'));
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
     it('returns canonical parse errors for invalid .metaflow capability files', () => {
         const invalidJson = parseCanonicalCapabilityManifestContent(
             '{ invalid json',
