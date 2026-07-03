@@ -248,6 +248,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(pushCommand?.icon, '$(repo-push)');
     });
 
+    test('GitHub Copilot MCP handoff export is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.exportCopilotMcpHandoff',
+        );
+        assert.ok(command, 'Expected metaflow.exportCopilotMcpHandoff command contribution');
+        assert.strictEqual(command?.icon, '$(json)');
+    });
+
     test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

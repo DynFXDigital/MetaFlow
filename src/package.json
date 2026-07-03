@@ -44,6 +44,11 @@
         "icon": "$(eye)"
       },
       {
+        "command": "metaflow.exportCopilotMcpHandoff",
+        "title": "MetaFlow: Export GitHub Copilot MCP Handoff",
+        "icon": "$(json)"
+      },
+      {
         "command": "metaflow.apply",
         "title": "MetaFlow: Apply Overlay",
         "icon": "$(check)"

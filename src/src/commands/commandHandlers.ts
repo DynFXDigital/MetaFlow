@@ -18,9 +18,12 @@ import type {
     GovernanceComplianceResult,
     GovernanceContract,
     GovernanceViolation,
+    GitHubCopilotMcpHandoff,
+    McpServerMetadata,
     SurfacedFileConflict,
 } from '@metaflow/engine';
 import {
+    buildGitHubCopilotMcpHandoff,
     evaluateGovernanceCompliance,
     loadConfig,
     loadGovernanceContract,
@@ -726,6 +729,16 @@ export function createState(): ExtensionState {
         treeSummaryCache: undefined,
         onDidChange: new vscode.EventEmitter<void>(),
     };
+}
+
+export function buildGitHubCopilotMcpHandoffForWorkspace(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): GitHubCopilotMcpHandoff | undefined {
+    const mcpServers: McpServerMetadata[] = resolveLayers(config, workspaceRoot).flatMap((layer) =>
+        layer.mcpServers ?? [],
+    );
+    return buildGitHubCopilotMcpHandoff(mcpServers);
 }
 
 function cloneConfigError(error: ConfigError): ConfigError {
@@ -5926,6 +5939,53 @@ export function registerCommands(
                         );
                     }
                 }
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+            }
+        }),
+    );
+
+    // ── metaflow.exportCopilotMcpHandoff ──────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.exportCopilotMcpHandoff', async () => {
+            const ws = getWorkspace();
+            if (!ws || !state.config) {
+                vscode.window.showWarningMessage('MetaFlow: No config loaded. Run Refresh first.');
+                return;
+            }
+
+            try {
+                const handoff = buildGitHubCopilotMcpHandoffForWorkspace(
+                    state.config,
+                    ws.uri.fsPath,
+                );
+                if (!handoff) {
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: No canonical MCP server metadata is configured.',
+                    );
+                    return;
+                }
+
+                showOutputChannel();
+                logInfo('=== GitHub Copilot MCP Handoff ===');
+                logInfo(
+                    `${handoff.destination} (${handoff.servers.filter((server) => server.supported).length}/${handoff.servers.length} servers supported, operator review required)`,
+                );
+                for (const warning of handoff.warnings) {
+                    logWarn(`  ${warning}`);
+                }
+
+                const doc = await vscode.workspace.openTextDocument({
+                    language: 'json',
+                    content: handoff.content,
+                });
+                await vscode.window.showTextDocument(doc, { preview: false });
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Opened GitHub Copilot MCP handoff for ${handoff.destination}. Review before saving or applying it.`,
+                );
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
                 logError(message);
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }
