@@ -1396,7 +1396,13 @@ describe('Engine package: public API', () => {
                     evidenceArtifacts: [],
                     limitations: ['No AWS Bedrock access in the validation environment.'],
                     policyGrants: [],
-                    warnings: [],
+                    warnings: [
+                        {
+                            code: 'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
+                            message: 'Runtime evidence evidenceArtifacts entries require a supported kind and non-empty ref.',
+                            severity: 'error',
+                        },
+                    ],
                 },
                 {
                     id: 'copilot-review-smoke',
@@ -1417,9 +1423,19 @@ describe('Engine package: public API', () => {
         });
 
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.records, 2);
-        assert.strictEqual(document.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.recordsWithWarnings, 2);
+        assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity, {
+            error: 1,
+            warning: 1,
+            info: 0,
+        });
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 3);
-        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 2);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 3);
+        assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity, {
+            error: 1,
+            warning: 2,
+            info: 0,
+        });
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount - 3,
@@ -1436,13 +1452,17 @@ describe('Engine package: public API', () => {
         );
         assert.deepStrictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithWarningRecords.sort(),
-            ['issuePrOperation', 'reviewRuntime'].sort(),
+            ['issuePrOperation', 'modelProviderRuntime', 'reviewRuntime'].sort(),
+        );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords,
+            ['modelProviderRuntime'],
         );
         const reviewChecklist = document.runtimeEvidenceChecklist.find(
             (item) => item.concept === 'reviewRuntime',
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
-        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 1 | 2 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 2 | 1 | 3 | 1 | 0 | 2 | 0 | 0 | 1 |'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

@@ -499,6 +499,17 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.runtimeOnlyCount,
         );
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 0);
+        assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity, {
+            error: 0,
+            warning: 0,
+            info: 0,
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity, {
+            error: 0,
+            warning: 0,
+            info: 0,
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords, []);
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
