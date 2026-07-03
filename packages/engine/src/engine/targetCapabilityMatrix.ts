@@ -519,6 +519,30 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-089'],
     ),
     row(
+        'appServerRuntime',
+        'runtime-only',
+        [
+            'codex app-server',
+            'Codex app-server JSON-RPC 2.0 runtime',
+            'stdio app-server transport',
+            'WebSocket app-server transport',
+            'Unix socket app-server transport',
+            'initialize / initialized handshake',
+            'thread/start, thread/resume, thread/fork',
+            'turn/start, turn/steer, turn/interrupt',
+            'app-server schema generation',
+        ],
+        [
+            'Codex app-server integrations are process and protocol runtime behavior and are not repository metadata projection.',
+            'Repository metadata can describe app-server integration intent, policy expectations, schema expectations, and evidence requirements, but it cannot start app-server processes, choose live transports, authenticate WebSocket listeners, initialize JSON-RPC clients, create or resume threads, start or steer turns, manage event streams, handle overload or retry behavior, generate version-matched schemas, or prove app-server behavior.',
+            'App-server WebSocket transport is experimental and unsupported; non-loopback listeners require explicit authentication posture before exposure.',
+        ],
+        [
+            'App-server integrations can expose local or remote control over Codex threads, repository files, command execution, event streams, telemetry, credentials, and hosted application authority and require explicit transport, authentication, sandbox, approval, and client-identity review.',
+        ],
+        ['RUN-090'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'runtime-only',
         [
@@ -1174,6 +1198,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-089'],
     ),
     row(
+        'appServerRuntime',
+        'unsupported',
+        ['Codex app-server JSON-RPC runtime'],
+        [
+            'Codex app-server is a Codex programmatic runtime protocol surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot or Agent HQ embedded-agent, hosted-agent, Actions, or enterprise-router behavior must be represented through GitHub-specific execution, policy, connector, or runtime-evidence concepts instead.',
+        ],
+        ['App-server protocol authority must be represented through the target harness controls.'],
+        ['RUN-090'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'unsupported',
         ['Codex Windows app and Windows sandbox'],
@@ -1499,6 +1534,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
         'Invoking `codex exec`, selecting live non-interactive credentials, choosing sandbox or approval posture, streaming JSONL, writing schema-constrained output, resuming sessions, satisfying repository trust checks, or proving scripted Codex execution from repository metadata alone.',
         'Installing Codex SDK packages, provisioning Node.js or Python runtimes, starting app-server processes, initializing SDK clients, selecting credentials, creating or resuming SDK threads, choosing live sandbox presets, deploying embedding applications, capturing traces, or proving SDK behavior from repository metadata alone.',
+        'Starting Codex app-server processes, selecting stdio, WebSocket, Unix socket, or disabled transports, authenticating WebSocket listeners, initializing JSON-RPC clients, creating or resuming threads, starting or steering turns, handling event streams, managing overload retries, generating version-matched schemas, or proving app-server behavior from repository metadata alone.',
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
         'Granting macOS Screen Recording or Accessibility permissions, installing the Codex app, opening workspaces in the app, configuring MDM managed preferences, running local environment actions, changing active macOS privacy settings, or proving Seatbelt sandbox enforcement from repository metadata alone.',
@@ -1528,6 +1564,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
         'Non-interactive runtime: Codex CLI version, command invocation, working directory and Git repository state, authentication method and credential scope, sandbox and approval settings, JSON or output-schema configuration, stdin and output handling, session resume posture, representative command/tool activity, produced artifacts, exit status, audit or billing posture, and known limitations.',
         'SDK runtime: SDK package and version, language runtime, embedding application identity, Codex CLI or app-server runtime source, authentication method and credential scope, thread start or resume behavior, sandbox preset or turn override, representative SDK call, command or tool activity, trace or log posture, deployment environment, exit or error handling, and known limitations.',
+        'App-server runtime: Codex CLI version, app-server command invocation, selected transport, listener binding and authentication posture, client identity, initialize/initialized handshake, thread start or resume behavior, turn start or steering behavior, event-stream handling, schema version, overload or retry handling, sandbox and approval posture, representative command or tool activity, exit or error handling, and known limitations.',
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
         'macOS platform runtime: Codex surface, Codex app availability, Seatbelt sandbox behavior, macOS Privacy & Security permission posture, writable root policy, local environment action behavior, managed preference state, representative sandboxed command behavior, and known limitations.',

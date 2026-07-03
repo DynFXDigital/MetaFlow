@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 48);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 49);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 32 &&
+                    target.runtimeOnlyCount === 33 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -340,6 +340,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             report.entries.some(
                 (entry) =>
                     entry.target === 'codex' &&
+                    entry.concept === 'appServerRuntime' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
                     entry.concept === 'windowsPlatformRuntime' &&
                     entry.support === 'runtime-only',
             ),
@@ -394,7 +402,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 32);
+        assert.strictEqual(document.runtimeOnlyCount, 33);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -408,6 +416,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             [
                 'agentRuntime',
                 'appConnectorRuntime',
+                'appServerRuntime',
                 'appshotsRuntime',
                 'authenticationRuntime',
                 'automationRuntime',
@@ -555,6 +564,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('modelProviderRuntime'));
         assert.ok(document.content.includes('nonInteractiveRuntime'));
         assert.ok(document.content.includes('sdkRuntime'));
+        assert.ok(document.content.includes('appServerRuntime'));
         assert.ok(document.content.includes('windowsPlatformRuntime'));
         assert.ok(document.content.includes('linuxPlatformRuntime'));
         assert.ok(document.content.includes('macosPlatformRuntime'));

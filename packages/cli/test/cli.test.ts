@@ -301,15 +301,15 @@ describe('CLI: status', () => {
         assert.ok(textResult.stdout.includes('notes=1'));
         assert.ok(textResult.stdout.includes('github-copilot=disabled'));
         assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
-        assert.ok(textResult.stdout.includes('Target Capability Support: 94'));
+        assert.ok(textResult.stdout.includes('Target Capability Support: 96'));
         assert.ok(
             textResult.stdout.includes(
-                'codex (codex-v0.1): partial=12, runtime-only=32, supported=3',
+                'codex (codex-v0.1): partial=12, runtime-only=33, supported=3',
             ),
         );
         assert.ok(
             textResult.stdout.includes(
-                'Runtime-only support boundaries: 48 rows require operator or harness evidence; codex=32 see docs/CODEX-SUPPORT.md; github-copilot=16 see README.md.',
+                'Runtime-only support boundaries: 49 rows require operator or harness evidence; codex=33 see docs/CODEX-SUPPORT.md; github-copilot=16 see README.md.',
             ),
         );
 
@@ -331,20 +331,20 @@ describe('CLI: status', () => {
             'Runtime integrations require harness evidence.',
         ]);
         assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 94);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 96);
         const codexTargetSupport = data.targetCapabilitySupport.targets.find(
             (entry: { target: string }) => entry.target === 'codex',
         );
         assert.strictEqual(codexTargetSupport.adapterVersion, 'codex-v0.1');
         assert.strictEqual(codexTargetSupport.counts.partial, 12);
-        assert.strictEqual(codexTargetSupport.counts['runtime-only'], 32);
+        assert.strictEqual(codexTargetSupport.counts['runtime-only'], 33);
         assert.strictEqual(codexTargetSupport.counts.supported, 3);
         assert.deepStrictEqual(data.targetCapabilitySupport.supportReference, {
-            runtimeOnlyCount: 48,
+            runtimeOnlyCount: 49,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 32,
+                    runtimeOnlyCount: 33,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
@@ -740,7 +740,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('policyGrants=partial'));
         assert.ok(
             textResult.stdout.includes(
-                'Runtime-only support boundaries: 48 rows require operator or harness evidence; codex=32 see docs/CODEX-SUPPORT.md; github-copilot=16 see README.md.',
+                'Runtime-only support boundaries: 49 rows require operator or harness evidence; codex=33 see docs/CODEX-SUPPORT.md; github-copilot=16 see README.md.',
             ),
         );
         assert.ok(textResult.stdout.includes('Policy Grants: 1'));
@@ -1215,11 +1215,11 @@ describe('CLI: preview', () => {
             'Codex skill support should point to the live canonical consumer smoke',
         );
         assert.deepStrictEqual(data.targetCapabilitySupportReference, {
-            runtimeOnlyCount: 48,
+            runtimeOnlyCount: 49,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 32,
+                    runtimeOnlyCount: 33,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
@@ -2308,10 +2308,10 @@ describe('CLI: target-support', () => {
         ]);
 
         assert.strictEqual(result.exitCode, 0);
-        assert.ok(result.stdout.includes('Target Support Matrix: 32'));
+        assert.ok(result.stdout.includes('Target Support Matrix: 33'));
         assert.ok(
             result.stdout.includes(
-                'Runtime-only support boundaries: 32 rows require operator or harness evidence; codex=32 see docs/CODEX-SUPPORT.md.',
+                'Runtime-only support boundaries: 33 rows require operator or harness evidence; codex=33 see docs/CODEX-SUPPORT.md.',
             ),
         );
         assert.ok(result.stdout.includes('codex/chronicleRuntime: runtime-only'));
@@ -2321,6 +2321,7 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('codex/modelProviderRuntime: runtime-only'));
         assert.ok(result.stdout.includes('codex/nonInteractiveRuntime: runtime-only'));
         assert.ok(result.stdout.includes('codex/sdkRuntime: runtime-only'));
+        assert.ok(result.stdout.includes('codex/appServerRuntime: runtime-only'));
         assert.ok(result.stdout.includes('codex/windowsPlatformRuntime: runtime-only'));
         assert.ok(result.stdout.includes('codex/linuxPlatformRuntime: runtime-only'));
         assert.ok(result.stdout.includes('codex/macosPlatformRuntime: runtime-only'));
@@ -2484,6 +2485,24 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('openai-codex Python package'));
         assert.ok(result.stdout.includes('SDK sandbox presets'));
         assert.ok(result.stdout.includes('evidence: RUN-089'));
+    });
+
+    it('prints app-server runtime boundaries in target-support output', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--concept',
+            'appServerRuntime',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('codex/appServerRuntime: runtime-only'));
+        assert.ok(result.stdout.includes('codex app-server'));
+        assert.ok(result.stdout.includes('Codex app-server JSON-RPC 2.0 runtime'));
+        assert.ok(result.stdout.includes('WebSocket app-server transport'));
+        assert.ok(result.stdout.includes('initialize / initialized handshake'));
+        assert.ok(result.stdout.includes('evidence: RUN-090'));
     });
 
     it('prints app connector runtime boundaries in target-support output', async () => {
@@ -2803,11 +2822,11 @@ describe('CLI: target-support', () => {
         assert.strictEqual(result.exitCode, 0);
         const data = JSON.parse(result.stdout);
         assert.deepStrictEqual(data.supportReference, {
-            runtimeOnlyCount: 32,
+            runtimeOnlyCount: 33,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 32,
+                    runtimeOnlyCount: 33,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
             ],
@@ -2871,7 +2890,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
-        assert.strictEqual(data.runtimeOnlyCount, 32);
+        assert.strictEqual(data.runtimeOnlyCount, 33);
         assert.ok(
             data.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -2885,6 +2904,7 @@ describe('CLI: codex-support-boundaries', () => {
             [
                 'agentRuntime',
                 'appConnectorRuntime',
+                'appServerRuntime',
                 'appshotsRuntime',
                 'authenticationRuntime',
                 'automationRuntime',
@@ -3164,8 +3184,8 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         const data = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
-        assert.strictEqual(data.runtimeOnlyCount, 32);
-        assert.strictEqual(data.runtimeOnlyRows.length, 32);
+        assert.strictEqual(data.runtimeOnlyCount, 33);
+        assert.strictEqual(data.runtimeOnlyRows.length, 33);
         assert.ok(data.notAchievableByRepositoryProjection.length > 0);
     });
 
@@ -4082,10 +4102,10 @@ describe('CLI: validate', () => {
         const result = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('passed'));
-        assert.ok(result.stdout.includes('Target Capability Support: 94'));
+        assert.ok(result.stdout.includes('Target Capability Support: 96'));
         assert.ok(
             result.stdout.includes(
-                'Runtime-only support boundaries: 48 rows require operator or harness evidence',
+                'Runtime-only support boundaries: 49 rows require operator or harness evidence',
             ),
         );
     });
@@ -4141,14 +4161,14 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 94);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 96);
         assert.ok(
             data.targetCapabilitySupport.targets.some(
                 (entry: { target: string; counts: Record<string, number> }) =>
-                    entry.target === 'codex' && entry.counts['runtime-only'] === 32,
+                    entry.target === 'codex' && entry.counts['runtime-only'] === 33,
             ),
         );
-        assert.strictEqual(data.targetCapabilitySupport.supportReference.runtimeOnlyCount, 48);
+        assert.strictEqual(data.targetCapabilitySupport.supportReference.runtimeOnlyCount, 49);
     });
 
     it('validate --json shows drift details', async () => {

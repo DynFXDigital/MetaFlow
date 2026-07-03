@@ -430,6 +430,12 @@ Runtime validation is required for:
   override, representative SDK call, command or tool activity, trace or log
   posture, deployment environment, exit or error handling, and known
   limitations.
+- Codex app-server command invocation, selected transport, listener binding
+  and authentication posture, client identity, initialize/initialized
+  handshake, thread start or resume behavior, turn start or steering behavior,
+  event-stream handling, schema version, overload or retry handling, sandbox
+  and approval posture, representative command or tool activity, exit or error
+  handling, and known limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

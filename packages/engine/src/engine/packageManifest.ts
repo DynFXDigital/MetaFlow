@@ -89,6 +89,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'modelProviderRuntime',
     'nonInteractiveRuntime',
     'sdkRuntime',
+    'appServerRuntime',
     'windowsPlatformRuntime',
     'linuxPlatformRuntime',
     'macosPlatformRuntime',

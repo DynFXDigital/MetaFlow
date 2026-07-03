@@ -195,6 +195,7 @@ describe('Engine package: public API', () => {
             'modelProviderRuntime',
             'nonInteractiveRuntime',
             'sdkRuntime',
+            'appServerRuntime',
             'windowsPlatformRuntime',
             'linuxPlatformRuntime',
             'macosPlatformRuntime',
@@ -1144,6 +1145,17 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot SDK row should document unsupported Codex-only surface',
         );
+        const copilotAppServerRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'appServerRuntime',
+        );
+        assert.strictEqual(copilotAppServerRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotAppServerRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot app-server row should document unsupported Codex-only surface',
+        );
         const copilotWindowsPlatformRuntime = matrix.find(
             (entry) =>
                 entry.target === 'github-copilot' && entry.concept === 'windowsPlatformRuntime',
@@ -1196,6 +1208,26 @@ describe('Engine package: public API', () => {
             codexLocalEnvironmentRuntime?.evidence.includes('RUN-087'),
             'Codex local environment row should cite local environment runtime evidence',
         );
+        const codexAppServerRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'appServerRuntime',
+        );
+        assert.strictEqual(codexAppServerRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexAppServerRuntime?.nativeSurfaces.includes(
+                'Codex app-server JSON-RPC 2.0 runtime',
+            ),
+            'Codex app-server row should name the JSON-RPC runtime',
+        );
+        assert.ok(
+            codexAppServerRuntime?.notes.some((note) =>
+                note.includes('cannot start app-server processes'),
+            ),
+            'Codex app-server row should document process startup boundary',
+        );
+        assert.ok(
+            codexAppServerRuntime?.evidence.includes('RUN-090'),
+            'Codex app-server row should cite app-server runtime evidence',
+        );
         const copilotLocalEnvironmentRuntime = matrix.find(
             (entry) =>
                 entry.target === 'github-copilot' &&
@@ -1214,11 +1246,11 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 48,
+            runtimeOnlyCount: 49,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 32,
+                    runtimeOnlyCount: 33,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
