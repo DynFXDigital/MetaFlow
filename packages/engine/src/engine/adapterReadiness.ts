@@ -13,6 +13,7 @@ import {
     PackageManifestMetadata,
     PolicyGrantMetadata,
     ProjectionTarget,
+    RuntimeEvidenceMetadata,
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
     ToolMetadata,
@@ -28,6 +29,7 @@ export interface BuildAdapterReadinessReportsOptions {
     executionProfiles?: ExecutionProfileMetadata[];
     memoryScopes?: MemoryScopeMetadata[];
     evaluationProfiles?: EvaluationProfileMetadata[];
+    runtimeEvidenceRecords?: RuntimeEvidenceMetadata[];
     agentProfiles?: AgentProfileMetadata[];
     instructions?: ContentMetadata[];
     prompts?: ContentMetadata[];
@@ -128,6 +130,7 @@ export function buildAdapterReadinessReports(
     const executionProfiles = [...(options.executionProfiles ?? [])].sort(byId);
     const memoryScopes = [...(options.memoryScopes ?? [])].sort(byId);
     const evaluationProfiles = [...(options.evaluationProfiles ?? [])].sort(byId);
+    const runtimeEvidenceRecords = [...(options.runtimeEvidenceRecords ?? [])].sort(byId);
     const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
     const instructions = [...(options.instructions ?? [])].sort(byId);
     const prompts = [...(options.prompts ?? [])].sort(byId);
@@ -148,6 +151,9 @@ export function buildAdapterReadinessReports(
         );
         const targetEvaluationProfiles = evaluationProfiles.filter((profile) =>
             appliesToTarget(profile.targets, target),
+        );
+        const targetRuntimeEvidenceRecords = runtimeEvidenceRecords.filter(
+            (record) => record.target === target,
         );
         const targetAgentProfiles = agentProfiles.filter((profile) =>
             appliesToTarget(profile.targets, target),
@@ -174,6 +180,7 @@ export function buildAdapterReadinessReports(
             executionProfiles: targetExecutionProfiles.length,
             memoryScopes: targetMemoryScopes.length,
             evaluationProfiles: targetEvaluationProfiles.length,
+            runtimeEvidenceRecords: targetRuntimeEvidenceRecords.length,
             packageManifests: targetPackageManifests.length,
             tools: targetTools.length,
         };
@@ -271,6 +278,44 @@ export function buildAdapterReadinessReports(
                     uniqueSorted([...rowEvidence(evaluationRow), ...profileEvidence]),
                 ),
             );
+        }
+
+        for (const record of targetRuntimeEvidenceRecords) {
+            const concepts =
+                record.concepts.length > 0 ? ` concepts=${record.concepts.join(',')}` : '';
+            const command = record.command ? ` command=${record.command}` : '';
+            const artifacts =
+                record.evidenceArtifacts.length > 0
+                    ? ` artifacts=${record.evidenceArtifacts
+                          .map((artifact) => `${artifact.kind}:${artifact.ref}`)
+                          .join(',')}`
+                    : '';
+            const limitations =
+                record.limitations.length > 0
+                    ? ` limitations=${record.limitations.join('; ')}`
+                    : '';
+            const evidence = uniqueSorted([
+                ...record.evidence,
+                ...record.evidenceArtifacts.map((artifact) => artifact.ref),
+            ]);
+            actionItems.push(
+                action(
+                    record.concepts[0] ?? 'evaluationRuntime',
+                    record.id,
+                    `${label} runtime evidence ${record.id} (${record.harness}/${record.adapterVersion}) ${record.status}${concepts} scenario="${record.scenario}"${command}${artifacts}${limitations}`,
+                    evidence,
+                ),
+            );
+            for (const warning of record.warnings) {
+                actionItems.push(
+                    action(
+                        record.concepts[0] ?? 'evaluationRuntime',
+                        record.id,
+                        `${label} runtime evidence ${record.id} warning ${warning.code}: ${warning.message}`,
+                        evidence,
+                    ),
+                );
+            }
         }
 
         for (const profile of targetAgentProfiles) {

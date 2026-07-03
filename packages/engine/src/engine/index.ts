@@ -128,6 +128,11 @@ export {
     evaluationProfileConstants,
 } from './evaluationProfile';
 export {
+    loadRuntimeEvidenceForLayer,
+    parseRuntimeEvidenceContent,
+    runtimeEvidenceConstants,
+} from './runtimeEvidence';
+export {
     codexAgentProfileDestination,
     loadAgentProfilesForLayer,
     parseAgentProfileContent,
@@ -210,6 +215,9 @@ export type {
     ContentType,
     EvaluationProfileMetadata,
     EvaluationType,
+    RuntimeEvidenceArtifactMetadata,
+    RuntimeEvidenceMetadata,
+    RuntimeEvidenceStatus,
     ExecutionIsolation,
     ExecutionProfileMetadata,
     ExecutionSurface,

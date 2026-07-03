@@ -456,6 +456,7 @@ describe('CLI: preview', () => {
         const sdkExecutionProfilePath = '.metaflow/execution/sdk.json';
         const memoryScopePath = '.metaflow/memory/repo-decisions.json';
         const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
+        const runtimeEvidencePath = '.metaflow/runtime-evidence/codex-pr-review-smoke.json';
         const agentProfilePath = '.metaflow/agents/reviewer.json';
         const codexAgentPath = '.codex/agents/reviewer.toml';
         const codexProjectConfigPath = '.metaflow/project-config/codex.json';
@@ -666,6 +667,31 @@ describe('CLI: preview', () => {
                         }),
                     },
                     {
+                        relativePath: runtimeEvidencePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation', 'reviewRuntime'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            command: '@codex review',
+                            evidence: ['RUN-095'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'report',
+                                    ref: 'doc/ftr/run-095.md',
+                                    description: 'Draft pull request runtime smoke evidence.',
+                                },
+                            ],
+                            limitations: ['Slack delegation is not covered.'],
+                            policyGrants: ['github-pr-read'],
+                            description: 'Runtime smoke evidence for issue and review workflows.',
+                        }),
+                    },
+                    {
                         relativePath: agentProfilePath,
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.agentProfile/v1',
@@ -841,6 +867,14 @@ describe('CLI: preview', () => {
                 'limitations: Hosted Codex Cloud execution is not covered.',
             ),
         );
+        assert.ok(textResult.stdout.includes('Runtime Evidence Records: 1'));
+        assert.ok(
+            textResult.stdout.includes(
+                'codex-pr-review-smoke [codex/Codex Cloud] partial adapter=codex-v0.1 scenario=Codex opens a draft pull request from an assigned issue. concepts=issuePrOperation,reviewRuntime command=@codex review artifacts=report:doc/ftr/run-095.md grants=github-pr-read',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('evidence: RUN-095'));
+        assert.ok(textResult.stdout.includes('limitations: Slack delegation is not covered.'));
         assert.ok(textResult.stdout.includes('Agent Profiles: 1'));
         assert.ok(
             textResult.stdout.includes(
@@ -910,6 +944,11 @@ describe('CLI: preview', () => {
         assert.ok(
             textResult.stdout.includes(
                 'Codex evaluation profile release-gate (regressionGate) requires evaluation runner or check integration. evidenceKind=harnessRuntime harness=Codex CLI adapter=codex-v0.1 scenario="Generated Codex metadata passes the release gate." limitations=Hosted Codex Cloud execution is not covered.',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'Codex runtime evidence codex-pr-review-smoke (Codex Cloud/codex-v0.1) partial concepts=issuePrOperation,reviewRuntime scenario="Codex opens a draft pull request from an assigned issue." command=@codex review artifacts=report:doc/ftr/run-095.md limitations=Slack delegation is not covered.',
             ),
         );
         assert.ok(
@@ -1009,6 +1048,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.executionProfiles, 5);
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
+        assert.strictEqual(data.summary.runtimeEvidenceRecords, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
         assert.strictEqual(data.summary.instructionManifests, 1);
         assert.strictEqual(data.summary.promptManifests, 1);
@@ -1133,6 +1173,29 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.evaluationProfiles[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.evaluationProfiles[0].targets, ['codex']);
         assert.strictEqual(data.evaluationProfiles[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.runtimeEvidenceRecords[0].id, 'codex-pr-review-smoke');
+        assert.strictEqual(data.runtimeEvidenceRecords[0].target, 'codex');
+        assert.deepStrictEqual(data.runtimeEvidenceRecords[0].concepts, [
+            'issuePrOperation',
+            'reviewRuntime',
+        ]);
+        assert.strictEqual(data.runtimeEvidenceRecords[0].harness, 'Codex Cloud');
+        assert.strictEqual(data.runtimeEvidenceRecords[0].adapterVersion, 'codex-v0.1');
+        assert.strictEqual(data.runtimeEvidenceRecords[0].status, 'partial');
+        assert.strictEqual(data.runtimeEvidenceRecords[0].command, '@codex review');
+        assert.deepStrictEqual(data.runtimeEvidenceRecords[0].evidence, ['RUN-095']);
+        assert.deepStrictEqual(data.runtimeEvidenceRecords[0].evidenceArtifacts, [
+            {
+                kind: 'report',
+                ref: 'doc/ftr/run-095.md',
+                description: 'Draft pull request runtime smoke evidence.',
+            },
+        ]);
+        assert.deepStrictEqual(data.runtimeEvidenceRecords[0].limitations, [
+            'Slack delegation is not covered.',
+        ]);
+        assert.deepStrictEqual(data.runtimeEvidenceRecords[0].policyGrants, ['github-pr-read']);
+        assert.strictEqual(data.runtimeEvidenceRecords[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.agentProfiles[0].id, 'reviewer');
         assert.strictEqual(data.agentProfiles[0].name, 'Reviewer');
         assert.strictEqual(data.agentProfiles[0].model, 'gpt-5-codex');
@@ -1349,6 +1412,7 @@ describe('CLI: preview', () => {
             executionProfiles: 5,
             memoryScopes: 1,
             evaluationProfiles: 1,
+            runtimeEvidenceRecords: 1,
             packageManifests: 0,
             tools: 0,
         });
@@ -3217,6 +3281,52 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.content.includes('# Codex Support Boundaries'));
         assert.ok(data.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
+    });
+
+    it('includes workspace runtime evidence records in Codex support boundary checklist', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidence: ['RUN-095'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'report',
+                                    ref: 'doc/ftr/run-095.md',
+                                },
+                            ],
+                            limitations: ['Slack delegation is not covered.'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].id, 'codex-pr-review-smoke');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].status, 'partial');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].evidenceArtifacts[0].ref, 'doc/ftr/run-095.md');
+        assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
     });
 
     it('writes Codex support boundaries to an explicit output path', async () => {

@@ -40,6 +40,8 @@ export interface LayerContent {
     memoryScopes?: MemoryScopeMetadata[];
     /** Evaluation profiles loaded from canonical MetaFlow evaluation manifests. */
     evaluationProfiles?: EvaluationProfileMetadata[];
+    /** Runtime evidence records loaded from canonical MetaFlow runtime-evidence manifests. */
+    runtimeEvidenceRecords?: RuntimeEvidenceMetadata[];
     /** Agent profiles loaded from canonical MetaFlow agent manifests. */
     agentProfiles?: AgentProfileMetadata[];
     /** Instruction metadata loaded from canonical MetaFlow instruction manifests. */
@@ -486,6 +488,53 @@ export interface EvaluationProfileMetadata {
     policyGrants: string[];
     /** Target harnesses or adapters this evaluation profile applies to. */
     targets: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Structured runtime evidence status for target-harness behavior. */
+export type RuntimeEvidenceStatus = 'passed' | 'partial' | 'failed' | 'not-run' | 'waived';
+
+/** Structured runtime evidence artifact attached to a target-harness evidence record. */
+export interface RuntimeEvidenceArtifactMetadata {
+    /** Artifact family, such as log, report, screenshot, trace, recording, artifact, url, run, or other. */
+    kind: string;
+    /** Artifact reference, such as a path, URL, run identifier, or external evidence ID. */
+    ref: string;
+    /** Optional user-facing artifact description. */
+    description?: string;
+}
+
+/** Canonical MetaFlow runtime evidence metadata associated with a layer. */
+export interface RuntimeEvidenceMetadata {
+    /** Stable runtime evidence identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied runtime evidence metadata. */
+    manifestPath: string;
+    /** Target harness family validated or waived by this record. */
+    target: string;
+    /** Target capability matrix concepts covered by this record. */
+    concepts: TargetCapabilityConcept[];
+    /** Human-readable harness or surface tested, such as Codex CLI or Codex Cloud. */
+    harness: string;
+    /** Adapter version or contract used during validation. */
+    adapterVersion: string;
+    /** Scenario validated by the evidence. */
+    scenario: string;
+    /** Evidence status for the scenario. */
+    status: RuntimeEvidenceStatus;
+    /** Optional command or procedure used to validate the scenario. */
+    command?: string;
+    /** Evidence identifiers, paths, or external references. */
+    evidence: string[];
+    /** Structured evidence artifacts associated with this record. */
+    evidenceArtifacts: RuntimeEvidenceArtifactMetadata[];
+    /** Known limitations observed during validation. */
+    limitations: string[];
+    /** Policy grants required before this evidence is used as an operational claim. */
+    policyGrants: string[];
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
@@ -983,6 +1032,8 @@ export interface AdapterReadinessMetadataCounts {
     memoryScopes: number;
     /** Canonical evaluation profiles considered for adapter readiness. */
     evaluationProfiles: number;
+    /** Canonical runtime evidence records considered for adapter readiness. */
+    runtimeEvidenceRecords: number;
     /** Canonical package manifests considered for adapter readiness. */
     packageManifests: number;
     /** Canonical tool manifests considered for adapter readiness. */

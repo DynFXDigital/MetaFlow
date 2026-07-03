@@ -28,6 +28,7 @@ import {
     resolvePackageManifests,
     resolvePolicyGrants,
     resolvePrompts,
+    resolveRuntimeEvidenceRecords,
     resolveSkills,
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
@@ -41,6 +42,7 @@ import {
     ResolvedEvaluationProfile,
     ResolvedMemoryScope,
     ResolvedPackageManifest,
+    ResolvedRuntimeEvidence,
     ResolvedContent,
     ResolvedSkill,
     ResolvedTargetAdapter,
@@ -165,6 +167,20 @@ function formatEvaluationProfile(profile: ResolvedEvaluationProfile): string {
         profile.policyGrants.length > 0 ? ` grants=${profile.policyGrants.join(',')}` : '';
     const targets = profile.targets.length > 0 ? ` targets=${profile.targets.join(',')}` : '';
     return `${profile.id || '<invalid>'} [${profile.evaluationType}]${command}${artifacts}${evidenceKind}${harness}${adapter}${grants}${targets} @ ${formatFileProvenance(profile.sourceLayer, profile.sourceRepo)}`;
+}
+
+function formatRuntimeEvidence(record: ResolvedRuntimeEvidence): string {
+    const concepts = record.concepts.length > 0 ? ` concepts=${record.concepts.join(',')}` : '';
+    const command = record.command ? ` command=${record.command}` : '';
+    const artifacts =
+        record.evidenceArtifacts.length > 0
+            ? ` artifacts=${record.evidenceArtifacts
+                  .map((artifact) => `${artifact.kind}:${artifact.ref}`)
+                  .join(',')}`
+            : '';
+    const grants =
+        record.policyGrants.length > 0 ? ` grants=${record.policyGrants.join(',')}` : '';
+    return `${record.id || '<invalid>'} [${record.target}/${record.harness}] ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${concepts}${command}${artifacts}${grants} @ ${formatFileProvenance(record.sourceLayer, record.sourceRepo)}`;
 }
 
 function formatAgentProfile(profile: ResolvedAgentProfile): string {
@@ -302,6 +318,7 @@ export function registerPreviewCommand(program: Command): void {
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
                 const evaluationProfiles = resolveEvaluationProfiles(config, workspaceRoot);
+                const runtimeEvidenceRecords = resolveRuntimeEvidenceRecords(config, workspaceRoot);
                 const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
                 const instructionManifests = resolveInstructions(config, workspaceRoot);
                 const promptManifests = resolvePrompts(config, workspaceRoot);
@@ -323,6 +340,7 @@ export function registerPreviewCommand(program: Command): void {
                     executionProfiles,
                     memoryScopes,
                     evaluationProfiles,
+                    runtimeEvidenceRecords,
                     agentProfiles,
                     instructions: instructionManifests,
                     prompts: promptManifests,
@@ -353,6 +371,7 @@ export function registerPreviewCommand(program: Command): void {
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
                             evaluationProfiles: evaluationProfiles.length,
+                            runtimeEvidenceRecords: runtimeEvidenceRecords.length,
                             agentProfiles: agentProfiles.length,
                             instructionManifests: instructionManifests.length,
                             promptManifests: promptManifests.length,
@@ -391,6 +410,7 @@ export function registerPreviewCommand(program: Command): void {
                         executionProfiles,
                         memoryScopes,
                         evaluationProfiles,
+                        runtimeEvidenceRecords,
                         agentProfiles,
                         instructionManifests,
                         promptManifests,
@@ -420,6 +440,7 @@ export function registerPreviewCommand(program: Command): void {
                     executionProfiles.length === 0 &&
                     memoryScopes.length === 0 &&
                     evaluationProfiles.length === 0 &&
+                    runtimeEvidenceRecords.length === 0 &&
                     agentProfiles.length === 0 &&
                     skills.length === 0 &&
                     codexProjectConfigs.length === 0 &&
@@ -595,6 +616,22 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    limitations: ${profile.limitations.join('; ')}`);
                         }
                         for (const warning of profile.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (runtimeEvidenceRecords.length > 0) {
+                    console.log(`Runtime Evidence Records: ${runtimeEvidenceRecords.length}`);
+                    for (const record of runtimeEvidenceRecords) {
+                        console.log(`  - ${formatRuntimeEvidence(record)}`);
+                        if (record.evidence.length > 0) {
+                            console.log(`    evidence: ${record.evidence.join(',')}`);
+                        }
+                        if (record.limitations.length > 0) {
+                            console.log(`    limitations: ${record.limitations.join('; ')}`);
+                        }
+                        for (const warning of record.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

@@ -1,8 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
-import { buildCodexSupportBoundariesDocument } from '@metaflow/engine';
-import { getWorkspaceRoot, resolveWorkspaceOutputPath } from './common';
+import { buildCodexSupportBoundariesDocument, loadConfig } from '@metaflow/engine';
+import {
+    getWorkspaceRoot,
+    resolveRuntimeEvidenceRecords,
+    resolveWorkspaceOutputPath,
+} from './common';
 
 interface CodexSupportBoundariesOptions {
     json?: boolean;
@@ -18,7 +22,14 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
         .option('-o, --out <path>', 'Write output to a workspace-relative path instead of stdout')
         .option('--force', 'Overwrite an existing output file')
         .action((options: CodexSupportBoundariesOptions) => {
-            const document = buildCodexSupportBoundariesDocument();
+            const workspaceRoot = getWorkspaceRoot(program);
+            const loaded = loadConfig(workspaceRoot);
+            const runtimeEvidenceRecords = loaded.ok
+                ? resolveRuntimeEvidenceRecords(loaded.config, workspaceRoot)
+                : [];
+            const document = buildCodexSupportBoundariesDocument({
+                runtimeEvidenceRecords,
+            });
             const payload = options.json
                 ? `${JSON.stringify(document, null, 2)}\n`
                 : document.content;
@@ -28,7 +39,6 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 return;
             }
 
-            const workspaceRoot = getWorkspaceRoot(program);
             let outputPath: string;
             try {
                 outputPath = resolveWorkspaceOutputPath(workspaceRoot, options.out);

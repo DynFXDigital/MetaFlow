@@ -62,6 +62,7 @@ import {
     parseExecutionProfileContent,
     parseMemoryScopeContent,
     parseEvaluationProfileContent,
+    parseRuntimeEvidenceContent,
     parseAgentProfileContent,
     parseContentManifestContent,
     parseSkillManifestContent,
@@ -158,6 +159,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseExecutionProfileContent, 'function');
         assert.strictEqual(typeof parseMemoryScopeContent, 'function');
         assert.strictEqual(typeof parseEvaluationProfileContent, 'function');
+        assert.strictEqual(typeof parseRuntimeEvidenceContent, 'function');
         assert.strictEqual(typeof parseAgentProfileContent, 'function');
         assert.strictEqual(typeof parseContentManifestContent, 'function');
         assert.strictEqual(typeof parseSkillManifestContent, 'function');
@@ -1412,6 +1414,28 @@ describe('Engine package: public API', () => {
                     warnings: [],
                 },
             ],
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-pr-review-smoke',
+                    manifestPath: '/metadata/.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                    target: 'codex',
+                    concepts: ['issuePrOperation', 'reviewRuntime'],
+                    harness: 'Codex Cloud',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex opens a draft pull request from an assigned issue.',
+                    status: 'partial',
+                    evidence: ['RUN-095'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'report',
+                            ref: 'doc/ftr/run-095.md',
+                        },
+                    ],
+                    limitations: ['Slack delegation is not covered.'],
+                    policyGrants: ['github-pr-read'],
+                    warnings: [],
+                },
+            ],
             agentProfiles: [
                 {
                     id: 'reviewer',
@@ -1529,6 +1553,7 @@ describe('Engine package: public API', () => {
             executionProfiles: 1,
             memoryScopes: 1,
             evaluationProfiles: 1,
+            runtimeEvidenceRecords: 1,
             packageManifests: 1,
             tools: 1,
         });
@@ -1544,6 +1569,17 @@ describe('Engine package: public API', () => {
                 (item) =>
                     item.concept === 'evaluationSupport' &&
                     item.evidence.includes('RUN-037'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.metadataId === 'codex-pr-review-smoke' &&
+                    item.evidence.includes('RUN-095') &&
+                    item.evidence.includes('doc/ftr/run-095.md') &&
+                    item.message.includes('concepts=issuePrOperation,reviewRuntime') &&
+                    item.message.includes('Slack delegation is not covered.'),
             ),
         );
         assert.ok(
@@ -3550,6 +3586,131 @@ describe('Engine package: overlay pipeline', () => {
                 'EVALUATION_PROFILE_POLICY_GRANT_UNKNOWN',
                 'EVALUATION_PROFILE_TARGETS_INVALID',
                 'EVALUATION_PROFILE_DESCRIPTION_INVALID',
+            ],
+        );
+    });
+
+    it('loads canonical runtime evidence as layer metadata with policy grant requirements', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'policies'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.policyGrant/v1',
+                id: 'github-pr-read',
+                authority: 'github.pullRequest.read',
+                approval: 'on-request',
+                audit: true,
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation', 'reviewRuntime'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                command: '@codex review',
+                evidence: ['RUN-095'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'report',
+                        ref: 'doc/ftr/run-095.md',
+                    },
+                ],
+                limitations: ['Slack delegation is not covered.'],
+                policyGrants: ['github-pr-read'],
+                description: 'Runtime smoke evidence for issue and review workflows.',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].runtimeEvidenceRecords?.length, 1);
+        const record = layers[0].runtimeEvidenceRecords?.[0];
+        assert.strictEqual(record?.id, 'codex-pr-review-smoke');
+        assert.strictEqual(record?.target, 'codex');
+        assert.deepStrictEqual(record?.concepts, ['issuePrOperation', 'reviewRuntime']);
+        assert.strictEqual(record?.harness, 'Codex Cloud');
+        assert.strictEqual(record?.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(record?.scenario, 'Codex opens a draft pull request from an assigned issue.');
+        assert.strictEqual(record?.status, 'partial');
+        assert.strictEqual(record?.command, '@codex review');
+        assert.deepStrictEqual(record?.evidence, ['RUN-095']);
+        assert.deepStrictEqual(record?.evidenceArtifacts, [
+            {
+                kind: 'report',
+                ref: 'doc/ftr/run-095.md',
+            },
+        ]);
+        assert.deepStrictEqual(record?.limitations, ['Slack delegation is not covered.']);
+        assert.deepStrictEqual(record?.policyGrants, ['github-pr-read']);
+        assert.strictEqual(record?.warnings.length, 0);
+    });
+
+    it('reports validation diagnostics for invalid canonical runtime evidence', () => {
+        const record = parseRuntimeEvidenceContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v0',
+                id: 'Invalid ID',
+                target: '',
+                concepts: ['notAConcept', 42],
+                harness: '',
+                adapterVersion: '',
+                scenario: '',
+                status: 'unknown',
+                command: '',
+                evidence: ['RUN-095', 42],
+                evidenceArtifacts: [{ kind: 'video', ref: '' }, 42],
+                limitations: ['known', 42],
+                policyGrants: ['missing-grant'],
+                description: '',
+                extra: true,
+            }),
+            'runtime-evidence.json',
+            new Set(['github-pr-read']),
+        );
+
+        assert.strictEqual(record.id, 'Invalid ID');
+        assert.strictEqual(record.status, 'not-run');
+        assert.deepStrictEqual(
+            record.warnings.map((warning) => warning.code),
+            [
+                'RUNTIME_EVIDENCE_UNKNOWN_FIELD',
+                'RUNTIME_EVIDENCE_SCHEMA_VERSION_INVALID',
+                'RUNTIME_EVIDENCE_ID_INVALID',
+                'RUNTIME_EVIDENCE_TARGET_REQUIRED',
+                'RUNTIME_EVIDENCE_CONCEPT_INVALID',
+                'RUNTIME_EVIDENCE_CONCEPT_UNKNOWN',
+                'RUNTIME_EVIDENCE_CONCEPT_REQUIRED',
+                'RUNTIME_EVIDENCE_REQUIRED_FIELD_INVALID',
+                'RUNTIME_EVIDENCE_COMMAND_INVALID',
+                'RUNTIME_EVIDENCE_EVIDENCE_INVALID',
+                'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
+                'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
+                'RUNTIME_EVIDENCE_LIMITATIONS_INVALID',
+                'RUNTIME_EVIDENCE_POLICY_GRANT_UNKNOWN',
+                'RUNTIME_EVIDENCE_DESCRIPTION_INVALID',
             ],
         );
     });

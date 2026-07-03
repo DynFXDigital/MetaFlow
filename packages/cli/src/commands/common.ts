@@ -23,6 +23,7 @@ import {
     McpServerMetadata,
     PackageManifestMetadata,
     PolicyGrantMetadata,
+    RuntimeEvidenceMetadata,
     SkillMetadata,
     SurfacedFileConflict,
     TargetAdapterMetadata,
@@ -62,6 +63,11 @@ export interface ResolvedMemoryScope extends MemoryScopeMetadata {
 }
 
 export interface ResolvedEvaluationProfile extends EvaluationProfileMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedRuntimeEvidence extends RuntimeEvidenceMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -289,6 +295,20 @@ export function resolveEvaluationProfiles(
     return layers.flatMap((layer) =>
         (layer.evaluationProfiles ?? []).map((profile) => ({
             ...profile,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveRuntimeEvidenceRecords(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedRuntimeEvidence[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.runtimeEvidenceRecords ?? []).map((record) => ({
+            ...record,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

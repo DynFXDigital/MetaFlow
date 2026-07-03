@@ -385,6 +385,15 @@ Adapter readiness action items include the concept links beside the runtime
 validation scenario so package evidence and target-support boundaries can be
 reviewed together.
 
+Use `.metaflow/runtime-evidence/*.json` records for target-level runtime proof
+that is not scoped to a package. Each record identifies the target, target
+capability concepts, harness, adapter version, scenario, status, optional
+validation command, evidence references, structured evidence artifacts, known
+limitations, and policy grants. `metaflow preview` surfaces these records in
+text and JSON, adapter readiness reports include them as review action items,
+and `metaflow codex-support-boundaries` attaches matching records to the
+concept-keyed runtime evidence checklist when workspace metadata is available.
+
 Runtime validation is required for:
 
 - Codex Cloud task execution.

@@ -5,7 +5,9 @@ MetaFlow metadata into Codex-native repository files when the Codex surface is
 file-backed, and it reports runtime-only Codex surfaces when repository
 metadata cannot create or prove the runtime behavior. The generated support
 boundary report also includes a concept-keyed runtime evidence checklist so
-each runtime-only matrix row has an explicit review expectation.
+each runtime-only matrix row has an explicit review expectation. When a
+workspace supplies `.metaflow/runtime-evidence/*.json` records, the checklist
+lists the matching evidence records for the covered concepts.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.
@@ -37,7 +39,7 @@ the service connection or prove the behavior.
 
 | Codex surface | Why static projection is insufficient | MetaFlow handling |
 | --- | --- | --- |
-| Codex Cloud environments | Cloud environments are hosted runtime configuration and execution state. They include repository checkout, setup scripts, dependency/cache state, environment variables, secrets available to setup, sandbox policy, and agent internet-access settings. | Represent execution intent and expected evidence in `.metaflow/execution/*.json` or `.metaflow/evaluation/*.json`; require harness-native environment evidence before treating hosted execution as operational. |
+| Codex Cloud environments | Cloud environments are hosted runtime configuration and execution state. They include repository checkout, setup scripts, dependency/cache state, environment variables, secrets available to setup, sandbox policy, and agent internet-access settings. | Represent execution intent and expected evidence in `.metaflow/execution/*.json`, `.metaflow/evaluation/*.json`, or `.metaflow/runtime-evidence/*.json`; require harness-native environment evidence before treating hosted execution as operational. |
 | Agent runtime | Subagent workflows, custom-agent selection, `/agent` thread state, inherited sandbox and approval posture, live overrides, tool activity, token usage, and consolidated results are Codex runtime behavior. | Project and review custom-agent configuration, but require a Codex app or CLI subagent run before treating a custom agent as operational. |
 | Automations | Scheduled standalone, project, and thread automations are Codex app runtime state. They depend on the local app or host runtime, target project availability, schedule, local versus worktree execution mode, sandbox defaults, approval policy, skills, plugins, and Triage run state. | Record automation intent, policy grants, reusable skills, and evidence expectations; do not create, update, archive, or prove scheduled automation runs from repository metadata. |
 | Authentication runtime | Codex authentication depends on ChatGPT sign-in, API key sign-in, access-token automation, credential storage, workspace policy, MFA, SSO, RBAC, Codex Local permission, access-token permission, and connected GitHub account state. | Record authentication intent, policy grants, and required evidence; do not sign in users, create or store credentials, connect accounts, satisfy organization policy, or prove authenticated runtime behavior from repository metadata. |

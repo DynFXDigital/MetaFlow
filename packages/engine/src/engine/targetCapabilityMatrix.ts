@@ -1,5 +1,6 @@
 import {
     ProjectionTarget,
+    RuntimeEvidenceMetadata,
     TargetCapabilityMatrixEntry,
     TargetCapabilitySupportReference,
     TargetCapabilitySupportStatus,
@@ -31,6 +32,7 @@ export interface CodexRuntimeEvidenceChecklistItem {
     runtimeEvidenceExpected: string;
     authorityImplications: string[];
     evidence: string[];
+    runtimeEvidenceRecords: RuntimeEvidenceMetadata[];
 }
 
 function row(
@@ -1544,24 +1546,32 @@ export function buildTargetCapabilitySupportReference(
 
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
+    runtimeEvidenceRecords?: RuntimeEvidenceMetadata[];
 }): CodexSupportBoundariesDocument {
     const generatedBy = options?.generatedBy ?? 'metaflow codex-support-boundaries';
+    const runtimeEvidenceRecords = options?.runtimeEvidenceRecords ?? [];
     const codexRows = getTargetCapabilityMatrix(['codex']).sort((left, right) =>
         left.concept.localeCompare(right.concept, undefined, { sensitivity: 'base' }),
     );
     const runtimeOnlyRows = codexRows.filter((entry) => entry.support === 'runtime-only');
     const supportedRows = codexRows.filter((entry) => entry.support !== 'runtime-only');
-    const runtimeEvidenceChecklist = runtimeOnlyRows.map((row) => ({
-        concept: row.concept,
-        nativeSurfaces: row.nativeSurfaces,
-        notAchievableByRepositoryProjection: row.notes.join(' '),
-        runtimeEvidenceExpected: [
-            `Runtime evidence for ${row.concept} must name the active Codex surface, runtime configuration, authority posture, representative operation, result artifacts, and known limitations.`,
-            `Review native surfaces: ${row.nativeSurfaces.join(', ')}.`,
-        ].join(' '),
-        authorityImplications: row.authorityImplications,
-        evidence: row.evidence,
-    }));
+    const runtimeEvidenceChecklist = runtimeOnlyRows.map((row) => {
+        const matchingRuntimeEvidence = runtimeEvidenceRecords.filter(
+            (record) => record.target === 'codex' && record.concepts.includes(row.concept),
+        );
+        return {
+            concept: row.concept,
+            nativeSurfaces: row.nativeSurfaces,
+            notAchievableByRepositoryProjection: row.notes.join(' '),
+            runtimeEvidenceExpected: [
+                `Runtime evidence for ${row.concept} must name the active Codex surface, runtime configuration, authority posture, representative operation, result artifacts, and known limitations.`,
+                `Review native surfaces: ${row.nativeSurfaces.join(', ')}.`,
+            ].join(' '),
+            authorityImplications: row.authorityImplications,
+            evidence: row.evidence,
+            runtimeEvidenceRecords: matchingRuntimeEvidence,
+        };
+    });
     const relatedGuides = [
         'docs/CODEX-SUPPORT.md',
         'docs/CODEX-OPERATOR-WALKTHROUGH.md',
@@ -1673,13 +1683,19 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         '## Runtime Evidence Checklist By Concept',
         '',
-        '| Concept | Runtime evidence expected | Authority implications |',
-        '| --- | --- | --- |',
+        '| Concept | Runtime evidence expected | Authority implications | Evidence records |',
+        '| --- | --- | --- | --- |',
     );
 
     for (const item of runtimeEvidenceChecklist) {
+        const records =
+            item.runtimeEvidenceRecords.length > 0
+                ? item.runtimeEvidenceRecords
+                      .map((record) => `${record.id} (${record.status})`)
+                      .join('<br>')
+                : 'none recorded';
         lines.push(
-            `| ${item.concept} | ${item.runtimeEvidenceExpected} | ${item.authorityImplications.join(' ')} |`,
+            `| ${item.concept} | ${item.runtimeEvidenceExpected} | ${item.authorityImplications.join(' ')} | ${records} |`,
         );
     }
 

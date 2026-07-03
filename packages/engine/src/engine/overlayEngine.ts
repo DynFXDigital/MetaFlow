@@ -39,6 +39,7 @@ import { loadHooksForLayer } from './hookManifest';
 import { loadExecutionProfilesForLayer } from './executionProfile';
 import { loadMemoryScopesForLayer } from './memoryScope';
 import { loadEvaluationProfilesForLayer } from './evaluationProfile';
+import { loadRuntimeEvidenceForLayer } from './runtimeEvidence';
 import {
     codexAgentProfileDestination,
     githubCopilotAgentProfileDestination,
@@ -457,6 +458,7 @@ function buildLayerContent(
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
+        runtimeEvidenceRecords: loadRuntimeEvidenceForLayer(layerAbsPath, knownPolicyGrantIds),
         agentProfiles,
         instructions,
         prompts,
