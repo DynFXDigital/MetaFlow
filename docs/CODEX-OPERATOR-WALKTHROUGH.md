@@ -405,6 +405,10 @@ Runtime validation is required for:
   availability, user namespace and AppArmor posture, writable root policy,
   repository location, package-manager prerequisite state, representative
   sandboxed command behavior, and known limitations.
+- Codex macOS platform selection, Codex app availability, Seatbelt sandbox
+  behavior, macOS Privacy & Security permission posture, writable root policy,
+  local environment action behavior, managed preference state, representative
+  sandboxed command behavior, and known limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

@@ -516,6 +516,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-085'],
     ),
     row(
+        'macosPlatformRuntime',
+        'runtime-only',
+        [
+            'Codex CLI on macOS',
+            'Codex IDE extension on macOS',
+            'Codex app on macOS',
+            'Seatbelt sandbox',
+            'macOS Privacy & Security permissions',
+            'Codex local environments platform scripts',
+        ],
+        [
+            'Codex macOS platform behavior is host runtime state across the built-in Seatbelt sandbox, Codex app availability, macOS privacy permissions, local environment actions, platform-specific setup scripts, managed preferences, and configured writable roots.',
+            'Repository metadata can describe macOS platform intent and evidence requirements, but it cannot grant macOS Screen Recording or Accessibility permissions, install the Codex app, open a workspace in the app, configure MDM managed preferences, run or verify local environment actions, choose active macOS privacy settings, or prove sandbox enforcement.',
+            'Appshots, Computer Use, Chronicle, Record & Replay, locked Computer Use, and remote Mac control are macOS runtime workflows that require harness-native evidence in their own boundary rows.',
+        ],
+        [
+            'macOS platform configuration controls filesystem boundaries, network isolation, Seatbelt sandbox behavior, app permissions, local environment setup, managed preferences, Computer Use visibility, and command access to local directories.',
+        ],
+        ['RUN-086'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1087,6 +1108,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-085'],
     ),
     row(
+        'macosPlatformRuntime',
+        'unsupported',
+        ['Codex macOS app, CLI, IDE extension, and Seatbelt sandbox'],
+        [
+            'Codex macOS platform behavior is a Codex runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot macOS editor, Dev Container, or Codespaces behavior must be represented through GitHub-specific editor, execution, or environment concepts instead.',
+        ],
+        ['macOS platform authority must be represented through the target harness controls.'],
+        ['RUN-086'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1368,6 +1400,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
+        'Granting macOS Screen Recording or Accessibility permissions, installing the Codex app, opening workspaces in the app, configuring MDM managed preferences, running local environment actions, changing active macOS privacy settings, or proving Seatbelt sandbox enforcement from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1393,6 +1426,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
+        'macOS platform runtime: Codex surface, Codex app availability, Seatbelt sandbox behavior, macOS Privacy & Security permission posture, writable root policy, local environment action behavior, managed preference state, representative sandboxed command behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
