@@ -21,7 +21,14 @@ import {
     isWithinBoundary,
     normalizeInputPath,
 } from '../config/configPathUtils';
-import { LayerContent, LayerFile, EffectiveFile } from './types';
+import {
+    CapabilityDiagnosticSeverity,
+    CapabilityMetadata,
+    CapabilityWarning,
+    EffectiveFile,
+    LayerContent,
+    LayerFile,
+} from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { loadPolicyGrantsForLayer } from './policyGrant';
 import { loadMcpServersForLayer } from './mcpServer';
@@ -45,6 +52,7 @@ import {
     renderCodexHooksJson,
 } from './codexHookProjection';
 import { loadTargetAdaptersForLayer } from './targetAdapter';
+import { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
 import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
@@ -347,6 +355,12 @@ function buildLayerContent(
         knownPolicyGrantIds,
         packageReferenceIndex,
     );
+    const capability = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
+    validateCapabilityLayerDeclarations(capability, {
+        ...packageReferenceIndex,
+        packages: new Set(packageManifests.map((manifest) => manifest.id).filter(Boolean)),
+        policyGrants: knownPolicyGrantIds,
+    });
     const hasTargetNativeCodexConfig = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
     );
@@ -422,7 +436,7 @@ function buildLayerContent(
             ...codexConfigFiles,
             ...codexHookFiles,
         ],
-        capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
+        capability,
         policyGrants,
         mcpServers,
         hooks,
@@ -435,6 +449,11 @@ function buildLayerContent(
         packageManifests,
         tools,
     };
+}
+
+interface CapabilityReferenceIndex extends PackageReferenceIndex {
+    packages: Set<string>;
+    policyGrants: Set<string>;
 }
 
 function buildPackageReferenceIndex(
@@ -480,6 +499,149 @@ function idsFromPaths(
         }
     }
     return ids;
+}
+
+function capabilityWarning(
+    code: string,
+    message: string,
+    filePath?: string,
+    severity: CapabilityDiagnosticSeverity = 'warning',
+): CapabilityWarning {
+    return { code, message, filePath, severity };
+}
+
+function validateCapabilityLayerDeclarations(
+    capability: CapabilityMetadata | undefined,
+    referenceIndex: CapabilityReferenceIndex,
+): void {
+    if (!capability) {
+        return;
+    }
+
+    const manifestPath = capability.manifestPath;
+    validateCapabilityComponentReferences(capability, referenceIndex, manifestPath);
+    validateCapabilityPackageReferences(capability, referenceIndex.packages, manifestPath);
+    validateCapabilityTargetDeclarations(capability, manifestPath);
+}
+
+function validateCapabilityComponentReferences(
+    capability: CapabilityMetadata,
+    referenceIndex: CapabilityReferenceIndex,
+    manifestPath: string,
+): void {
+    if (!capability.components) {
+        return;
+    }
+
+    for (const [componentKind, componentIds] of Object.entries(capability.components)) {
+        const knownIds = capabilityReferenceSetForKind(componentKind, referenceIndex);
+        if (!knownIds) {
+            capability.warnings.push(
+                capabilityWarning(
+                    'CANONICAL_CAPABILITY_COMPONENT_KIND_UNKNOWN',
+                    `.metaflow/capability.json components.${componentKind} does not match a known canonical component kind.`,
+                    manifestPath,
+                ),
+            );
+            continue;
+        }
+
+        for (const componentId of componentIds) {
+            if (!knownIds.has(componentId)) {
+                capability.warnings.push(
+                    capabilityWarning(
+                        'CANONICAL_CAPABILITY_COMPONENT_REFERENCE_UNKNOWN',
+                        `.metaflow/capability.json components.${componentKind} references unknown component "${componentId}".`,
+                        manifestPath,
+                        'error',
+                    ),
+                );
+            }
+        }
+    }
+}
+
+function validateCapabilityPackageReferences(
+    capability: CapabilityMetadata,
+    knownPackageIds: Set<string>,
+    manifestPath: string,
+): void {
+    for (const packageId of capability.packages ?? []) {
+        if (!knownPackageIds.has(packageId)) {
+            capability.warnings.push(
+                capabilityWarning(
+                    'CANONICAL_CAPABILITY_PACKAGE_UNKNOWN',
+                    `.metaflow/capability.json packages references unknown package "${packageId}".`,
+                    manifestPath,
+                    'error',
+                ),
+            );
+        }
+    }
+}
+
+function validateCapabilityTargetDeclarations(
+    capability: CapabilityMetadata,
+    manifestPath: string,
+): void {
+    if (!capability.targets) {
+        return;
+    }
+
+    const knownTargets = new Set([
+        'metaflow',
+        'generic',
+        ...getTargetCapabilityMatrix().map((entry) => entry.target),
+    ]);
+    for (const targetId of Object.keys(capability.targets)) {
+        if (!knownTargets.has(targetId)) {
+            capability.warnings.push(
+                capabilityWarning(
+                    'CANONICAL_CAPABILITY_TARGET_UNKNOWN',
+                    `.metaflow/capability.json targets.${targetId} has no known target capability matrix entry.`,
+                    manifestPath,
+                ),
+            );
+        }
+    }
+}
+
+function capabilityReferenceSetForKind(
+    componentKind: string,
+    referenceIndex: CapabilityReferenceIndex,
+): Set<string> | undefined {
+    switch (componentKind) {
+        case 'agent':
+        case 'agents':
+            return referenceIndex.agents;
+        case 'skill':
+        case 'skills':
+            return referenceIndex.skills;
+        case 'instruction':
+        case 'instructions':
+            return referenceIndex.instructions;
+        case 'prompt':
+        case 'prompts':
+            return referenceIndex.prompts;
+        case 'mcp':
+        case 'mcpServer':
+        case 'mcpServers':
+            return referenceIndex.mcpServers;
+        case 'tool':
+        case 'tools':
+            return referenceIndex.tools;
+        case 'hook':
+        case 'hooks':
+            return referenceIndex.hooks;
+        case 'package':
+        case 'packages':
+            return referenceIndex.packages;
+        case 'policyGrant':
+        case 'policyGrants':
+            return referenceIndex.policyGrants;
+        default:
+            return undefined;
+    }
 }
 
 function skillIdFromPath(filePath: string): string | undefined {

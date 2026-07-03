@@ -5335,6 +5335,31 @@ describe('Engine: synchronizer advanced', () => {
         fs.mkdirSync(path.join(layerDir, '.metaflow', 'tools'), { recursive: true });
 
         fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'capability.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.capability/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                summary: 'Release operations capability.',
+                components: {
+                    agents: ['release-steward'],
+                    skills: ['release-readiness'],
+                    instructions: ['release-policy'],
+                    prompts: ['release-review'],
+                    mcpServers: ['github'],
+                    tools: ['create-pr'],
+                    hooks: ['release-gate'],
+                    policyGrants: ['github-pr-read'],
+                    packages: ['release-operations'],
+                },
+                packages: ['release-operations'],
+                targets: {
+                    codex: { enabled: true },
+                },
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
             path.join(layerDir, '.metaflow', 'policies', 'github-pr-read.json'),
             JSON.stringify({
                 schemaVersion: 'metaflow.policyGrant/v1',
@@ -5441,6 +5466,44 @@ describe('Engine: synchronizer advanced', () => {
         assert.strictEqual(layers.length, 1);
         assert.strictEqual(layers[0].packageManifests?.length, 1);
         assert.deepStrictEqual(layers[0].packageManifests?.[0].warnings, []);
+        assert.deepStrictEqual(layers[0].capability?.warnings, []);
+    });
+
+    it('reports stale canonical capability declarations', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        fs.mkdirSync(path.join(layerDir, '.metaflow'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'capability.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.capability/v1',
+                id: 'stale-capability',
+                name: 'Stale Capability',
+                summary: 'Contains stale references.',
+                components: {
+                    skills: ['missing-skill'],
+                    policyGrants: ['missing-grant'],
+                    widgets: ['missing-widget'],
+                },
+                packages: ['missing-package'],
+                targets: {
+                    'future-agent': { enabled: true },
+                },
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const codes = layers[0].capability?.warnings.map((warning) => warning.code) ?? [];
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_COMPONENT_REFERENCE_UNKNOWN'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_COMPONENT_KIND_UNKNOWN'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_PACKAGE_UNKNOWN'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_TARGET_UNKNOWN'));
     });
 
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {
