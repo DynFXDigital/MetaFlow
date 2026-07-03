@@ -12,6 +12,7 @@ import {
     getWorkspaceRoot,
     loadConfigOrExit,
     resolvePackageManifests,
+    resolveWorkspaceOutputPath,
 } from './common';
 
 interface ExportPackageMarketplaceOptions {
@@ -38,23 +39,6 @@ function normalizeFormat(format: string | undefined): PackageMarketplaceExportFo
     throw new Error(
         'Unsupported package marketplace export format. Use compact, codex-marketplace, or github-copilot-marketplace.',
     );
-}
-
-function isWithinWorkspace(workspaceRoot: string, candidatePath: string): boolean {
-    const relative = path.relative(workspaceRoot, candidatePath);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-}
-
-function resolveOutputPath(workspaceRoot: string, outputPath: string): string {
-    const resolved = path.isAbsolute(outputPath)
-        ? path.resolve(outputPath)
-        : path.resolve(workspaceRoot, outputPath);
-
-    if (!isWithinWorkspace(workspaceRoot, resolved)) {
-        throw new Error('Output path must stay within the workspace.');
-    }
-
-    return resolved;
 }
 
 export function registerExportPackageMarketplaceCommand(program: Command): void {
@@ -158,7 +142,7 @@ export function registerExportPackageMarketplaceCommand(program: Command): void 
 
             let outputPath: string;
             try {
-                outputPath = resolveOutputPath(workspaceRoot, options.out);
+                outputPath = resolveWorkspaceOutputPath(workspaceRoot, options.out);
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
                 console.error(`Error: ${message}`);
