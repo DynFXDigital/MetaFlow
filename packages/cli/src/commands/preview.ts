@@ -10,6 +10,7 @@ import {
     AdapterReadinessReport,
     TargetCapabilityMatrixEntry,
     ProjectionMetadata,
+    buildTargetCapabilitySupportReference,
 } from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
@@ -72,33 +73,6 @@ function summarizeTargetCapabilityMatrix(entries: TargetCapabilityMatrixEntry[])
                 .join(', ');
             return `${target} (${adapterVersion}): ${concepts}`;
         });
-}
-
-function buildTargetCapabilitySupportReference(
-    entries: TargetCapabilityMatrixEntry[],
-): {
-    runtimeOnlyCount: number;
-    targets: Array<{ target: string; runtimeOnlyCount: number; documentation: string }>;
-} | undefined {
-    const runtimeOnlyRows = entries.filter((entry) => entry.support === 'runtime-only');
-    const runtimeOnlyCount = runtimeOnlyRows.length;
-    if (runtimeOnlyCount === 0) {
-        return undefined;
-    }
-    const countsByTarget = new Map<string, number>();
-    for (const entry of runtimeOnlyRows) {
-        countsByTarget.set(entry.target, (countsByTarget.get(entry.target) ?? 0) + 1);
-    }
-    return {
-        runtimeOnlyCount,
-        targets: Array.from(countsByTarget.entries())
-            .sort((left, right) => left[0].localeCompare(right[0]))
-            .map(([target, count]) => ({
-                target,
-                runtimeOnlyCount: count,
-                documentation: target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
-            })),
-    };
 }
 
 function summarizeSources(files: Array<{ sourceLayer: string; sourceRepo?: string }>): string[] {

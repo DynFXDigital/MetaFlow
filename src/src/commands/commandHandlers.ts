@@ -26,6 +26,7 @@ import type {
 } from '@metaflow/engine';
 import {
     buildGitHubCopilotMcpHandoff,
+    buildTargetCapabilitySupportReference,
     evaluateGovernanceCompliance,
     loadConfig,
     loadGovernanceContract,
@@ -799,30 +800,7 @@ export function buildTargetSupportReportForExtension(): {
     for (const entry of entries) {
         targets[entry.target] = (targets[entry.target] ?? 0) + 1;
     }
-    const runtimeOnlyRows = entries.filter((entry) => entry.support === 'runtime-only');
-    const runtimeOnlyCountsByTarget = new Map<string, number>();
-    for (const entry of runtimeOnlyRows) {
-        runtimeOnlyCountsByTarget.set(
-            entry.target,
-            (runtimeOnlyCountsByTarget.get(entry.target) ?? 0) + 1,
-        );
-    }
-    const supportReference =
-        runtimeOnlyRows.length > 0
-            ? {
-                  runtimeOnlyCount: runtimeOnlyRows.length,
-                  targets: Array.from(runtimeOnlyCountsByTarget.entries())
-                      .sort((left, right) =>
-                          left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
-                      )
-                      .map(([target, count]) => ({
-                          target,
-                          runtimeOnlyCount: count,
-                          documentation:
-                              target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
-                      })),
-              }
-            : undefined;
+    const supportReference = buildTargetCapabilitySupportReference(entries);
     const report = {
         generatedBy: 'metaflow extension target-support',
         summary: {

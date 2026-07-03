@@ -51,6 +51,7 @@ import {
     toAuthoredConfig,
     normalizeConfigShape,
     getTargetCapabilityMatrix,
+    buildTargetCapabilitySupportReference,
     buildAdapterReadinessReports,
     buildGitHubCopilotMcpHandoff,
     describeProjectionWithTargetAdapters,
@@ -271,6 +272,34 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
             'Codex issue/PR row should document connector authorization requirements',
+        );
+    });
+
+    it('builds runtime-only target capability support references', () => {
+        const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
+
+        assert.deepStrictEqual(supportReference, {
+            runtimeOnlyCount: 4,
+            targets: [
+                {
+                    target: 'codex',
+                    runtimeOnlyCount: 2,
+                    documentation: 'docs/CODEX-SUPPORT.md',
+                },
+                {
+                    target: 'github-copilot',
+                    runtimeOnlyCount: 2,
+                    documentation: 'README.md',
+                },
+            ],
+        });
+        assert.strictEqual(
+            buildTargetCapabilitySupportReference(
+                getTargetCapabilityMatrix(['codex']).filter(
+                    (entry) => entry.support !== 'runtime-only',
+                ),
+            ),
+            undefined,
         );
     });
 

@@ -1,6 +1,7 @@
 import {
     ProjectionTarget,
     TargetCapabilityMatrixEntry,
+    TargetCapabilitySupportReference,
     TargetCapabilitySupportStatus,
 } from './types';
 
@@ -394,4 +395,31 @@ export function getTargetCapabilityMatrix(
         );
     }
     return entries;
+}
+
+export function buildTargetCapabilitySupportReference(
+    entries: TargetCapabilityMatrixEntry[],
+): TargetCapabilitySupportReference | undefined {
+    const runtimeOnlyRows = entries.filter((entry) => entry.support === 'runtime-only');
+    if (runtimeOnlyRows.length === 0) {
+        return undefined;
+    }
+
+    const countsByTarget = new Map<string, number>();
+    for (const entry of runtimeOnlyRows) {
+        countsByTarget.set(entry.target, (countsByTarget.get(entry.target) ?? 0) + 1);
+    }
+
+    return {
+        runtimeOnlyCount: runtimeOnlyRows.length,
+        targets: Array.from(countsByTarget.entries())
+            .sort((left, right) =>
+                left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
+            )
+            .map(([target, count]) => ({
+                target,
+                runtimeOnlyCount: count,
+                documentation: target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
+            })),
+    };
 }

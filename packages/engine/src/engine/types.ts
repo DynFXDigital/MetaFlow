@@ -808,6 +808,14 @@ export interface TargetCapabilityMatrixEntry {
     evidence: string[];
 }
 
+/** Runtime-only support reference summarized from target capability matrix rows. */
+export interface TargetCapabilitySupportReference {
+    /** Total runtime-only matrix rows in the selected scope. */
+    runtimeOnlyCount: number;
+    /** Per-target runtime-only counts and operator documentation paths. */
+    targets: Array<{ target: string; runtimeOnlyCount: number; documentation: string }>;
+}
+
 /** Count of canonical metadata records considered by a target adapter report. */
 export interface AdapterReadinessMetadataCounts {
     /** Canonical agent profiles considered for adapter readiness. */

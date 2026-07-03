@@ -213,6 +213,7 @@ export type {
     TargetAdapterValidationStatus,
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
+    TargetCapabilitySupportReference,
     TargetCapabilitySupportStatus,
     ToolKind,
     ToolMetadata,
@@ -221,7 +222,10 @@ export type {
     PendingChange,
 } from './types';
 export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
-export { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
+export {
+    buildTargetCapabilitySupportReference,
+    getTargetCapabilityMatrix,
+} from './targetCapabilityMatrix';
 export type { ProvenanceData } from './provenanceHeader';
 export type {
     ManagedState,
