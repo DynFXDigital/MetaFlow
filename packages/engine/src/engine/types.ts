@@ -877,6 +877,10 @@ export type TargetCapabilityConcept =
     | 'remoteMcpRuntime'
     | 'oauthMcpRuntime'
     | 'sideEffectMcpRuntime'
+    | 'browserRuntime'
+    | 'chromeRuntime'
+    | 'computerUseRuntime'
+    | 'sitesRuntime'
     | 'evaluationSupport';
 
 /** Support state for one canonical concept on one target adapter. */

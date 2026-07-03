@@ -79,6 +79,10 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'remoteMcpRuntime',
     'oauthMcpRuntime',
     'sideEffectMcpRuntime',
+    'browserRuntime',
+    'chromeRuntime',
+    'computerUseRuntime',
+    'sitesRuntime',
     'evaluationSupport',
 ]);
 

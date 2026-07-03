@@ -40,6 +40,10 @@ the service connection or prove the behavior.
 | Codex GitHub Action | GitHub Action execution depends on workflow triggers, GitHub secrets, runner operating system, job permissions, sandbox inputs, and Codex action version. | Classify the execution intent in `.metaflow/execution/*.json`; do not generate workflows or claim CI execution without a harness-native run. |
 | Codex app-server integrations | App-server execution depends on a local process, selected transport, client initialization, experimental capability flags where applicable, and listener authentication for WebSocket use. | Classify the execution intent in `.metaflow/execution/*.json`; require integration-specific runtime validation before treating app-server usage as operational. |
 | Codex SDK integrations | SDK-embedded execution depends on application code, API credentials, process sandboxing, trace handling, and deployed environment policy. | Classify the execution intent in `.metaflow/execution/*.json`; require SDK integration evidence before treating the adapter claim as runtime support. |
+| Browser Use and in-app browser | Browser Use depends on the Browser plugin, site approvals, browser state, optional Developer Mode, and the rendered page state available in the running Codex app. | Record browser task intent, target URL, approval scope, and visual validation evidence; do not treat repository metadata as proof of page interaction. |
+| Chrome extension browser use | Chrome use depends on the Chrome plugin, extension installation, active Chrome profile, website allowlists, browser history permission, and signed-in account state. | Record Chrome task intent and required authority; require harness-native evidence before treating signed-in browser operation as supported. |
+| Computer Use | Computer Use depends on plugin installation, operating system permissions, visible app/window state, app allow decisions, and user approval prompts. | Record desktop automation intent and policy grants; do not treat repository metadata as proof of GUI control, screen access, or app permission. |
+| Sites hosting and deployment | Sites depends on the Sites plugin, hosted project provisioning, build compatibility, saved versions, audience settings, hosted secrets, and deployment approval. | Record hosting intent and validation evidence; do not create hosted project state or claim production deployment from repository metadata alone. |
 | Remote MCP reachability | Codex supports Streamable HTTP MCP configuration, but reachable endpoints, TLS behavior, hosted-agent network policy, and remote executor behavior are runtime concerns. | Project supported config fields where managed, and keep reachability and tool-call proof as validation evidence. |
 | OAuth MCP login | Codex supports OAuth metadata for MCP servers, but login, callback URLs, token handling, and account authorization are runtime concerns. | Project supported OAuth fields where managed, and keep login and callback proof as validation evidence. |
 | Side-effecting MCP tools | MCP tools can read or change external systems, and approval behavior depends on runtime tool authority. Static metadata cannot grant authority safely. | Require policy grants, approval posture, bounded tool-call proof, and audit evidence before package or adapter claims are treated as operational. |
@@ -55,9 +59,12 @@ MetaFlow does not claim the following outcomes from generated repository files:
   account, MCP OAuth session, or marketplace plugin install.
 - Granting shell, browser, network, credential, memory, or external-service
   authority merely because a package manifest references those capabilities.
+- Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and
+  their app, website, OS, hosting, or workspace permissions.
 - Proving hosted Codex Cloud, Slack, Linear, GitHub review, remote MCP
-  reachability, OAuth MCP login, or side-effecting MCP behavior without a
-  harness-native run.
+  reachability, OAuth MCP login, side-effecting MCP behavior, browser
+  interaction, Chrome profile operation, desktop automation, or Sites
+  deployment without a harness-native run.
 
 These are operator-owned or harness-owned runtime states. MetaFlow records the
 intent and validation requirements, then leaves the authority transition to the
@@ -76,6 +83,7 @@ Static projection support and runtime support use different evidence.
 | MCP runtime works | Codex MCP startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
 | Tool runtime works | Tool manifest review, policy grant approval, target runtime configuration, approval behavior, and at least one bounded tool call in the intended environment. |
+| Browser, Chrome, Computer Use, or Sites runtime works | Installed plugin or app state, approval scope, target site, app, or hosted project identity, representative operation, result, and known limitations. |
 
 For the package maintainer workflow, see
 [Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md).
@@ -95,3 +103,7 @@ For command, MCP, HTTP, and manual tool authority, see
 - Codex GitHub Action: <https://developers.openai.com/codex/github-action>
 - Codex app-server: <https://developers.openai.com/codex/app-server>
 - Codex SDK: <https://developers.openai.com/codex/sdk>
+- Codex in-app browser: <https://developers.openai.com/codex/app/browser>
+- Codex Chrome extension: <https://developers.openai.com/codex/app/chrome-extension>
+- Codex Computer Use: <https://developers.openai.com/codex/app/computer-use>
+- Codex Sites: <https://developers.openai.com/codex/sites>

@@ -268,6 +268,50 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-050', 'RUN-052'],
     ),
     row(
+        'browserRuntime',
+        'runtime-only',
+        ['Codex in-app browser', 'Browser plugin', 'browser comments', 'Browser developer mode'],
+        [
+            'Codex Browser Use is a runtime plugin workflow rather than a repository metadata projection.',
+            'Repository metadata can describe review intent, but website allowlists, browser plugin installation, full CDP access, visual annotations, and page interaction evidence require harness-native validation.',
+        ],
+        ['Browser runtime access can expose page content, screenshots, network traces, console output, and untrusted web context.'],
+        ['RUN-063'],
+    ),
+    row(
+        'chromeRuntime',
+        'runtime-only',
+        ['Codex Chrome extension', 'Chrome plugin', 'signed-in browser profile'],
+        [
+            'Codex Chrome use depends on the Chrome plugin, browser extension installation, active browser profile, website allowlists, and user approval.',
+            'Repository metadata cannot install the extension, grant website access, read browser history, or prove signed-in browser task behavior.',
+        ],
+        ['Chrome runtime access can act with the user browser profile and requires website, history, and account-scope review.'],
+        ['RUN-063'],
+    ),
+    row(
+        'computerUseRuntime',
+        'runtime-only',
+        ['Codex Computer Use plugin', 'desktop app control', 'OS-level screen and accessibility permissions'],
+        [
+            'Computer Use depends on plugin installation, operating system permissions, active desktop state, allowed app decisions, and user approval.',
+            'Repository metadata cannot grant screen recording, accessibility, foreground desktop control, locked-use policy, or app-specific approval.',
+        ],
+        ['Computer Use can operate GUI apps, pointer, keyboard, clipboard, visible secrets, and system state outside repository files.'],
+        ['RUN-063'],
+    ),
+    row(
+        'sitesRuntime',
+        'runtime-only',
+        ['Codex Sites plugin', '.openai/hosting.json', 'hosted site versions and deployments'],
+        [
+            'Sites publishing depends on the Sites plugin, hosted project provisioning, build compatibility, audience settings, hosted secrets, saved versions, and deployment approval.',
+            'Repository metadata can classify hosting intent, but it cannot create hosted project state, set production access, configure hosted secrets, or prove deployment behavior.',
+        ],
+        ['Sites deployments can publish production URLs, expose data, widen audience access, and bind hosted storage or secrets.'],
+        ['RUN-063'],
+    ),
+    row(
         'evaluationSupport',
         'partial',
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'Codex CLI smoke runs'],
@@ -480,6 +524,46 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['Side-effecting MCP tools can mutate files, repositories, services, tickets, messages, or external systems.'],
     ),
     row(
+        'browserRuntime',
+        'unsupported',
+        [],
+        [
+            'Codex Browser Use is a Codex app/plugin runtime surface and is not a GitHub Copilot target surface.',
+        ],
+        ['Browser runtime authority must be represented through the target harness controls.'],
+        ['RUN-063'],
+    ),
+    row(
+        'chromeRuntime',
+        'unsupported',
+        [],
+        [
+            'The Codex Chrome extension is a Codex app/plugin runtime surface and is not a GitHub Copilot target surface.',
+        ],
+        ['Chrome profile authority must be represented through the target harness controls.'],
+        ['RUN-063'],
+    ),
+    row(
+        'computerUseRuntime',
+        'unsupported',
+        [],
+        [
+            'Codex Computer Use is a Codex app/plugin runtime surface and is not a GitHub Copilot target surface.',
+        ],
+        ['Desktop automation authority must be represented through the target harness controls.'],
+        ['RUN-063'],
+    ),
+    row(
+        'sitesRuntime',
+        'unsupported',
+        [],
+        [
+            'Codex Sites is a Codex app/plugin hosting surface and is not a GitHub Copilot target surface.',
+        ],
+        ['Hosted deployment authority must be represented through the target harness controls.'],
+        ['RUN-063'],
+    ),
+    row(
         'evaluationSupport',
         'partial',
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'extension integration tests'],
@@ -583,13 +667,15 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
-        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, or side-effecting MCP behavior without a harness-native run.',
+        'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
+        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, or Sites deployment without a harness-native run.',
     ];
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
+        'Browser, Chrome, Computer Use, and Sites runtime: installed plugin or app state, approval scope, target site/app/project identity, representative operation, result, and known limitations.',
     ];
     const lines: string[] = [
         '# Codex Support Boundaries',

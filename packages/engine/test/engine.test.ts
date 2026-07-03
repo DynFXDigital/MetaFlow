@@ -185,6 +185,10 @@ describe('Engine package: public API', () => {
             'remoteMcpRuntime',
             'oauthMcpRuntime',
             'sideEffectMcpRuntime',
+            'browserRuntime',
+            'chromeRuntime',
+            'computerUseRuntime',
+            'sitesRuntime',
             'evaluationSupport',
         ];
         for (const target of ['codex', 'github-copilot']) {
@@ -407,21 +411,65 @@ describe('Engine package: public API', () => {
             codexSideEffectMcp?.evidence.includes('RUN-050'),
             'Codex side-effect MCP row should point to the read-only MCP tool-call smoke boundary',
         );
+        const codexBrowserRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'browserRuntime',
+        );
+        assert.strictEqual(codexBrowserRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexBrowserRuntime?.nativeSurfaces.includes('Codex in-app browser'),
+            'Codex browser runtime row should name the in-app browser surface',
+        );
+        assert.ok(
+            codexBrowserRuntime?.authorityImplications.some((note) =>
+                note.includes('untrusted web context'),
+            ),
+            'Codex browser runtime row should document page-context authority',
+        );
+        const codexChromeRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'chromeRuntime',
+        );
+        assert.strictEqual(codexChromeRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexChromeRuntime?.notes.some((note) => note.includes('browser extension')),
+            'Codex Chrome runtime row should document extension dependency',
+        );
+        const codexComputerRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'computerUseRuntime',
+        );
+        assert.strictEqual(codexComputerRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexComputerRuntime?.authorityImplications.some((note) =>
+                note.includes('GUI apps'),
+            ),
+            'Codex computer use runtime row should document GUI authority',
+        );
+        const codexSitesRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'sitesRuntime',
+        );
+        assert.strictEqual(codexSitesRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexSitesRuntime?.nativeSurfaces.includes('Codex Sites plugin'),
+            'Codex Sites runtime row should name the Sites plugin surface',
+        );
         const copilotIssuePr = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'issuePrOperation',
         );
         assert.strictEqual(copilotIssuePr?.documentation, 'README.md');
+        const copilotBrowserRuntime = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'browserRuntime',
+        );
+        assert.strictEqual(copilotBrowserRuntime?.support, 'unsupported');
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 10,
+            runtimeOnlyCount: 14,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 5,
+                    runtimeOnlyCount: 9,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
