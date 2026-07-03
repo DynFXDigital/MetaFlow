@@ -1375,7 +1375,13 @@ describe('Engine package: public API', () => {
                     ],
                     limitations: [],
                     policyGrants: [],
-                    warnings: [],
+                    warnings: [
+                        {
+                            code: 'RUNTIME_EVIDENCE_ARTIFACT_MISSING',
+                            message: 'Runtime evidence artifact "doc/ftr/run-096.md" does not exist relative to the metadata layer.',
+                            severity: 'warning',
+                        },
+                    ],
                 },
                 {
                     id: 'codex-provider-waiver',
@@ -1411,7 +1417,9 @@ describe('Engine package: public API', () => {
         });
 
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.records, 2);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 3);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 2);
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount - 3,
@@ -1426,11 +1434,15 @@ describe('Engine package: public API', () => {
             document.runtimeEvidenceCoverageSummary.conceptsByStatus.waived,
             ['modelProviderRuntime'],
         );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithWarningRecords.sort(),
+            ['issuePrOperation', 'reviewRuntime'].sort(),
+        );
         const reviewChecklist = document.runtimeEvidenceChecklist.find(
             (item) => item.concept === 'reviewRuntime',
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
-        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 1 | 2 | 0 | 2 | 0 | 0 | 1 |'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

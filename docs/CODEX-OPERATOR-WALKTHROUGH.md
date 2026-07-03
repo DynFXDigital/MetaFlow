@@ -40,6 +40,8 @@ an explicit evidence expectation. The runtime evidence coverage summary gives
 the review total at a glance: runtime-only concepts with no matching record are
 `missing`, while supplied records classify each concept as `passed`, `partial`,
 `failed`, `not-run`, or `waived` according to the strongest matching record.
+The summary also counts records and concepts with runtime evidence diagnostics
+so operators can separate coverage presence from evidence quality.
 For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
 preview and support-boundary JSON output. Local structured artifact refs for

@@ -9,7 +9,9 @@ each runtime-only matrix row has an explicit review expectation. When a
 workspace supplies `.metaflow/runtime-evidence/*.json` records, the checklist
 lists the matching evidence records for the covered concepts and summarizes
 coverage by `passed`, `partial`, `failed`, `not-run`, `waived`, and `missing`
-concept status.
+concept status. The coverage summary also reports records and concepts with
+runtime evidence diagnostics so warning-bearing proof does not appear as clean
+coverage.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence
