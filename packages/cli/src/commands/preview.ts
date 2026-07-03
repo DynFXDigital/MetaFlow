@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import {
     buildAdapterReadinessReports,
+    buildGitHubCopilotMcpHandoff,
     computeSettingsEntries,
     describeProjectionWithTargetAdapters,
     getTargetCapabilityMatrix,
@@ -227,6 +228,7 @@ export function registerPreviewCommand(program: Command): void {
                 const sourceSummary = summarizeSources(files);
                 const policyGrants = resolvePolicyGrants(config, workspaceRoot);
                 const mcpServers = resolveMcpServers(config, workspaceRoot);
+                const githubCopilotMcpHandoff = buildGitHubCopilotMcpHandoff(mcpServers);
                 const hooks = resolveHooks(config, workspaceRoot);
                 const executionProfiles = resolveExecutionProfiles(config, workspaceRoot);
                 const memoryScopes = resolveMemoryScopes(config, workspaceRoot);
@@ -265,6 +267,8 @@ export function registerPreviewCommand(program: Command): void {
                             sourceCount: sourceSummary.length,
                             policyGrants: policyGrants.length,
                             mcpServers: mcpServers.length,
+                            githubCopilotMcpHandoff:
+                                githubCopilotMcpHandoff?.servers.length ?? 0,
                             hooks: hooks.length,
                             executionProfiles: executionProfiles.length,
                             memoryScopes: memoryScopes.length,
@@ -297,6 +301,7 @@ export function registerPreviewCommand(program: Command): void {
                         })),
                         policyGrants,
                         mcpServers,
+                        githubCopilotMcpHandoff,
                         hooks,
                         executionProfiles,
                         memoryScopes,
@@ -319,6 +324,7 @@ export function registerPreviewCommand(program: Command): void {
                     files.length === 0 &&
                     policyGrants.length === 0 &&
                     mcpServers.length === 0 &&
+                    !githubCopilotMcpHandoff &&
                     hooks.length === 0 &&
                     executionProfiles.length === 0 &&
                     memoryScopes.length === 0 &&
@@ -393,6 +399,30 @@ export function registerPreviewCommand(program: Command): void {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }
+                    }
+                }
+                if (githubCopilotMcpHandoff) {
+                    const supported = githubCopilotMcpHandoff.servers.filter(
+                        (server) => server.supported,
+                    ).length;
+                    console.log('GitHub Copilot MCP Handoff:');
+                    console.log(
+                        `  - ${githubCopilotMcpHandoff.destination} (${supported}/${githubCopilotMcpHandoff.servers.length} servers supported, operator review required)`,
+                    );
+                    for (const server of githubCopilotMcpHandoff.servers) {
+                        const status = server.supported ? 'supported' : 'unsupported';
+                        const secrets =
+                            server.requiredSecrets.length > 0
+                                ? ` secrets=${server.requiredSecrets.join(',')}`
+                                : '';
+                        const grants =
+                            server.policyGrants.length > 0
+                                ? ` grants=${server.policyGrants.join(',')}`
+                                : '';
+                        console.log(`    ${server.id || '<invalid>'}: ${status}${secrets}${grants}`);
+                    }
+                    for (const warning of githubCopilotMcpHandoff.warnings) {
+                        console.log(`    ! ${warning}`);
                     }
                 }
                 if (hooks.length > 0) {

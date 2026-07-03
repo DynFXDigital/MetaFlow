@@ -228,6 +228,7 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         [
             'Canonical MCP server metadata is parsed and reported for adapter review.',
             'Copilot repository-wide MCP configuration remains a GitHub settings operation.',
+            'MetaFlow reports a reviewable `.vscode/mcp.json` handoff candidate for supported canonical MCP servers and leaves application to the operator.',
             'Canonical MCP server metadata referenced by canonical agent profiles projects into GitHub Copilot custom-agent frontmatter.',
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],

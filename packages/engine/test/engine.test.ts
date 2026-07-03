@@ -52,6 +52,7 @@ import {
     normalizeConfigShape,
     getTargetCapabilityMatrix,
     buildAdapterReadinessReports,
+    buildGitHubCopilotMcpHandoff,
     describeProjectionWithTargetAdapters,
     parsePolicyGrantContent,
     parseMcpServerContent,
@@ -419,6 +420,71 @@ describe('Engine package: public API', () => {
         assert.ok(
             copilotReport?.actionItems.some((item) => item.concept === 'mcpServers'),
             'shared MCP metadata should contribute to GitHub Copilot readiness',
+        );
+    });
+
+    it('builds GitHub Copilot MCP workspace handoff candidates from canonical MCP metadata', () => {
+        const handoff = buildGitHubCopilotMcpHandoff([
+            {
+                id: 'github',
+                manifestPath: '/metadata/.metaflow/mcp/github.json',
+                transport: 'stdio',
+                invocation: {
+                    command: 'github-mcp-server',
+                    args: ['stdio'],
+                    env: { GITHUB_HOST: 'github.com' },
+                },
+                requiredSecrets: ['GITHUB_TOKEN'],
+                policyGrants: ['github-pr-read'],
+                warnings: [],
+            },
+            {
+                id: 'docs',
+                manifestPath: '/metadata/.metaflow/mcp/docs.json',
+                transport: 'http',
+                endpoint: 'https://mcp.example.test/mcp',
+                requiredSecrets: [],
+                envHttpHeaders: { Authorization: 'DOCS_MCP_TOKEN' },
+                policyGrants: [],
+                warnings: [],
+            },
+            {
+                id: 'streamable',
+                manifestPath: '/metadata/.metaflow/mcp/streamable.json',
+                transport: 'streamable-http',
+                endpoint: 'https://mcp.example.test/streamable',
+                requiredSecrets: [],
+                policyGrants: [],
+                warnings: [],
+            },
+        ]);
+
+        assert.ok(handoff);
+        assert.strictEqual(handoff.destination, '.vscode/mcp.json');
+        assert.strictEqual(handoff.managed, false);
+        assert.strictEqual(handoff.requiresOperatorReview, true);
+        const content = JSON.parse(handoff.content);
+        assert.deepStrictEqual(content.servers.github, {
+            type: 'stdio',
+            command: 'github-mcp-server',
+            args: ['stdio'],
+            env: { GITHUB_HOST: 'github.com' },
+        });
+        assert.deepStrictEqual(content.servers.docs, {
+            type: 'http',
+            url: 'https://mcp.example.test/mcp',
+            headers: { Authorization: 'DOCS_MCP_TOKEN' },
+        });
+        assert.ok(!content.servers.streamable);
+        assert.ok(
+            handoff.warnings.some((warning) =>
+                warning.includes('Requires operator-provided secrets: GITHUB_TOKEN'),
+            ),
+        );
+        assert.ok(
+            handoff.warnings.some((warning) =>
+                warning.includes('streamable-http is not represented'),
+            ),
         );
     });
 });

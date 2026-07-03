@@ -423,6 +423,22 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('github [stdio] category=source-control'));
         assert.ok(textResult.stdout.includes('grants=github-pr-read'));
         assert.ok(textResult.stdout.includes('secrets=GITHUB_TOKEN'));
+        assert.ok(textResult.stdout.includes('GitHub Copilot MCP Handoff:'));
+        assert.ok(
+            textResult.stdout.includes(
+                '.vscode/mcp.json (1/1 servers supported, operator review required)',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'github: supported secrets=GITHUB_TOKEN grants=github-pr-read',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'github: Requires operator-provided secrets: GITHUB_TOKEN.',
+            ),
+        );
         assert.ok(textResult.stdout.includes('mcpServers=partial'));
         assert.ok(textResult.stdout.includes('Hooks: 1'));
         assert.ok(
@@ -578,6 +594,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexHookChange.projection.targetAdapterMaterializationMode, 'managed');
         assert.strictEqual(data.summary.policyGrants, 1);
         assert.strictEqual(data.summary.mcpServers, 1);
+        assert.strictEqual(data.summary.githubCopilotMcpHandoff, 1);
         assert.strictEqual(data.summary.hooks, 1);
         assert.strictEqual(data.summary.executionProfiles, 1);
         assert.strictEqual(data.summary.memoryScopes, 1);
@@ -603,6 +620,24 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.mcpServers[0].capabilityCategory, 'source-control');
         assert.deepStrictEqual(data.mcpServers[0].policyGrants, ['github-pr-read']);
         assert.strictEqual(data.mcpServers[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.githubCopilotMcpHandoff.destination, '.vscode/mcp.json');
+        assert.strictEqual(data.githubCopilotMcpHandoff.managed, false);
+        assert.strictEqual(data.githubCopilotMcpHandoff.requiresOperatorReview, true);
+        assert.strictEqual(data.githubCopilotMcpHandoff.servers[0].id, 'github');
+        assert.strictEqual(data.githubCopilotMcpHandoff.servers[0].supported, true);
+        assert.deepStrictEqual(
+            JSON.parse(data.githubCopilotMcpHandoff.content).servers.github,
+            {
+                type: 'stdio',
+                command: 'github-mcp-server',
+                args: ['stdio'],
+            },
+        );
+        assert.ok(
+            data.githubCopilotMcpHandoff.warnings.some((warning: string) =>
+                warning.includes('Requires operator-provided secrets: GITHUB_TOKEN'),
+            ),
+        );
         assert.strictEqual(data.hooks[0].id, 'release-gate');
         assert.strictEqual(data.hooks[0].triggerPhase, 'preToolUse');
         assert.strictEqual(data.hooks[0].invocationType, 'command');

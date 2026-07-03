@@ -100,6 +100,14 @@ export {
     renderCodexMcpConfigToml,
 } from './codexMcpProjection';
 export {
+    buildGitHubCopilotMcpHandoff,
+    githubCopilotMcpHandoffConstants,
+} from './githubCopilotMcpHandoff';
+export type {
+    GitHubCopilotMcpHandoff,
+    GitHubCopilotMcpServerHandoff,
+} from './githubCopilotMcpHandoff';
+export {
     codexConfigProjectionConstants,
     renderCodexConfigProjection,
 } from './codexConfigProjection';
