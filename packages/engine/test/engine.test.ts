@@ -313,6 +313,30 @@ describe('Engine package: public API', () => {
             'GitHub Copilot package row should name the canonical package metadata surface',
         );
 
+        const codexEvaluation = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'evaluationSupport',
+        );
+        assert.strictEqual(codexEvaluation?.support, 'partial');
+        assert.ok(
+            codexEvaluation?.evidence.includes('RUN-060'),
+            'Codex evaluation row should point to the runtime evidence metadata proof',
+        );
+        assert.ok(
+            codexEvaluation?.notes.some((note) =>
+                note.includes('harness-native runtime evaluations'),
+            ),
+            'Codex evaluation row should document static versus runtime evidence fields',
+        );
+        const copilotEvaluation = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'evaluationSupport',
+        );
+        assert.strictEqual(copilotEvaluation?.support, 'partial');
+        assert.ok(
+            copilotEvaluation?.evidence.includes('RUN-060'),
+            'GitHub Copilot evaluation row should point to the runtime evidence metadata proof',
+        );
+
         const codexHandoff = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',
         );

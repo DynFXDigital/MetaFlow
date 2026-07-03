@@ -270,10 +270,11 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'Codex CLI smoke runs'],
         [
             'Canonical evaluation metadata is parsed and reported for adapter review.',
+            'Evaluation profiles can distinguish static projection checks from harness-native runtime evaluations with harness, adapter, scenario, evidence, and limitation fields.',
             'Codex evaluation execution remains a runtime workflow until explicit projection adapters exist.',
         ],
         [],
-        ['RUN-027', 'RUN-030', 'RUN-037'],
+        ['RUN-027', 'RUN-030', 'RUN-037', 'RUN-060'],
     ),
 ];
 
@@ -480,10 +481,11 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'extension integration tests'],
         [
             'Canonical evaluation metadata is parsed and reported for adapter review.',
+            'Evaluation profiles can distinguish static projection checks from harness-native runtime evaluations with harness, adapter, scenario, evidence, and limitation fields.',
             'Copilot and GitHub evaluation execution remains a runtime workflow until explicit projection adapters exist.',
         ],
         [],
-        ['RUN-026', 'RUN-037'],
+        ['RUN-026', 'RUN-037', 'RUN-060'],
     ),
 ];
 

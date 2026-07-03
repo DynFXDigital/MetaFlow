@@ -33,6 +33,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Adapter readiness output now shows package runtime validation concept links and warns when a runtime validation concept is unsupported for the selected target.
 - Canonical execution profiles can now classify issue/PR-native operation and always-on workflow orchestration surfaces.
 - Canonical evaluation profiles can now distinguish static projection checks from harness-native runtime evaluations and surface harness, adapter, scenario, evidence, and limitation details in preview and adapter readiness output.
+- Target capability support reports now cite evaluation runtime evidence metadata for Codex and GitHub Copilot evaluation support rows.
 - Target capability support reports now identify `.metaflow/packages/*.json` as the canonical package metadata surface for Codex and GitHub Copilot package-manifest rows.
 - Canonical skills can now include `.metaflow/skills/<skill-id>/skill.json` structured metadata while `SKILL.md` remains the projected Codex and GitHub Copilot skill body.
 - Canonical instructions and prompts can now include same-name `.json` structured metadata while Markdown remains the projected Codex and GitHub Copilot content body.

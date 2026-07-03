@@ -2228,6 +2228,25 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('docs: docs/CODEX-TOOL-AUTHORITY-GUIDE.md'));
     });
 
+    it('prints evaluation runtime evidence support in target-support output', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--concept',
+            'evaluationSupport',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('codex/evaluationSupport: partial'));
+        assert.ok(
+            result.stdout.includes(
+                'Evaluation profiles can distinguish static projection checks from harness-native runtime evaluations',
+            ),
+        );
+        assert.ok(result.stdout.includes('evidence: RUN-027, RUN-030, RUN-037, RUN-060'));
+    });
+
     it('prints target support rows as JSON', async () => {
         const result = await runCli([
             'target-support',
@@ -2250,6 +2269,29 @@ describe('CLI: target-support', () => {
         assert.strictEqual(data.entries[0].support, 'partial');
         assert.strictEqual(data.entries[0].documentation, 'docs/CODEX-SUPPORT.md');
         assert.ok(data.entries[0].notes.some((note: string) => note.includes('Side-effecting MCP')));
+    });
+
+    it('prints evaluation runtime evidence support as JSON', async () => {
+        const result = await runCli([
+            'target-support',
+            '--json',
+            '--target',
+            'codex',
+            '--concept',
+            'evaluationSupport',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.entries[0].target, 'codex');
+        assert.strictEqual(data.entries[0].concept, 'evaluationSupport');
+        assert.strictEqual(data.entries[0].support, 'partial');
+        assert.ok(data.entries[0].evidence.includes('RUN-060'));
+        assert.ok(
+            data.entries[0].notes.some((note: string) =>
+                note.includes('harness-native runtime evaluations'),
+            ),
+        );
     });
 
     it('prints Codex package support guide references as JSON', async () => {
