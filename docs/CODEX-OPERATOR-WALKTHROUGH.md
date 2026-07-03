@@ -43,7 +43,9 @@ the review total at a glance: runtime-only concepts with no matching record are
 For `.metaflow/runtime-evidence/*.json` records, local structured artifact refs
 for reports, logs, screenshots, traces, recordings, and files are resolved
 relative to the metadata layer; stale local paths appear as diagnostics in
-preview and support-boundary JSON output.
+preview and support-boundary JSON output. When a local artifact declares a
+`sha256` digest, changed file content also appears as a runtime evidence
+diagnostic.
 
 ## Preview Codex Adapter Output
 

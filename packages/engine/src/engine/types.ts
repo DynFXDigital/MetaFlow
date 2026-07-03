@@ -505,6 +505,8 @@ export interface RuntimeEvidenceArtifactMetadata {
     ref: string;
     /** Optional user-facing artifact description. */
     description?: string;
+    /** Optional lowercase sha256 digest for local artifact integrity review. */
+    sha256?: string;
 }
 
 /** Canonical MetaFlow runtime evidence metadata associated with a layer. */

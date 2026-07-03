@@ -7,6 +7,7 @@
  */
 
 import * as assert from 'assert';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -97,6 +98,10 @@ function captureErrorMessage(fn: () => unknown): string {
     } catch (err: unknown) {
         return err instanceof Error ? err.message : String(err);
     }
+}
+
+function sha256Text(text: string): string {
+    return crypto.createHash('sha256').update(text).digest('hex');
 }
 
 function createDirectoryLink(targetPath: string, linkPath: string): void {
@@ -3693,9 +3698,10 @@ describe('Engine package: overlay pipeline', () => {
             recursive: true,
         });
         fs.mkdirSync(path.join(repoDir, 'core', 'doc', 'ftr'), { recursive: true });
+        const reportText = '# RUN-095\n';
         fs.writeFileSync(
             path.join(repoDir, 'core', 'doc', 'ftr', 'run-095.md'),
-            '# RUN-095\n',
+            reportText,
             'utf-8',
         );
         fs.writeFileSync(
@@ -3732,6 +3738,7 @@ describe('Engine package: overlay pipeline', () => {
                     {
                         kind: 'report',
                         ref: 'doc/ftr/run-095.md',
+                        sha256: sha256Text(reportText),
                     },
                 ],
                 limitations: ['Slack delegation is not covered.'],
@@ -3763,6 +3770,7 @@ describe('Engine package: overlay pipeline', () => {
             {
                 kind: 'report',
                 ref: 'doc/ftr/run-095.md',
+                sha256: sha256Text(reportText),
             },
         ]);
         assert.deepStrictEqual(record?.limitations, ['Slack delegation is not covered.']);
@@ -3826,6 +3834,57 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('warns when canonical runtime evidence local artifact sha256 does not match', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoDir, 'core', 'doc', 'ftr'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', 'doc', 'ftr', 'run-095.md'),
+            '# changed evidence\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                evidenceArtifacts: [
+                    {
+                        kind: 'report',
+                        ref: 'doc/ftr/run-095.md',
+                        sha256: sha256Text('# original evidence\n'),
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const record = layers[0].runtimeEvidenceRecords?.[0];
+        assert.deepStrictEqual(record?.warnings.map((warning) => warning.code), [
+            'RUNTIME_EVIDENCE_ARTIFACT_HASH_MISMATCH',
+        ]);
+    });
+
     it('reports validation diagnostics for invalid canonical runtime evidence', () => {
         const record = parseRuntimeEvidenceContent(
             JSON.stringify({
@@ -3839,7 +3898,11 @@ describe('Engine package: overlay pipeline', () => {
                 status: 'unknown',
                 command: '',
                 evidence: ['RUN-095', 42],
-                evidenceArtifacts: [{ kind: 'video', ref: '' }, 42],
+                evidenceArtifacts: [
+                    { kind: 'video', ref: '' },
+                    { kind: 'report', ref: 'doc/ftr/run-095.md', sha256: 'not-a-digest' },
+                    42,
+                ],
                 limitations: ['known', 42],
                 policyGrants: ['missing-grant'],
                 description: '',
@@ -3864,6 +3927,7 @@ describe('Engine package: overlay pipeline', () => {
                 'RUNTIME_EVIDENCE_REQUIRED_FIELD_INVALID',
                 'RUNTIME_EVIDENCE_COMMAND_INVALID',
                 'RUNTIME_EVIDENCE_EVIDENCE_INVALID',
+                'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
                 'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
                 'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
                 'RUNTIME_EVIDENCE_LIMITATIONS_INVALID',

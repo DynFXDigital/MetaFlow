@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
@@ -46,6 +47,7 @@ const LOCAL_EVIDENCE_ARTIFACT_KINDS = new Set([
     'recording',
     'artifact',
 ]);
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'instructions',
     'prompts',
@@ -230,6 +232,7 @@ function parseEvidenceArtifacts(
         const kind = parseNonEmptyString(artifact.kind);
         const ref = parseNonEmptyString(artifact.ref);
         const description = parseNonEmptyString(artifact.description);
+        const sha256 = parseNonEmptyString(artifact.sha256);
         if (!kind || !RUNTIME_EVIDENCE_ARTIFACT_KINDS.has(kind) || !ref) {
             warnings.push(
                 toWarning(
@@ -252,11 +255,23 @@ function parseEvidenceArtifacts(
             );
             continue;
         }
+        if (artifact.sha256 !== undefined && (!sha256 || !SHA256_PATTERN.test(sha256))) {
+            warnings.push(
+                toWarning(
+                    'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
+                    'Runtime evidence evidenceArtifacts sha256 must be a lowercase 64-character hex digest when present.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
 
         artifacts.push({
             kind,
             ref,
             ...(description ? { description } : {}),
+            ...(sha256 ? { sha256 } : {}),
         });
     }
     return artifacts;
@@ -281,7 +296,26 @@ function inferLayerRootFromRuntimeEvidenceManifest(manifestPath: string | undefi
     return path.dirname(metaflowDir);
 }
 
-function warnOnMissingLocalEvidenceArtifacts(
+function resolveLocalEvidenceArtifactPath(
+    artifact: RuntimeEvidenceArtifactMetadata,
+    layerRoot: string,
+): string | undefined {
+    if (!LOCAL_EVIDENCE_ARTIFACT_KINDS.has(artifact.kind)) {
+        return undefined;
+    }
+    if (isExternalArtifactRef(artifact.ref)) {
+        return undefined;
+    }
+    return path.isAbsolute(artifact.ref)
+        ? artifact.ref
+        : path.resolve(layerRoot, artifact.ref);
+}
+
+function sha256File(filePath: string): string {
+    return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function warnOnLocalEvidenceArtifacts(
     artifacts: RuntimeEvidenceArtifactMetadata[],
     manifestPath: string | undefined,
     warnings: CapabilityWarning[],
@@ -292,20 +326,25 @@ function warnOnMissingLocalEvidenceArtifacts(
     }
 
     for (const artifact of artifacts) {
-        if (!LOCAL_EVIDENCE_ARTIFACT_KINDS.has(artifact.kind)) {
+        const artifactPath = resolveLocalEvidenceArtifactPath(artifact, layerRoot);
+        if (!artifactPath) {
             continue;
         }
-        if (isExternalArtifactRef(artifact.ref)) {
-            continue;
-        }
-        const artifactPath = path.isAbsolute(artifact.ref)
-            ? artifact.ref
-            : path.resolve(layerRoot, artifact.ref);
         if (!fs.existsSync(artifactPath)) {
             warnings.push(
                 toWarning(
                     'RUNTIME_EVIDENCE_ARTIFACT_MISSING',
                     `Runtime evidence artifact "${artifact.ref}" does not exist relative to the metadata layer.`,
+                    manifestPath,
+                ),
+            );
+            continue;
+        }
+        if (artifact.sha256 && sha256File(artifactPath) !== artifact.sha256) {
+            warnings.push(
+                toWarning(
+                    'RUNTIME_EVIDENCE_ARTIFACT_HASH_MISMATCH',
+                    `Runtime evidence artifact "${artifact.ref}" does not match the declared sha256 digest.`,
                     manifestPath,
                 ),
             );
@@ -493,7 +532,7 @@ export function parseRuntimeEvidenceContent(
         warnings,
     );
     const evidenceArtifacts = parseEvidenceArtifacts(fields.evidenceArtifacts, manifestPath, warnings);
-    warnOnMissingLocalEvidenceArtifacts(evidenceArtifacts, manifestPath, warnings);
+    warnOnLocalEvidenceArtifacts(evidenceArtifacts, manifestPath, warnings);
     const limitations = parseStringArray(
         fields.limitations,
         'limitations',

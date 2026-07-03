@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import packageMetadata from '../package.json';
 import { createTestWorkspace, runCli, standardConfig, TestWorkspace } from './helpers';
 import { startWatch, WatchCycleResult } from '../src/commands/watch';
@@ -39,6 +40,10 @@ function synchronizedPath(relativePath: string, layer = 'company/core', repo = '
 
 function originalSynchronizedPath(relativePath: string): string {
     return relativePath.replace(/\\/g, '/');
+}
+
+function sha256Text(text: string): string {
+    return crypto.createHash('sha256').update(text).digest('hex');
 }
 
 function createMcpHandoffWorkspace(): TestWorkspace {
@@ -3337,6 +3342,7 @@ describe('CLI: codex-support-boundaries', () => {
                                 {
                                     kind: 'report',
                                     ref: 'doc/ftr/run-095.md',
+                                    sha256: sha256Text('# RUN-095\n'),
                                 },
                             ],
                             limitations: ['Slack delegation is not covered.'],
@@ -3414,6 +3420,57 @@ describe('CLI: codex-support-boundaries', () => {
                 (warning: { code: string }) => warning.code,
             ),
             ['RUNTIME_EVIDENCE_ARTIFACT_MISSING'],
+        );
+    });
+
+    it('surfaces stale local runtime evidence artifact hashes in Codex support boundaries', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'report',
+                                    ref: 'doc/ftr/run-095.md',
+                                    sha256: sha256Text('# original evidence\n'),
+                                },
+                            ],
+                        }),
+                    },
+                    {
+                        relativePath: 'doc/ftr/run-095.md',
+                        content: '# changed evidence\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.deepStrictEqual(
+            issueChecklist.runtimeEvidenceRecords[0].warnings.map(
+                (warning: { code: string }) => warning.code,
+            ),
+            ['RUNTIME_EVIDENCE_ARTIFACT_HASH_MISMATCH'],
         );
     });
 

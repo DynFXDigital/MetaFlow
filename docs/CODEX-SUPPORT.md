@@ -14,8 +14,10 @@ concept status.
 Runtime evidence records may attach structured `evidenceArtifacts`. Local
 artifact refs for `log`, `report`, `screenshot`, `trace`, `recording`, and
 `artifact` kinds are resolved relative to the metadata layer and produce
-diagnostics when the referenced file is missing. `url`, `run`, `other`, and
-explicit URI refs remain external review references.
+diagnostics when the referenced file is missing. These local artifacts may
+declare an optional lowercase `sha256` digest; MetaFlow reports a mismatch when
+the current file content differs from the reviewed digest. `url`, `run`,
+`other`, and explicit URI refs remain external review references.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.
