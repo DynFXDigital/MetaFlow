@@ -283,6 +283,16 @@ export function buildAdapterReadinessReports(
                     rowEvidence(projectConfigRow),
                 ),
             );
+            for (const warning of config.warnings) {
+                actionItems.push(
+                    action(
+                        'projectConfig',
+                        config.id,
+                        `${label} project config ${config.id} warning ${warning.code}: ${warning.message}`,
+                        rowEvidence(projectConfigRow),
+                    ),
+                );
+            }
         }
 
         for (const manifest of targetPackageManifests) {

@@ -459,7 +459,15 @@ describe('Engine package: public API', () => {
                     policyGrants: ['github-pr-read'],
                     targets: ['codex'],
                     notes: [],
-                    warnings: [],
+                    warnings: [
+                        {
+                            code: 'CODEX_PROJECT_CONFIG_WEB_SEARCH_LIVE_RISK',
+                            message:
+                                'Codex project config webSearch=live enables live network-backed search and requires network policy review.',
+                            filePath: '/metadata/.metaflow/project-config/codex.json',
+                            severity: 'warning',
+                        },
+                    ],
                 },
             ],
             tools: [
@@ -567,6 +575,14 @@ describe('Engine package: public API', () => {
                     item.concept === 'projectConfig' &&
                     item.evidence.includes('RUN-043') &&
                     item.message.includes('trusted-project'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'projectConfig' &&
+                    item.metadataId === 'default' &&
+                    item.message.includes('CODEX_PROJECT_CONFIG_WEB_SEARCH_LIVE_RISK'),
             ),
         );
         assert.ok(
@@ -2746,6 +2762,46 @@ describe('Engine package: overlay pipeline', () => {
         ]) {
             assert.ok(codes.includes(code), `${code} should be reported`);
         }
+    });
+
+    it('reports risk diagnostics for authority-expanding Codex project config settings', () => {
+        const config = parseCodexProjectConfigContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    approvalPolicy: 'never',
+                    sandboxMode: 'danger-full-access',
+                    webSearch: 'live',
+                    sandboxWorkspaceWrite: {
+                        networkAccess: true,
+                    },
+                    shellEnvironmentPolicy: {
+                        inherit: 'all',
+                        ignoreDefaultExcludes: true,
+                    },
+                },
+                targets: ['codex'],
+            }),
+            'codex.json',
+        );
+
+        assert.strictEqual(config.id, 'default');
+        assert.ok(
+            !config.warnings.some((warning) => warning.severity === 'error'),
+            'valid but risky settings should not block projection by themselves',
+        );
+        assert.deepStrictEqual(
+            config.warnings.map((warning) => warning.code),
+            [
+                'CODEX_PROJECT_CONFIG_SANDBOX_WORKSPACE_WRITE_NETWORK_ACCESS_RISK',
+                'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_INHERIT_ALL_RISK',
+                'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_IGNORE_DEFAULT_EXCLUDES_RISK',
+                'CODEX_PROJECT_CONFIG_APPROVAL_POLICY_NEVER_RISK',
+                'CODEX_PROJECT_CONFIG_SANDBOX_MODE_DANGER_FULL_ACCESS_RISK',
+                'CODEX_PROJECT_CONFIG_WEB_SEARCH_LIVE_RISK',
+            ],
+        );
     });
 
     it('loads canonical target adapter preferences as layer metadata', () => {

@@ -357,6 +357,15 @@ function parseSandboxWorkspaceWrite(
             }
         }
     }
+    if (result.networkAccess === true) {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_SANDBOX_WORKSPACE_WRITE_NETWORK_ACCESS_RISK',
+                'Codex project config sandboxWorkspaceWrite.networkAccess=true expands network authority and requires explicit runtime review.',
+                manifestPath,
+            ),
+        );
+    }
 
     return result;
 }
@@ -437,6 +446,24 @@ function parseShellEnvironmentPolicy(
             result.ignoreDefaultExcludes = value.ignoreDefaultExcludes;
         }
     }
+    if (result.inherit === 'all') {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_INHERIT_ALL_RISK',
+                'Codex project config shellEnvironmentPolicy.inherit=all forwards the ambient shell environment and requires secret-exposure review.',
+                manifestPath,
+            ),
+        );
+    }
+    if (result.ignoreDefaultExcludes === true) {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_SHELL_ENVIRONMENT_POLICY_IGNORE_DEFAULT_EXCLUDES_RISK',
+                'Codex project config shellEnvironmentPolicy.ignoreDefaultExcludes=true disables default environment exclusions and requires secret-exposure review.',
+                manifestPath,
+            ),
+        );
+    }
 
     return result;
 }
@@ -482,7 +509,7 @@ function parseSettings(
         }
     }
 
-    return {
+    const settings: CodexProjectConfigSettings = {
         model: parseOptionalString(
             value.model,
             'settings.model',
@@ -582,6 +609,36 @@ function parseSettings(
             warnings,
         ),
     };
+
+    if (settings.approvalPolicy === 'never') {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_APPROVAL_POLICY_NEVER_RISK',
+                'Codex project config approvalPolicy=never reduces approval prompts and requires explicit operator review.',
+                manifestPath,
+            ),
+        );
+    }
+    if (settings.sandboxMode === 'danger-full-access') {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_SANDBOX_MODE_DANGER_FULL_ACCESS_RISK',
+                'Codex project config sandboxMode=danger-full-access disables filesystem sandboxing and requires explicit operator review.',
+                manifestPath,
+            ),
+        );
+    }
+    if (settings.webSearch === 'live') {
+        warnings.push(
+            toWarning(
+                'CODEX_PROJECT_CONFIG_WEB_SEARCH_LIVE_RISK',
+                'Codex project config webSearch=live enables live network-backed search and requires network policy review.',
+                manifestPath,
+            ),
+        );
+    }
+
+    return settings;
 }
 
 function emptyCodexProjectConfig(

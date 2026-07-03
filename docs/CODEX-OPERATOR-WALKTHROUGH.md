@@ -100,6 +100,20 @@ Do not use `--force` as a substitute for that review. Force is appropriate only
 after the operator has decided that the generated file is authoritative for the
 guarded destination.
 
+Codex project config review is stricter than ordinary file projection review.
+MetaFlow rejects forbidden provider, profile, notification, and telemetry keys
+in canonical `.metaflow/project-config/*.json` metadata. Valid settings that
+expand runtime authority remain projectable, but they produce warning-level
+diagnostics and adapter-readiness action items. Review these warnings before
+accepting `.codex/config.toml` output:
+
+- `approvalPolicy=never`
+- `sandboxMode=danger-full-access`
+- `webSearch=live`
+- `sandboxWorkspaceWrite.networkAccess=true`
+- `shellEnvironmentPolicy.inherit=all`
+- `shellEnvironmentPolicy.ignoreDefaultExcludes=true`
+
 ## Apply And Validate
 
 After preview is clean for the intended changes:
