@@ -118,6 +118,10 @@ depend on a harness run. Each record identifies the target, harness, adapter
 version, scenario, status, validation command, evidence references, and known
 limitations.
 
+Records with `passed` or `partial` status need evidence references. A package
+can keep draft or planned validation as `not-run`, but a positive support
+claim stays review-warning material until it points to concrete run evidence.
+
 Runtime validation is required for:
 
 - Codex Cloud task execution.

@@ -5714,6 +5714,13 @@ describe('Engine: synchronizer advanced', () => {
                         status: 'partial',
                     },
                     {
+                        target: 'codex',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Local package smoke completed.',
+                        status: 'passed',
+                    },
+                    {
                         target: 'future-agent',
                         harness: 'Future Agent',
                         adapterVersion: 'future-v0.1',
@@ -5737,6 +5744,7 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('PACKAGE_MARKETPLACE_TARGET_UNDECLARED'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_UNDECLARED'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {

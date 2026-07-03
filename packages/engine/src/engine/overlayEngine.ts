@@ -610,6 +610,18 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                     ),
                 );
             }
+            if (
+                (record.status === 'passed' || record.status === 'partial') &&
+                record.evidence.length === 0
+            ) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED',
+                        `Package runtimeValidation target "${record.target}" status "${record.status}" has no evidence references.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
         }
     }
 }
