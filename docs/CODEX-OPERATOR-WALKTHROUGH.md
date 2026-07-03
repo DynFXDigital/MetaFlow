@@ -236,4 +236,6 @@ Before publishing or advertising Codex support for a package:
    hidden in release notes.
 
 See [Codex Support Boundaries](CODEX-SUPPORT.md) for the complete list of
-file-backed and runtime-only Codex surfaces.
+file-backed and runtime-only Codex surfaces. See
+[Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md) for the
+canonical package authoring and marketplace-review contract.

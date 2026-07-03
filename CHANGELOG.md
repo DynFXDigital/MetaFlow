@@ -17,6 +17,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex operator walkthrough covering preview, adapter readiness, guarded native outputs, package marketplace export, and runtime-validation evidence.
 - Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, unsupported surfaces, and the terminal `codex-support-boundaries` report.
 - Codex operator guidance now spells out guarded native conflict ownership decisions for root/host files and the GitHub Copilot MCP handoff review workflow.
+- Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Target-aware CLI lifecycle output for `status`, `validate`, `apply`, and `clean`, including target support summaries and target-labeled mutation rows.
 - Target adapter validation now warns when a capability declares multiple enabled adapters for the same target, preventing ambiguous Codex or Copilot projection policy.
 - Canonical `.metaflow/capability.json` target declarations can now include support posture, required policy grants, validation evidence, and review notes for Codex and other target adapters.

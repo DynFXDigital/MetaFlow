@@ -70,6 +70,9 @@ Static projection support and runtime support use different evidence.
 | MCP runtime works | Codex MCP startup, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
 
+For the package maintainer workflow, see
+[Codex Package Maintainer Guide](CODEX-PACKAGE-MAINTAINER-GUIDE.md).
+
 ## Source Map
 
 - Codex skills: <https://developers.openai.com/codex/skills>

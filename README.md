@@ -128,6 +128,7 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - Remote or side-effecting MCP use remains authority-sensitive even when MetaFlow can project valid configuration. OAuth login, callback URLs, Streamable HTTP reachability, remote stdio execution, secret forwarding, network access, and tool approval modes require harness-native runtime validation and policy review.
 - See [Codex Support Boundaries](docs/CODEX-SUPPORT.md) for the file-backed surfaces MetaFlow can project and the runtime-only surfaces that require operator or harness evidence.
 - See [Codex Operator Walkthrough](docs/CODEX-OPERATOR-WALKTHROUGH.md) for the preview, adapter readiness, apply, export, and runtime-validation review loop.
+- See [Codex Package Maintainer Guide](docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md) for authoring canonical package metadata, marketplace entries, policy grants, and runtime-validation evidence for Codex-compatible packages.
 
 ## Capability Plugin Metadata
 
