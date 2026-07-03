@@ -111,6 +111,20 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-024', 'RUN-043'],
     ),
     row(
+        'commandRules',
+        'partial',
+        ['.codex/rules/*.rules', 'Codex rules config layers', 'Codex execpolicy check'],
+        [
+            'Codex command rules control which command prefixes can run outside the sandbox.',
+            'MetaFlow can materialize guarded project-local `.codex/rules/*.rules` files and report rule authority, but Codex loads project-local rules only for trusted project config layers and after Codex startup.',
+            'Rule syntax, matching behavior, shell-wrapper splitting, and admin-enforced requirements remain Codex runtime policy concerns.',
+        ],
+        [
+            'Command rules can allow, prompt for, or forbid escalated commands and require explicit policy review.',
+        ],
+        ['RUN-024', 'RUN-064'],
+    ),
+    row(
         'mcpServers',
         'partial',
         ['.metaflow/mcp/*.json', 'Codex MCP configuration and runtime MCP server registry'],
@@ -388,6 +402,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
             'GitHub Copilot uses separate host settings and agent-plugin surfaces instead of Codex project TOML.',
         ],
         ['Project configuration authority must be represented through the target harness controls.'],
+    ),
+    row(
+        'commandRules',
+        'unsupported',
+        [],
+        [
+            'Codex command rules are target-specific Codex policy files.',
+            'GitHub Copilot uses separate host and workspace policy controls instead of Codex `.rules` files.',
+        ],
+        ['Command execution authority must be represented through the target harness controls.'],
+        ['RUN-064'],
     ),
     row(
         'mcpServers',

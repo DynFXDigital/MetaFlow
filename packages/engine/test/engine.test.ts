@@ -173,6 +173,7 @@ describe('Engine package: public API', () => {
             'skills',
             'agents',
             'projectConfig',
+            'commandRules',
             'mcpServers',
             'tools',
             'hooks',
@@ -276,6 +277,22 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexMcp?.notes.some((note) => note.includes('OAuth login')),
             'Codex MCP row should document OAuth and remote runtime limits',
+        );
+        const codexCommandRules = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'commandRules',
+        );
+        assert.strictEqual(codexCommandRules?.support, 'partial');
+        assert.ok(
+            codexCommandRules?.nativeSurfaces.includes('.codex/rules/*.rules'),
+            'Codex command rules row should name the project rules surface',
+        );
+        assert.ok(
+            codexCommandRules?.evidence.includes('RUN-064'),
+            'Codex command rules row should point to command-rules support evidence',
+        );
+        assert.ok(
+            codexCommandRules?.notes.some((note) => note.includes('runtime policy concerns')),
+            'Codex command rules row should document runtime policy validation',
         );
         const codexTools = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'tools',
@@ -459,6 +476,10 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'github-copilot' && entry.concept === 'browserRuntime',
         );
         assert.strictEqual(copilotBrowserRuntime?.support, 'unsupported');
+        const copilotCommandRules = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'commandRules',
+        );
+        assert.strictEqual(copilotCommandRules?.support, 'unsupported');
     });
 
     it('builds runtime-only target capability support references', () => {

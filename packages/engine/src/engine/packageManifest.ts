@@ -67,6 +67,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'skills',
     'agents',
     'projectConfig',
+    'commandRules',
     'mcpServers',
     'tools',
     'hooks',

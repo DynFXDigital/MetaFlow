@@ -865,6 +865,7 @@ export type TargetCapabilityConcept =
     | 'skills'
     | 'agents'
     | 'projectConfig'
+    | 'commandRules'
     | 'mcpServers'
     | 'tools'
     | 'hooks'

@@ -56,6 +56,7 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'skills',
     'agents',
     'projectConfig',
+    'commandRules',
     'mcpServers',
     'tools',
     'hooks',
@@ -77,6 +78,7 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
 const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
     'agents',
     'projectConfig',
+    'commandRules',
     'mcpServers',
     'tools',
     'hooks',

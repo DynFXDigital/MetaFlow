@@ -217,6 +217,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             ),
         );
         assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'commandRules' &&
+                    entry.support === 'partial',
+            ),
+        );
+        assert.ok(
             content.entries.some(
                 (entry: { target: string; concept: string; documentation: string }) =>
                     entry.target === 'codex' &&

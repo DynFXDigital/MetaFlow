@@ -301,10 +301,10 @@ describe('CLI: status', () => {
         assert.ok(textResult.stdout.includes('notes=1'));
         assert.ok(textResult.stdout.includes('github-copilot=disabled'));
         assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
-        assert.ok(textResult.stdout.includes('Target Capability Support: 36'));
+        assert.ok(textResult.stdout.includes('Target Capability Support: 46'));
         assert.ok(
             textResult.stdout.includes(
-                'codex (codex-v0.1): partial=10, runtime-only=5, supported=3',
+                'codex (codex-v0.1): partial=11, runtime-only=9, supported=3',
             ),
         );
         assert.ok(
@@ -331,13 +331,13 @@ describe('CLI: status', () => {
             'Runtime integrations require harness evidence.',
         ]);
         assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 36);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 46);
         const codexTargetSupport = data.targetCapabilitySupport.targets.find(
             (entry: { target: string }) => entry.target === 'codex',
         );
         assert.strictEqual(codexTargetSupport.adapterVersion, 'codex-v0.1');
-        assert.strictEqual(codexTargetSupport.counts.partial, 10);
-        assert.strictEqual(codexTargetSupport.counts['runtime-only'], 5);
+        assert.strictEqual(codexTargetSupport.counts.partial, 11);
+        assert.strictEqual(codexTargetSupport.counts['runtime-only'], 9);
         assert.strictEqual(codexTargetSupport.counts.supported, 3);
         assert.deepStrictEqual(data.targetCapabilitySupport.supportReference, {
             runtimeOnlyCount: 14,
@@ -2348,6 +2348,22 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('evidence: RUN-035, RUN-052, RUN-062'));
     });
 
+    it('prints Codex command rules support in target-support output', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--concept',
+            'commandRules',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('codex/commandRules: partial'));
+        assert.ok(result.stdout.includes('.codex/rules/*.rules'));
+        assert.ok(result.stdout.includes('Codex execpolicy check'));
+        assert.ok(result.stdout.includes('evidence: RUN-024, RUN-064'));
+    });
+
     it('prints target support rows as JSON', async () => {
         const result = await runCli([
             'target-support',
@@ -3400,7 +3416,7 @@ describe('CLI: validate', () => {
         const result = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('passed'));
-        assert.ok(result.stdout.includes('Target Capability Support: 36'));
+        assert.ok(result.stdout.includes('Target Capability Support: 46'));
         assert.ok(
             result.stdout.includes(
                 'Runtime-only support boundaries: 14 rows require operator or harness evidence',
@@ -3459,14 +3475,14 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 36);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 46);
         assert.ok(
             data.targetCapabilitySupport.targets.some(
                 (entry: { target: string; counts: Record<string, number> }) =>
-                    entry.target === 'codex' && entry.counts['runtime-only'] === 5,
+                    entry.target === 'codex' && entry.counts['runtime-only'] === 9,
             ),
         );
-        assert.strictEqual(data.targetCapabilitySupport.supportReference.runtimeOnlyCount, 10);
+        assert.strictEqual(data.targetCapabilitySupport.supportReference.runtimeOnlyCount, 14);
     });
 
     it('validate --json shows drift details', async () => {

@@ -18,6 +18,7 @@ loads from files in the workspace.
 | Skills | `.agents/skills/<skill-id>/SKILL.md` | Canonical `.metaflow/skills/**` entries project to Codex repository skills. |
 | Project instructions | `AGENTS.md`, `AGENTS.override.md` | Root and scoped instructions are guarded because unmanaged project guidance has high collision risk. |
 | Project configuration | `.codex/config.toml` | Managed project configuration is candidate or gated output unless the target adapter explicitly owns the file. |
+| Command rules | `.codex/rules/*.rules` | Project-local command rules are guarded policy files. Codex loads them only from trusted project config layers and after startup; rule syntax, shell-wrapper splitting, and admin-enforced requirements require Codex runtime validation. |
 | Agents | `.codex/agents/*.toml` | Canonical agent profiles project to Codex custom-agent configuration when the target adapter enables agent materialization. Codex loads these files as subagent configuration layers, but installed Codex CLI 0.142.3 does not expose a non-interactive custom-agent activation flag or debug prompt-input proof for repo-local agent TOML. |
 | Hooks | `.codex/hooks.json` | Supported command lifecycle hook metadata projects to Codex hook JSON when the target adapter enables hook materialization. |
 | Plugins | `.codex-plugin/plugin.json` | Codex plugin manifests stay separate from GitHub Copilot `plugin.json` manifests. |

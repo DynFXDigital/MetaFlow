@@ -4,6 +4,7 @@
 
 ### Patch Changes
 
+- Add Codex command-rules target capability reporting for `.codex/rules/*.rules` policy files.
 - Add target capability matrix evidence and notes for the Codex custom-agent activation proof boundary.
 - Add explicit runtime-only target capability matrix rows for remote MCP reachability, OAuth MCP login, and side-effecting MCP behavior.
 - Add explicit runtime-only target capability matrix rows for Codex Browser Use, Chrome extension, Computer Use, and Sites behavior.
