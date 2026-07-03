@@ -266,8 +266,10 @@ suite('synchronization engine', () => {
             }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes('AGENTS.md'));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     test('Codex project config synchronizes without inline provenance', () => {
@@ -320,8 +322,10 @@ suite('synchronization engine', () => {
             }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes(codexConfigPath));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     test('Codex repository skills synchronize to root .agents/skills path', () => {
@@ -396,8 +400,10 @@ suite('synchronization engine', () => {
             }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes(codexSkillPath));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     test('preview and apply report the same remap conflict when changing strategies', () => {
@@ -466,6 +472,7 @@ suite('synchronization engine', () => {
         );
 
         assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('prefixed naming strategy'));
     });
 
     test('settings files are not synchronized', () => {

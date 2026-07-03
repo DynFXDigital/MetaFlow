@@ -3942,8 +3942,10 @@ describe('Engine: synchronizer advanced', () => {
             planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes('AGENTS.md'));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     it('target adapter candidate mode reports Codex project instructions without writing', () => {
@@ -4961,8 +4963,10 @@ describe('Engine: synchronizer advanced', () => {
             planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes('.codex/config.toml'));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     it('discovers and synchronizes Codex repository skills to root .agents', () => {
@@ -5119,8 +5123,10 @@ describe('Engine: synchronizer advanced', () => {
             planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes(codexSkillPath));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     it('planSynchronization fails when repo-wide copilot instructions would overwrite an unmanaged file', () => {
@@ -5153,8 +5159,10 @@ describe('Engine: synchronizer advanced', () => {
             planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
         );
 
-        assert.ok(message.includes('Unmanaged destination already exists'));
+        assert.ok(message.includes('Unmanaged native destination already exists'));
         assert.ok(message.includes('copilot-instructions.md'));
+        assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
+        assert.ok(!message.includes('prefixed naming strategy'));
     });
 
     it('preview and apply fail with the same message when strategy change would remap managed files', () => {
@@ -5210,6 +5218,7 @@ describe('Engine: synchronizer advanced', () => {
 
         assert.ok(message.includes('Unmanaged destination already exists'));
         assert.ok(message.includes('skills/nested/guide.md'));
+        assert.ok(message.includes('prefixed naming strategy'));
     });
 
     it('layerSources fileNamingStrategy overrides the global default for synchronized files', () => {

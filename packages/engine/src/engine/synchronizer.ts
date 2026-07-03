@@ -158,6 +158,13 @@ function isRootRelativeSynchronizedPath(relativePath: string): boolean {
     );
 }
 
+function isGuardedNativeDestination(relativePath: string): boolean {
+    return (
+        isRootRelativeSynchronizedPath(relativePath) ||
+        normalizeRelativePath(relativePath) === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH
+    );
+}
+
 function getSourceRelativePath(file: EffectiveFile): string {
     return normalizeRelativePath(file.sourceRelativePath ?? file.relativePath);
 }
@@ -257,9 +264,20 @@ function formatSynchronizationPlanningError(
     }
 
     for (const conflict of unmanagedConflicts) {
-        lines.push(
-            `- Unmanaged destination already exists at ${conflict.destinationRelativePath} for ${formatSourceLabel(conflict.entry.sourceRelativePath, conflict.entry.sourceLayer, conflict.entry.sourceRepo)} (${conflict.fullPath}). Remove or rename the existing file, or use the prefixed naming strategy.`,
+        const source = formatSourceLabel(
+            conflict.entry.sourceRelativePath,
+            conflict.entry.sourceLayer,
+            conflict.entry.sourceRepo,
         );
+        if (isGuardedNativeDestination(conflict.destinationRelativePath)) {
+            lines.push(
+                `- Unmanaged native destination already exists at ${conflict.destinationRelativePath} for ${source} (${conflict.fullPath}). Remove or rename the existing file, clean the managed state if the file was previously synchronized, or set the target adapter concept to candidate, report-only, or disabled.`,
+            );
+        } else {
+            lines.push(
+                `- Unmanaged destination already exists at ${conflict.destinationRelativePath} for ${source} (${conflict.fullPath}). Remove or rename the existing file, or use the prefixed naming strategy.`,
+            );
+        }
     }
 
     for (const conflict of remapConflicts) {
