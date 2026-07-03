@@ -86,6 +86,10 @@ Codex surface being claimed. Examples include checking that generated
 repository skills are visible to Codex or that Codex accepts generated MCP
 configuration in the trusted project.
 
+Target adapter manifests declare the adapter contract version they were reviewed
+against. The declared `adapterVersion` must match the target capability matrix
+before an adapter can prove current projection readiness.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.

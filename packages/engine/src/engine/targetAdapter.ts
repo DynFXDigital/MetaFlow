@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
 import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
@@ -65,6 +66,9 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'issuePrOperation',
     'evaluationSupport',
 ]);
+const CURRENT_ADAPTER_VERSION_BY_TARGET = new Map<ProjectionTarget, string>(
+    getTargetCapabilityMatrix().map((entry) => [entry.target, entry.adapterVersion]),
+);
 
 type TargetAdapterFields = {
     schemaVersion?: unknown;
@@ -356,6 +360,18 @@ export function parseTargetAdapterContent(
                 'Target adapter adapterVersion must be a non-empty string when present.',
                 manifestPath,
                 'error',
+            ),
+        );
+    }
+    const expectedAdapterVersion = target
+        ? CURRENT_ADAPTER_VERSION_BY_TARGET.get(target)
+        : undefined;
+    if (adapterVersion && expectedAdapterVersion && adapterVersion !== expectedAdapterVersion) {
+        warnings.push(
+            toWarning(
+                'TARGET_ADAPTER_VERSION_MISMATCH',
+                `Target adapter target "${target}" adapterVersion "${adapterVersion}" does not match current target adapterVersion "${expectedAdapterVersion}".`,
+                manifestPath,
             ),
         );
     }
