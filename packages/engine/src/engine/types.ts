@@ -886,6 +886,7 @@ export type TargetCapabilityConcept =
     | 'importRuntime'
     | 'modelProviderRuntime'
     | 'nonInteractiveRuntime'
+    | 'sdkRuntime'
     | 'windowsPlatformRuntime'
     | 'linuxPlatformRuntime'
     | 'macosPlatformRuntime'
