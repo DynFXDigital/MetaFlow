@@ -251,6 +251,7 @@ export type {
 } from './types';
 export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 export {
+    buildCodexSupportBoundariesDocument,
     buildTargetCapabilitySupportReference,
     getTargetCapabilityMatrix,
 } from './targetCapabilityMatrix';

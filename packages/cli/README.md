@@ -115,6 +115,17 @@ metaflow target-support --json --target codex --concept mcpServers
 
 The command reports whether each canonical MetaFlow concept is supported, partial, runtime-only, unsupported, or represented by a generated substitute for each target adapter. Use it to review file-backed Codex projections separately from runtime-only Codex Cloud, channel, review, and MCP behaviors.
 
+#### `codex-support-boundaries`
+
+Print the Codex support boundary report without requiring a configured workspace.
+
+```bash
+metaflow codex-support-boundaries
+metaflow codex-support-boundaries --json
+```
+
+The command prints the same Markdown boundary report exposed by the VS Code `MetaFlow: Open Codex Support Boundaries` command. It separates file-backed and reviewable Codex surfaces from runtime-only and not-technically-projectable surfaces so terminal and CI reviews can use the same operator-facing boundary text.
+
 #### `clean`
 
 Remove all managed files (preserves drifted files).

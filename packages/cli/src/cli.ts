@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import packageMetadata from '../package.json';
 import { registerApplyCommand } from './commands/apply';
 import { registerCleanCommand } from './commands/clean';
+import { registerCodexSupportBoundariesCommand } from './commands/codexSupportBoundaries';
 import { registerExportCopilotMcpCommand } from './commands/exportCopilotMcp';
 import { registerExportPackageMarketplaceCommand } from './commands/exportPackageMarketplace';
 import { registerInitCommand } from './commands/init';
@@ -33,6 +34,7 @@ export function createProgram(): Command {
     registerExportCopilotMcpCommand(program);
     registerExportPackageMarketplaceCommand(program);
     registerTargetSupportCommand(program);
+    registerCodexSupportBoundariesCommand(program);
     registerProfileCommand(program);
     registerPromoteCommand(program);
     registerValidateCommand(program);

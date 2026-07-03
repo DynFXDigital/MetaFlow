@@ -21,13 +21,16 @@ Inspect Codex support boundaries directly when reviewing a target adapter,
 package, or marketplace candidate.
 
 ```bash
+metaflow codex-support-boundaries
 metaflow target-support --target codex
 metaflow target-support --target codex --support runtime-only
 metaflow target-support --json --target codex --concept mcpServers
 ```
 
-Use this output to distinguish file-backed Codex projections from partial and
-runtime-only behavior before relying on generated repository files.
+Use the boundary report to distinguish file-backed Codex projections from
+runtime-only and not-technically-projectable behavior before relying on
+generated repository files. Use `target-support` when a review needs filtered
+matrix rows or JSON inspection for a specific canonical concept.
 
 ## Preview Codex Adapter Output
 

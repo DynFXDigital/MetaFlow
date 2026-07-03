@@ -15,7 +15,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
 - Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
 - Codex operator walkthrough covering preview, adapter readiness, guarded native outputs, package marketplace export, and runtime-validation evidence.
-- Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, and unsupported surfaces.
+- Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, unsupported surfaces, and the terminal `codex-support-boundaries` report.
 - Target-aware CLI lifecycle output for `status`, `validate`, `apply`, and `clean`, including target support summaries and target-labeled mutation rows.
 - Target adapter validation now warns when a capability declares multiple enabled adapters for the same target, preventing ambiguous Codex or Copilot projection policy.
 - Canonical `.metaflow/capability.json` target declarations can now include support posture, required policy grants, validation evidence, and review notes for Codex and other target adapters.
