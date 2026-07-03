@@ -401,6 +401,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-052'],
     ),
     row(
+        'reviewRuntime',
+        'runtime-only',
+        [
+            'Codex app review pane',
+            'Codex /review command',
+            'GitHub-triggered @codex review',
+            'automatic Codex code review',
+            'pull request feedback in Codex app',
+        ],
+        [
+            'Codex review behavior is runtime state across the local Git repository, Codex app review pane, GitHub PR context, GitHub CLI authentication, Codex Cloud setup, repository code-review settings, and optional automatic review triggers.',
+            'Repository metadata can describe review guidance and expected evidence, but it cannot open the review pane, run /review, enable repository code review settings, trigger @codex review, read PR comments, post GitHub reviews, or prove that Codex addressed review feedback.',
+            'Codex applies AGENTS.md review guidance at runtime, including nested guidance closest to changed files, but review execution and posted findings remain harness-owned behavior.',
+        ],
+        [
+            'Review runtime can read uncommitted diffs, staged changes, branch diffs, pull request comments, GitHub identity, repository permissions, and can post review comments or start cloud tasks under configured authority.',
+        ],
+        ['RUN-076'],
+    ),
+    row(
         'remoteMcpRuntime',
         'runtime-only',
         ['Codex Streamable HTTP MCP runtime', 'remote MCP endpoints', 'agent network policy'],
@@ -817,6 +837,19 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['Repository write, review, and CI authority require explicit policy.'],
     ),
     row(
+        'reviewRuntime',
+        'runtime-only',
+        ['GitHub pull request reviews', 'GitHub Copilot code review', 'GitHub Agent HQ review routing'],
+        [
+            'GitHub Copilot and Agent HQ review behavior is host runtime state across pull request context, review assignment, organization policy, repository permissions, branch protection, and reviewer or agent routing.',
+            'Repository metadata can describe review guidance and validation evidence, but it cannot enable Copilot review, assign hosted reviewers, post GitHub reviews, satisfy organization policy, or prove hosted review behavior.',
+        ],
+        [
+            'Review runtime can read pull request diffs, comments, checks, repository history, organization policy, and can post review findings or route follow-up work under user or organization authority.',
+        ],
+        ['RUN-076'],
+    ),
+    row(
         'remoteMcpRuntime',
         'runtime-only',
         ['GitHub Copilot MCP runtime', 'remote MCP endpoints', 'host network policy'],
@@ -1005,6 +1038,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating or updating scheduled automations, keeping the Codex app or host runtime available, selecting automation worktrees, managing automation inbox or archive state, or proving scheduled background execution from repository metadata alone.',
         'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
         'Granting runtime permissions, approving boundary-crossing actions, selecting effective managed requirements, running auto-review decisions, enforcing OS sandboxing, or proving permission behavior from repository metadata alone.',
+        'Opening Codex review panes, running /review, enabling GitHub code review settings, triggering @codex review, posting pull request reviews, reading pull request feedback, or proving review-feedback handling from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -1023,6 +1057,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Automation runtime: automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token/cost posture, and known limitations.',
         'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
         'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
+        'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

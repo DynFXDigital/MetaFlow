@@ -49,8 +49,8 @@ Review these sections in the preview output:
   `.codex/agents/*.toml`.
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
-  automation runtime, authentication runtime, permission runtime, app connector runtime,
-  local/cloud handoff, issue/PR operation, and evaluation support.
+  automation runtime, authentication runtime, permission runtime, review runtime,
+  app connector runtime, local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
 - Boundary rows: runtime-only Codex behavior that repository projection cannot
@@ -172,6 +172,13 @@ posture, policy grants, command rules, and evidence requirements, but sandbox
 mode, approval policy, permission profiles, managed requirements, auto-review
 decisions, protected path enforcement, network controls, and side-effecting app
 or MCP approvals require Codex runtime evidence.
+
+Review workflows are runtime-enforced too. MetaFlow can record review guidance
+and evidence expectations, but Codex app review panes, `/review`, inline
+comments, PR feedback loading, `@codex review`, automatic reviews, GitHub review
+posting, and follow-up fix tasks require Git repository state, GitHub access,
+code-review settings, GitHub CLI or connector authentication, and target runtime
+evidence.
 
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix

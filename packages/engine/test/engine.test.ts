@@ -191,6 +191,7 @@ describe('Engine package: public API', () => {
             'appConnectorRuntime',
             'localCloudHandoff',
             'issuePrOperation',
+            'reviewRuntime',
             'remoteMcpRuntime',
             'oauthMcpRuntime',
             'sideEffectMcpRuntime',
@@ -313,6 +314,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexPermissionRuntime?.evidence.includes('RUN-075'),
             'Codex permission runtime row should point to runtime-boundary evidence',
+        );
+        const codexReviewRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'reviewRuntime',
+        );
+        assert.strictEqual(codexReviewRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexReviewRuntime?.nativeSurfaces.includes('GitHub-triggered @codex review'),
+            'Codex review runtime row should name GitHub-triggered review',
+        );
+        assert.ok(
+            codexReviewRuntime?.notes.some((note) =>
+                note.includes('cannot open the review pane'),
+            ),
+            'Codex review runtime row should document review execution boundary',
+        );
+        assert.ok(
+            codexReviewRuntime?.evidence.includes('RUN-076'),
+            'Codex review runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -740,22 +759,32 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot permission runtime row should document host permission boundary',
         );
+        const copilotReviewRuntime = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'reviewRuntime',
+        );
+        assert.strictEqual(copilotReviewRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotReviewRuntime?.notes.some((note) =>
+                note.includes('cannot enable Copilot review'),
+            ),
+            'GitHub Copilot review runtime row should document host review boundary',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 32,
+            runtimeOnlyCount: 34,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 18,
+                    runtimeOnlyCount: 19,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 14,
+                    runtimeOnlyCount: 15,
                     documentation: 'README.md',
                 },
             ],

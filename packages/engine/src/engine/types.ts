@@ -882,6 +882,7 @@ export type TargetCapabilityConcept =
     | 'appConnectorRuntime'
     | 'localCloudHandoff'
     | 'issuePrOperation'
+    | 'reviewRuntime'
     | 'remoteMcpRuntime'
     | 'oauthMcpRuntime'
     | 'sideEffectMcpRuntime'
