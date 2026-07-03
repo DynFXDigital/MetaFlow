@@ -74,6 +74,19 @@ function summarizeTargetCapabilityMatrix(entries: TargetCapabilityMatrixEntry[])
         });
 }
 
+function buildTargetCapabilitySupportReference(
+    entries: TargetCapabilityMatrixEntry[],
+): { runtimeOnlyCount: number; documentation: string } | undefined {
+    const runtimeOnlyCount = entries.filter((entry) => entry.support === 'runtime-only').length;
+    if (runtimeOnlyCount === 0) {
+        return undefined;
+    }
+    return {
+        runtimeOnlyCount,
+        documentation: 'docs/CODEX-SUPPORT.md',
+    };
+}
+
 function summarizeSources(files: Array<{ sourceLayer: string; sourceRepo?: string }>): string[] {
     const counts = new Map<string, number>();
 
@@ -284,6 +297,8 @@ export function registerPreviewCommand(program: Command): void {
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
+                const targetCapabilitySupportReference =
+                    buildTargetCapabilitySupportReference(targetCapabilityMatrix);
                 const adapterReports = buildAdapterReadinessReports({
                     matrix: targetCapabilityMatrix,
                     policyGrants,
@@ -364,6 +379,7 @@ export function registerPreviewCommand(program: Command): void {
                         settingsEntries,
                         sources: sourceSummary,
                         targetCapabilityMatrix,
+                        targetCapabilitySupportReference,
                         surfacedFileConflicts: conflicts,
                         warnings,
                     };
@@ -688,6 +704,11 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`Target Capability Matrix: ${targetCapabilityMatrix.length}`);
                     for (const summary of targetCapabilitySummary) {
                         console.log(`  - ${summary}`);
+                    }
+                    if (targetCapabilitySupportReference) {
+                        console.log(
+                            `  Runtime-only support boundaries: ${targetCapabilitySupportReference.runtimeOnlyCount} rows require operator or harness evidence; see ${targetCapabilitySupportReference.documentation}.`,
+                        );
                     }
                 }
                 if (actionableAdapterReports.length > 0) {

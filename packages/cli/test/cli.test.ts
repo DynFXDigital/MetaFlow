@@ -578,6 +578,11 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('agents=partial'));
         assert.ok(textResult.stdout.includes('skills=supported'));
         assert.ok(textResult.stdout.includes('policyGrants=partial'));
+        assert.ok(
+            textResult.stdout.includes(
+                'Runtime-only support boundaries: 4 rows require operator or harness evidence; see docs/CODEX-SUPPORT.md.',
+            ),
+        );
         assert.ok(textResult.stdout.includes('Policy Grants: 1'));
         assert.ok(textResult.stdout.includes('github-pr-read [github]'));
         assert.ok(textResult.stdout.includes('approval=auto audit=true'));
@@ -912,6 +917,10 @@ describe('CLI: preview', () => {
             codexSkillSupport.evidence.includes('RUN-030'),
             'Codex skill support should point to the live canonical consumer smoke',
         );
+        assert.deepStrictEqual(data.targetCapabilitySupportReference, {
+            runtimeOnlyCount: 4,
+            documentation: 'docs/CODEX-SUPPORT.md',
+        });
         const codexPromptSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'prompts',
