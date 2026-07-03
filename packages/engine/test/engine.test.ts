@@ -189,6 +189,7 @@ describe('Engine package: public API', () => {
             'executionSurfaces',
             'memoryScopes',
             'chronicleRuntime',
+            'appshotsRuntime',
             'recordReplayRuntime',
             'importRuntime',
             'memoryRuntime',
@@ -424,6 +425,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexChronicleRuntime?.evidence.includes('RUN-078'),
             'Codex Chronicle runtime row should point to runtime-boundary evidence',
+        );
+        const codexAppshotsRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'appshotsRuntime',
+        );
+        assert.strictEqual(codexAppshotsRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexAppshotsRuntime?.nativeSurfaces.includes('Codex app Appshots'),
+            'Codex Appshots runtime row should name Appshots',
+        );
+        assert.ok(
+            codexAppshotsRuntime?.notes.some((note) =>
+                note.includes('cannot create an appshot'),
+            ),
+            'Codex Appshots runtime row should document appshot creation boundary',
+        );
+        assert.ok(
+            codexAppshotsRuntime?.evidence.includes('RUN-082'),
+            'Codex Appshots runtime row should point to runtime-boundary evidence',
         );
         const codexRecordReplayRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'recordReplayRuntime',
@@ -940,6 +959,17 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot Chronicle row should document unsupported Codex-only surface',
         );
+        const copilotAppshotsRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'appshotsRuntime',
+        );
+        assert.strictEqual(copilotAppshotsRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotAppshotsRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot Appshots row should document unsupported Codex-only surface',
+        );
         const copilotRecordReplayRuntime = matrix.find(
             (entry) =>
                 entry.target === 'github-copilot' && entry.concept === 'recordReplayRuntime',
@@ -967,11 +997,11 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 40,
+            runtimeOnlyCount: 41,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 24,
+                    runtimeOnlyCount: 25,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

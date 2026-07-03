@@ -52,7 +52,7 @@ Review these sections in the preview output:
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
   enterprise policy runtime, remote connection runtime, Chronicle runtime,
-  Record & Replay runtime, import runtime, app connector runtime,
+  Appshots runtime, Record & Replay runtime, import runtime, app connector runtime,
   local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
@@ -231,6 +231,12 @@ Recording and Accessibility permissions, pause or resume state, temporary
 screen-capture storage, generated Chronicle memory files, screen-content prompt
 injection risk, and recall proof.
 
+Appshots use the same app-owned evidence lane. MetaFlow can record Appshots
+intent and evidence expectations, but the Codex app owns frontmost window
+selection, captured image and available text collection, thread destination
+behavior, local session attachment storage, macOS Screen & System Audio
+Recording and Accessibility permissions, and sensitive-content review.
+
 Record & Replay is also app-owned runtime state. MetaFlow can record workflow
 intent, reusable skill expectations, policy grants, and evidence requirements,
 but the Codex app owns recording start and stop, observed UI actions and window
@@ -378,6 +384,9 @@ Runtime validation is required for:
   project execution.
 - Chronicle opt-in, consent, macOS screen permissions, generated memories,
   prompt-injection controls, and recall proof.
+- Appshots hotkey or trigger path, frontmost app and window scope, macOS screen
+  and accessibility permissions, captured image and available text review,
+  thread destination behavior, and sensitive-content review.
 - Record & Replay recording, generated skill review, Computer Use or browser
   replay authority, sensitive-data review, and replay proof.
 - Import to Codex source and item selection, generated Codex destinations,

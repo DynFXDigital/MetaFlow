@@ -881,6 +881,7 @@ export type TargetCapabilityConcept =
     | 'executionSurfaces'
     | 'memoryScopes'
     | 'chronicleRuntime'
+    | 'appshotsRuntime'
     | 'recordReplayRuntime'
     | 'importRuntime'
     | 'cloudEnvironmentRuntime'

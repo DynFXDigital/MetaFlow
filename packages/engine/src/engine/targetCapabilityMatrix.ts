@@ -395,6 +395,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-078'],
     ),
     row(
+        'appshotsRuntime',
+        'runtime-only',
+        [
+            'Codex app Appshots',
+            'frontmost window image attachment',
+            'frontmost window available text attachment',
+            'macOS Screen & System Audio Recording permission',
+            'macOS Accessibility permission',
+        ],
+        [
+            'Appshots are Codex app runtime attachments on macOS that send the frontmost app window image and available text to a Codex thread.',
+            'Repository metadata can describe Appshots evidence expectations, but it cannot create an appshot, select the frontmost window, capture visible images or available text, grant macOS Screen & System Audio Recording or Accessibility permissions, attach appshots to the intended thread, or prove thread behavior.',
+            'Appshots are stored locally in the Codex session file and behave like manually attached files or images after capture.',
+        ],
+        [
+            'Appshots can expose visible window content, available off-screen text exposed by the app, screenshots, local session attachments, app context, private messages, documents, settings, and credentials if visible; they require explicit consent and sensitive-content review.',
+        ],
+        ['RUN-082'],
+    ),
+    row(
         'recordReplayRuntime',
         'runtime-only',
         [
@@ -939,6 +959,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-078'],
     ),
     row(
+        'appshotsRuntime',
+        'unsupported',
+        ['Codex app Appshots'],
+        [
+            'Appshots are a Codex app macOS frontmost-window attachment surface and are not a GitHub Copilot target surface.',
+            'GitHub Copilot and Agent HQ visual, attachment, editor, or browser context behavior must be represented through GitHub-specific target concepts or host-runtime evidence.',
+        ],
+        ['Visual and document context authority must be represented through the target harness controls.'],
+        ['RUN-082'],
+    ),
+    row(
         'recordReplayRuntime',
         'unsupported',
         ['Codex app Record & Replay'],
@@ -1236,6 +1267,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Enabling Chronicle, granting macOS Screen Recording or Accessibility permissions, capturing screen context, processing Chronicle screenshot frames or OCR text, creating Chronicle memories, pausing or resuming Chronicle, or proving Chronicle recall behavior from repository metadata alone.',
+        'Creating Appshots, selecting or capturing the frontmost window, granting macOS Screen & System Audio Recording or Accessibility permissions, attaching appshots to the intended Codex thread, or proving appshot-thread behavior from repository metadata alone.',
         'Recording UI actions or window content, generating or refining Record & Replay skills, enabling Computer Use, or proving replay behavior from repository metadata alone.',
         'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
@@ -1257,6 +1289,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
         'Chronicle runtime: Codex app and macOS host identity, ChatGPT plan eligibility, Memories setting state, Chronicle opt-in and consent state, Screen Recording and Accessibility permission posture, pause or resume state, temporary screen-capture storage posture, Chronicle memory artifact review, representative recall behavior, prompt-injection risk controls, and known limitations.',
+        'Appshots runtime: Codex app and macOS host identity, Appshots hotkey or trigger path, frontmost app and window scope, Screen & System Audio Recording and Accessibility permission posture, captured image and available text review, thread destination behavior, sensitive-content review, and known limitations.',
         'Record & Replay runtime: Codex app version, macOS and region eligibility, Computer Use availability and policy, recorded workflow scope, generated skill artifact, replay environment, representative replay result, sensitive-data review, and known limitations.',
         'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
