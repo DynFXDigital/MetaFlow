@@ -7,6 +7,7 @@
 - Warn when a capability declares multiple enabled target adapters for the same target, keeping Codex and Copilot projection policy unambiguous.
 - Parse and validate richer `.metaflow/capability.json` target declarations with support posture, required policy grants, validation evidence, and notes.
 - Warn when managed authority-sensitive target adapter concepts omit adapter-level policy grant metadata.
+- Treat authority-sensitive target adapter concepts as candidate output until adapter-level policy grants are declared.
 
 ## 0.3.2
 

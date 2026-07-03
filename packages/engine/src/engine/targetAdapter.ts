@@ -241,6 +241,32 @@ function managedAuthoritySensitiveConcepts(
     return managedConcepts.sort();
 }
 
+export function isAuthoritySensitiveTargetAdapterConcept(
+    concept: TargetCapabilityConcept | undefined,
+): boolean {
+    return concept !== undefined && AUTHORITY_SENSITIVE_CONCEPTS.has(concept);
+}
+
+export function effectiveTargetAdapterMaterializationMode(
+    adapter: TargetAdapterMetadata,
+    concept?: TargetCapabilityConcept,
+): TargetAdapterMaterializationMode {
+    if (!adapter.enabled) {
+        return 'disabled';
+    }
+    const declaredMode = concept
+        ? adapter.concepts[concept] ?? adapter.materializationMode
+        : adapter.materializationMode;
+    if (
+        declaredMode === 'managed' &&
+        isAuthoritySensitiveTargetAdapterConcept(concept) &&
+        adapter.requiredPolicyGrants.length === 0
+    ) {
+        return 'candidate';
+    }
+    return declaredMode;
+}
+
 function emptyTargetAdapter(
     manifestPath: string | undefined,
     warnings: CapabilityWarning[],

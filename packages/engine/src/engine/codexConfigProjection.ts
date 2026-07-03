@@ -21,6 +21,7 @@ import {
     codexMcpProjectionDestination,
     renderCodexMcpConfigToml,
 } from './codexMcpProjection';
+import { effectiveTargetAdapterMaterializationMode } from './targetAdapter';
 
 const CODEX_CONFIG_PROJECTION_DESTINATION = '.codex/config.toml';
 
@@ -62,10 +63,7 @@ function materializationModeForConcept(
     if (!adapter) {
         return 'candidate';
     }
-    if (!adapter.enabled) {
-        return 'disabled';
-    }
-    return adapter.concepts[concept] ?? adapter.materializationMode;
+    return effectiveTargetAdapterMaterializationMode(adapter, concept);
 }
 
 function isManagedConcept(

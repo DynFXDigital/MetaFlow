@@ -109,6 +109,10 @@ validation status need validation evidence references. Verification and waiver
 claims are review-warning material when they are not tied to a run, review, or
 waiver record.
 
+Target adapters that mark authority-sensitive concepts as `managed` need
+adapter-level `requiredPolicyGrants`. Without those grants, preview keeps the
+affected files as candidate output and apply skips them.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.

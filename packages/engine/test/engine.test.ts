@@ -4577,6 +4577,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { agents: 'managed' },
+                requiredPolicyGrants: ['codex-agent-review'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-042'],
             }),
@@ -4643,6 +4644,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { agents: 'managed' },
+                requiredPolicyGrants: ['copilot-agent-review'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-051'],
             }),
@@ -4799,6 +4801,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { projectConfig: 'managed' },
+                requiredPolicyGrants: ['codex-config-review'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-043'],
             }),
@@ -4881,6 +4884,69 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'config.toml')));
     });
 
+    it('managed authority-sensitive target adapter output stays candidate without policy grants', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'project-config'), {
+            recursive: true,
+        });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'project-config', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.codexProjectConfig/v1',
+                id: 'default',
+                settings: {
+                    model: 'gpt-5-codex',
+                    approvalPolicy: 'on-request',
+                    sandboxMode: 'workspace-write',
+                },
+                targets: ['codex'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { projectConfig: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-043'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const configChange = pending.find((change) => change.relativePath === '.codex/config.toml');
+        assert.strictEqual(configChange?.action, 'skip');
+        assert.strictEqual(configChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(configChange?.projection.targetAdapterConcept, 'projectConfig');
+        assert.strictEqual(configChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            configChange?.projection.notes.includes(
+                'target adapter concept projectConfig requires requiredPolicyGrants before managed materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.codex/config.toml'));
+        assert.ok(!result.written.includes('.codex/config.toml'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'config.toml')));
+    });
+
     it('managed target adapter projects canonical MCP servers to Codex config TOML', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'mcp'), { recursive: true });
@@ -4919,6 +4985,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { mcpServers: 'managed' },
+                requiredPolicyGrants: ['github-pr-read'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-045'],
             }),
@@ -5023,6 +5090,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { mcpServers: 'managed' },
+                requiredPolicyGrants: ['docs-read'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-047'],
             }),
@@ -5126,6 +5194,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { projectConfig: 'managed', mcpServers: 'managed' },
+                requiredPolicyGrants: ['github-pr-read'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-046'],
             }),
@@ -5213,6 +5282,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { projectConfig: 'managed', mcpServers: 'report-only' },
+                requiredPolicyGrants: ['github-pr-read'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-046'],
             }),
@@ -5340,6 +5410,7 @@ describe('Engine: synchronizer advanced', () => {
                 enabled: true,
                 materializationMode: 'candidate',
                 concepts: { hooks: 'managed' },
+                requiredPolicyGrants: ['shell-hook'],
                 validationStatus: 'staticVerified',
                 validationEvidence: ['RUN-044'],
             }),

@@ -11,6 +11,7 @@ import {
     TargetAdapterMetadata,
     TargetCapabilityConcept,
 } from './types';
+import { effectiveTargetAdapterMaterializationMode } from './targetAdapter';
 
 function inferFormat(relativePath: string): ProjectionTarget {
     const normalized = normalizeArtifactPath(relativePath);
@@ -291,19 +292,29 @@ export function describeProjectionWithTargetAdapters(
                 (concept === 'hooks' &&
                     (normalizedSourcePath === '.metaflow/hooks' ||
                         /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSourcePath)))));
-    const materializationMode =
-        adapter && !adapter.enabled
-            ? 'disabled'
-            : requiresExplicitTargetAdapter && !adapter
-              ? 'candidate'
-            : concept
-              ? adapter?.concepts[concept] ?? adapter?.materializationMode
-              : adapter?.materializationMode;
+    const declaredMaterializationMode =
+        adapter && concept
+            ? adapter.concepts[concept] ?? adapter.materializationMode
+            : adapter?.materializationMode;
+    const materializationMode = adapter
+        ? effectiveTargetAdapterMaterializationMode(adapter, concept)
+        : requiresExplicitTargetAdapter
+          ? 'candidate'
+          : undefined;
     const notes = buildNotes(sourcePath, destinationRelativePath, sourceFormat, target, lossiness);
     if (adapter) {
         notes.push(`target adapter ${adapter.id} selected`);
         if (concept) {
             notes.push(`target adapter concept ${concept}`);
+        }
+        if (
+            declaredMaterializationMode === 'managed' &&
+            materializationMode === 'candidate' &&
+            concept
+        ) {
+            notes.push(
+                `target adapter concept ${concept} requires requiredPolicyGrants before managed materialization`,
+            );
         }
         for (const note of adapter.notes) {
             notes.push(note);
