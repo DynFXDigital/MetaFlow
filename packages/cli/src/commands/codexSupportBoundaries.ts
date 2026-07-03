@@ -26,6 +26,13 @@ const FAIL_ON_CONDITIONS = [
 
 type FailOnCondition = CodexRuntimeEvidenceGateCondition;
 
+const FAIL_ON_PRESETS: Record<string, FailOnCondition[]> = {
+    'release-ready': ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
+    all: [...FAIL_ON_CONDITIONS],
+};
+
+const FAIL_ON_ALLOWED_VALUES = [...FAIL_ON_CONDITIONS, ...Object.keys(FAIL_ON_PRESETS)];
+
 function parseFailOnConditions(raw: string | undefined): FailOnCondition[] | undefined {
     if (!raw) {
         return [];
@@ -34,13 +41,14 @@ function parseFailOnConditions(raw: string | undefined): FailOnCondition[] | und
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean);
-    const invalid = requested.filter(
-        (item): item is string => !FAIL_ON_CONDITIONS.includes(item as FailOnCondition),
-    );
-    if (invalid.length > 0) {
+    const expanded = requested.flatMap((item) => {
+        const preset = FAIL_ON_PRESETS[item];
+        return preset ?? [item];
+    });
+    if (expanded.some((item) => !FAIL_ON_CONDITIONS.includes(item as FailOnCondition))) {
         return undefined;
     }
-    return [...new Set(requested)] as FailOnCondition[];
+    return [...new Set(expanded)] as FailOnCondition[];
 }
 
 function evaluateFailOnConditions(
@@ -66,7 +74,7 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
         .option('--force', 'Overwrite an existing output file')
         .option(
             '--fail-on <checks>',
-            `Exit with code 1 when comma-separated checks match: ${FAIL_ON_CONDITIONS.join(', ')}`,
+            `Exit with code 1 when comma-separated checks or presets match: ${FAIL_ON_ALLOWED_VALUES.join(', ')}`,
         )
         .action((options: CodexSupportBoundariesOptions) => {
             const workspaceRoot = getWorkspaceRoot(program);
@@ -80,7 +88,7 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             const failOnConditions = parseFailOnConditions(options.failOn);
             if (!failOnConditions) {
                 console.error(
-                    `Error: --fail-on must be a comma-separated list containing only: ${FAIL_ON_CONDITIONS.join(', ')}`,
+                    `Error: --fail-on must be a comma-separated list containing only: ${FAIL_ON_ALLOWED_VALUES.join(', ')}`,
                 );
                 process.exitCode = 1;
                 return;

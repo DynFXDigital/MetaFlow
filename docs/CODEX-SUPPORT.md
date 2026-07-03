@@ -27,6 +27,8 @@ The CLI report can also act as a release or CI gate. Use
 emit the report and exit nonzero when runtime-only concepts have no evidence or
 when retained runtime evidence carries diagnostics. Supported gate checks are
 `missing-evidence`, `diagnostics`, `error-diagnostics`, `failed`, and `not-run`.
+Supported presets are `release-ready` and `all`; `release-ready` expands to
+missing evidence, diagnostics, failed evidence, and not-run evidence.
 The Markdown and JSON reports include a runtime evidence gate summary with the
 same triggered state, counts, concept lists, and messages used by `--fail-on`,
 so release jobs and reviewers can inspect one persisted artifact.

@@ -3389,6 +3389,8 @@ describe('CLI: codex-support-boundaries', () => {
 
         assert.strictEqual(result.exitCode, 1);
         assert.ok(result.stderr.includes('--fail-on must be a comma-separated list'));
+        assert.ok(result.stderr.includes('release-ready'));
+        assert.ok(result.stderr.includes('all'));
     });
 
     it('fails Codex support boundary gates when runtime evidence is missing', async () => {
@@ -3414,6 +3416,26 @@ describe('CLI: codex-support-boundaries', () => {
                 'Codex support boundary gate failed: missing-evidence: 34 runtime-only concept(s) have no matching evidence',
             ),
         );
+    });
+
+    it('expands Codex support boundary release-ready gate presets', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--fail-on',
+            'release-ready',
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.runtimeEvidenceGateSummary['missing-evidence'].triggered, true);
+        assert.strictEqual(data.runtimeEvidenceGateSummary.diagnostics.triggered, false);
+        assert.ok(
+            result.stderr.includes(
+                'Codex support boundary gate failed: missing-evidence: 34 runtime-only concept(s) have no matching evidence',
+            ),
+        );
+        assert.ok(!result.stderr.includes('diagnostics: 0 runtime evidence record(s)'));
     });
 
     it('fails Codex support boundary gates when runtime evidence has diagnostics', async () => {

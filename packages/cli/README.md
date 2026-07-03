@@ -122,11 +122,15 @@ Print the Codex support boundary report without requiring a configured workspace
 ```bash
 metaflow codex-support-boundaries
 metaflow codex-support-boundaries --json
+metaflow codex-support-boundaries --fail-on release-ready
+metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --json --out reports/codex-support-boundaries.json
 ```
 
 The command prints the same Markdown boundary report exposed by the VS Code `MetaFlow: Open Codex Support Boundaries` command. It separates file-backed and reviewable Codex surfaces from runtime-only and not-technically-projectable surfaces so terminal and CI reviews can use the same operator-facing boundary text.
+
+Use `--fail-on` for release and CI checks while still emitting the report. Supported checks are `missing-evidence`, `diagnostics`, `error-diagnostics`, `failed`, and `not-run`; presets are `release-ready` and `all`. The `release-ready` preset expands to missing evidence, diagnostics, failed evidence, and not-run evidence.
 
 #### `migration-suggestions`
 
