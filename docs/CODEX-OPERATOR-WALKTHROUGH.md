@@ -49,7 +49,8 @@ Review these sections in the preview output:
   `.codex/agents/*.toml`.
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
-  local/cloud handoff, issue/PR operation, and evaluation support.
+  app connector runtime, local/cloud handoff, issue/PR operation, and
+  evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
 - Boundary rows: runtime-only Codex behavior that repository projection cannot
@@ -297,6 +298,7 @@ Runtime validation is required for:
 
 - Codex Cloud task execution.
 - Codex Cloud environment provisioning, setup, secrets, and internet access.
+- Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.
 - Slack or Linear delegation.
 - GitHub-triggered Codex review.
 - PR feedback handling in the Codex app.

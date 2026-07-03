@@ -280,6 +280,25 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-070'],
     ),
     row(
+        'appConnectorRuntime',
+        'runtime-only',
+        [
+            'Codex Slack app',
+            'Codex Linear connector',
+            'Codex GitHub integration',
+            'ChatGPT workspace connectors',
+            'connected app account links',
+        ],
+        [
+            'Codex app connectors are workspace, account, and channel runtime state rather than repository metadata projection.',
+            'Repository metadata can describe connector intent and required evidence, but it cannot install Slack or Linear apps, approve workspace connectors, connect GitHub accounts, link user accounts, add Codex to channels, configure connector posting policy, or prove connector task behavior.',
+        ],
+        [
+            'App connectors can expose issue, thread, repository, channel, account, and workspace data and can post replies or create hosted tasks under user or workspace authority.',
+        ],
+        ['RUN-071'],
+    ),
+    row(
         'localCloudHandoff',
         'runtime-only',
         ['Codex CLI', 'Codex IDE extension', 'Codex app', 'Codex Cloud'],
@@ -296,7 +315,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['Codex review', 'Codex GitHub integration', 'Codex Slack integration', 'Codex Linear integration', 'Codex Cloud task workflows'],
         [
             'Issue, PR, and review operation depends on Codex runtime integrations rather than static repository metadata.',
-            'GitHub review, Slack, and Linear flows require configured connectors, repository environments, and user or workspace authorization outside MetaFlow projection.',
+            'GitHub review, Slack, and Linear flows require configured app connectors, repository environments, and user or workspace authorization outside MetaFlow projection.',
         ],
         ['Repository write, review, and CI authority require explicit policy.'],
         ['RUN-052'],
@@ -612,6 +631,24 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-070'],
     ),
     row(
+        'appConnectorRuntime',
+        'runtime-only',
+        [
+            'GitHub Copilot app integrations',
+            'GitHub Agent HQ connectors',
+            'connected app account links',
+            'organization connector policy',
+        ],
+        [
+            'GitHub Copilot and Agent HQ app connector behavior depends on host installation, account authorization, organization policy, and task routing rather than repository metadata projection.',
+            'Repository metadata can describe connector intent and evidence, but it cannot install host apps, approve organization connectors, link user accounts, grant repository access, or prove connector task behavior.',
+        ],
+        [
+            'App connectors can expose issue, pull request, repository, organization, channel, account, and workspace data and can route work under user or organization authority.',
+        ],
+        ['RUN-071'],
+    ),
+    row(
         'localCloudHandoff',
         'runtime-only',
         ['GitHub Copilot host runtime', 'GitHub Agent HQ'],
@@ -813,6 +850,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
     const notAchievableByRepositoryProjection = [
         'Creating or approving ChatGPT workspace connectors.',
         'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
+        'Installing, approving, connecting, or proving Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connectors from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -826,6 +864,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
+        'App connector runtime: installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

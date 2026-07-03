@@ -35,6 +35,7 @@ the service connection or prove the behavior.
 | Codex surface | Why static projection is insufficient | MetaFlow handling |
 | --- | --- | --- |
 | Codex Cloud environments | Cloud environments are hosted runtime configuration and execution state. They include repository checkout, setup scripts, dependency/cache state, environment variables, secrets available to setup, sandbox policy, and agent internet-access settings. | Represent execution intent and expected evidence in `.metaflow/execution/*.json` or `.metaflow/evaluation/*.json`; require harness-native environment evidence before treating hosted execution as operational. |
+| App connectors | Slack, Linear, GitHub, ChatGPT workspace, and other app connectors depend on workspace or organization approval, connector installation, account linking, connected repositories or channels, posting policy, and data-sharing controls. | Record connector intent, policy grants, and required evidence; do not generate or claim installed connector state. |
 | Codex Cloud tasks | Cloud tasks depend on ChatGPT/Codex environments, GitHub connection, branch or SHA checkout, setup scripts, cloud secrets, and agent internet-access settings. | Represent execution intent in `.metaflow/execution/*.json`; require harness-native runtime evidence for support claims. |
 | Slack delegation | Slack tasks depend on the Codex Slack app, workspace install or admin approval, channel membership, connected GitHub account, and a Codex environment. | Record as runtime-only issue/task operation; do not generate Slack app state. |
 | Linear delegation | Linear tasks depend on the Codex Linear integration, account linking, workspace settings, GitHub connection, and environment selection. | Record as runtime-only issue/task operation; do not generate Linear connector state. |
@@ -60,6 +61,9 @@ MetaFlow does not claim the following outcomes from generated repository files:
 
 - Creating or approving ChatGPT workspace connectors.
 - Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.
+- Installing, approving, connecting, or proving Slack, Linear, GitHub, ChatGPT
+  workspace, GitHub Copilot, or Agent HQ app connectors from repository metadata
+  alone.
 - Creating Codex Cloud environments or setting cloud task secrets.
 - Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted
   agent environments from repository metadata alone.
@@ -94,6 +98,7 @@ Static projection support and runtime support use different evidence.
 | Codex can discover the generated file | Local Codex CLI, IDE extension, or app smoke evidence against the generated workspace. |
 | Codex custom-agent activation works | A Codex app or CLI subagent run that explicitly spawns the named agent and shows the generated `.codex/agents/*.toml` instructions in effect. Static TOML projection and `codex debug prompt-input` inspection are not sufficient by themselves. |
 | Codex Cloud environment works | A Codex-hosted task showing the selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, task result, cost or audit limits, and known limitations. |
+| App connector works | Installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
 | MCP runtime works | Codex MCP startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |

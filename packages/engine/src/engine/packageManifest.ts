@@ -77,6 +77,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'executionSurfaces',
     'memoryScopes',
     'cloudEnvironmentRuntime',
+    'appConnectorRuntime',
     'localCloudHandoff',
     'issuePrOperation',
     'remoteMcpRuntime',

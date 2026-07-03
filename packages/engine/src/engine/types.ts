@@ -875,6 +875,7 @@ export type TargetCapabilityConcept =
     | 'executionSurfaces'
     | 'memoryScopes'
     | 'cloudEnvironmentRuntime'
+    | 'appConnectorRuntime'
     | 'localCloudHandoff'
     | 'issuePrOperation'
     | 'remoteMcpRuntime'

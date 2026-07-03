@@ -184,6 +184,7 @@ describe('Engine package: public API', () => {
             'memoryScopes',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
+            'appConnectorRuntime',
             'localCloudHandoff',
             'issuePrOperation',
             'remoteMcpRuntime',
@@ -463,6 +464,23 @@ describe('Engine package: public API', () => {
             'Codex cloud environment row should cite hosted environment evidence',
         );
 
+        const codexAppConnector = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'appConnectorRuntime',
+        );
+        assert.strictEqual(codexAppConnector?.support, 'runtime-only');
+        assert.ok(
+            codexAppConnector?.nativeSurfaces.includes('Codex Slack app'),
+            'Codex app connector row should name the Slack app surface',
+        );
+        assert.ok(
+            codexAppConnector?.notes.some((note) => note.includes('link user accounts')),
+            'Codex app connector row should document account-linking requirements',
+        );
+        assert.ok(
+            codexAppConnector?.evidence.includes('RUN-071'),
+            'Codex app connector row should cite connector runtime evidence',
+        );
+
         const codexHandoff = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',
         );
@@ -486,8 +504,8 @@ describe('Engine package: public API', () => {
             'Codex issue/PR row should name channel runtime surfaces',
         );
         assert.ok(
-            codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
-            'Codex issue/PR row should document connector authorization requirements',
+            codexIssuePr?.notes.some((note) => note.includes('configured app connectors')),
+            'Codex issue/PR row should document configured app connector requirements',
         );
         const codexExecution = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'executionSurfaces',
@@ -589,6 +607,17 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot cloud environment row should document hosted secret boundaries',
         );
+        const copilotAppConnector = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'appConnectorRuntime',
+        );
+        assert.strictEqual(copilotAppConnector?.support, 'runtime-only');
+        assert.ok(
+            copilotAppConnector?.notes.some((note) =>
+                note.includes('organization connectors'),
+            ),
+            'GitHub Copilot app connector row should document organization connector boundaries',
+        );
         const copilotBrowserRuntime = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'browserRuntime',
         );
@@ -603,16 +632,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 22,
+            runtimeOnlyCount: 24,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 13,
+                    runtimeOnlyCount: 14,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 9,
+                    runtimeOnlyCount: 10,
                     documentation: 'README.md',
                 },
             ],

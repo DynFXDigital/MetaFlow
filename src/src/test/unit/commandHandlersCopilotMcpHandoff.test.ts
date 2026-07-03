@@ -191,13 +191,21 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 22);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 24);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 13 &&
+                    target.runtimeOnlyCount === 14 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'appConnectorRuntime' &&
+                    entry.support === 'runtime-only',
             ),
         );
         assert.ok(
@@ -250,7 +258,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 13);
+        assert.strictEqual(document.runtimeOnlyCount, 14);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -262,6 +270,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.deepStrictEqual(
             document.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
             [
+                'appConnectorRuntime',
                 'browserRuntime',
                 'chromeRuntime',
                 'cloudEnvironmentRuntime',
@@ -289,11 +298,17 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.ok(
             document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('App connector runtime'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
                 item.includes('Cloud environment runtime'),
             ),
         );
         assert.ok(document.content.includes('# Codex Support Boundaries'));
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
+        assert.ok(document.content.includes('appConnectorRuntime'));
         assert.ok(document.content.includes('cloudEnvironmentRuntime'));
         assert.ok(document.content.includes('localCloudHandoff'));
         assert.ok(document.content.includes('issuePrOperation'));
