@@ -1937,6 +1937,9 @@ describe('CLI: export-package-marketplace', () => {
         assert.ok(
             result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'),
         );
+        assert.ok(
+            result.stderr.includes('PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING'),
+        );
     });
 
     it('should print the full package marketplace review object with --json', async () => {
@@ -1965,6 +1968,9 @@ describe('CLI: export-package-marketplace', () => {
         );
         assert.ok(
             warningText.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'),
+        );
+        assert.ok(
+            warningText.includes('PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING'),
         );
     });
 
