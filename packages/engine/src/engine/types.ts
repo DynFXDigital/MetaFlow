@@ -871,6 +871,7 @@ export type TargetCapabilityConcept =
     | 'hooks'
     | 'packageManifests'
     | 'pluginRuntime'
+    | 'agentRuntime'
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'

@@ -103,6 +103,25 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-024', 'RUN-042', 'RUN-055'],
     ),
     row(
+        'agentRuntime',
+        'runtime-only',
+        [
+            'Codex subagent workflows',
+            'Codex CLI /agent threads',
+            'Codex app subagent activity',
+            'project and user custom-agent config layers',
+        ],
+        [
+            'Repository metadata can describe and project custom-agent configuration, but it cannot spawn subagents, choose an agent for a task, manage active agent threads, satisfy runtime approvals, or prove that a custom agent executed.',
+            'Codex subagents inherit the parent session sandbox and approval posture at runtime, and live overrides or interactive approvals are not represented by static metadata projection.',
+            'Subagent orchestration, concurrency limits, nested delegation depth, thread lifecycle, model selection at spawn time, and consolidated results require harness-native evidence.',
+        ],
+        [
+            'Subagents can consume tokens, run tools, request approvals, inspect repository data, and perform writes under inherited runtime authority.',
+        ],
+        ['RUN-072'],
+    ),
+    row(
         'projectConfig',
         'partial',
         ['.codex/config.toml', '.metaflow/project-config/*.json'],
@@ -479,6 +498,19 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-022', 'RUN-051'],
     ),
     row(
+        'agentRuntime',
+        'runtime-only',
+        ['GitHub Copilot custom agents', 'GitHub Agent HQ routing', 'agent assignment and execution state'],
+        [
+            'GitHub Copilot custom-agent metadata can be projected, but selecting, routing, assigning, or proving agent execution happens in the GitHub Copilot or Agent HQ runtime.',
+            'Repository metadata cannot grant organization policy, connect runtime tools, route issues or pull requests to a hosted agent, or prove that a specific custom agent handled a task.',
+        ],
+        [
+            'Custom-agent execution can access repository, issue, pull request, organization, tool, and connector data under user or organization authority.',
+        ],
+        ['RUN-072'],
+    ),
+    row(
         'projectConfig',
         'unsupported',
         [],
@@ -851,6 +883,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating or approving ChatGPT workspace connectors.',
         'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
         'Installing, approving, connecting, or proving Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connectors from repository metadata alone.',
+        'Spawning subagents, selecting custom agents at runtime, managing active agent threads, satisfying interactive approvals, or proving custom-agent execution from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -865,6 +898,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
         'App connector runtime: installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations.',
+        'Agent runtime: selected subagent or custom agent, spawned thread identity, inherited sandbox and approval posture, runtime overrides, tool activity, result, token/cost posture, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

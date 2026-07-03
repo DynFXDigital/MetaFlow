@@ -149,6 +149,12 @@ agents as projected configuration until a Codex app or CLI subagent run
 explicitly spawns the named agent and demonstrates the generated instructions
 in effect.
 
+Subagent workflows have a separate runtime boundary. Codex decides and manages
+spawned agent threads at runtime, including `/agent` thread state, inherited
+sandbox and approval posture, live overrides, tool activity, token use, and
+consolidated results. Treat those as runtime evidence, not static projection
+evidence.
+
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix
 before an adapter can prove current projection readiness. A missing

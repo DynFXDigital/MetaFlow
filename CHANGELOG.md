@@ -26,6 +26,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Plugin runtime support now distinguishes Codex and GitHub Copilot package/marketplace metadata from installation, enablement, authentication, discovery, and task-time invocation evidence.
 - Cloud environment runtime support now distinguishes Codex Cloud and GitHub-hosted environment evidence from repository metadata projection.
 - App connector runtime support now distinguishes Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, and Agent HQ connector authority from repository metadata projection.
+- Agent runtime support now distinguishes Codex subagent workflows and GitHub Copilot or Agent HQ custom-agent routing from static custom-agent metadata projection.
 - Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Codex tool authority guide covering canonical `.metaflow/tools/*.json` metadata, policy grants, execution scope, runtime validation, and the limit between tool description and runtime authority.
 - Codex custom-agent activation proof boundary documentation for `.codex/agents/*.toml` projections and the installed CLI 0.142.3 non-interactive activation limit.

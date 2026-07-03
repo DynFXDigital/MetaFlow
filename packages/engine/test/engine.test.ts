@@ -179,6 +179,7 @@ describe('Engine package: public API', () => {
             'hooks',
             'packageManifests',
             'pluginRuntime',
+            'agentRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -241,6 +242,22 @@ describe('Engine package: public API', () => {
                 note.includes('does not expose a non-interactive custom-agent activation flag'),
             ),
             'Codex agents row should document the non-interactive activation proof boundary',
+        );
+        const codexAgentRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'agentRuntime',
+        );
+        assert.strictEqual(codexAgentRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexAgentRuntime?.nativeSurfaces.includes('Codex subagent workflows'),
+            'Codex agent runtime row should name subagent workflows',
+        );
+        assert.ok(
+            codexAgentRuntime?.notes.some((note) => note.includes('cannot spawn subagents')),
+            'Codex agent runtime row should document runtime spawning boundary',
+        );
+        assert.ok(
+            codexAgentRuntime?.evidence.includes('RUN-072'),
+            'Codex agent runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -626,22 +643,30 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'github-copilot' && entry.concept === 'commandRules',
         );
         assert.strictEqual(copilotCommandRules?.support, 'unsupported');
+        const copilotAgentRuntime = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'agentRuntime',
+        );
+        assert.strictEqual(copilotAgentRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotAgentRuntime?.notes.some((note) => note.includes('proving agent execution')),
+            'GitHub Copilot agent runtime row should document runtime proof boundary',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 24,
+            runtimeOnlyCount: 26,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 14,
+                    runtimeOnlyCount: 15,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 10,
+                    runtimeOnlyCount: 11,
                     documentation: 'README.md',
                 },
             ],
