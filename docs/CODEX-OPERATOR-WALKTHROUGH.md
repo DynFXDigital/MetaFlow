@@ -133,6 +133,15 @@ Codex surface being claimed. Examples include checking that generated
 repository skills are visible to Codex or that Codex accepts generated MCP
 configuration in the trusted project.
 
+Custom-agent projection has a narrower proof boundary. MetaFlow can write
+`.codex/agents/*.toml`, and Codex documents project-scoped custom agents as
+subagent configuration layers. Installed Codex CLI 0.142.3 does not expose a
+non-interactive custom-agent activation flag, and `codex debug prompt-input`
+does not show repo-local custom-agent TOML as active prompt input. Treat custom
+agents as projected configuration until a Codex app or CLI subagent run
+explicitly spawns the named agent and demonstrates the generated instructions
+in effect.
+
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix
 before an adapter can prove current projection readiness. A missing

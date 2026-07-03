@@ -18,7 +18,7 @@ loads from files in the workspace.
 | Skills | `.agents/skills/<skill-id>/SKILL.md` | Canonical `.metaflow/skills/**` entries project to Codex repository skills. |
 | Project instructions | `AGENTS.md`, `AGENTS.override.md` | Root and scoped instructions are guarded because unmanaged project guidance has high collision risk. |
 | Project configuration | `.codex/config.toml` | Managed project configuration is candidate or gated output unless the target adapter explicitly owns the file. |
-| Agents | `.codex/agents/*.toml` | Canonical agent profiles project to Codex custom-agent configuration when the target adapter enables agent materialization. |
+| Agents | `.codex/agents/*.toml` | Canonical agent profiles project to Codex custom-agent configuration when the target adapter enables agent materialization. Codex loads these files as subagent configuration layers, but installed Codex CLI 0.142.3 does not expose a non-interactive custom-agent activation flag or debug prompt-input proof for repo-local agent TOML. |
 | Hooks | `.codex/hooks.json` | Supported command lifecycle hook metadata projects to Codex hook JSON when the target adapter enables hook materialization. |
 | Plugins | `.codex-plugin/plugin.json` | Codex plugin manifests stay separate from GitHub Copilot `plugin.json` manifests. |
 | Local plugin marketplace | `.agents/plugins/marketplace.json` | Canonical package marketplace entries can export Codex-shaped candidate payloads for operator review through the CLI or VS Code package marketplace report. |
@@ -66,6 +66,7 @@ Static projection support and runtime support use different evidence.
 | --- | --- |
 | File projection works | Engine, CLI, extension, and synchronizer tests showing the generated files, managed state, drift behavior, and conflict protection. |
 | Codex can discover the generated file | Local Codex CLI, IDE extension, or app smoke evidence against the generated workspace. |
+| Codex custom-agent activation works | A Codex app or CLI subagent run that explicitly spawns the named agent and shows the generated `.codex/agents/*.toml` instructions in effect. Static TOML projection and `codex debug prompt-input` inspection are not sufficient by themselves. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
 | MCP runtime works | Codex MCP startup, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |

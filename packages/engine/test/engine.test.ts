@@ -215,6 +215,20 @@ describe('Engine package: public API', () => {
             codexInstructions?.nativeSurfaces.includes('.metaflow/instructions/*.json'),
             'Codex instructions row should name the structured canonical instruction metadata surface',
         );
+        const codexAgents = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'agents',
+        );
+        assert.strictEqual(codexAgents?.support, 'partial');
+        assert.ok(
+            codexAgents?.evidence.includes('RUN-055'),
+            'Codex agents row should point to the CLI activation-boundary evidence',
+        );
+        assert.ok(
+            codexAgents?.notes.some((note) =>
+                note.includes('does not expose a non-interactive custom-agent activation flag'),
+            ),
+            'Codex agents row should document the non-interactive activation proof boundary',
+        );
 
         const copilotPrompts = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'prompts',

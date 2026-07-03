@@ -92,9 +92,10 @@ const CODEX_MATRIX: MatrixSeed[] = [
         [
             'Target-native Codex agent files are materialized safely when authored.',
             'Canonical MetaFlow agent profiles project to Codex custom-agent TOML according to target adapter materialization gates.',
+            'Codex loads project-scoped custom agents as subagent configuration layers, but installed Codex CLI 0.142.3 does not expose a non-interactive custom-agent activation flag or debug prompt-input proof for repo-local agent TOML.',
         ],
         ['Agent files can imply tool or model authority and require policy review.'],
-        ['RUN-024', 'RUN-042'],
+        ['RUN-024', 'RUN-042', 'RUN-055'],
     ),
     row(
         'projectConfig',
