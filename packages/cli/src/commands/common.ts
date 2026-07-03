@@ -133,6 +133,23 @@ export function getWorkspaceRoot(command: { opts: () => { workspace: string } })
     return path.resolve(ws);
 }
 
+export function isWithinWorkspace(workspaceRoot: string, candidatePath: string): boolean {
+    const relative = path.relative(workspaceRoot, candidatePath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export function resolveWorkspaceOutputPath(workspaceRoot: string, outputPath: string): string {
+    const resolved = path.isAbsolute(outputPath)
+        ? path.resolve(outputPath)
+        : path.resolve(workspaceRoot, outputPath);
+
+    if (!isWithinWorkspace(workspaceRoot, resolved)) {
+        throw new Error('Output path must stay within the workspace.');
+    }
+
+    return resolved;
+}
+
 export function loadConfigOrExit(workspaceRoot: string): LoadedConfig | null {
     const result: ConfigLoadResult = loadConfig(workspaceRoot);
     if (!result.ok) {

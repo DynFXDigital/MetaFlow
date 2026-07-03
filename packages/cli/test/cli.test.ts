@@ -2190,6 +2190,10 @@ describe('CLI: target-support', () => {
 });
 
 describe('CLI: codex-support-boundaries', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
     it('prints Codex support boundaries as Markdown without requiring workspace config', async () => {
         const result = await runCli(['codex-support-boundaries']);
 
@@ -2214,6 +2218,75 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(data.runtimeOnlyCount, 2);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
+    });
+
+    it('writes Codex support boundaries to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-support-boundaries.md');
+
+        const writeResult = await runCli([
+            'codex-support-boundaries',
+            '--out',
+            'reports/codex-support-boundaries.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(writeResult.exitCode, 0);
+        assert.ok(writeResult.stdout.includes('Wrote Codex support boundaries report: reports'));
+        assert.ok(fs.readFileSync(outputPath, 'utf-8').includes('# Codex Support Boundaries'));
+
+        const blockedResult = await runCli([
+            'codex-support-boundaries',
+            '--out',
+            'reports/codex-support-boundaries.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blockedResult.exitCode, 1);
+        assert.ok(blockedResult.stderr.includes('Output file already exists'));
+
+        const forceResult = await runCli([
+            'codex-support-boundaries',
+            '--out',
+            'reports/codex-support-boundaries.md',
+            '--force',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(forceResult.exitCode, 0);
+    });
+
+    it('writes Codex support boundaries JSON to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-support-boundaries.json');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--out',
+            'reports/codex-support-boundaries.json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+        assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
+        assert.strictEqual(data.runtimeOnlyCount, 2);
+    });
+
+    it('rejects Codex support boundary output paths outside the workspace', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--out',
+            '../codex-support-boundaries.md',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Output path must stay within the workspace'));
     });
 });
 

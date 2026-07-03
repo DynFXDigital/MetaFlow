@@ -22,6 +22,7 @@ package, or marketplace candidate.
 
 ```bash
 metaflow codex-support-boundaries
+metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow target-support --target codex
 metaflow target-support --target codex --support runtime-only
 metaflow target-support --json --target codex --concept mcpServers
