@@ -132,7 +132,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'packageManifests',
         'supported',
-        ['.codex-plugin/plugin.json', '.agents/plugins/marketplace.json'],
+        ['.metaflow/packages/*.json', '.codex-plugin/plugin.json', '.agents/plugins/marketplace.json'],
         [
             'Codex plugin manifests and local marketplace entries are generated separately from Copilot plugin metadata.',
         ],
@@ -297,7 +297,7 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'packageManifests',
         'supported',
-        ['plugin.json', '.github/plugin/marketplace.json'],
+        ['.metaflow/packages/*.json', 'plugin.json', '.github/plugin/marketplace.json'],
         [
             'Copilot agent-plugin manifests and marketplace generation remain separate from Codex plugin metadata.',
         ],

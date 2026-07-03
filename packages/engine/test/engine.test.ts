@@ -248,6 +248,24 @@ describe('Engine package: public API', () => {
             codexHooks?.evidence.includes('RUN-049'),
             'Codex hooks row should point to the live hook consumer smoke',
         );
+        const codexPackages = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'packageManifests',
+        );
+        assert.strictEqual(codexPackages?.support, 'supported');
+        assert.ok(
+            codexPackages?.nativeSurfaces.includes('.metaflow/packages/*.json'),
+            'Codex package row should name the canonical package metadata surface',
+        );
+
+        const copilotPackages = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'packageManifests',
+        );
+        assert.strictEqual(copilotPackages?.support, 'supported');
+        assert.ok(
+            copilotPackages?.nativeSurfaces.includes('.metaflow/packages/*.json'),
+            'GitHub Copilot package row should name the canonical package metadata surface',
+        );
 
         const codexHandoff = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',

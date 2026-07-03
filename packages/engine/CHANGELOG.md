@@ -10,6 +10,7 @@
 - Treat authority-sensitive target adapter concepts as candidate output until adapter-level policy grants are declared.
 - Warn when managed target adapter concepts are unsupported or runtime-only in the current target capability matrix.
 - Warn when package runtime validation records omit both a validation command and evidence references.
+- Identify `.metaflow/packages/*.json` as the canonical package metadata surface in package-manifest target capability matrix rows.
 
 ## 0.3.2
 

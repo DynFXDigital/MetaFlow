@@ -23,6 +23,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Authority-sensitive target adapter concepts now stay candidate-only until adapter-level policy grants are declared, preventing managed writes from implying unreviewed Codex or Copilot authority.
 - Target adapter validation now warns when managed concepts are unsupported or runtime-only in the current target capability matrix.
 - Package runtime validation now warns when records omit both a validation command and evidence references.
+- Target capability support reports now identify `.metaflow/packages/*.json` as the canonical package metadata surface for Codex and GitHub Copilot package-manifest rows.
 
 ### Changed
 
