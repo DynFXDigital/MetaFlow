@@ -917,6 +917,73 @@ describe('CLI: preview', () => {
         );
     });
 
+    it('shows canonical package manifests in preview output', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/policies/github-pr-read.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.policyGrant/v1',
+                            id: 'github-pr-read',
+                            authority: 'github.pullRequest.read',
+                            approval: 'auto',
+                            audit: true,
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/packages/release-operations.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.package/v1',
+                            id: 'release-operations',
+                            name: 'Release Operations',
+                            kind: 'agent-plugin',
+                            agents: ['release-steward'],
+                            skills: ['release-readiness'],
+                            mcpServers: ['github'],
+                            hooks: ['release-gate'],
+                            policyGrants: ['github-pr-read'],
+                            targets: {
+                                codex: {
+                                    pluginName: 'release-operations',
+                                    enabled: true,
+                                },
+                                'github-copilot': {
+                                    pluginName: 'release-operations',
+                                },
+                            },
+                            validationEvidence: ['RUN-055'],
+                            description: 'Release workflow package.',
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes('Package Manifests: 1'));
+        assert.ok(textResult.stdout.includes('release-operations [agent-plugin]'));
+        assert.ok(textResult.stdout.includes('targets=codex=release-operations:enabled'));
+        assert.ok(textResult.stdout.includes('components: agents=release-steward'));
+        assert.ok(textResult.stdout.includes('skills=release-readiness'));
+        assert.ok(textResult.stdout.includes('[packageManifests]'));
+
+        const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        assert.strictEqual(data.summary.packageManifests, 1);
+        assert.strictEqual(data.packageManifests[0].id, 'release-operations');
+        assert.strictEqual(data.packageManifests[0].targets.codex.enabled, true);
+        assert.ok(
+            data.adapterReports.some(
+                (report: { managedMetadata: { packageManifests?: number } }) =>
+                    report.managedMetadata.packageManifests === 1,
+            ),
+        );
+    });
+
     it('shows target metadata for canonical MCP server Codex projection', async () => {
         ws = createTestWorkspace({
             config: {

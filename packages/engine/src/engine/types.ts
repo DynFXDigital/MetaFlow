@@ -46,6 +46,8 @@ export interface LayerContent {
     codexProjectConfigs?: CodexProjectConfigMetadata[];
     /** Target adapter preferences loaded from canonical MetaFlow target manifests. */
     targetAdapters?: TargetAdapterMetadata[];
+    /** Package manifests loaded from canonical MetaFlow package manifests. */
+    packageManifests?: PackageManifestMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -591,6 +593,40 @@ export interface TargetAdapterMetadata {
     warnings: CapabilityWarning[];
 }
 
+/** Canonical MetaFlow package metadata associated with a layer. */
+export interface PackageManifestMetadata {
+    /** Stable package manifest identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied package metadata. */
+    manifestPath: string;
+    /** User-facing package name. */
+    name: string;
+    /** Package kind such as agent-plugin. */
+    kind: string;
+    /** Canonical agent profile ids included in this package. */
+    agents: string[];
+    /** Canonical skill ids included in this package. */
+    skills: string[];
+    /** Canonical instruction ids included in this package. */
+    instructions: string[];
+    /** Canonical prompt ids included in this package. */
+    prompts: string[];
+    /** Canonical MCP server ids included in this package. */
+    mcpServers: string[];
+    /** Canonical hook ids included in this package. */
+    hooks: string[];
+    /** Policy grants required before this package is treated as operational. */
+    policyGrants: string[];
+    /** Target harness package declarations keyed by target id. */
+    targets: Record<string, { pluginName?: string; enabled?: boolean }>;
+    /** Optional validation evidence identifiers or references. */
+    validationEvidence: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
 /** Parsed METAFLOW.md metadata associated with a repository root. */
 export interface RepoMetadata {
     /** Absolute path to METAFLOW.md. */
@@ -705,6 +741,8 @@ export interface AdapterReadinessMetadataCounts {
     memoryScopes: number;
     /** Canonical evaluation profiles considered for adapter readiness. */
     evaluationProfiles: number;
+    /** Canonical package manifests considered for adapter readiness. */
+    packageManifests: number;
 }
 
 /** Adapter readiness action severity. */

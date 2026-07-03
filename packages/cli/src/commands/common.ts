@@ -20,6 +20,7 @@ import {
     HookMetadata,
     MemoryScopeMetadata,
     McpServerMetadata,
+    PackageManifestMetadata,
     PolicyGrantMetadata,
     SurfacedFileConflict,
     TargetAdapterMetadata,
@@ -73,6 +74,11 @@ export interface ResolvedCodexProjectConfig extends CodexProjectConfigMetadata {
 }
 
 export interface ResolvedTargetAdapter extends TargetAdapterMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedPackageManifest extends PackageManifestMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -290,6 +296,20 @@ export function resolveTargetAdapters(
     return layers.flatMap((layer) =>
         (layer.targetAdapters ?? []).map((adapter) => ({
             ...adapter,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolvePackageManifests(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedPackageManifest[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.packageManifests ?? []).map((manifest) => ({
+            ...manifest,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

@@ -37,6 +37,7 @@ import {
     renderGitHubCopilotAgentProfileMarkdown,
 } from './agentProfile';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
+import { loadPackageManifestsForLayer } from './packageManifest';
 import { renderCodexConfigProjection } from './codexConfigProjection';
 import {
     codexHookProjectionDestination,
@@ -332,6 +333,7 @@ function buildLayerContent(
     );
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
+    const packageManifests = loadPackageManifestsForLayer(layerAbsPath, knownPolicyGrantIds);
     const hasTargetNativeCodexConfig = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
     );
@@ -417,6 +419,7 @@ function buildLayerContent(
         agentProfiles,
         codexProjectConfigs,
         targetAdapters,
+        packageManifests,
     };
 }
 
@@ -798,12 +801,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const targetsDir = path.join(metaFlowDirPath, 'targets');
-        if (!fs.existsSync(targetsDir) || !fs.statSync(targetsDir).isDirectory()) {
+        if (fs.existsSync(targetsDir) && fs.statSync(targetsDir).isDirectory()) {
+            const targetEntries = fs.readdirSync(targetsDir, { withFileTypes: true });
+            const hasTargetAdapter = targetEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasTargetAdapter) {
+                return true;
+            }
+        }
+
+        const packagesDir = path.join(metaFlowDirPath, 'packages');
+        if (!fs.existsSync(packagesDir) || !fs.statSync(packagesDir).isDirectory()) {
             return false;
         }
 
-        const targetEntries = fs.readdirSync(targetsDir, { withFileTypes: true });
-        return targetEntries.some(
+        const packageEntries = fs.readdirSync(packagesDir, { withFileTypes: true });
+        return packageEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

@@ -9,6 +9,7 @@ import {
     HookMetadata,
     McpServerMetadata,
     MemoryScopeMetadata,
+    PackageManifestMetadata,
     PolicyGrantMetadata,
     ProjectionTarget,
     TargetCapabilityConcept,
@@ -27,6 +28,7 @@ export interface BuildAdapterReadinessReportsOptions {
     evaluationProfiles?: EvaluationProfileMetadata[];
     agentProfiles?: AgentProfileMetadata[];
     codexProjectConfigs?: CodexProjectConfigMetadata[];
+    packageManifests?: PackageManifestMetadata[];
 }
 
 function appliesToTarget(targets: string[] | undefined, target: ProjectionTarget): boolean {
@@ -106,6 +108,7 @@ export function buildAdapterReadinessReports(
     const evaluationProfiles = [...(options.evaluationProfiles ?? [])].sort(byId);
     const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
     const codexProjectConfigs = [...(options.codexProjectConfigs ?? [])].sort(byId);
+    const packageManifests = [...(options.packageManifests ?? [])].sort(byId);
 
     return targets.map((target) => {
         const rows = matrix.filter((entry) => entry.target === target);
@@ -127,6 +130,9 @@ export function buildAdapterReadinessReports(
         const targetCodexProjectConfigs = codexProjectConfigs.filter((config) =>
             appliesToTarget(config.targets, target),
         );
+        const targetPackageManifests = packageManifests.filter((manifest) =>
+            appliesToTarget(Object.keys(manifest.targets), target),
+        );
         const counts: AdapterReadinessMetadataCounts = {
             agentProfiles: targetAgentProfiles.length,
             codexProjectConfigs: targetCodexProjectConfigs.length,
@@ -136,6 +142,7 @@ export function buildAdapterReadinessReports(
             executionProfiles: targetExecutionProfiles.length,
             memoryScopes: targetMemoryScopes.length,
             evaluationProfiles: targetEvaluationProfiles.length,
+            packageManifests: targetPackageManifests.length,
         };
         const policyRow = rowByConcept(rows, 'policyGrants');
         const mcpRow = rowByConcept(rows, 'mcpServers');
@@ -145,6 +152,7 @@ export function buildAdapterReadinessReports(
         const evaluationRow = rowByConcept(rows, 'evaluationSupport');
         const agentRow = rowByConcept(rows, 'agents');
         const projectConfigRow = rowByConcept(rows, 'projectConfig');
+        const packageRow = rowByConcept(rows, 'packageManifests');
         const actionItems: AdapterReadinessAction[] = [];
         const warnings: string[] = [];
 
@@ -240,8 +248,20 @@ export function buildAdapterReadinessReports(
             );
         }
 
+        for (const manifest of targetPackageManifests) {
+            actionItems.push(
+                action(
+                    'packageManifests',
+                    manifest.id,
+                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.`,
+                    rowEvidence(packageRow),
+                ),
+            );
+        }
+
         addRowWarnings(warnings, agentRow, counts.agentProfiles);
         addRowWarnings(warnings, projectConfigRow, counts.codexProjectConfigs);
+        addRowWarnings(warnings, packageRow, counts.packageManifests);
         addRowWarnings(warnings, policyRow, counts.policyGrants);
         addRowWarnings(warnings, mcpRow, counts.mcpServers);
         addRowWarnings(warnings, hookRow, counts.hooks);

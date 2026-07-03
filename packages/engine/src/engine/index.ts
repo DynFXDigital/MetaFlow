@@ -152,6 +152,11 @@ export {
     targetAdapterConstants,
 } from './targetAdapter';
 export {
+    loadPackageManifestsForLayer,
+    parsePackageManifestContent,
+    packageManifestConstants,
+} from './packageManifest';
+export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
     repoManifestConstants,
@@ -191,6 +196,7 @@ export type {
     MemoryScopeMetadata,
     MemoryScopeStorage,
     MemoryScopeType,
+    PackageManifestMetadata,
     PolicyGrantApproval,
     PolicyGrantAuthorityCategory,
     PolicyGrantMetadata,

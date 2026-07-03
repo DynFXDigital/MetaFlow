@@ -23,6 +23,7 @@ import {
     resolveHooks,
     resolveMcpServers,
     resolveMemoryScopes,
+    resolvePackageManifests,
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
@@ -34,6 +35,7 @@ import {
     ResolvedExecutionProfile,
     ResolvedEvaluationProfile,
     ResolvedMemoryScope,
+    ResolvedPackageManifest,
     ResolvedTargetAdapter,
 } from './common';
 
@@ -192,6 +194,27 @@ function formatTargetAdapter(adapter: ResolvedTargetAdapter): string {
     return `${adapter.id || '<invalid>'} [${adapter.target}] ${enabled} mode=${adapter.materializationMode} validation=${adapter.validationStatus}${version}${grants}${evidence} @ ${formatFileProvenance(adapter.sourceLayer, adapter.sourceRepo)}`;
 }
 
+function formatPackageManifest(manifest: ResolvedPackageManifest): string {
+    const grants =
+        manifest.policyGrants.length > 0 ? ` grants=${manifest.policyGrants.join(',')}` : '';
+    const evidence =
+        manifest.validationEvidence.length > 0
+            ? ` evidence=${manifest.validationEvidence.join(',')}`
+            : '';
+    const targets = Object.entries(manifest.targets)
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([targetId, declaration]) => {
+            const enabled =
+                declaration.enabled === undefined
+                    ? ''
+                    : `:${declaration.enabled ? 'enabled' : 'disabled'}`;
+            const pluginName = declaration.pluginName ? `=${declaration.pluginName}` : '';
+            return `${targetId}${pluginName}${enabled}`;
+        });
+    const targetText = targets.length > 0 ? ` targets=${targets.join(',')}` : '';
+    return `${manifest.id || '<invalid>'} [${manifest.kind || '<missing kind>'}] ${manifest.name || '<missing name>'}${grants}${targetText}${evidence} @ ${formatFileProvenance(manifest.sourceLayer, manifest.sourceRepo)}`;
+}
+
 function formatAdapterReport(report: AdapterReadinessReport): string {
     const counts = Object.entries(report.managedMetadata)
         .filter(([, count]) => count > 0)
@@ -236,6 +259,7 @@ export function registerPreviewCommand(program: Command): void {
                 const agentProfiles = resolveAgentProfiles(config, workspaceRoot);
                 const codexProjectConfigs = resolveCodexProjectConfigs(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
+                const packageManifests = resolvePackageManifests(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -249,6 +273,7 @@ export function registerPreviewCommand(program: Command): void {
                     evaluationProfiles,
                     agentProfiles,
                     codexProjectConfigs,
+                    packageManifests,
                 });
                 const actionableAdapterReports = adapterReports.filter(
                     (report) => report.actionItems.length > 0 || report.warnings.length > 0,
@@ -276,6 +301,7 @@ export function registerPreviewCommand(program: Command): void {
                             agentProfiles: agentProfiles.length,
                             codexProjectConfigs: codexProjectConfigs.length,
                             targetAdapters: targetAdapters.length,
+                            packageManifests: packageManifests.length,
                             adapterReports: adapterReports.length,
                         },
                         effectiveFiles: files.map((f) => ({
@@ -309,6 +335,7 @@ export function registerPreviewCommand(program: Command): void {
                         agentProfiles,
                         codexProjectConfigs,
                         targetAdapters,
+                        packageManifests,
                         adapterReports,
                         settingsEntries,
                         sources: sourceSummary,
@@ -332,6 +359,7 @@ export function registerPreviewCommand(program: Command): void {
                     agentProfiles.length === 0 &&
                     codexProjectConfigs.length === 0 &&
                     targetAdapters.length === 0 &&
+                    packageManifests.length === 0 &&
                     actionableAdapterReports.length === 0
                 ) {
                     console.log('No files in overlay.');
@@ -545,6 +573,33 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    note: ${note}`);
                         }
                         for (const warning of adapter.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (packageManifests.length > 0) {
+                    console.log(`Package Manifests: ${packageManifests.length}`);
+                    for (const manifest of packageManifests) {
+                        console.log(`  - ${formatPackageManifest(manifest)}`);
+                        const componentEntries = [
+                            ['agents', manifest.agents],
+                            ['skills', manifest.skills],
+                            ['instructions', manifest.instructions],
+                            ['prompts', manifest.prompts],
+                            ['mcpServers', manifest.mcpServers],
+                            ['hooks', manifest.hooks],
+                        ].filter(([, values]) => (values as string[]).length > 0);
+                        if (componentEntries.length > 0) {
+                            const components = componentEntries
+                                .map(([kind, values]) => `${kind}=${(values as string[]).join(',')}`)
+                                .join('; ');
+                            console.log(`    components: ${components}`);
+                        }
+                        if (manifest.description) {
+                            console.log(`    description: ${manifest.description}`);
+                        }
+                        for (const warning of manifest.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }
