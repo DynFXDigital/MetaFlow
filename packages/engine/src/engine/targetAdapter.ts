@@ -66,6 +66,18 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'issuePrOperation',
     'evaluationSupport',
 ]);
+const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
+    'agents',
+    'projectConfig',
+    'mcpServers',
+    'tools',
+    'hooks',
+    'executionSurfaces',
+    'memoryScopes',
+    'localCloudHandoff',
+    'issuePrOperation',
+    'evaluationSupport',
+]);
 const CURRENT_ADAPTER_VERSION_BY_TARGET = new Map<ProjectionTarget, string>(
     getTargetCapabilityMatrix().map((entry) => [entry.target, entry.adapterVersion]),
 );
@@ -213,6 +225,20 @@ function parseConcepts(
         }
     }
     return result;
+}
+
+function managedAuthoritySensitiveConcepts(
+    materializationMode: TargetAdapterMaterializationMode,
+    concepts: Partial<Record<TargetCapabilityConcept, TargetAdapterMaterializationMode>>,
+): TargetCapabilityConcept[] {
+    const managedConcepts: TargetCapabilityConcept[] = [];
+    for (const concept of AUTHORITY_SENSITIVE_CONCEPTS) {
+        const conceptMode = concepts[concept] ?? materializationMode;
+        if (conceptMode === 'managed') {
+            managedConcepts.push(concept);
+        }
+    }
+    return managedConcepts.sort();
 }
 
 function emptyTargetAdapter(
@@ -418,6 +444,23 @@ export function parseTargetAdapterContent(
                 ),
             );
         }
+    }
+    const authoritySensitiveManagedConcepts = managedAuthoritySensitiveConcepts(
+        materializationMode ?? 'report-only',
+        concepts,
+    );
+    if (
+        enabled &&
+        requiredPolicyGrants.length === 0 &&
+        authoritySensitiveManagedConcepts.length > 0
+    ) {
+        warnings.push(
+            toWarning(
+                'TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED',
+                `Target adapter manages authority-sensitive concepts (${authoritySensitiveManagedConcepts.join(', ')}) but declares no requiredPolicyGrants for policy review.`,
+                manifestPath,
+            ),
+        );
     }
 
     const validationStatusText = parseNonEmptyString(fields.validationStatus);

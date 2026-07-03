@@ -2922,6 +2922,78 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('reports managed authority-sensitive target adapter concepts without policy grants', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    projectConfig: 'managed',
+                    mcpServers: 'managed',
+                    skills: 'managed',
+                },
+            }),
+            'codex.json',
+        );
+
+        const warning = adapter.warnings.find(
+            (entry) => entry.code === 'TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED',
+        );
+        assert.ok(warning, 'managed authority-sensitive concepts should recommend policy grants');
+        assert.ok(warning.message.includes('mcpServers'));
+        assert.ok(warning.message.includes('projectConfig'));
+        assert.ok(!warning.message.includes('skills'));
+    });
+
+    it('does not report policy grant recommendations for managed content-only target adapter concepts', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: {
+                    instructions: 'managed',
+                    prompts: 'managed',
+                    skills: 'managed',
+                },
+            }),
+            'codex.json',
+        );
+
+        assert.ok(
+            !adapter.warnings.some(
+                (entry) => entry.code === 'TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED',
+            ),
+        );
+    });
+
+    it('does not report policy grant recommendations for disabled managed target adapters', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: false,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'managed',
+            }),
+            'codex.json',
+        );
+
+        assert.ok(
+            !adapter.warnings.some(
+                (entry) => entry.code === 'TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED',
+            ),
+        );
+    });
+
     it('reports validation diagnostics for invalid canonical target adapters', () => {
         const adapter = parseTargetAdapterContent(
             JSON.stringify({

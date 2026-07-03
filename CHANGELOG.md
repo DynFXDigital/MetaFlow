@@ -19,6 +19,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Target-aware CLI lifecycle output for `status`, `validate`, `apply`, and `clean`, including target support summaries and target-labeled mutation rows.
 - Target adapter validation now warns when a capability declares multiple enabled adapters for the same target, preventing ambiguous Codex or Copilot projection policy.
 - Canonical `.metaflow/capability.json` target declarations can now include support posture, required policy grants, validation evidence, and review notes for Codex and other target adapters.
+- Target adapter validation now warns when managed authority-sensitive concepts lack adapter-level policy grant metadata for Codex, Copilot, or generic target review.
 
 ### Changed
 
