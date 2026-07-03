@@ -76,14 +76,28 @@ function summarizeTargetCapabilityMatrix(entries: TargetCapabilityMatrixEntry[])
 
 function buildTargetCapabilitySupportReference(
     entries: TargetCapabilityMatrixEntry[],
-): { runtimeOnlyCount: number; documentation: string } | undefined {
-    const runtimeOnlyCount = entries.filter((entry) => entry.support === 'runtime-only').length;
+): {
+    runtimeOnlyCount: number;
+    targets: Array<{ target: string; runtimeOnlyCount: number; documentation: string }>;
+} | undefined {
+    const runtimeOnlyRows = entries.filter((entry) => entry.support === 'runtime-only');
+    const runtimeOnlyCount = runtimeOnlyRows.length;
     if (runtimeOnlyCount === 0) {
         return undefined;
     }
+    const countsByTarget = new Map<string, number>();
+    for (const entry of runtimeOnlyRows) {
+        countsByTarget.set(entry.target, (countsByTarget.get(entry.target) ?? 0) + 1);
+    }
     return {
         runtimeOnlyCount,
-        documentation: 'docs/CODEX-SUPPORT.md',
+        targets: Array.from(countsByTarget.entries())
+            .sort((left, right) => left[0].localeCompare(right[0]))
+            .map(([target, count]) => ({
+                target,
+                runtimeOnlyCount: count,
+                documentation: target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
+            })),
     };
 }
 
@@ -706,8 +720,14 @@ export function registerPreviewCommand(program: Command): void {
                         console.log(`  - ${summary}`);
                     }
                     if (targetCapabilitySupportReference) {
+                        const references = targetCapabilitySupportReference.targets
+                            .map(
+                                (entry) =>
+                                    `${entry.target}=${entry.runtimeOnlyCount} see ${entry.documentation}`,
+                            )
+                            .join('; ');
                         console.log(
-                            `  Runtime-only support boundaries: ${targetCapabilitySupportReference.runtimeOnlyCount} rows require operator or harness evidence; see ${targetCapabilitySupportReference.documentation}.`,
+                            `  Runtime-only support boundaries: ${targetCapabilitySupportReference.runtimeOnlyCount} rows require operator or harness evidence; ${references}.`,
                         );
                     }
                 }

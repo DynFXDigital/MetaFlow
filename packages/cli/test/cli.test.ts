@@ -580,7 +580,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('policyGrants=partial'));
         assert.ok(
             textResult.stdout.includes(
-                'Runtime-only support boundaries: 4 rows require operator or harness evidence; see docs/CODEX-SUPPORT.md.',
+                'Runtime-only support boundaries: 4 rows require operator or harness evidence; codex=2 see docs/CODEX-SUPPORT.md; github-copilot=2 see README.md.',
             ),
         );
         assert.ok(textResult.stdout.includes('Policy Grants: 1'));
@@ -924,7 +924,18 @@ describe('CLI: preview', () => {
         );
         assert.deepStrictEqual(data.targetCapabilitySupportReference, {
             runtimeOnlyCount: 4,
-            documentation: 'docs/CODEX-SUPPORT.md',
+            targets: [
+                {
+                    target: 'codex',
+                    runtimeOnlyCount: 2,
+                    documentation: 'docs/CODEX-SUPPORT.md',
+                },
+                {
+                    target: 'github-copilot',
+                    runtimeOnlyCount: 2,
+                    documentation: 'README.md',
+                },
+            ],
         });
         const codexPromptSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
