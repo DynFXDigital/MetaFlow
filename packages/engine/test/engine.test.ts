@@ -215,6 +215,7 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'codex' && entry.concept === 'mcpServers',
         );
         assert.strictEqual(codexMcp?.support, 'partial');
+        assert.strictEqual(codexMcp?.documentation, 'docs/CODEX-SUPPORT.md');
         assert.ok(
             codexMcp?.nativeSurfaces.includes('.metaflow/mcp/*.json'),
             'Codex MCP row should name the canonical MCP metadata surface',
@@ -265,6 +266,7 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'codex' && entry.concept === 'issuePrOperation',
         );
         assert.strictEqual(codexIssuePr?.support, 'runtime-only');
+        assert.strictEqual(codexIssuePr?.documentation, 'docs/CODEX-SUPPORT.md');
         assert.ok(
             codexIssuePr?.nativeSurfaces.includes('Codex Slack integration'),
             'Codex issue/PR row should name channel runtime surfaces',
@@ -273,6 +275,10 @@ describe('Engine package: public API', () => {
             codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
             'Codex issue/PR row should document connector authorization requirements',
         );
+        const copilotIssuePr = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'issuePrOperation',
+        );
+        assert.strictEqual(copilotIssuePr?.documentation, 'README.md');
     });
 
     it('builds runtime-only target capability support references', () => {

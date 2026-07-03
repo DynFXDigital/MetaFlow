@@ -1982,6 +1982,7 @@ describe('CLI: target-support', () => {
         assert.strictEqual(data.entries[0].target, 'codex');
         assert.strictEqual(data.entries[0].concept, 'mcpServers');
         assert.strictEqual(data.entries[0].support, 'partial');
+        assert.strictEqual(data.entries[0].documentation, 'docs/CODEX-SUPPORT.md');
         assert.ok(data.entries[0].notes.some((note: string) => note.includes('Side-effecting MCP')));
     });
 

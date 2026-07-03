@@ -94,7 +94,7 @@ function supportBoundary(
     return {
         concept: row.concept,
         message: `${label} ${row.concept} is runtime-only; repository metadata projection cannot make it operational without operator or harness evidence.`,
-        documentation: row.target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
+        documentation: row.documentation,
         evidence: row.evidence,
     };
 }

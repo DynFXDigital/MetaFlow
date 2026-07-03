@@ -5,7 +5,7 @@ import {
     TargetCapabilitySupportStatus,
 } from './types';
 
-type MatrixSeed = Omit<TargetCapabilityMatrixEntry, 'adapterVersion' | 'target'>;
+type MatrixSeed = Omit<TargetCapabilityMatrixEntry, 'adapterVersion' | 'documentation' | 'target'>;
 
 const CODEX_ADAPTER_VERSION = 'codex-v0.1';
 const GITHUB_COPILOT_ADAPTER_VERSION = 'github-copilot-v0.1';
@@ -368,10 +368,18 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     ),
 ];
 
-const MATRIX_BY_TARGET: Record<string, { adapterVersion: string; rows: MatrixSeed[] }> = {
-    codex: { adapterVersion: CODEX_ADAPTER_VERSION, rows: CODEX_MATRIX },
+const MATRIX_BY_TARGET: Record<
+    string,
+    { adapterVersion: string; documentation: string; rows: MatrixSeed[] }
+> = {
+    codex: {
+        adapterVersion: CODEX_ADAPTER_VERSION,
+        documentation: 'docs/CODEX-SUPPORT.md',
+        rows: CODEX_MATRIX,
+    },
     'github-copilot': {
         adapterVersion: GITHUB_COPILOT_ADAPTER_VERSION,
+        documentation: 'README.md',
         rows: GITHUB_COPILOT_MATRIX,
     },
 };
@@ -390,6 +398,7 @@ export function getTargetCapabilityMatrix(
             ...matrix.rows.map((entry) => ({
                 target,
                 adapterVersion: matrix.adapterVersion,
+                documentation: matrix.documentation,
                 ...entry,
             })),
         );
@@ -405,21 +414,25 @@ export function buildTargetCapabilitySupportReference(
         return undefined;
     }
 
-    const countsByTarget = new Map<string, number>();
+    const referencesByTarget = new Map<string, { count: number; documentation: string }>();
     for (const entry of runtimeOnlyRows) {
-        countsByTarget.set(entry.target, (countsByTarget.get(entry.target) ?? 0) + 1);
+        const existing = referencesByTarget.get(entry.target);
+        referencesByTarget.set(entry.target, {
+            count: (existing?.count ?? 0) + 1,
+            documentation: existing?.documentation ?? entry.documentation,
+        });
     }
 
     return {
         runtimeOnlyCount: runtimeOnlyRows.length,
-        targets: Array.from(countsByTarget.entries())
+        targets: Array.from(referencesByTarget.entries())
             .sort((left, right) =>
                 left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
             )
-            .map(([target, count]) => ({
+            .map(([target, reference]) => ({
                 target,
-                runtimeOnlyCount: count,
-                documentation: target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
+                runtimeOnlyCount: reference.count,
+                documentation: reference.documentation,
             })),
     };
 }

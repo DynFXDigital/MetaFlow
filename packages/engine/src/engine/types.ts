@@ -800,6 +800,8 @@ export interface TargetCapabilityMatrixEntry {
     support: TargetCapabilitySupportStatus;
     /** Harness-native paths or surfaces associated with this concept. */
     nativeSurfaces: string[];
+    /** Operator documentation path for interpreting this target support row. */
+    documentation: string;
     /** Support, lossiness, or validation notes. */
     notes: string[];
     /** Authority, sandbox, or policy implications reported during preview. */
