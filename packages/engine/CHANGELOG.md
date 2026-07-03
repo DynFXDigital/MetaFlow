@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## Unreleased
+
+### Patch Changes
+
+- Warn when a capability declares multiple enabled target adapters for the same target, keeping Codex and Copilot projection policy unambiguous.
+
 ## 0.3.2
 
 ### Patch Changes

@@ -504,7 +504,7 @@ export function loadTargetAdaptersForLayer(
         return [];
     }
 
-    return fs
+    const adapters = fs
         .readdirSync(targetsDir, { withFileTypes: true })
         .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
         .map((entry) => {
@@ -532,6 +532,9 @@ export function loadTargetAdaptersForLayer(
                 sensitivity: 'base',
             });
         });
+
+    warnOnDuplicateEnabledTargetAdapters(adapters);
+    return adapters;
 }
 
 export const targetAdapterConstants = {
@@ -539,3 +542,31 @@ export const targetAdapterConstants = {
     TARGETS_DIR_NAME,
     TARGET_ADAPTER_SCHEMA_VERSION,
 };
+
+function warnOnDuplicateEnabledTargetAdapters(adapters: TargetAdapterMetadata[]): void {
+    const enabledByTarget = new Map<ProjectionTarget, TargetAdapterMetadata[]>();
+    for (const adapter of adapters) {
+        if (!adapter.enabled) {
+            continue;
+        }
+        const group = enabledByTarget.get(adapter.target) ?? [];
+        group.push(adapter);
+        enabledByTarget.set(adapter.target, group);
+    }
+
+    for (const [target, group] of enabledByTarget.entries()) {
+        if (group.length <= 1) {
+            continue;
+        }
+        const adapterIds = group.map((adapter) => adapter.id || adapter.manifestPath).join(', ');
+        for (const adapter of group) {
+            adapter.warnings.push(
+                toWarning(
+                    'TARGET_ADAPTER_TARGET_DUPLICATE',
+                    `Target adapter target "${target}" has multiple enabled declarations: ${adapterIds}. Projection selection uses deterministic adapter ordering, but target policy should be expressed by one enabled adapter per target.`,
+                    adapter.manifestPath,
+                ),
+            );
+        }
+    }
+}

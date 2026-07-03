@@ -2763,6 +2763,53 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(adapter?.warnings.length, 0);
     });
 
+    it('warns when multiple enabled target adapters declare the same target', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const targetsDir = path.join(repoDir, 'core', '.metaflow', 'targets');
+        fs.mkdirSync(targetsDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(targetsDir, 'codex-a.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-a',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(targetsDir, 'codex-b.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-b',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'managed',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const adapters = layers[0].targetAdapters ?? [];
+        assert.strictEqual(adapters.length, 2);
+        assert.ok(
+            adapters.every((adapter) =>
+                adapter.warnings.some(
+                    (warning) => warning.code === 'TARGET_ADAPTER_TARGET_DUPLICATE',
+                ),
+            ),
+            'each enabled duplicate target adapter should report the ambiguity',
+        );
+    });
+
     it('applies target adapter preferences to projection metadata', () => {
         const adapter = parseTargetAdapterContent(
             JSON.stringify({
