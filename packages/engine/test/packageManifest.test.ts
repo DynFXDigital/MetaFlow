@@ -51,6 +51,17 @@ describe('packageManifest parser', () => {
                         status: 'passed',
                         command: 'codex plugin list',
                         evidence: ['RUN-056'],
+                        evidenceArtifacts: [
+                            {
+                                kind: 'report',
+                                ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                                description: 'Runtime validation report.',
+                            },
+                            {
+                                kind: 'log',
+                                ref: 'artifacts/codex-plugin-list.json',
+                            },
+                        ],
                         limitations: ['Cloud task installation is not represented by static files.'],
                     },
                 ],
@@ -107,6 +118,17 @@ describe('packageManifest parser', () => {
                 status: 'passed',
                 command: 'codex plugin list',
                 evidence: ['RUN-056'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'report',
+                        ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                        description: 'Runtime validation report.',
+                    },
+                    {
+                        kind: 'log',
+                        ref: 'artifacts/codex-plugin-list.json',
+                    },
+                ],
                 limitations: ['Cloud task installation is not represented by static files.'],
             },
         ]);
@@ -151,6 +173,20 @@ describe('packageManifest parser', () => {
                         adapterVersion: 'codex-v0.1',
                         scenario: 'Smoke.',
                         status: 'partial',
+                        evidenceArtifacts: 'RUN-056',
+                    },
+                    {
+                        target: 'codex',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Smoke.',
+                        status: 'partial',
+                        evidenceArtifacts: [
+                            'bad',
+                            { kind: 'unsupported', ref: 'RUN-056' },
+                            { kind: 'report', ref: '' },
+                            { kind: 'report', ref: 'RUN-056', description: '' },
+                        ],
                     },
                 ],
                 description: '',
@@ -175,6 +211,7 @@ describe('packageManifest parser', () => {
         assert.ok(codes.includes('PACKAGE_VALIDATION_EVIDENCE_INVALID'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_INVALID'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_CONCEPT_INVALID'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_INVALID'));
         assert.ok(codes.includes('PACKAGE_DESCRIPTION_INVALID'));
         assert.ok(codes.includes('PACKAGE_UNKNOWN_FIELD'));
     });
@@ -340,6 +377,12 @@ describe('packageManifest parser', () => {
                                 scenario: 'Generated package appears in local marketplace.',
                                 status: 'passed',
                                 evidence: ['RUN-056'],
+                                evidenceArtifacts: [
+                                    {
+                                        kind: 'report',
+                                        ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                                    },
+                                ],
                             },
                         ],
                     }),
@@ -410,6 +453,12 @@ describe('packageManifest parser', () => {
                     scenario: 'Generated package appears in local marketplace.',
                     status: 'passed',
                     evidence: ['RUN-056'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'report',
+                            ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                        },
+                    ],
                     limitations: [],
                 },
             ]);

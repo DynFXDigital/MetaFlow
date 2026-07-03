@@ -77,6 +77,17 @@ Package metadata lives in `.metaflow/packages/<package-id>.json`.
       "command": "codex plugin list",
       "concepts": ["packageManifests", "sideEffectMcpRuntime"],
       "evidence": ["RUN-056"],
+      "evidenceArtifacts": [
+        {
+          "kind": "report",
+          "ref": "doc/ftr/2026-07-03-run-056-package-runtime-ftr.md",
+          "description": "Runtime validation report."
+        },
+        {
+          "kind": "log",
+          "ref": "artifacts/codex-plugin-list.json"
+        }
+      ],
       "limitations": ["Cloud task installation is not represented by static files."]
     }
   ]
@@ -156,11 +167,16 @@ Each record includes:
 | `command` | Optional command or procedure used for validation. |
 | `concepts` | Target capability matrix concepts validated or bounded by the run. |
 | `evidence` | Run IDs, file paths, or external evidence references. |
+| `evidenceArtifacts` | Structured evidence artifacts with `kind`, `ref`, and optional `description`. Supported kinds are `log`, `report`, `screenshot`, `trace`, `recording`, `artifact`, `url`, `run`, and `other`. |
 | `limitations` | Known gaps that remain after validation. |
 
 Positive support claims need evidence. Records with `passed` or `partial`
 status warn when evidence is missing. Every record also needs either `command`
 or `evidence` so the claim is reproducible during package review.
+
+Use `evidence` for compact references and `evidenceArtifacts` when package
+reviewers need artifact type and description preserved through preview,
+adapter readiness, and marketplace reports.
 
 Concept links connect package evidence to target support concepts such as
 `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and

@@ -747,12 +747,19 @@ export function registerPreviewCommand(program: Command): void {
                                 record.evidence.length > 0
                                     ? ` evidence=${record.evidence.join(',')}`
                                     : '';
+                            const evidenceArtifacts = record.evidenceArtifacts ?? [];
+                            const artifacts =
+                                evidenceArtifacts.length > 0
+                                    ? ` artifacts=${evidenceArtifacts
+                                          .map((artifact) => `${artifact.kind}:${artifact.ref}`)
+                                          .join(',')}`
+                                    : '';
                             const limitations =
                                 record.limitations.length > 0
                                     ? ` limitations=${record.limitations.join('; ')}`
                                     : '';
                             console.log(
-                                `    runtimeValidation: ${record.target}/${record.harness} ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${concepts}${command}${evidence}${limitations}`,
+                                `    runtimeValidation: ${record.target}/${record.harness} ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${concepts}${command}${evidence}${artifacts}${limitations}`,
                             );
                         }
                         for (const warning of manifest.warnings) {

@@ -329,7 +329,14 @@ export function buildAdapterReadinessReports(
                                       record.concepts && record.concepts.length > 0
                                           ? ` concepts=${record.concepts.join(',')}`
                                           : '';
-                                  return `${record.harness}/${record.adapterVersion} ${record.status}${concepts} "${record.scenario}"`;
+                                  const evidenceArtifacts = record.evidenceArtifacts ?? [];
+                                  const artifacts =
+                                      evidenceArtifacts.length > 0
+                                          ? ` artifacts=${evidenceArtifacts
+                                                .map((artifact) => `${artifact.kind}:${artifact.ref}`)
+                                                .join(',')}`
+                                          : '';
+                                  return `${record.harness}/${record.adapterVersion} ${record.status}${concepts}${artifacts} "${record.scenario}"`;
                               },
                           )
                           .join('; ')}.`
@@ -347,6 +354,9 @@ export function buildAdapterReadinessReports(
                 ...rowEvidence(packageRow),
                 ...manifest.validationEvidence,
                 ...runtimeValidation.flatMap((record) => record.evidence),
+                ...runtimeValidation.flatMap((record) =>
+                    (record.evidenceArtifacts ?? []).map((artifact) => artifact.ref),
+                ),
             ]);
             actionItems.push(
                 action(

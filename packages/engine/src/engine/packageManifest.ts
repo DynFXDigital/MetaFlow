@@ -12,6 +12,7 @@ import {
     CapabilityWarning,
     PackageMarketplaceEntryMetadata,
     PackageManifestMetadata,
+    PackageRuntimeEvidenceArtifactMetadata,
     PackageRuntimeValidationMetadata,
     TargetCapabilityConcept,
 } from './types';
@@ -20,6 +21,17 @@ const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
 const PACKAGES_DIR_NAME = 'packages';
 const PACKAGE_SCHEMA_VERSION = 'metaflow.package/v1';
 const PACKAGE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+const RUNTIME_EVIDENCE_ARTIFACT_KINDS = new Set([
+    'log',
+    'report',
+    'screenshot',
+    'trace',
+    'recording',
+    'artifact',
+    'url',
+    'run',
+    'other',
+]);
 const KNOWN_FIELDS = new Set([
     'schemaVersion',
     'id',
@@ -355,6 +367,11 @@ function parseRuntimeValidation(
                 manifestPath,
                 warnings,
             ),
+            evidenceArtifacts: parseRuntimeEvidenceArtifacts(
+                entry.evidenceArtifacts,
+                manifestPath,
+                warnings,
+            ),
             limitations: parseStringArray(
                 entry.limitations,
                 'runtimeValidation.limitations',
@@ -365,6 +382,75 @@ function parseRuntimeValidation(
         });
     }
     return records;
+}
+
+function parseRuntimeEvidenceArtifacts(
+    value: unknown,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): PackageRuntimeEvidenceArtifactMetadata[] {
+    if (value === undefined) {
+        return [];
+    }
+    if (!Array.isArray(value)) {
+        warnings.push(
+            toWarning(
+                'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_INVALID',
+                'Package runtimeValidation evidenceArtifacts must be an array of artifact objects when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+        return [];
+    }
+
+    const artifacts: PackageRuntimeEvidenceArtifactMetadata[] = [];
+    for (const artifact of value) {
+        if (!isObjectRecord(artifact)) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_INVALID',
+                    'Package runtimeValidation evidenceArtifacts entries must be objects.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const kind = parseNonEmptyString(artifact.kind);
+        const ref = parseNonEmptyString(artifact.ref);
+        const description = parseNonEmptyString(artifact.description);
+        if (!kind || !RUNTIME_EVIDENCE_ARTIFACT_KINDS.has(kind) || !ref) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_INVALID',
+                    'Package runtimeValidation evidenceArtifacts entries require a supported kind and non-empty ref.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+        if (artifact.description !== undefined && !description) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_INVALID',
+                    'Package runtimeValidation evidenceArtifacts description must be a non-empty string when present.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        artifacts.push({
+            kind,
+            ref,
+            ...(description ? { description } : {}),
+        });
+    }
+    return artifacts;
 }
 
 function parseMarketplaceEntries(

@@ -114,6 +114,12 @@ function createPackageMarketplaceWorkspace(): TestWorkspace {
                                 scenario: 'Generated package appears in local marketplace.',
                                 status: 'passed',
                                 evidence: ['RUN-056'],
+                                evidenceArtifacts: [
+                                    {
+                                        kind: 'report',
+                                        ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                                    },
+                                ],
                                 limitations: ['Cloud package installation is runtime-only.'],
                             },
                             {
@@ -1493,6 +1499,12 @@ describe('CLI: preview', () => {
                                     status: 'passed',
                                     command: 'codex plugin list',
                                     evidence: ['RUN-056'],
+                                    evidenceArtifacts: [
+                                        {
+                                            kind: 'report',
+                                            ref: 'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+                                        },
+                                    ],
                                     limitations: ['Cloud package installation is runtime-only.'],
                                 },
                                 {
@@ -1526,6 +1538,11 @@ describe('CLI: preview', () => {
             textResult.stdout.includes('concepts=packageManifests,sideEffectMcpRuntime'),
         );
         assert.ok(textResult.stdout.includes('evidence=RUN-056'));
+        assert.ok(
+            textResult.stdout.includes(
+                'artifacts=report:doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+            ),
+        );
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
@@ -1545,6 +1562,10 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].target, 'codex');
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].evidence[0], 'RUN-056');
+        assert.strictEqual(
+            data.packageManifests[0].runtimeValidation[0].evidenceArtifacts[0].ref,
+            'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+        );
         const packageWarningCodes = data.packageManifests[0].warnings.map(
             (warning: { code: string }) => warning.code,
         );
@@ -2132,6 +2153,10 @@ describe('CLI: export-package-marketplace', () => {
         assert.strictEqual(data.entries[0].target, 'codex');
         assert.strictEqual(data.entries[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.entries[0].runtimeValidation[0].evidence[0], 'RUN-056');
+        assert.strictEqual(
+            data.entries[0].runtimeValidation[0].evidenceArtifacts[0].ref,
+            'doc/ftr/2026-07-03-run-056-package-runtime-ftr.md',
+        );
         const warningText = data.warnings.join('\n');
         assert.ok(
             warningText.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),

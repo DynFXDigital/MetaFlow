@@ -750,6 +750,16 @@ export interface PackageMarketplaceEntryMetadata {
     url?: string;
 }
 
+/** Structured evidence artifact attached to a package runtime validation record. */
+export interface PackageRuntimeEvidenceArtifactMetadata {
+    /** Artifact family, such as log, report, screenshot, trace, recording, artifact, url, run, or other. */
+    kind: string;
+    /** Artifact reference, such as a path, URL, run identifier, or external evidence ID. */
+    ref: string;
+    /** Optional user-facing artifact description. */
+    description?: string;
+}
+
 /** Structured runtime validation evidence for a package target claim. */
 export interface PackageRuntimeValidationMetadata {
     /** Target harness family validated by this record. */
@@ -768,6 +778,8 @@ export interface PackageRuntimeValidationMetadata {
     command?: string;
     /** Evidence identifiers, paths, or external references. */
     evidence: string[];
+    /** Optional structured evidence artifacts associated with this validation record. */
+    evidenceArtifacts?: PackageRuntimeEvidenceArtifactMetadata[];
     /** Known limitations observed during validation. */
     limitations: string[];
 }
