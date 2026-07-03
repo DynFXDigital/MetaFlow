@@ -183,6 +183,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-075'],
     ),
     row(
+        'enterprisePolicyRuntime',
+        'runtime-only',
+        [
+            'Codex managed configuration',
+            'cloud-managed requirements.toml policies',
+            'Codex admin group assignment',
+            'macOS managed preferences',
+            'system requirements.toml',
+            'feature and marketplace policy pins',
+        ],
+        [
+            'Codex enterprise policy is admin-managed runtime state across cloud-managed requirements, device-managed preferences, system requirements files, group assignment, and local managed-configuration precedence.',
+            'Repository metadata can describe required governance posture, policy grants, and validation evidence, but it cannot assign Codex Admin roles, assign managed policies to user groups, fetch signed managed requirements, write device-level policy, choose the effective policy layer, enforce feature pins, constrain plugin marketplace sources, or prove policy behavior.',
+            'Managed configuration can constrain approval policies, approval reviewers, automatic review policy, sandbox modes, permission profiles, web search behavior, MCP server allowlists, plugin marketplace sources, command rules, feature flags, Browser Use, Computer Use, Appshots, and remote-control behavior.',
+        ],
+        [
+            'Enterprise policy can restrict or permit shell, browser, network, MCP, plugin, marketplace, review, remote-control, and desktop automation authority and requires administrator ownership, auditability, and fleet-version controls.',
+        ],
+        ['RUN-079'],
+    ),
+    row(
         'projectConfig',
         'partial',
         ['.codex/config.toml', '.metaflow/project-config/*.json'],
@@ -689,6 +710,26 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-075'],
     ),
     row(
+        'enterprisePolicyRuntime',
+        'runtime-only',
+        [
+            'GitHub Copilot organization policy',
+            'Agent HQ governance',
+            'Copilot enterprise settings',
+            'GitHub App installation policy',
+            'repository and organization rulesets',
+        ],
+        [
+            'GitHub Copilot and Agent HQ enterprise policy is host runtime state across organization settings, enterprise policy, GitHub App installation scope, rulesets, connector policy, marketplace governance, and hosted-agent routing.',
+            'Repository metadata can describe required governance posture, policy grants, and validation evidence, but it cannot assign organization roles, change enterprise policy, install or approve GitHub Apps, alter branch protection or rulesets, route Agent HQ authority, constrain hosted marketplace access, or prove policy behavior.',
+            'Policy behavior depends on the active GitHub identity, enterprise and organization configuration, repository permissions, branch protection, rulesets, connector approvals, hosted-agent settings, audit policy, and marketplace governance.',
+        ],
+        [
+            'Enterprise policy can restrict or permit repository mutation, issue and pull request operations, hosted agent routing, connector side effects, marketplace access, MCP tool authority, secrets access, and audit obligations.',
+        ],
+        ['RUN-079'],
+    ),
+    row(
         'projectConfig',
         'unsupported',
         [],
@@ -1100,6 +1141,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating or updating scheduled automations, keeping the Codex app or host runtime available, selecting automation worktrees, managing automation inbox or archive state, or proving scheduled background execution from repository metadata alone.',
         'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
         'Granting runtime permissions, approving boundary-crossing actions, selecting effective managed requirements, running auto-review decisions, enforcing OS sandboxing, or proving permission behavior from repository metadata alone.',
+        'Assigning enterprise roles, applying cloud-managed requirements, writing device-level policy, selecting effective governance layers, changing organization policy, approving marketplace sources, enforcing feature pins, or proving enterprise policy behavior from repository metadata alone.',
         'Opening Codex review panes, running /review, enabling GitHub code review settings, triggering @codex review, posting pull request reviews, reading pull request feedback, or proving review-feedback handling from repository metadata alone.',
         'Pairing remote devices, keeping hosts awake or online, configuring SSH hosts, installing or authenticating remote Codex, exposing host tools or plugins, approving remote actions, or proving remote task behavior from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
@@ -1121,6 +1163,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Automation runtime: automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token/cost posture, and known limitations.',
         'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
         'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
+        'Enterprise policy runtime: effective managed configuration or organization policy source, assigned role or group, policy precedence layer, managed requirements or host policy identifier, constrained approval and sandbox posture, web search and network posture, MCP allowlist, plugin marketplace policy, feature pins, command-rule restrictions, audit posture, fleet-version compatibility, representative policy enforcement result, and known limitations.',
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
         'Chronicle runtime: Codex app and macOS host identity, ChatGPT plan eligibility, Memories setting state, Chronicle opt-in and consent state, Screen Recording and Accessibility permission posture, pause or resume state, temporary screen-capture storage posture, Chronicle memory artifact review, representative recall behavior, prompt-injection risk controls, and known limitations.',

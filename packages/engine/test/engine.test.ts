@@ -183,6 +183,7 @@ describe('Engine package: public API', () => {
             'automationRuntime',
             'authenticationRuntime',
             'permissionRuntime',
+            'enterprisePolicyRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -316,6 +317,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexPermissionRuntime?.evidence.includes('RUN-075'),
             'Codex permission runtime row should point to runtime-boundary evidence',
+        );
+        const codexEnterprisePolicyRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'enterprisePolicyRuntime',
+        );
+        assert.strictEqual(codexEnterprisePolicyRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexEnterprisePolicyRuntime?.nativeSurfaces.includes('Codex managed configuration'),
+            'Codex enterprise policy runtime row should name managed configuration',
+        );
+        assert.ok(
+            codexEnterprisePolicyRuntime?.notes.some((note) =>
+                note.includes('cannot assign Codex Admin roles'),
+            ),
+            'Codex enterprise policy runtime row should document admin assignment boundary',
+        );
+        assert.ok(
+            codexEnterprisePolicyRuntime?.evidence.includes('RUN-079'),
+            'Codex enterprise policy runtime row should point to runtime-boundary evidence',
         );
         const codexReviewRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'reviewRuntime',
@@ -795,6 +814,26 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot permission runtime row should document host permission boundary',
         );
+        const copilotEnterprisePolicyRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' &&
+                entry.concept === 'enterprisePolicyRuntime',
+        );
+        assert.strictEqual(copilotEnterprisePolicyRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotEnterprisePolicyRuntime?.nativeSurfaces.includes('Agent HQ governance'),
+            'GitHub Copilot enterprise policy runtime row should name Agent HQ governance',
+        );
+        assert.ok(
+            copilotEnterprisePolicyRuntime?.notes.some((note) =>
+                note.includes('cannot assign organization roles'),
+            ),
+            'GitHub Copilot enterprise policy runtime row should document organization policy boundary',
+        );
+        assert.ok(
+            copilotEnterprisePolicyRuntime?.evidence.includes('RUN-079'),
+            'GitHub Copilot enterprise policy runtime row should point to runtime-boundary evidence',
+        );
         const copilotReviewRuntime = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'reviewRuntime',
         );
@@ -834,16 +873,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 36,
+            runtimeOnlyCount: 38,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 21,
+                    runtimeOnlyCount: 22,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 15,
+                    runtimeOnlyCount: 16,
                     documentation: 'README.md',
                 },
             ],

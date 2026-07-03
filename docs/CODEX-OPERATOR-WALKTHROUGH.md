@@ -50,7 +50,7 @@ Review these sections in the preview output:
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
-  remote connection runtime, Chronicle runtime, app connector runtime,
+  enterprise policy runtime, remote connection runtime, Chronicle runtime, app connector runtime,
   local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
@@ -173,6 +173,14 @@ posture, policy grants, command rules, and evidence requirements, but sandbox
 mode, approval policy, permission profiles, managed requirements, auto-review
 decisions, protected path enforcement, network controls, and side-effecting app
 or MCP approvals require Codex runtime evidence.
+
+Enterprise policy is administrator-owned runtime state. MetaFlow can record
+the required governance posture, policy grants, and evidence requirements, but
+Codex Admin role assignment, cloud-managed `requirements.toml` policy
+assignment, group membership, device-level policy, system requirements files,
+effective policy precedence, feature pins, plugin marketplace source controls,
+MCP allowlists, command-rule constraints, fleet-version compatibility, and
+audit posture require Codex or host-administration evidence.
 
 Review workflows are runtime-enforced too. MetaFlow can record review guidance
 and evidence expectations, but Codex app review panes, `/review`, inline

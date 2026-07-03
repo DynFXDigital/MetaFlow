@@ -77,6 +77,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'automationRuntime',
     'authenticationRuntime',
     'permissionRuntime',
+    'enterprisePolicyRuntime',
     'policyGrants',
     'executionSurfaces',
     'memoryScopes',
