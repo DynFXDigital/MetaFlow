@@ -732,6 +732,8 @@ export interface PackageMarketplaceEntryMetadata {
 export interface PackageRuntimeValidationMetadata {
     /** Target harness family validated by this record. */
     target: string;
+    /** Target capability matrix concepts validated or bounded by this record. */
+    concepts?: TargetCapabilityConcept[];
     /** Human-readable harness or surface tested, such as Codex CLI. */
     harness: string;
     /** Adapter version or contract used during validation. */

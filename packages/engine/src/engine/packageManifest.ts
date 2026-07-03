@@ -13,6 +13,7 @@ import {
     PackageMarketplaceEntryMetadata,
     PackageManifestMetadata,
     PackageRuntimeValidationMetadata,
+    TargetCapabilityConcept,
 } from './types';
 
 const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
@@ -60,6 +61,26 @@ type PackageFields = {
 };
 
 const RUNTIME_VALIDATION_STATUSES = new Set(['passed', 'partial', 'failed', 'not-run']);
+const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
+    'instructions',
+    'prompts',
+    'skills',
+    'agents',
+    'projectConfig',
+    'mcpServers',
+    'tools',
+    'hooks',
+    'packageManifests',
+    'policyGrants',
+    'executionSurfaces',
+    'memoryScopes',
+    'localCloudHandoff',
+    'issuePrOperation',
+    'remoteMcpRuntime',
+    'oauthMcpRuntime',
+    'sideEffectMcpRuntime',
+    'evaluationSupport',
+]);
 
 export interface PackageReferenceIndex {
     agents?: Set<string>;
@@ -267,9 +288,30 @@ function parseRuntimeValidation(
                 ),
             );
         }
+        const concepts = parseStringArray(
+            entry.concepts,
+            'runtimeValidation.concepts',
+            'PACKAGE_RUNTIME_VALIDATION_CONCEPT_INVALID',
+            manifestPath,
+            warnings,
+        ).filter((concept): concept is TargetCapabilityConcept => {
+            if (TARGET_CAPABILITY_CONCEPTS.has(concept as TargetCapabilityConcept)) {
+                return true;
+            }
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_CONCEPT_UNKNOWN',
+                    `Package runtimeValidation concept "${concept}" is not a known target capability concept.`,
+                    manifestPath,
+                    'error',
+                ),
+            );
+            return false;
+        });
 
         records.push({
             target,
+            ...(concepts.length > 0 ? { concepts } : {}),
             harness,
             adapterVersion,
             scenario,

@@ -237,8 +237,8 @@ This handoff is not a Codex MCP projection. Codex MCP configuration remains in
 
 Use `.metaflow/packages/*.json` `runtimeValidation` records for claims that
 depend on a harness run. Each record identifies the target, harness, adapter
-version, scenario, status, validation command, evidence references, and known
-limitations.
+version, scenario, status, validation command, target capability concepts,
+evidence references, and known limitations.
 
 Records with `passed` or `partial` status need evidence references. A package
 can keep draft or planned validation as `not-run`, but a positive support
@@ -250,6 +250,11 @@ Runtime validation adapter versions must match the target capability matrix. Whe
 MetaFlow increments a target adapter version, older evidence remains historical
 but no longer proves current adapter readiness until it is rerun or explicitly
 accepted as a known limitation.
+
+Runtime validation concept links identify the target-support rows proven or
+bounded by the evidence. Use them to review package claims against concepts such
+as `packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
+`sideEffectMcpRuntime`.
 
 Runtime validation is required for:
 

@@ -724,6 +724,10 @@ export function registerPreviewCommand(program: Command): void {
                         }
                         for (const record of manifest.runtimeValidation) {
                             const command = record.command ? ` command=${record.command}` : '';
+                            const concepts =
+                                record.concepts && record.concepts.length > 0
+                                    ? ` concepts=${record.concepts.join(',')}`
+                                    : '';
                             const evidence =
                                 record.evidence.length > 0
                                     ? ` evidence=${record.evidence.join(',')}`
@@ -733,7 +737,7 @@ export function registerPreviewCommand(program: Command): void {
                                     ? ` limitations=${record.limitations.join('; ')}`
                                     : '';
                             console.log(
-                                `    runtimeValidation: ${record.target}/${record.harness} ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${command}${evidence}${limitations}`,
+                                `    runtimeValidation: ${record.target}/${record.harness} ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${concepts}${command}${evidence}${limitations}`,
                             );
                         }
                         for (const warning of manifest.warnings) {

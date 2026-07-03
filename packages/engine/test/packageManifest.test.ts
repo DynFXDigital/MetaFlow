@@ -44,6 +44,7 @@ describe('packageManifest parser', () => {
                 runtimeValidation: [
                     {
                         target: 'codex',
+                        concepts: ['packageManifests', 'sideEffectMcpRuntime'],
                         harness: 'Codex CLI',
                         adapterVersion: 'codex-v0.1',
                         scenario: 'Generated package appears in local Codex plugin marketplace.',
@@ -99,6 +100,7 @@ describe('packageManifest parser', () => {
         assert.deepStrictEqual(parsed.runtimeValidation, [
             {
                 target: 'codex',
+                concepts: ['packageManifests', 'sideEffectMcpRuntime'],
                 harness: 'Codex CLI',
                 adapterVersion: 'codex-v0.1',
                 scenario: 'Generated package appears in local Codex plugin marketplace.',
@@ -136,10 +138,19 @@ describe('packageManifest parser', () => {
                     'bad',
                     {
                         target: '',
+                        concepts: 'packageManifests',
                         harness: 'Codex CLI',
                         adapterVersion: 'codex-v0.1',
                         scenario: 'Smoke.',
                         status: 'unknown',
+                    },
+                    {
+                        target: 'codex',
+                        concepts: 'packageManifests',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Smoke.',
+                        status: 'partial',
                     },
                 ],
                 description: '',
@@ -163,8 +174,38 @@ describe('packageManifest parser', () => {
         assert.ok(codes.includes('PACKAGE_POLICY_GRANT_UNKNOWN'));
         assert.ok(codes.includes('PACKAGE_VALIDATION_EVIDENCE_INVALID'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_INVALID'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_CONCEPT_INVALID'));
         assert.ok(codes.includes('PACKAGE_DESCRIPTION_INVALID'));
         assert.ok(codes.includes('PACKAGE_UNKNOWN_FIELD'));
+    });
+
+    it('warns on unknown runtime validation concepts', () => {
+        const parsed = parsePackageManifestContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                runtimeValidation: [
+                    {
+                        target: 'codex',
+                        concepts: ['packageManifests', 'unknownConcept'],
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Generated package appears in local marketplace.',
+                        status: 'partial',
+                    },
+                ],
+            }),
+            '/tmp/.metaflow/packages/release-operations.json',
+        );
+
+        assert.deepStrictEqual(parsed.runtimeValidation[0].concepts, ['packageManifests']);
+        assert.ok(
+            parsed.warnings.some(
+                (warning) => warning.code === 'PACKAGE_RUNTIME_VALIDATION_CONCEPT_UNKNOWN',
+            ),
+        );
     });
 
     it('warns on unknown canonical package component references', () => {
@@ -293,6 +334,7 @@ describe('packageManifest parser', () => {
                         runtimeValidation: [
                             {
                                 target: 'codex',
+                                concepts: ['packageManifests'],
                                 harness: 'Codex CLI',
                                 adapterVersion: 'codex-v0.1',
                                 scenario: 'Generated package appears in local marketplace.',
@@ -362,6 +404,7 @@ describe('packageManifest parser', () => {
             assert.deepStrictEqual(report.entries[0].runtimeValidation, [
                 {
                     target: 'codex',
+                    concepts: ['packageManifests'],
                     harness: 'Codex CLI',
                     adapterVersion: 'codex-v0.1',
                     scenario: 'Generated package appears in local marketplace.',

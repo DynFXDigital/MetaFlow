@@ -75,6 +75,7 @@ Package metadata lives in `.metaflow/packages/<package-id>.json`.
       "scenario": "Generated package appears in local Codex plugin marketplace.",
       "status": "passed",
       "command": "codex plugin list",
+      "concepts": ["packageManifests", "sideEffectMcpRuntime"],
       "evidence": ["RUN-056"],
       "limitations": ["Cloud task installation is not represented by static files."]
     }
@@ -153,12 +154,18 @@ Each record includes:
 | `scenario` | Behavior proven by the run. |
 | `status` | `passed`, `partial`, `failed`, or `not-run`. |
 | `command` | Optional command or procedure used for validation. |
+| `concepts` | Target capability matrix concepts validated or bounded by the run. |
 | `evidence` | Run IDs, file paths, or external evidence references. |
 | `limitations` | Known gaps that remain after validation. |
 
 Positive support claims need evidence. Records with `passed` or `partial`
 status warn when evidence is missing. Every record also needs either `command`
 or `evidence` so the claim is reproducible during package review.
+
+Concept links connect package evidence to target support concepts such as
+`packageManifests`, `remoteMcpRuntime`, `oauthMcpRuntime`, and
+`sideEffectMcpRuntime`. Unknown concept IDs remain diagnostics so package
+reviews use the same vocabulary as `metaflow target-support`.
 
 Runtime validation is required for:
 

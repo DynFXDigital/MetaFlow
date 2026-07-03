@@ -108,6 +108,7 @@ function createPackageMarketplaceWorkspace(): TestWorkspace {
                         runtimeValidation: [
                             {
                                 target: 'codex',
+                                concepts: ['packageManifests', 'sideEffectMcpRuntime'],
                                 harness: 'Codex CLI',
                                 adapterVersion: 'codex-v0.1',
                                 scenario: 'Generated package appears in local marketplace.',
@@ -1312,6 +1313,7 @@ describe('CLI: preview', () => {
                             runtimeValidation: [
                                 {
                                     target: 'codex',
+                                    concepts: ['packageManifests', 'sideEffectMcpRuntime'],
                                     harness: 'Codex CLI',
                                     adapterVersion: 'codex-v0.1',
                                     scenario: 'Generated package appears in local marketplace.',
@@ -1347,6 +1349,9 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('package=release-operations'));
         assert.ok(textResult.stdout.includes('categories=release'));
         assert.ok(textResult.stdout.includes('runtimeValidation: codex/Codex CLI passed'));
+        assert.ok(
+            textResult.stdout.includes('concepts=packageManifests,sideEffectMcpRuntime'),
+        );
         assert.ok(textResult.stdout.includes('evidence=RUN-056'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));

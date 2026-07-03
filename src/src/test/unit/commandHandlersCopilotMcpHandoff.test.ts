@@ -316,6 +316,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 runtimeValidation: [
                     {
                         target: 'codex',
+                        concepts: ['packageManifests'],
                         harness: 'Codex CLI',
                         adapterVersion: 'codex-v0.1',
                         scenario: 'Generated package appears in local marketplace.',
@@ -376,6 +377,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.deepStrictEqual(content.entries[0].runtimeValidation, [
             {
                 target: 'codex',
+                concepts: ['packageManifests'],
                 harness: 'Codex CLI',
                 adapterVersion: 'codex-v0.1',
                 scenario: 'Generated package appears in local marketplace.',
