@@ -22,6 +22,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Target adapter validation now warns when managed authority-sensitive concepts lack adapter-level policy grant metadata for Codex, Copilot, or generic target review.
 - Authority-sensitive target adapter concepts now stay candidate-only until adapter-level policy grants are declared, preventing managed writes from implying unreviewed Codex or Copilot authority.
 - Target adapter validation now warns when managed concepts are unsupported or runtime-only in the current target capability matrix.
+- Package runtime validation now warns when records omit both a validation command and evidence references.
 
 ### Changed
 

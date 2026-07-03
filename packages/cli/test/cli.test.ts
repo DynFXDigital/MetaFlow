@@ -1246,6 +1246,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('evidence=RUN-056'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
+        assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
         assert.ok(textResult.stdout.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
         assert.ok(textResult.stdout.includes('[packageManifests]'));
 
@@ -1267,6 +1268,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(packageWarningCodes.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(packageWarningCodes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
+        assert.ok(packageWarningCodes.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
         assert.ok(
             packageWarningCodes.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'),
         );
@@ -1828,6 +1830,9 @@ describe('CLI: export-package-marketplace', () => {
         assert.ok(
             result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
         );
+        assert.ok(
+            result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'),
+        );
     });
 
     it('should print the full package marketplace review object with --json', async () => {
@@ -1854,6 +1859,9 @@ describe('CLI: export-package-marketplace', () => {
         assert.ok(
             warningText.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
         );
+        assert.ok(
+            warningText.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'),
+        );
     });
 
     it('should filter package marketplace entries by target', async () => {
@@ -1874,6 +1882,7 @@ describe('CLI: export-package-marketplace', () => {
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
+        assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
     });
 
     it('should export Codex marketplace-shaped package candidates', async () => {

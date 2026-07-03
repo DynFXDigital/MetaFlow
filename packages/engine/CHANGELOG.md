@@ -9,6 +9,7 @@
 - Warn when managed authority-sensitive target adapter concepts omit adapter-level policy grant metadata.
 - Treat authority-sensitive target adapter concepts as candidate output until adapter-level policy grants are declared.
 - Warn when managed target adapter concepts are unsupported or runtime-only in the current target capability matrix.
+- Warn when package runtime validation records omit both a validation command and evidence references.
 
 ## 0.3.2
 

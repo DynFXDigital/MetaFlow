@@ -6126,6 +6126,7 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_UNDECLARED'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
     });
 
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {

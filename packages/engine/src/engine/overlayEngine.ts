@@ -637,6 +637,15 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                     ),
                 );
             }
+            if (!record.command && record.evidence.length === 0) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED',
+                        `Package runtimeValidation target "${record.target}" should include a validation command or evidence reference so the runtime claim is reviewable.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
         }
     }
 }

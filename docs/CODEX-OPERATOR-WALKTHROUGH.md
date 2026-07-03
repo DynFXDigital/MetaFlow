@@ -152,6 +152,8 @@ limitations.
 Records with `passed` or `partial` status need evidence references. A package
 can keep draft or planned validation as `not-run`, but a positive support
 claim stays review-warning material until it points to concrete run evidence.
+Every runtime validation record also needs a validation command or evidence
+reference so the claim is reproducible during package review.
 
 Runtime validation adapter versions must match the target capability matrix. When
 MetaFlow increments a target adapter version, older evidence remains historical
