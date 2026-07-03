@@ -3692,6 +3692,12 @@ describe('Engine package: overlay pipeline', () => {
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
             recursive: true,
         });
+        fs.mkdirSync(path.join(repoDir, 'core', 'doc', 'ftr'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', 'doc', 'ftr', 'run-095.md'),
+            '# RUN-095\n',
+            'utf-8',
+        );
         fs.writeFileSync(
             path.join(repoDir, 'core', '.metaflow', 'policies', 'github-pr-read.json'),
             JSON.stringify({
@@ -3762,6 +3768,62 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(record?.limitations, ['Slack delegation is not covered.']);
         assert.deepStrictEqual(record?.policyGrants, ['github-pr-read']);
         assert.strictEqual(record?.warnings.length, 0);
+    });
+
+    it('warns when canonical runtime evidence local artifact references are missing', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation', 'reviewRuntime'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                evidenceArtifacts: [
+                    {
+                        kind: 'report',
+                        ref: 'doc/ftr/missing-run.md',
+                    },
+                    {
+                        kind: 'url',
+                        ref: 'https://example.invalid/evidence',
+                    },
+                    {
+                        kind: 'run',
+                        ref: 'RUN-095',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const record = layers[0].runtimeEvidenceRecords?.[0];
+        assert.deepStrictEqual(record?.warnings.map((warning) => warning.code), [
+            'RUNTIME_EVIDENCE_ARTIFACT_MISSING',
+        ]);
+        assert.strictEqual(
+            record?.warnings[0].message,
+            'Runtime evidence artifact "doc/ftr/missing-run.md" does not exist relative to the metadata layer.',
+        );
     });
 
     it('reports validation diagnostics for invalid canonical runtime evidence', () => {

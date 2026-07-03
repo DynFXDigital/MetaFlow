@@ -40,6 +40,10 @@ an explicit evidence expectation. The runtime evidence coverage summary gives
 the review total at a glance: runtime-only concepts with no matching record are
 `missing`, while supplied records classify each concept as `passed`, `partial`,
 `failed`, `not-run`, or `waived` according to the strongest matching record.
+For `.metaflow/runtime-evidence/*.json` records, local structured artifact refs
+for reports, logs, screenshots, traces, recordings, and files are resolved
+relative to the metadata layer; stale local paths appear as diagnostics in
+preview and support-boundary JSON output.
 
 ## Preview Codex Adapter Output
 

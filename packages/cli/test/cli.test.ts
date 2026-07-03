@@ -692,6 +692,10 @@ describe('CLI: preview', () => {
                         }),
                     },
                     {
+                        relativePath: 'doc/ftr/run-095.md',
+                        content: '# RUN-095\n',
+                    },
+                    {
                         relativePath: agentProfilePath,
                         content: JSON.stringify({
                             schemaVersion: 'metaflow.agentProfile/v1',
@@ -3338,6 +3342,10 @@ describe('CLI: codex-support-boundaries', () => {
                             limitations: ['Slack delegation is not covered.'],
                         }),
                     },
+                    {
+                        relativePath: 'doc/ftr/run-095.md',
+                        content: '# RUN-095\n',
+                    },
                 ],
             },
         });
@@ -3361,6 +3369,52 @@ describe('CLI: codex-support-boundaries', () => {
         ]);
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
         assert.ok(data.content.includes('| 34 | 1 | 33 | 1 | 0 | 1 | 0 | 0 | 0 |'));
+    });
+
+    it('surfaces stale local runtime evidence artifact references in Codex support boundaries', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'report',
+                                    ref: 'doc/ftr/missing-run.md',
+                                },
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.deepStrictEqual(
+            issueChecklist.runtimeEvidenceRecords[0].warnings.map(
+                (warning: { code: string }) => warning.code,
+            ),
+            ['RUNTIME_EVIDENCE_ARTIFACT_MISSING'],
+        );
     });
 
     it('writes Codex support boundaries to an explicit output path', async () => {

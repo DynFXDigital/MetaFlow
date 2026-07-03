@@ -38,6 +38,14 @@ const RUNTIME_EVIDENCE_ARTIFACT_KINDS = new Set([
     'run',
     'other',
 ]);
+const LOCAL_EVIDENCE_ARTIFACT_KINDS = new Set([
+    'log',
+    'report',
+    'screenshot',
+    'trace',
+    'recording',
+    'artifact',
+]);
 const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'instructions',
     'prompts',
@@ -254,6 +262,57 @@ function parseEvidenceArtifacts(
     return artifacts;
 }
 
+function isExternalArtifactRef(ref: string): boolean {
+    return /^[a-z][a-z0-9+.-]*:/i.test(ref);
+}
+
+function inferLayerRootFromRuntimeEvidenceManifest(manifestPath: string | undefined): string | undefined {
+    if (!manifestPath) {
+        return undefined;
+    }
+    const evidenceDir = path.dirname(manifestPath);
+    if (path.basename(evidenceDir) !== RUNTIME_EVIDENCE_DIR_NAME) {
+        return undefined;
+    }
+    const metaflowDir = path.dirname(evidenceDir);
+    if (path.basename(metaflowDir) !== CANONICAL_METAFLOW_DIR_NAME) {
+        return undefined;
+    }
+    return path.dirname(metaflowDir);
+}
+
+function warnOnMissingLocalEvidenceArtifacts(
+    artifacts: RuntimeEvidenceArtifactMetadata[],
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): void {
+    const layerRoot = inferLayerRootFromRuntimeEvidenceManifest(manifestPath);
+    if (!layerRoot) {
+        return;
+    }
+
+    for (const artifact of artifacts) {
+        if (!LOCAL_EVIDENCE_ARTIFACT_KINDS.has(artifact.kind)) {
+            continue;
+        }
+        if (isExternalArtifactRef(artifact.ref)) {
+            continue;
+        }
+        const artifactPath = path.isAbsolute(artifact.ref)
+            ? artifact.ref
+            : path.resolve(layerRoot, artifact.ref);
+        if (!fs.existsSync(artifactPath)) {
+            warnings.push(
+                toWarning(
+                    'RUNTIME_EVIDENCE_ARTIFACT_MISSING',
+                    `Runtime evidence artifact "${artifact.ref}" does not exist relative to the metadata layer.`,
+                    manifestPath,
+                ),
+            );
+        }
+    }
+}
+
 function emptyRuntimeEvidence(
     manifestPath: string | undefined,
     warnings: CapabilityWarning[],
@@ -434,6 +493,7 @@ export function parseRuntimeEvidenceContent(
         warnings,
     );
     const evidenceArtifacts = parseEvidenceArtifacts(fields.evidenceArtifacts, manifestPath, warnings);
+    warnOnMissingLocalEvidenceArtifacts(evidenceArtifacts, manifestPath, warnings);
     const limitations = parseStringArray(
         fields.limitations,
         'limitations',
