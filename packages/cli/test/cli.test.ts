@@ -1033,6 +1033,26 @@ describe('CLI: preview', () => {
                     report.managedMetadata.packageManifests === 1,
             ),
         );
+        const codexReport = data.adapterReports.find(
+            (report: { target: string }) => report.target === 'codex',
+        );
+        assert.ok(
+            codexReport.actionItems.some(
+                (item: { concept: string; metadataId: string; message: string }) =>
+                    item.concept === 'packageManifests' &&
+                    item.metadataId === 'release-operations' &&
+                    item.message.includes('Required package policy grants: github-pr-read') &&
+                    item.message.includes('Validation evidence: RUN-055'),
+            ),
+        );
+        assert.ok(
+            codexReport.actionItems.some(
+                (item: { concept: string; metadataId: string; message: string }) =>
+                    item.concept === 'packageManifests' &&
+                    item.metadataId === 'release-operations' &&
+                    item.message.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'),
+            ),
+        );
     });
 
     it('shows canonical tool metadata in preview output', async () => {

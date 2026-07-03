@@ -255,14 +255,32 @@ export function buildAdapterReadinessReports(
         }
 
         for (const manifest of targetPackageManifests) {
+            const grantText =
+                manifest.policyGrants.length > 0
+                    ? ` Required package policy grants: ${manifest.policyGrants.join(', ')}.`
+                    : '';
+            const evidenceText =
+                manifest.validationEvidence.length > 0
+                    ? ` Validation evidence: ${manifest.validationEvidence.join(', ')}.`
+                    : '';
             actionItems.push(
                 action(
                     'packageManifests',
                     manifest.id,
-                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.`,
+                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.${grantText}${evidenceText}`,
                     rowEvidence(packageRow),
                 ),
             );
+            for (const warning of manifest.warnings) {
+                actionItems.push(
+                    action(
+                        'packageManifests',
+                        manifest.id,
+                        `${label} package ${manifest.id} warning ${warning.code}: ${warning.message}`,
+                        rowEvidence(packageRow),
+                    ),
+                );
+            }
         }
 
         for (const tool of targetTools) {

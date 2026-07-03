@@ -394,6 +394,33 @@ describe('Engine package: public API', () => {
                     warnings: [],
                 },
             ],
+            packageManifests: [
+                {
+                    id: 'release-operations',
+                    manifestPath: '/metadata/.metaflow/packages/release-operations.json',
+                    name: 'Release Operations',
+                    kind: 'agent-plugin',
+                    agents: ['reviewer'],
+                    skills: [],
+                    instructions: [],
+                    prompts: [],
+                    mcpServers: ['github'],
+                    tools: ['create-pr'],
+                    hooks: ['release-gate'],
+                    policyGrants: ['github-pr-read'],
+                    targets: { codex: { enabled: true } },
+                    validationEvidence: ['RUN-055'],
+                    warnings: [
+                        {
+                            code: 'PACKAGE_TARGET_CONCEPT_PARTIAL',
+                            message:
+                                'Package target "codex" includes tools metadata whose target support is partial.',
+                            filePath: '/metadata/.metaflow/packages/release-operations.json',
+                            severity: 'warning',
+                        },
+                    ],
+                },
+            ],
         });
 
         const codexReport = reports.find((report) => report.target === 'codex');
@@ -407,7 +434,7 @@ describe('Engine package: public API', () => {
             executionProfiles: 1,
             memoryScopes: 1,
             evaluationProfiles: 1,
-            packageManifests: 0,
+            packageManifests: 1,
             tools: 1,
         });
         assert.ok(
@@ -448,6 +475,23 @@ describe('Engine package: public API', () => {
                     item.concept === 'tools' &&
                     item.metadataId === 'create-pr' &&
                     item.message.includes('runtime tool configuration'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'packageManifests' &&
+                    item.metadataId === 'release-operations' &&
+                    item.message.includes('Required package policy grants: github-pr-read') &&
+                    item.message.includes('Validation evidence: RUN-055'),
+            ),
+        );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'packageManifests' &&
+                    item.metadataId === 'release-operations' &&
+                    item.message.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'),
             ),
         );
 
