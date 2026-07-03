@@ -495,6 +495,27 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-084'],
     ),
     row(
+        'linuxPlatformRuntime',
+        'runtime-only',
+        [
+            'Codex CLI on Linux',
+            'Codex IDE extension on Linux',
+            'WSL2 Linux sandbox',
+            'bubblewrap',
+            'Ubuntu AppArmor profile',
+            'sandbox_workspace_write.writable_roots',
+        ],
+        [
+            'Codex Linux and WSL2 platform behavior is host runtime state across distro package availability, user namespace support, bubblewrap sandbox setup, AppArmor policy, repository location, and configured writable roots.',
+            'Repository metadata can describe Linux platform intent and evidence requirements, but it cannot install bubblewrap, load AppArmor profiles, enable user namespaces, choose the active distro, move repositories into Linux-native paths, grant runtime writable roots, configure OS package repositories, or prove sandbox enforcement.',
+            'WSL2 uses the Linux sandbox implementation; WSL1 is not supported by current Codex Linux sandbox behavior.',
+        ],
+        [
+            'Linux platform configuration controls filesystem boundaries, network isolation, user namespace behavior, AppArmor policy, WSL repository location, package-manager setup, and command access to local directories.',
+        ],
+        ['RUN-085'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1055,6 +1076,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-084'],
     ),
     row(
+        'linuxPlatformRuntime',
+        'unsupported',
+        ['Codex Linux and WSL2 sandbox'],
+        [
+            'Codex Linux and WSL2 platform behavior is a Codex runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot Linux, WSL, Dev Container, or Codespaces behavior must be represented through GitHub-specific editor, execution, or environment concepts instead.',
+        ],
+        ['Linux platform authority must be represented through the target harness controls.'],
+        ['RUN-085'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1335,6 +1367,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Launching the Codex import flow, selecting external agent sources or items, importing user settings, projects, or sessions, authorizing imported plugins or connections, or proving imported setup behavior from repository metadata alone.',
         'Selecting active Codex model providers, writing user-global provider config or credential files, configuring AWS IAM or Bedrock API keys, choosing AWS Regions, granting model access, restarting apps or extensions, or proving provider routing from repository metadata alone.',
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
+        'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1359,6 +1392,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Import runtime: Codex app version, imported source agents and items, project and user setup inventory, generated Codex destinations, plugin or connector follow-up setup, reviewed permissions, tool restrictions, hooks, MCP auth, prompts, subagents, representative imported project or thread behavior, and known limitations.',
         'Model provider runtime: active provider from Codex status, provider config source, selected model, AWS Region or provider endpoint, credential source, identity and permission posture, local app or extension environment inheritance, representative request behavior, unavailable hosted features, and known limitations.',
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
+        'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

@@ -194,6 +194,7 @@ describe('Engine package: public API', () => {
             'importRuntime',
             'modelProviderRuntime',
             'windowsPlatformRuntime',
+            'linuxPlatformRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -519,6 +520,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexWindowsPlatformRuntime?.evidence.includes('RUN-084'),
             'Codex Windows platform row should point to runtime-boundary evidence',
+        );
+        const codexLinuxPlatformRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'linuxPlatformRuntime',
+        );
+        assert.strictEqual(codexLinuxPlatformRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexLinuxPlatformRuntime?.nativeSurfaces.includes('bubblewrap'),
+            'Codex Linux platform row should name bubblewrap',
+        );
+        assert.ok(
+            codexLinuxPlatformRuntime?.notes.some((note) =>
+                note.includes('cannot install bubblewrap'),
+            ),
+            'Codex Linux platform row should document package setup boundary',
+        );
+        assert.ok(
+            codexLinuxPlatformRuntime?.evidence.includes('RUN-085'),
+            'Codex Linux platform row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -1053,17 +1072,28 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot Windows platform row should document unsupported Codex-only surface',
         );
+        const copilotLinuxPlatformRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'linuxPlatformRuntime',
+        );
+        assert.strictEqual(copilotLinuxPlatformRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotLinuxPlatformRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot Linux platform row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 43,
+            runtimeOnlyCount: 44,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 27,
+                    runtimeOnlyCount: 28,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

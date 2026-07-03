@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 43);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 44);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 27 &&
+                    target.runtimeOnlyCount === 28 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -332,6 +332,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             report.entries.some(
                 (entry) =>
                     entry.target === 'codex' &&
+                    entry.concept === 'linuxPlatformRuntime' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
                     entry.concept === 'tools' &&
                     entry.documentation === 'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
             ),
@@ -362,7 +370,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 27);
+        assert.strictEqual(document.runtimeOnlyCount, 28);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -388,6 +396,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 'evaluationRuntime',
                 'importRuntime',
                 'issuePrOperation',
+                'linuxPlatformRuntime',
                 'localCloudHandoff',
                 'memoryRuntime',
                 'modelProviderRuntime',
@@ -485,6 +494,11 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.ok(
             document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('Linux platform runtime'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
                 item.includes('Cloud environment runtime'),
             ),
         );
@@ -502,6 +516,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('importRuntime'));
         assert.ok(document.content.includes('modelProviderRuntime'));
         assert.ok(document.content.includes('windowsPlatformRuntime'));
+        assert.ok(document.content.includes('linuxPlatformRuntime'));
         assert.ok(document.content.includes('appConnectorRuntime'));
         assert.ok(document.content.includes('cloudEnvironmentRuntime'));
         assert.ok(document.content.includes('localCloudHandoff'));
