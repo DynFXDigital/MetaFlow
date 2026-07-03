@@ -23,6 +23,8 @@ export interface ManagedFileState {
     sourceRepo?: string;
     /** Source commit SHA at time of sync. */
     sourceCommit?: string;
+    /** Projection target that owns this synchronized output. */
+    projectionTarget?: string;
 }
 
 /** Extension-owned UI state persisted alongside managed file state. */
@@ -77,6 +79,7 @@ const MANAGED_FILE_STATE_KEYS: readonly (keyof ManagedFileState)[] = [
     'sourceRelativePath',
     'sourceRepo',
     'sourceCommit',
+    'projectionTarget',
 ];
 
 function canonicalizeManagedFileState(state: ManagedFileState): ManagedFileState {

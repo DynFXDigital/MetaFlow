@@ -696,6 +696,7 @@ export function apply(options: ApplyOptions): ApplyResult {
             sourceLayer: file.sourceLayer,
             sourceRelativePath: getSourceRelativePath(file),
             sourceRepo: file.sourceRepo,
+            projectionTarget: entry.projection.target,
         };
         state.files[relPath] = fileState;
     }

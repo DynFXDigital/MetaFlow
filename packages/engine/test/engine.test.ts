@@ -5520,6 +5520,7 @@ describe('Engine: synchronizer advanced', () => {
 
         const state = loadManagedState(tmpDir);
         assert.strictEqual(state.files[codexSkillPath]?.sourceRelativePath, canonicalSkillPath);
+        assert.strictEqual(state.files[codexSkillPath]?.projectionTarget, 'codex');
     });
 
     it('validates package component references against canonical layer metadata', () => {

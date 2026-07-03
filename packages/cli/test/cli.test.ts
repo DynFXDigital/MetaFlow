@@ -2182,9 +2182,11 @@ describe('CLI: apply', () => {
         const statePath = path.join(ws.root, '.metaflow', 'state.json');
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         assert.ok(state.files[codexSkillPath], 'state should track the root Codex skill');
+        assert.strictEqual(state.files[codexSkillPath].projectionTarget, 'codex');
 
         const cleanResult = await runCli(['clean', '-w', ws.root]);
         assert.strictEqual(cleanResult.exitCode, 0);
+        assert.ok(cleanResult.stdout.includes(`remove [codex] ${codexSkillPath}`));
         assert.ok(!fs.existsSync(rootSkillPath), 'clean should remove the managed Codex skill');
     });
 
