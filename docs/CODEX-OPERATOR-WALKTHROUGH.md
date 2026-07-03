@@ -436,6 +436,13 @@ Runtime validation is required for:
   event-stream handling, schema version, overload or retry handling, sandbox
   and approval posture, representative command or tool activity, exit or error
   handling, and known limitations.
+- Codex IDE extension host and version, Codex extension version, active
+  workspace and project trust, sign-in method and credential scope, shared
+  config source, selected model, sandbox and approval posture, open file list,
+  selected text range, command entry point, Add to Codex Thread or file tagging
+  behavior, MCP, plugin, and skill discovery posture, cloud preview or
+  continue-local behavior, WSL or native execution setting where applicable,
+  representative IDE task, result, and known limitations.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.

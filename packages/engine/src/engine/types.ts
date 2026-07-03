@@ -888,6 +888,7 @@ export type TargetCapabilityConcept =
     | 'nonInteractiveRuntime'
     | 'sdkRuntime'
     | 'appServerRuntime'
+    | 'ideExtensionRuntime'
     | 'windowsPlatformRuntime'
     | 'linuxPlatformRuntime'
     | 'macosPlatformRuntime'

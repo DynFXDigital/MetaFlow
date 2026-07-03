@@ -196,6 +196,7 @@ describe('Engine package: public API', () => {
             'nonInteractiveRuntime',
             'sdkRuntime',
             'appServerRuntime',
+            'ideExtensionRuntime',
             'windowsPlatformRuntime',
             'linuxPlatformRuntime',
             'macosPlatformRuntime',
@@ -1228,6 +1229,39 @@ describe('Engine package: public API', () => {
             codexAppServerRuntime?.evidence.includes('RUN-090'),
             'Codex app-server row should cite app-server runtime evidence',
         );
+        const codexIdeExtensionRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'ideExtensionRuntime',
+        );
+        assert.strictEqual(codexIdeExtensionRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexIdeExtensionRuntime?.nativeSurfaces.includes('Codex IDE extension'),
+            'Codex IDE extension row should name the IDE extension',
+        );
+        assert.ok(
+            codexIdeExtensionRuntime?.nativeSurfaces.includes('open files context'),
+            'Codex IDE extension row should name open file context',
+        );
+        assert.ok(
+            codexIdeExtensionRuntime?.notes.some((note) =>
+                note.includes('cannot install the extension'),
+            ),
+            'Codex IDE extension row should document extension installation boundary',
+        );
+        assert.ok(
+            codexIdeExtensionRuntime?.evidence.includes('RUN-091'),
+            'Codex IDE extension row should cite IDE extension runtime evidence',
+        );
+        const copilotIdeExtensionRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'ideExtensionRuntime',
+        );
+        assert.strictEqual(copilotIdeExtensionRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotIdeExtensionRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot IDE extension row should document unsupported Codex-only surface',
+        );
         const copilotLocalEnvironmentRuntime = matrix.find(
             (entry) =>
                 entry.target === 'github-copilot' &&
@@ -1246,11 +1280,11 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 49,
+            runtimeOnlyCount: 50,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 33,
+                    runtimeOnlyCount: 34,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

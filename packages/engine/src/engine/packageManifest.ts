@@ -90,6 +90,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'nonInteractiveRuntime',
     'sdkRuntime',
     'appServerRuntime',
+    'ideExtensionRuntime',
     'windowsPlatformRuntime',
     'linuxPlatformRuntime',
     'macosPlatformRuntime',

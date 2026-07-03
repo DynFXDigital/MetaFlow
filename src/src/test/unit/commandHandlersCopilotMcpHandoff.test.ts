@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 49);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 50);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 33 &&
+                    target.runtimeOnlyCount === 34 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -348,6 +348,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             report.entries.some(
                 (entry) =>
                     entry.target === 'codex' &&
+                    entry.concept === 'ideExtensionRuntime' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
                     entry.concept === 'windowsPlatformRuntime' &&
                     entry.support === 'runtime-only',
             ),
@@ -402,7 +410,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 33);
+        assert.strictEqual(document.runtimeOnlyCount, 34);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -427,6 +435,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 'computerUseRuntime',
                 'enterprisePolicyRuntime',
                 'evaluationRuntime',
+                'ideExtensionRuntime',
                 'importRuntime',
                 'issuePrOperation',
                 'linuxPlatformRuntime',
@@ -457,6 +466,11 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(
             document.notAchievableByRepositoryProjection.some((item: string) =>
                 item.includes('Granting macOS Screen Recording'),
+            ),
+        );
+        assert.ok(
+            document.notAchievableByRepositoryProjection.some((item: string) =>
+                item.includes('Installing or launching the Codex IDE extension'),
             ),
         );
         assert.ok(
@@ -536,6 +550,11 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.ok(
             document.runtimeEvidenceExpected.some((item: string) =>
+                item.includes('IDE extension runtime'),
+            ),
+        );
+        assert.ok(
+            document.runtimeEvidenceExpected.some((item: string) =>
                 item.includes('Windows platform runtime'),
             ),
         );
@@ -565,6 +584,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('nonInteractiveRuntime'));
         assert.ok(document.content.includes('sdkRuntime'));
         assert.ok(document.content.includes('appServerRuntime'));
+        assert.ok(document.content.includes('ideExtensionRuntime'));
         assert.ok(document.content.includes('windowsPlatformRuntime'));
         assert.ok(document.content.includes('linuxPlatformRuntime'));
         assert.ok(document.content.includes('macosPlatformRuntime'));

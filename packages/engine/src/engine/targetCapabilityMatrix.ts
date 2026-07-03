@@ -543,6 +543,31 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-090'],
     ),
     row(
+        'ideExtensionRuntime',
+        'runtime-only',
+        [
+            'Codex IDE extension',
+            'VS Code-compatible editor sidebar',
+            'Codex IDE Command Palette commands',
+            'open files context',
+            'selected text range context',
+            'Add to Codex Thread',
+            'IDE file tagging',
+            'IDE model selector',
+            'shared CLI and IDE config.toml',
+            'IDE extension cloud preview and continue-local workflow',
+        ],
+        [
+            'Codex IDE extension behavior is editor runtime state and not repository metadata projection.',
+            'Repository metadata can describe IDE-extension intent, context expectations, policy expectations, and evidence requirements, but it cannot install the extension, open or focus the sidebar, select the active workspace or editor, choose open files or selected text, invoke Command Palette actions, add editor selections to a thread, tag files in a prompt, select the IDE model, reload the extension, authenticate the editor session, configure WSL execution in VS Code settings, preview cloud changes, continue local threads, or prove IDE behavior.',
+            'The IDE extension shares Codex CLI configuration and authentication cache, but live editor state and VS Code-compatible host behavior require runtime evidence.',
+        ],
+        [
+            'IDE extension integrations can expose open file and selected text context, local workspace files, editor state, configured MCP servers, plugins, skills, command execution, cloud task handoff, credentials, and hosted or local agent authority; require explicit editor host, workspace trust, sandbox, approval, config, authentication, and context-scope review.',
+        ],
+        ['RUN-091'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'runtime-only',
         [
@@ -1209,6 +1234,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-090'],
     ),
     row(
+        'ideExtensionRuntime',
+        'unsupported',
+        ['Codex IDE extension'],
+        [
+            'Codex IDE extension is a Codex local runtime surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot, VS Code Copilot Chat, Agent HQ, or GitHub-hosted editor and agent behavior must be represented through GitHub-specific editor, execution, policy, connector, or runtime-evidence concepts instead.',
+        ],
+        ['IDE extension authority must be represented through target harness controls.'],
+        ['RUN-091'],
+    ),
+    row(
         'windowsPlatformRuntime',
         'unsupported',
         ['Codex Windows app and Windows sandbox'],
@@ -1535,6 +1571,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Invoking `codex exec`, selecting live non-interactive credentials, choosing sandbox or approval posture, streaming JSONL, writing schema-constrained output, resuming sessions, satisfying repository trust checks, or proving scripted Codex execution from repository metadata alone.',
         'Installing Codex SDK packages, provisioning Node.js or Python runtimes, starting app-server processes, initializing SDK clients, selecting credentials, creating or resuming SDK threads, choosing live sandbox presets, deploying embedding applications, capturing traces, or proving SDK behavior from repository metadata alone.',
         'Starting Codex app-server processes, selecting stdio, WebSocket, Unix socket, or disabled transports, authenticating WebSocket listeners, initializing JSON-RPC clients, creating or resuming threads, starting or steering turns, handling event streams, managing overload retries, generating version-matched schemas, or proving app-server behavior from repository metadata alone.',
+        'Installing or launching the Codex IDE extension, opening or focusing sidebars, selecting active workspaces or editors, choosing open files or selected text, invoking IDE commands, adding editor selections to threads, tagging files in prompts, selecting IDE models, reloading extensions, configuring WSL execution in VS Code settings, authenticating editor sessions, previewing cloud changes, continuing local threads, or proving IDE extension behavior from repository metadata alone.',
         'Selecting native Windows sandbox implementation, performing administrator-approved sandbox setup, changing enterprise requirements, granting session sandbox read directories, moving repositories into WSL2, verifying Windows version prerequisites, or proving Windows sandbox enforcement from repository metadata alone.',
         'Installing bubblewrap, loading AppArmor profiles, enabling Linux user namespaces, choosing active WSL distributions, granting runtime writable roots, moving repositories into Linux-native paths, configuring package repositories, or proving Linux sandbox enforcement from repository metadata alone.',
         'Granting macOS Screen Recording or Accessibility permissions, installing the Codex app, opening workspaces in the app, configuring MDM managed preferences, running local environment actions, changing active macOS privacy settings, or proving Seatbelt sandbox enforcement from repository metadata alone.',
@@ -1565,6 +1602,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Non-interactive runtime: Codex CLI version, command invocation, working directory and Git repository state, authentication method and credential scope, sandbox and approval settings, JSON or output-schema configuration, stdin and output handling, session resume posture, representative command/tool activity, produced artifacts, exit status, audit or billing posture, and known limitations.',
         'SDK runtime: SDK package and version, language runtime, embedding application identity, Codex CLI or app-server runtime source, authentication method and credential scope, thread start or resume behavior, sandbox preset or turn override, representative SDK call, command or tool activity, trace or log posture, deployment environment, exit or error handling, and known limitations.',
         'App-server runtime: Codex CLI version, app-server command invocation, selected transport, listener binding and authentication posture, client identity, initialize/initialized handshake, thread start or resume behavior, turn start or steering behavior, event-stream handling, schema version, overload or retry handling, sandbox and approval posture, representative command or tool activity, exit or error handling, and known limitations.',
+        'IDE extension runtime: editor host and version, Codex extension version, active workspace and project trust, sign-in method and credential scope, shared config source, selected model, sandbox and approval posture, open file list, selected text range, command entry point, Add to Codex Thread or file tagging behavior, MCP, plugin, and skill discovery posture, cloud preview or continue-local behavior, WSL or native execution setting where applicable, representative IDE task, result, and known limitations.',
         'Windows platform runtime: Codex surface, Windows version, native or WSL2 execution mode, selected sandbox implementation, private desktop setting, administrator setup posture, enterprise requirement constraints, session read-directory grants, repository location, representative sandboxed command behavior, and known limitations.',
         'Linux platform runtime: Codex surface, Linux distribution or WSL2 identity, bubblewrap availability, user namespace and AppArmor posture, writable root policy, repository location, package-manager prerequisite state, representative sandboxed command behavior, and known limitations.',
         'macOS platform runtime: Codex surface, Codex app availability, Seatbelt sandbox behavior, macOS Privacy & Security permission posture, writable root policy, local environment action behavior, managed preference state, representative sandboxed command behavior, and known limitations.',
