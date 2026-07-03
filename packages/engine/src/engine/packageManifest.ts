@@ -27,6 +27,7 @@ const KNOWN_FIELDS = new Set([
     'instructions',
     'prompts',
     'mcpServers',
+    'tools',
     'hooks',
     'policyGrants',
     'targets',
@@ -44,6 +45,7 @@ type PackageFields = {
     instructions?: unknown;
     prompts?: unknown;
     mcpServers?: unknown;
+    tools?: unknown;
     hooks?: unknown;
     policyGrants?: unknown;
     targets?: unknown;
@@ -192,6 +194,7 @@ function emptyPackage(
         instructions: [],
         prompts: [],
         mcpServers: [],
+        tools: [],
         hooks: [],
         policyGrants: [],
         targets: {},
@@ -319,6 +322,7 @@ export function parsePackageManifestContent(
         manifestPath,
         warnings,
     );
+    const tools = parseStringArray(fields.tools, 'tools', 'PACKAGE_TOOLS_INVALID', manifestPath, warnings);
     const hooks = parseStringArray(fields.hooks, 'hooks', 'PACKAGE_HOOKS_INVALID', manifestPath, warnings);
     const policyGrants = parseStringArray(
         fields.policyGrants,
@@ -370,6 +374,7 @@ export function parsePackageManifestContent(
         instructions,
         prompts,
         mcpServers,
+        tools,
         hooks,
         policyGrants,
         targets,

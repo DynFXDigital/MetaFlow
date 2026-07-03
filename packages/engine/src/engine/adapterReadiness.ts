@@ -14,6 +14,7 @@ import {
     ProjectionTarget,
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
+    ToolMetadata,
 } from './types';
 import { getTargetCapabilityMatrix } from './targetCapabilityMatrix';
 
@@ -29,6 +30,7 @@ export interface BuildAdapterReadinessReportsOptions {
     agentProfiles?: AgentProfileMetadata[];
     codexProjectConfigs?: CodexProjectConfigMetadata[];
     packageManifests?: PackageManifestMetadata[];
+    tools?: ToolMetadata[];
 }
 
 function appliesToTarget(targets: string[] | undefined, target: ProjectionTarget): boolean {
@@ -109,6 +111,7 @@ export function buildAdapterReadinessReports(
     const agentProfiles = [...(options.agentProfiles ?? [])].sort(byId);
     const codexProjectConfigs = [...(options.codexProjectConfigs ?? [])].sort(byId);
     const packageManifests = [...(options.packageManifests ?? [])].sort(byId);
+    const tools = [...(options.tools ?? [])].sort(byId);
 
     return targets.map((target) => {
         const rows = matrix.filter((entry) => entry.target === target);
@@ -133,6 +136,7 @@ export function buildAdapterReadinessReports(
         const targetPackageManifests = packageManifests.filter((manifest) =>
             appliesToTarget(Object.keys(manifest.targets), target),
         );
+        const targetTools = tools.filter((tool) => appliesToTarget(tool.targets, target));
         const counts: AdapterReadinessMetadataCounts = {
             agentProfiles: targetAgentProfiles.length,
             codexProjectConfigs: targetCodexProjectConfigs.length,
@@ -143,6 +147,7 @@ export function buildAdapterReadinessReports(
             memoryScopes: targetMemoryScopes.length,
             evaluationProfiles: targetEvaluationProfiles.length,
             packageManifests: targetPackageManifests.length,
+            tools: targetTools.length,
         };
         const policyRow = rowByConcept(rows, 'policyGrants');
         const mcpRow = rowByConcept(rows, 'mcpServers');
@@ -153,6 +158,7 @@ export function buildAdapterReadinessReports(
         const agentRow = rowByConcept(rows, 'agents');
         const projectConfigRow = rowByConcept(rows, 'projectConfig');
         const packageRow = rowByConcept(rows, 'packageManifests');
+        const toolRow = rowByConcept(rows, 'tools');
         const actionItems: AdapterReadinessAction[] = [];
         const warnings: string[] = [];
 
@@ -259,9 +265,21 @@ export function buildAdapterReadinessReports(
             );
         }
 
+        for (const tool of targetTools) {
+            actionItems.push(
+                action(
+                    'tools',
+                    tool.id,
+                    `${label} tool ${tool.id} (${tool.kind}) requires target runtime tool configuration and policy review before operational use.`,
+                    rowEvidence(toolRow),
+                ),
+            );
+        }
+
         addRowWarnings(warnings, agentRow, counts.agentProfiles);
         addRowWarnings(warnings, projectConfigRow, counts.codexProjectConfigs);
         addRowWarnings(warnings, packageRow, counts.packageManifests);
+        addRowWarnings(warnings, toolRow, counts.tools);
         addRowWarnings(warnings, policyRow, counts.policyGrants);
         addRowWarnings(warnings, mcpRow, counts.mcpServers);
         addRowWarnings(warnings, hookRow, counts.hooks);

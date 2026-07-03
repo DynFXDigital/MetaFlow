@@ -24,6 +24,7 @@ import {
     PolicyGrantMetadata,
     SurfacedFileConflict,
     TargetAdapterMetadata,
+    ToolMetadata,
     toAuthoredConfig,
 } from '@metaflow/engine';
 
@@ -79,6 +80,11 @@ export interface ResolvedTargetAdapter extends TargetAdapterMetadata {
 }
 
 export interface ResolvedPackageManifest extends PackageManifestMetadata {
+    sourceLayer: string;
+    sourceRepo?: string;
+}
+
+export interface ResolvedTool extends ToolMetadata {
     sourceLayer: string;
     sourceRepo?: string;
 }
@@ -310,6 +316,17 @@ export function resolvePackageManifests(
     return layers.flatMap((layer) =>
         (layer.packageManifests ?? []).map((manifest) => ({
             ...manifest,
+            sourceLayer: layer.layerId,
+            sourceRepo: layer.repoId,
+        })),
+    );
+}
+
+export function resolveTools(config: MetaFlowConfig, workspaceRoot: string): ResolvedTool[] {
+    const layers = resolveLayers(config, workspaceRoot);
+    return layers.flatMap((layer) =>
+        (layer.tools ?? []).map((tool) => ({
+            ...tool,
             sourceLayer: layer.layerId,
             sourceRepo: layer.repoId,
         })),

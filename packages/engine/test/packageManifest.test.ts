@@ -20,6 +20,7 @@ describe('packageManifest parser', () => {
                 instructions: ['release-policy'],
                 prompts: ['release-prompt'],
                 mcpServers: ['github'],
+                tools: ['create-pr'],
                 hooks: ['release-gate'],
                 policyGrants: ['github-pr-read'],
                 targets: {
@@ -41,6 +42,7 @@ describe('packageManifest parser', () => {
         assert.deepStrictEqual(parsed.instructions, ['release-policy']);
         assert.deepStrictEqual(parsed.prompts, ['release-prompt']);
         assert.deepStrictEqual(parsed.mcpServers, ['github']);
+        assert.deepStrictEqual(parsed.tools, ['create-pr']);
         assert.deepStrictEqual(parsed.hooks, ['release-gate']);
         assert.deepStrictEqual(parsed.policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(parsed.targets.codex, {

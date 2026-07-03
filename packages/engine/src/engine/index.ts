@@ -156,6 +156,7 @@ export {
     parsePackageManifestContent,
     packageManifestConstants,
 } from './packageManifest';
+export { loadToolsForLayer, parseToolContent, toolManifestConstants } from './toolManifest';
 export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
@@ -213,6 +214,8 @@ export type {
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
     TargetCapabilitySupportStatus,
+    ToolKind,
+    ToolMetadata,
     OverlayResult,
     PendingAction,
     PendingChange,

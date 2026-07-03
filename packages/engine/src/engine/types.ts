@@ -48,6 +48,8 @@ export interface LayerContent {
     targetAdapters?: TargetAdapterMetadata[];
     /** Package manifests loaded from canonical MetaFlow package manifests. */
     packageManifests?: PackageManifestMetadata[];
+    /** Tool manifests loaded from canonical MetaFlow tool manifests. */
+    tools?: ToolMetadata[];
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
@@ -613,6 +615,8 @@ export interface PackageManifestMetadata {
     prompts: string[];
     /** Canonical MCP server ids included in this package. */
     mcpServers: string[];
+    /** Canonical tool ids included in this package. */
+    tools: string[];
     /** Canonical hook ids included in this package. */
     hooks: string[];
     /** Policy grants required before this package is treated as operational. */
@@ -621,6 +625,41 @@ export interface PackageManifestMetadata {
     targets: Record<string, { pluginName?: string; enabled?: boolean }>;
     /** Optional validation evidence identifiers or references. */
     validationEvidence: string[];
+    /** Optional user-facing description. */
+    description?: string;
+    /** Warnings emitted while parsing/validating this manifest. */
+    warnings: CapabilityWarning[];
+}
+
+/** Invocation family declared by a canonical tool manifest. */
+export type ToolKind = 'command' | 'mcp' | 'http' | 'manual';
+
+/** Canonical MetaFlow tool metadata associated with a layer. */
+export interface ToolMetadata {
+    /** Stable tool identifier. */
+    id: string;
+    /** Absolute path to the manifest that supplied tool metadata. */
+    manifestPath: string;
+    /** Harness-neutral tool family. */
+    kind: ToolKind;
+    /** Optional local command for command-backed tools. */
+    command?: string;
+    /** Optional command arguments. */
+    args: string[];
+    /** Optional MCP server id used by MCP-backed tools. */
+    mcpServer?: string;
+    /** Optional MCP tool name exposed by the MCP server. */
+    mcpTool?: string;
+    /** Optional HTTP endpoint reference for HTTP-backed tools. */
+    endpoint?: string;
+    /** Policy grants required before this tool is treated as operational. */
+    policyGrants: string[];
+    /** Target harnesses or adapters this tool applies to. */
+    targets: string[];
+    /** Execution profiles this tool can run under. */
+    executionProfiles: string[];
+    /** Optional JSON-schema-like input schema for adapter reporting. */
+    inputSchema?: Record<string, unknown>;
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
@@ -685,6 +724,7 @@ export type TargetCapabilityConcept =
     | 'agents'
     | 'projectConfig'
     | 'mcpServers'
+    | 'tools'
     | 'hooks'
     | 'packageManifests'
     | 'policyGrants'
@@ -743,6 +783,8 @@ export interface AdapterReadinessMetadataCounts {
     evaluationProfiles: number;
     /** Canonical package manifests considered for adapter readiness. */
     packageManifests: number;
+    /** Canonical tool manifests considered for adapter readiness. */
+    tools: number;
 }
 
 /** Adapter readiness action severity. */

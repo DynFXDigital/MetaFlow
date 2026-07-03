@@ -27,6 +27,7 @@ import {
     resolvePolicyGrants,
     resolveSurfacedFileConflicts,
     resolveTargetAdapters,
+    resolveTools,
     ResolvedMcpServer,
     ResolvedAgentProfile,
     ResolvedCodexProjectConfig,
@@ -37,6 +38,7 @@ import {
     ResolvedMemoryScope,
     ResolvedPackageManifest,
     ResolvedTargetAdapter,
+    ResolvedTool,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -215,6 +217,24 @@ function formatPackageManifest(manifest: ResolvedPackageManifest): string {
     return `${manifest.id || '<invalid>'} [${manifest.kind || '<missing kind>'}] ${manifest.name || '<missing name>'}${grants}${targetText}${evidence} @ ${formatFileProvenance(manifest.sourceLayer, manifest.sourceRepo)}`;
 }
 
+function formatTool(tool: ResolvedTool): string {
+    const grants = tool.policyGrants.length > 0 ? ` grants=${tool.policyGrants.join(',')}` : '';
+    const targets = tool.targets.length > 0 ? ` targets=${tool.targets.join(',')}` : '';
+    const execution =
+        tool.executionProfiles.length > 0
+            ? ` execution=${tool.executionProfiles.join(',')}`
+            : '';
+    const binding =
+        tool.kind === 'command' && tool.command
+            ? ` command=${tool.command}`
+            : tool.kind === 'mcp' && tool.mcpServer && tool.mcpTool
+              ? ` mcp=${tool.mcpServer}.${tool.mcpTool}`
+              : tool.kind === 'http' && tool.endpoint
+                ? ` endpoint=${tool.endpoint}`
+                : '';
+    return `${tool.id || '<invalid>'} [${tool.kind}]${binding}${grants}${targets}${execution} @ ${formatFileProvenance(tool.sourceLayer, tool.sourceRepo)}`;
+}
+
 function formatAdapterReport(report: AdapterReadinessReport): string {
     const counts = Object.entries(report.managedMetadata)
         .filter(([, count]) => count > 0)
@@ -260,6 +280,7 @@ export function registerPreviewCommand(program: Command): void {
                 const codexProjectConfigs = resolveCodexProjectConfigs(config, workspaceRoot);
                 const targetAdapters = resolveTargetAdapters(config, workspaceRoot);
                 const packageManifests = resolvePackageManifests(config, workspaceRoot);
+                const tools = resolveTools(config, workspaceRoot);
                 const targetCapabilityMatrix = getTargetCapabilityMatrix();
                 const targetCapabilitySummary =
                     summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
@@ -274,6 +295,7 @@ export function registerPreviewCommand(program: Command): void {
                     agentProfiles,
                     codexProjectConfigs,
                     packageManifests,
+                    tools,
                 });
                 const actionableAdapterReports = adapterReports.filter(
                     (report) => report.actionItems.length > 0 || report.warnings.length > 0,
@@ -302,6 +324,7 @@ export function registerPreviewCommand(program: Command): void {
                             codexProjectConfigs: codexProjectConfigs.length,
                             targetAdapters: targetAdapters.length,
                             packageManifests: packageManifests.length,
+                            tools: tools.length,
                             adapterReports: adapterReports.length,
                         },
                         effectiveFiles: files.map((f) => ({
@@ -336,6 +359,7 @@ export function registerPreviewCommand(program: Command): void {
                         codexProjectConfigs,
                         targetAdapters,
                         packageManifests,
+                        tools,
                         adapterReports,
                         settingsEntries,
                         sources: sourceSummary,
@@ -360,6 +384,7 @@ export function registerPreviewCommand(program: Command): void {
                     codexProjectConfigs.length === 0 &&
                     targetAdapters.length === 0 &&
                     packageManifests.length === 0 &&
+                    tools.length === 0 &&
                     actionableAdapterReports.length === 0
                 ) {
                     console.log('No files in overlay.');
@@ -588,6 +613,7 @@ export function registerPreviewCommand(program: Command): void {
                             ['instructions', manifest.instructions],
                             ['prompts', manifest.prompts],
                             ['mcpServers', manifest.mcpServers],
+                            ['tools', manifest.tools],
                             ['hooks', manifest.hooks],
                         ].filter(([, values]) => (values as string[]).length > 0);
                         if (componentEntries.length > 0) {
@@ -600,6 +626,25 @@ export function registerPreviewCommand(program: Command): void {
                             console.log(`    description: ${manifest.description}`);
                         }
                         for (const warning of manifest.warnings) {
+                            const severity = warning.severity ? `${warning.severity}: ` : '';
+                            console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
+                        }
+                    }
+                }
+                if (tools.length > 0) {
+                    console.log(`Tools: ${tools.length}`);
+                    for (const tool of tools) {
+                        console.log(`  - ${formatTool(tool)}`);
+                        if (tool.args.length > 0) {
+                            console.log(`    args: ${tool.args.join(' ')}`);
+                        }
+                        if (tool.description) {
+                            console.log(`    description: ${tool.description}`);
+                        }
+                        if (tool.inputSchema) {
+                            console.log('    inputSchema: declared');
+                        }
+                        for (const warning of tool.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);
                         }

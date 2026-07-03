@@ -941,6 +941,7 @@ describe('CLI: preview', () => {
                             kind: 'agent-plugin',
                             agents: ['release-steward'],
                             skills: ['release-readiness'],
+                            tools: ['create-pr'],
                             mcpServers: ['github'],
                             hooks: ['release-gate'],
                             policyGrants: ['github-pr-read'],
@@ -968,6 +969,7 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('targets=codex=release-operations:enabled'));
         assert.ok(textResult.stdout.includes('components: agents=release-steward'));
         assert.ok(textResult.stdout.includes('skills=release-readiness'));
+        assert.ok(textResult.stdout.includes('tools=create-pr'));
         assert.ok(textResult.stdout.includes('[packageManifests]'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
@@ -980,6 +982,62 @@ describe('CLI: preview', () => {
             data.adapterReports.some(
                 (report: { managedMetadata: { packageManifests?: number } }) =>
                     report.managedMetadata.packageManifests === 1,
+            ),
+        );
+    });
+
+    it('shows canonical tool metadata in preview output', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/policies/github-pr-read.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.policyGrant/v1',
+                            id: 'github-pr-read',
+                            authority: 'github.pullRequest.read',
+                            approval: 'auto',
+                            audit: true,
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/tools/create-pr.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.tool/v1',
+                            id: 'create-pr',
+                            kind: 'mcp',
+                            mcpServer: 'github',
+                            mcpTool: 'create_pull_request',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            executionProfiles: ['local'],
+                            inputSchema: { type: 'object' },
+                            description: 'Create a pull request through GitHub MCP.',
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes('Tools: 1'));
+        assert.ok(textResult.stdout.includes('create-pr [mcp]'));
+        assert.ok(textResult.stdout.includes('mcp=github.create_pull_request'));
+        assert.ok(textResult.stdout.includes('grants=github-pr-read'));
+        assert.ok(textResult.stdout.includes('[tools]'));
+
+        const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        assert.strictEqual(data.summary.tools, 1);
+        assert.strictEqual(data.tools[0].id, 'create-pr');
+        assert.strictEqual(data.tools[0].mcpServer, 'github');
+        assert.ok(
+            data.adapterReports.some(
+                (report: { target: string; managedMetadata: { tools?: number } }) =>
+                    report.target === 'codex' && report.managedMetadata.tools === 1,
             ),
         );
     });

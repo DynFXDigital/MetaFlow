@@ -63,6 +63,7 @@ import {
     parseAgentProfileContent,
     parseCodexProjectConfigContent,
     parseTargetAdapterContent,
+    parseToolContent,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -156,6 +157,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof parseAgentProfileContent, 'function');
         assert.strictEqual(typeof parseCodexProjectConfigContent, 'function');
         assert.strictEqual(typeof parseTargetAdapterContent, 'function');
+        assert.strictEqual(typeof parseToolContent, 'function');
     });
 
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
@@ -165,6 +167,7 @@ describe('Engine package: public API', () => {
             'agents',
             'projectConfig',
             'mcpServers',
+            'tools',
             'hooks',
             'packageManifests',
             'policyGrants',
@@ -224,6 +227,14 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexMcp?.notes.some((note) => note.includes('OAuth login')),
             'Codex MCP row should document OAuth and remote runtime limits',
+        );
+        const codexTools = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'tools',
+        );
+        assert.strictEqual(codexTools?.support, 'partial');
+        assert.ok(
+            codexTools?.nativeSurfaces.includes('.metaflow/tools/*.json'),
+            'Codex tools row should name the canonical tool metadata surface',
         );
         const codexHooks = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'hooks',
@@ -367,6 +378,20 @@ describe('Engine package: public API', () => {
                     warnings: [],
                 },
             ],
+            tools: [
+                {
+                    id: 'create-pr',
+                    manifestPath: '/metadata/.metaflow/tools/create-pr.json',
+                    kind: 'mcp',
+                    args: [],
+                    mcpServer: 'github',
+                    mcpTool: 'create_pull_request',
+                    policyGrants: ['github-pr-read'],
+                    targets: ['codex'],
+                    executionProfiles: ['local'],
+                    warnings: [],
+                },
+            ],
         });
 
         const codexReport = reports.find((report) => report.target === 'codex');
@@ -380,6 +405,8 @@ describe('Engine package: public API', () => {
             executionProfiles: 1,
             memoryScopes: 1,
             evaluationProfiles: 1,
+            packageManifests: 0,
+            tools: 1,
         });
         assert.ok(
             codexReport?.actionItems.some(
@@ -413,9 +440,18 @@ describe('Engine package: public API', () => {
                 warning.includes('MCP servers require explicit tool'),
             ),
         );
+        assert.ok(
+            codexReport?.actionItems.some(
+                (item) =>
+                    item.concept === 'tools' &&
+                    item.metadataId === 'create-pr' &&
+                    item.message.includes('runtime tool configuration'),
+            ),
+        );
 
         const copilotReport = reports.find((report) => report.target === 'github-copilot');
         assert.strictEqual(copilotReport?.managedMetadata.hooks, 0);
+        assert.strictEqual(copilotReport?.managedMetadata.tools, 0);
         assert.strictEqual(copilotReport?.managedMetadata.policyGrants, 1);
         assert.ok(
             copilotReport?.actionItems.some((item) => item.concept === 'mcpServers'),

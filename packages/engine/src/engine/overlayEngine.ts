@@ -38,6 +38,7 @@ import {
 } from './agentProfile';
 import { loadCodexProjectConfigsForLayer } from './codexProjectConfig';
 import { loadPackageManifestsForLayer } from './packageManifest';
+import { loadToolsForLayer } from './toolManifest';
 import { renderCodexConfigProjection } from './codexConfigProjection';
 import {
     codexHookProjectionDestination,
@@ -334,6 +335,7 @@ function buildLayerContent(
     const hooks = loadHooksForLayer(layerAbsPath, knownPolicyGrantIds);
     const targetAdapters = loadTargetAdaptersForLayer(layerAbsPath, knownPolicyGrantIds);
     const packageManifests = loadPackageManifestsForLayer(layerAbsPath, knownPolicyGrantIds);
+    const tools = loadToolsForLayer(layerAbsPath, knownPolicyGrantIds);
     const hasTargetNativeCodexConfig = files.some(
         (file) => normalizeInputPath(file.relativePath) === '.codex/config.toml',
     );
@@ -420,6 +422,7 @@ function buildLayerContent(
         codexProjectConfigs,
         targetAdapters,
         packageManifests,
+        tools,
     };
 }
 
@@ -812,12 +815,23 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         }
 
         const packagesDir = path.join(metaFlowDirPath, 'packages');
-        if (!fs.existsSync(packagesDir) || !fs.statSync(packagesDir).isDirectory()) {
+        if (fs.existsSync(packagesDir) && fs.statSync(packagesDir).isDirectory()) {
+            const packageEntries = fs.readdirSync(packagesDir, { withFileTypes: true });
+            const hasPackageManifest = packageEntries.some(
+                (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
+            );
+            if (hasPackageManifest) {
+                return true;
+            }
+        }
+
+        const toolsDir = path.join(metaFlowDirPath, 'tools');
+        if (!fs.existsSync(toolsDir) || !fs.statSync(toolsDir).isDirectory()) {
             return false;
         }
 
-        const packageEntries = fs.readdirSync(packagesDir, { withFileTypes: true });
-        return packageEntries.some(
+        const toolEntries = fs.readdirSync(toolsDir, { withFileTypes: true });
+        return toolEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
     } catch {

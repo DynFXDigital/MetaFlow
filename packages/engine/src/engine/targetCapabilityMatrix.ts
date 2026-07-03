@@ -88,6 +88,20 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047', 'RUN-048', 'RUN-050', 'RUN-052'],
     ),
     row(
+        'tools',
+        'partial',
+        ['.metaflow/tools/*.json', 'Codex MCP tools', 'local commands', 'HTTP tools'],
+        [
+            'Canonical tool metadata is parsed and reported for adapter review.',
+            'MetaFlow tool manifests describe callable surfaces and policy requirements but do not grant Codex runtime tool access.',
+            'Command, MCP, HTTP, and manual tools remain operational only when the target harness has matching configured authority.',
+        ],
+        [
+            'Tool use requires explicit command, MCP, network, secret, approval, and sandbox authority review.',
+        ],
+        ['RUN-052'],
+    ),
+    row(
         'hooks',
         'partial',
         ['.metaflow/hooks/*.json', '.codex/hooks.json'],
@@ -233,6 +247,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ],
         ['MCP servers require explicit tool, secret, and network authority review.'],
         ['RUN-033', 'RUN-051'],
+    ),
+    row(
+        'tools',
+        'partial',
+        ['.metaflow/tools/*.json', 'GitHub Copilot MCP tools', 'local commands', 'HTTP tools'],
+        [
+            'Canonical tool metadata is parsed and reported for adapter review.',
+            'MetaFlow tool manifests describe callable surfaces and policy requirements but do not grant GitHub Copilot runtime tool access.',
+            'Command, MCP, HTTP, and manual tools remain operational only when the target harness has matching configured authority.',
+        ],
+        ['Tool use requires explicit command, MCP, network, secret, and approval authority review.'],
     ),
     row(
         'hooks',
