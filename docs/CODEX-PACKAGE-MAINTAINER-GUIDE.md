@@ -188,6 +188,11 @@ Packages that group MCP servers, tools, hooks, execution profiles, memory
 scopes, issue/PR workflows, or channel integrations need policy grants before
 their runtime claims are treated as operational.
 
+Execution profiles classify where a package expects work to run, including local
+workstations, dev containers, cloud sandboxes, CI runners, long-running VMs,
+issue/PR-native workflows, and always-on workflow orchestration. The profile
+classification does not create those runtimes or grant their authority.
+
 Package-level `policyGrants` identify the authority required by the package.
 Target adapter `requiredPolicyGrants` identify the authority required before
 authority-sensitive outputs are managed for a harness.

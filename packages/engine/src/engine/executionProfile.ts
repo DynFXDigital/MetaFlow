@@ -39,6 +39,8 @@ const SURFACE_VALUES = new Set<ExecutionSurface>([
     'cloudSandbox',
     'ciRunner',
     'longRunningVm',
+    'issuePrNative',
+    'alwaysOnWorkflow',
 ]);
 const ISOLATION_VALUES = new Set<ExecutionIsolation>([
     'none',
@@ -276,7 +278,7 @@ export function parseExecutionProfileContent(
         warnings.push(
             toWarning(
                 'EXECUTION_PROFILE_SURFACE_INVALID',
-                'Execution profile surface must be one of localWorkstation, devContainer, cloudSandbox, ciRunner, or longRunningVm.',
+                'Execution profile surface must be one of localWorkstation, devContainer, cloudSandbox, ciRunner, longRunningVm, issuePrNative, or alwaysOnWorkflow.',
                 manifestPath,
                 'error',
             ),

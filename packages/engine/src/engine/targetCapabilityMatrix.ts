@@ -180,11 +180,18 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'executionSurfaces',
         'partial',
-        ['.metaflow/execution/*.json', 'local Codex CLI', 'Codex Cloud'],
+        [
+            '.metaflow/execution/*.json',
+            'local Codex CLI',
+            'Codex Cloud',
+            'Codex issue/PR workflows',
+            'always-on workflow orchestrators',
+        ],
         [
             'Canonical execution profile metadata is parsed and reported for adapter review.',
             'Codex execution surface selection remains a runtime workflow until explicit projection adapters exist.',
             'Codex cloud environments use hosted containers, setup scripts, environment variables, secret handling, and agent internet-access controls outside repository metadata projection.',
+            'Execution profiles can classify issue/PR-native and always-on workflow surfaces without provisioning those runtimes.',
         ],
         [
             'Execution surface selection changes filesystem, network, credential, and approval boundaries.',
@@ -393,10 +400,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'executionSurfaces',
         'partial',
-        ['.metaflow/execution/*.json', 'GitHub Copilot host runtime', 'GitHub cloud agent workflows'],
+        [
+            '.metaflow/execution/*.json',
+            'GitHub Copilot host runtime',
+            'GitHub cloud agent workflows',
+            'GitHub issue/PR workflows',
+            'always-on workflow orchestrators',
+        ],
         [
             'Canonical execution profile metadata is parsed and reported for adapter review.',
             'Copilot and GitHub execution surface selection remains a runtime workflow until explicit projection adapters exist.',
+            'Execution profiles can classify issue/PR-native and always-on workflow surfaces without provisioning those runtimes.',
         ],
         ['Execution surface selection changes repository, organization, and CI authority.'],
         ['RUN-035'],

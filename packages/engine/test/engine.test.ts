@@ -2217,6 +2217,34 @@ describe('Engine package: overlay pipeline', () => {
             }),
             'utf-8',
         );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'pr-review.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'pr-review',
+                surface: 'issuePrNative',
+                isolation: 'cloud-sandbox',
+                runner: 'codex-github-review',
+                policyGrants: ['shell-test'],
+                targets: ['codex'],
+                description: 'Run issue and pull request native Codex workflows.',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'operator.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'operator',
+                surface: 'alwaysOnWorkflow',
+                isolation: 'vm',
+                runner: 'hermes-orchestrator',
+                policyGrants: ['shell-test'],
+                targets: ['generic'],
+                description: 'Coordinate always-on workflow delegation.',
+            }),
+            'utf-8',
+        );
 
         const config: MetaFlowConfig = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -2225,8 +2253,8 @@ describe('Engine package: overlay pipeline', () => {
 
         const layers = resolveLayers(config, tmpDir);
         assert.strictEqual(layers.length, 1);
-        assert.strictEqual(layers[0].executionProfiles?.length, 1);
-        const profile = layers[0].executionProfiles?.[0];
+        assert.strictEqual(layers[0].executionProfiles?.length, 3);
+        const profile = layers[0].executionProfiles?.find((entry) => entry.id === 'local');
         assert.strictEqual(profile?.id, 'local');
         assert.strictEqual(profile?.surface, 'localWorkstation');
         assert.strictEqual(profile?.isolation, 'workspace-write');
@@ -2238,6 +2266,15 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(profile?.policyGrants, ['shell-test']);
         assert.deepStrictEqual(profile?.targets, ['codex']);
         assert.strictEqual(profile?.warnings.length, 0);
+        const prProfile = layers[0].executionProfiles?.find((entry) => entry.id === 'pr-review');
+        assert.strictEqual(prProfile?.surface, 'issuePrNative');
+        assert.strictEqual(prProfile?.isolation, 'cloud-sandbox');
+        assert.strictEqual(prProfile?.runner, 'codex-github-review');
+        const operatorProfile = layers[0].executionProfiles?.find(
+            (entry) => entry.id === 'operator',
+        );
+        assert.strictEqual(operatorProfile?.surface, 'alwaysOnWorkflow');
+        assert.strictEqual(operatorProfile?.isolation, 'vm');
     });
 
     it('reports validation diagnostics for invalid canonical execution profiles', () => {

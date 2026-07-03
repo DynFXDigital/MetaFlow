@@ -355,7 +355,9 @@ export type ExecutionSurface =
     | 'devContainer'
     | 'cloudSandbox'
     | 'ciRunner'
-    | 'longRunningVm';
+    | 'longRunningVm'
+    | 'issuePrNative'
+    | 'alwaysOnWorkflow';
 
 /** Isolation boundary declared by a canonical execution profile. */
 export type ExecutionIsolation =

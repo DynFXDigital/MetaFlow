@@ -443,6 +443,7 @@ describe('CLI: preview', () => {
         const mcpServerPath = '.metaflow/mcp/github.json';
         const hookPath = '.metaflow/hooks/release-gate.json';
         const executionProfilePath = '.metaflow/execution/local.json';
+        const prExecutionProfilePath = '.metaflow/execution/pr-review.json';
         const memoryScopePath = '.metaflow/memory/repo-decisions.json';
         const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
         const agentProfilePath = '.metaflow/agents/reviewer.json';
@@ -564,6 +565,19 @@ describe('CLI: preview', () => {
                             environment: { NODE_ENV: 'test' },
                             policyGrants: ['github-pr-read'],
                             targets: ['codex'],
+                        }),
+                    },
+                    {
+                        relativePath: prExecutionProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.executionProfile/v1',
+                            id: 'pr-review',
+                            surface: 'issuePrNative',
+                            isolation: 'cloud-sandbox',
+                            runner: 'codex-github-review',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            description: 'Run Codex issue and pull request workflows.',
                         }),
                     },
                     {
@@ -711,10 +725,15 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('targets=codex'));
-        assert.ok(textResult.stdout.includes('Execution Profiles: 1'));
+        assert.ok(textResult.stdout.includes('Execution Profiles: 2'));
         assert.ok(
             textResult.stdout.includes(
                 'local [localWorkstation/workspace-write] runner=codex-cli timeout=900s',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'pr-review [issuePrNative/cloud-sandbox] runner=codex-github-review',
             ),
         );
         assert.ok(textResult.stdout.includes('secrets=OPENAI_API_KEY'));
@@ -904,7 +923,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.githubCopilotMcpHandoff, 1);
         assert.strictEqual(data.summary.hooks, 1);
-        assert.strictEqual(data.summary.executionProfiles, 1);
+        assert.strictEqual(data.summary.executionProfiles, 2);
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
@@ -959,17 +978,26 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(data.hooks[0].policyGrants, ['github-pr-read']);
         assert.deepStrictEqual(data.hooks[0].targets, ['codex']);
         assert.strictEqual(data.hooks[0].sourceLayer, 'primary/company/core');
-        assert.strictEqual(data.executionProfiles[0].id, 'local');
-        assert.strictEqual(data.executionProfiles[0].surface, 'localWorkstation');
-        assert.strictEqual(data.executionProfiles[0].isolation, 'workspace-write');
-        assert.strictEqual(data.executionProfiles[0].runner, 'codex-cli');
-        assert.strictEqual(data.executionProfiles[0].workingDirectory, '.');
-        assert.strictEqual(data.executionProfiles[0].timeoutSeconds, 900);
-        assert.deepStrictEqual(data.executionProfiles[0].requiredSecrets, ['OPENAI_API_KEY']);
-        assert.deepStrictEqual(data.executionProfiles[0].environment, { NODE_ENV: 'test' });
-        assert.deepStrictEqual(data.executionProfiles[0].policyGrants, ['github-pr-read']);
-        assert.deepStrictEqual(data.executionProfiles[0].targets, ['codex']);
-        assert.strictEqual(data.executionProfiles[0].sourceLayer, 'primary/company/core');
+        const localExecutionProfile = data.executionProfiles.find(
+            (profile: { id: string }) => profile.id === 'local',
+        );
+        assert.strictEqual(localExecutionProfile.id, 'local');
+        assert.strictEqual(localExecutionProfile.surface, 'localWorkstation');
+        assert.strictEqual(localExecutionProfile.isolation, 'workspace-write');
+        assert.strictEqual(localExecutionProfile.runner, 'codex-cli');
+        assert.strictEqual(localExecutionProfile.workingDirectory, '.');
+        assert.strictEqual(localExecutionProfile.timeoutSeconds, 900);
+        assert.deepStrictEqual(localExecutionProfile.requiredSecrets, ['OPENAI_API_KEY']);
+        assert.deepStrictEqual(localExecutionProfile.environment, { NODE_ENV: 'test' });
+        assert.deepStrictEqual(localExecutionProfile.policyGrants, ['github-pr-read']);
+        assert.deepStrictEqual(localExecutionProfile.targets, ['codex']);
+        assert.strictEqual(localExecutionProfile.sourceLayer, 'primary/company/core');
+        const prExecutionProfile = data.executionProfiles.find(
+            (profile: { id: string }) => profile.id === 'pr-review',
+        );
+        assert.strictEqual(prExecutionProfile.surface, 'issuePrNative');
+        assert.strictEqual(prExecutionProfile.isolation, 'cloud-sandbox');
+        assert.strictEqual(prExecutionProfile.runner, 'codex-github-review');
         assert.strictEqual(data.memoryScopes[0].id, 'repo-decisions');
         assert.strictEqual(data.memoryScopes[0].scopeType, 'repository');
         assert.strictEqual(data.memoryScopes[0].storage, 'persistent');
@@ -1173,7 +1201,7 @@ describe('CLI: preview', () => {
             policyGrants: 1,
             mcpServers: 1,
             hooks: 1,
-            executionProfiles: 1,
+            executionProfiles: 2,
             memoryScopes: 1,
             evaluationProfiles: 1,
             packageManifests: 0,

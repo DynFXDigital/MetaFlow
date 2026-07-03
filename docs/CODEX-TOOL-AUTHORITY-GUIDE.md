@@ -80,7 +80,8 @@ warnings because operators cannot review or approve unnamed authority.
 
 Use `targets` to identify the harnesses where the tool is intended to be
 available. Use `executionProfiles` to identify the expected execution surface,
-such as local workstation, dev container, CI, or cloud sandbox.
+such as local workstation, dev container, CI, cloud sandbox, issue/PR-native
+operation, or always-on workflow orchestration.
 
 These fields do not configure Codex by themselves. Codex command execution,
 MCP configuration, network access, and approvals remain runtime configuration.
