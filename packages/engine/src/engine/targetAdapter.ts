@@ -445,6 +445,20 @@ export function parseTargetAdapterContent(
         manifestPath,
         warnings,
     );
+    if (
+        validationEvidence.length === 0 &&
+        (validationStatus === 'staticVerified' ||
+            validationStatus === 'runtimeVerified' ||
+            validationStatus === 'manualWaived')
+    ) {
+        warnings.push(
+            toWarning(
+                'TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED',
+                `Target adapter validationStatus "${validationStatus}" should include validationEvidence references.`,
+                manifestPath,
+            ),
+        );
+    }
     const notes = parseStringArray(
         fields.notes,
         'notes',

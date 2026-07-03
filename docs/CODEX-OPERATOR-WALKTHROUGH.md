@@ -92,6 +92,11 @@ before an adapter can prove current projection readiness. A missing
 `adapterVersion` keeps the adapter loadable, but it remains review-warning
 material until the current matrix version is declared.
 
+Target adapters with `staticVerified`, `runtimeVerified`, or `manualWaived`
+validation status need validation evidence references. Verification and waiver
+claims are review-warning material when they are not tied to a run, review, or
+waiver record.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.

@@ -2815,6 +2815,31 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('reports target adapter validation claims without evidence', () => {
+        const adapter = parseTargetAdapterContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                validationStatus: 'runtimeVerified',
+                concepts: {
+                    skills: 'managed',
+                },
+            }),
+            'codex.json',
+        );
+
+        assert.ok(
+            adapter.warnings.some(
+                (warning) =>
+                    warning.code === 'TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED',
+            ),
+        );
+    });
+
     it('reports validation diagnostics for invalid canonical target adapters', () => {
         const adapter = parseTargetAdapterContent(
             JSON.stringify({
