@@ -211,3 +211,7 @@ packages/cli/
 ```
 
 All business logic lives in `@metaflow/engine` — the CLI is a thin Commander.js wrapper.
+
+For Codex-specific support boundaries, including runtime-only cloud, channel,
+review, and MCP behavior that cannot be proven by repository projection alone,
+see [Codex Support Boundaries](../../docs/CODEX-SUPPORT.md).

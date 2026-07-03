@@ -118,6 +118,7 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - Codex CLI, IDE extension, and app workflows share local Codex configuration layers, so MetaFlow-generated `.codex/config.toml`, `.codex/hooks.json`, `.codex/agents/*.toml`, and `.agents/skills/**` outputs can be validated against local Codex runtimes when the project is trusted.
 - Codex Cloud, Slack, Linear, GitHub-triggered review, and PR feedback workflows are runtime integrations. MetaFlow reports those surfaces in the target capability matrix, but repository metadata projection does not create cloud environments, connect GitHub or channel accounts, grant workspace access, or prove hosted execution behavior.
 - Remote or side-effecting MCP use remains authority-sensitive even when MetaFlow can project valid configuration. OAuth login, callback URLs, Streamable HTTP reachability, remote stdio execution, secret forwarding, network access, and tool approval modes require harness-native runtime validation and policy review.
+- See [Codex Support Boundaries](docs/CODEX-SUPPORT.md) for the file-backed surfaces MetaFlow can project and the runtime-only surfaces that require operator or harness evidence.
 
 ## Capability Plugin Metadata
 
