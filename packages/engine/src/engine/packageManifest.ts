@@ -10,6 +10,7 @@ import * as path from 'path';
 import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
+    PackageMarketplaceEntryMetadata,
     PackageManifestMetadata,
     PackageRuntimeValidationMetadata,
 } from './types';
@@ -32,6 +33,7 @@ const KNOWN_FIELDS = new Set([
     'hooks',
     'policyGrants',
     'targets',
+    'marketplaceEntries',
     'validationEvidence',
     'runtimeValidation',
     'description',
@@ -51,6 +53,7 @@ type PackageFields = {
     hooks?: unknown;
     policyGrants?: unknown;
     targets?: unknown;
+    marketplaceEntries?: unknown;
     validationEvidence?: unknown;
     runtimeValidation?: unknown;
     description?: unknown;
@@ -291,6 +294,103 @@ function parseRuntimeValidation(
     return records;
 }
 
+function parseMarketplaceEntries(
+    value: unknown,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): PackageMarketplaceEntryMetadata[] {
+    if (value === undefined) {
+        return [];
+    }
+    if (!Array.isArray(value)) {
+        warnings.push(
+            toWarning(
+                'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                'Package marketplaceEntries must be an array of marketplace entry objects when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+        return [];
+    }
+
+    const entries: PackageMarketplaceEntryMetadata[] = [];
+    for (const entry of value) {
+        if (!isObjectRecord(entry)) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                    'Package marketplaceEntries entries must be objects.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const target = parseNonEmptyString(entry.target);
+        if (!target) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                    'Package marketplaceEntries entries require a non-empty target.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const packageName = parseNonEmptyString(entry.packageName);
+        const title = parseNonEmptyString(entry.title);
+        const summary = parseNonEmptyString(entry.summary);
+        const publisher = parseNonEmptyString(entry.publisher);
+        const url = parseNonEmptyString(entry.url);
+        for (const [fieldName, fieldValue, parsedValue] of [
+            ['packageName', entry.packageName, packageName],
+            ['title', entry.title, title],
+            ['summary', entry.summary, summary],
+            ['publisher', entry.publisher, publisher],
+            ['url', entry.url, url],
+        ] as const) {
+            if (fieldValue !== undefined && !parsedValue) {
+                warnings.push(
+                    toWarning(
+                        'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                        `Package marketplaceEntries ${fieldName} must be a non-empty string when present.`,
+                        manifestPath,
+                        'error',
+                    ),
+                );
+            }
+        }
+
+        entries.push({
+            target,
+            ...(packageName ? { packageName } : {}),
+            ...(title ? { title } : {}),
+            ...(summary ? { summary } : {}),
+            ...(publisher ? { publisher } : {}),
+            categories: parseStringArray(
+                entry.categories,
+                'marketplaceEntries.categories',
+                'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                manifestPath,
+                warnings,
+            ),
+            keywords: parseStringArray(
+                entry.keywords,
+                'marketplaceEntries.keywords',
+                'PACKAGE_MARKETPLACE_ENTRIES_INVALID',
+                manifestPath,
+                warnings,
+            ),
+            ...(url ? { url } : {}),
+        });
+    }
+    return entries;
+}
+
 function warnOnUnknownReferences(
     values: string[],
     knownIds: Set<string> | undefined,
@@ -335,6 +435,7 @@ function emptyPackage(
         hooks: [],
         policyGrants: [],
         targets: {},
+        marketplaceEntries: [],
         validationEvidence: [],
         runtimeValidation: [],
         warnings,
@@ -546,6 +647,11 @@ export function parsePackageManifestContent(
         manifestPath,
         warnings,
     );
+    const marketplaceEntries = parseMarketplaceEntries(
+        fields.marketplaceEntries,
+        manifestPath,
+        warnings,
+    );
     const runtimeValidation = parseRuntimeValidation(
         fields.runtimeValidation,
         manifestPath,
@@ -578,6 +684,7 @@ export function parsePackageManifestContent(
         hooks,
         policyGrants,
         targets,
+        marketplaceEntries,
         validationEvidence,
         runtimeValidation,
         description,

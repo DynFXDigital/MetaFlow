@@ -266,6 +266,9 @@ export function buildAdapterReadinessReports(
             const runtimeValidation = manifest.runtimeValidation.filter(
                 (record) => record.target === target,
             );
+            const marketplaceEntries = manifest.marketplaceEntries.filter(
+                (entry) => entry.target === target,
+            );
             const runtimeText =
                 runtimeValidation.length > 0
                     ? ` Runtime validation: ${runtimeValidation
@@ -274,6 +277,15 @@ export function buildAdapterReadinessReports(
                                   `${record.harness}/${record.adapterVersion} ${record.status} "${record.scenario}"`,
                           )
                           .join('; ')}.`
+                    : '';
+            const marketplaceText =
+                marketplaceEntries.length > 0
+                    ? ` Marketplace entries: ${marketplaceEntries
+                          .map(
+                              (entry) =>
+                                  `${entry.target}${entry.packageName ? `/${entry.packageName}` : ''}`,
+                          )
+                          .join(', ')}.`
                     : '';
             const packageEvidence = uniqueSorted([
                 ...rowEvidence(packageRow),
@@ -284,7 +296,7 @@ export function buildAdapterReadinessReports(
                 action(
                     'packageManifests',
                     manifest.id,
-                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.${grantText}${evidenceText}${runtimeText}`,
+                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.${grantText}${evidenceText}${runtimeText}${marketplaceText}`,
                     packageEvidence,
                 ),
             );

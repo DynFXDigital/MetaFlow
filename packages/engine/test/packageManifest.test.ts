@@ -27,6 +27,18 @@ describe('packageManifest parser', () => {
                     codex: { pluginName: 'release-operations', enabled: true },
                     'github-copilot': { pluginName: 'release-operations' },
                 },
+                marketplaceEntries: [
+                    {
+                        target: 'codex',
+                        packageName: 'release-operations',
+                        title: 'Release Operations',
+                        summary: 'Release workflow package.',
+                        publisher: 'DynFX',
+                        categories: ['release'],
+                        keywords: ['codex', 'release'],
+                        url: 'https://example.test/release-operations',
+                    },
+                ],
                 validationEvidence: ['RUN-055'],
                 runtimeValidation: [
                     {
@@ -70,6 +82,18 @@ describe('packageManifest parser', () => {
             pluginName: 'release-operations',
             enabled: true,
         });
+        assert.deepStrictEqual(parsed.marketplaceEntries, [
+            {
+                target: 'codex',
+                packageName: 'release-operations',
+                title: 'Release Operations',
+                summary: 'Release workflow package.',
+                publisher: 'DynFX',
+                categories: ['release'],
+                keywords: ['codex', 'release'],
+                url: 'https://example.test/release-operations',
+            },
+        ]);
         assert.deepStrictEqual(parsed.validationEvidence, ['RUN-055']);
         assert.deepStrictEqual(parsed.runtimeValidation, [
             {
@@ -97,6 +121,14 @@ describe('packageManifest parser', () => {
                 agents: [''],
                 skills: 'release-readiness',
                 targets: { codex: { pluginName: '', enabled: 'yes' }, '': {} },
+                marketplaceEntries: [
+                    'bad',
+                    {
+                        target: '',
+                        title: '',
+                        categories: [''],
+                    },
+                ],
                 policyGrants: ['missing-grant'],
                 validationEvidence: [7],
                 runtimeValidation: [
@@ -126,6 +158,7 @@ describe('packageManifest parser', () => {
         assert.ok(codes.includes('PACKAGE_TARGETS_INVALID'));
         assert.ok(codes.includes('PACKAGE_TARGET_PLUGIN_NAME_INVALID'));
         assert.ok(codes.includes('PACKAGE_TARGET_ENABLED_INVALID'));
+        assert.ok(codes.includes('PACKAGE_MARKETPLACE_ENTRIES_INVALID'));
         assert.ok(codes.includes('PACKAGE_POLICY_GRANT_UNKNOWN'));
         assert.ok(codes.includes('PACKAGE_VALIDATION_EVIDENCE_INVALID'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_INVALID'));

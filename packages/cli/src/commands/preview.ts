@@ -625,6 +625,26 @@ export function registerPreviewCommand(program: Command): void {
                         if (manifest.description) {
                             console.log(`    description: ${manifest.description}`);
                         }
+                        for (const entry of manifest.marketplaceEntries) {
+                            const packageName = entry.packageName
+                                ? ` package=${entry.packageName}`
+                                : '';
+                            const title = entry.title ? ` title=${entry.title}` : '';
+                            const publisher = entry.publisher
+                                ? ` publisher=${entry.publisher}`
+                                : '';
+                            const categories =
+                                entry.categories.length > 0
+                                    ? ` categories=${entry.categories.join(',')}`
+                                    : '';
+                            const keywords =
+                                entry.keywords.length > 0
+                                    ? ` keywords=${entry.keywords.join(',')}`
+                                    : '';
+                            console.log(
+                                `    marketplaceEntry: ${entry.target}${packageName}${title}${publisher}${categories}${keywords}`,
+                            );
+                        }
                         for (const record of manifest.runtimeValidation) {
                             const command = record.command ? ` command=${record.command}` : '';
                             const evidence =

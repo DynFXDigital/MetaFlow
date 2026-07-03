@@ -409,6 +409,15 @@ describe('Engine package: public API', () => {
                     hooks: ['release-gate'],
                     policyGrants: ['github-pr-read'],
                     targets: { codex: { enabled: true } },
+                    marketplaceEntries: [
+                        {
+                            target: 'codex',
+                            packageName: 'release-operations',
+                            title: 'Release Operations',
+                            categories: ['release'],
+                            keywords: ['codex'],
+                        },
+                    ],
                     validationEvidence: ['RUN-055'],
                     runtimeValidation: [
                         {
@@ -497,6 +506,7 @@ describe('Engine package: public API', () => {
                     item.message.includes('Required package policy grants: github-pr-read') &&
                     item.message.includes('Validation evidence: RUN-055') &&
                     item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.message.includes('Marketplace entries: codex/release-operations') &&
                     item.evidence.includes('RUN-056'),
             ),
         );

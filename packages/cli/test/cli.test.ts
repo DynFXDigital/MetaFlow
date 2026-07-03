@@ -997,6 +997,17 @@ describe('CLI: preview', () => {
                                     pluginName: 'release-operations',
                                 },
                             },
+                            marketplaceEntries: [
+                                {
+                                    target: 'codex',
+                                    packageName: 'release-operations',
+                                    title: 'Release Operations',
+                                    summary: 'Release workflow package.',
+                                    publisher: 'DynFX',
+                                    categories: ['release'],
+                                    keywords: ['codex', 'automation'],
+                                },
+                            ],
                             validationEvidence: ['RUN-055'],
                             runtimeValidation: [
                                 {
@@ -1025,6 +1036,9 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('components: agents=release-steward'));
         assert.ok(textResult.stdout.includes('skills=release-readiness'));
         assert.ok(textResult.stdout.includes('tools=create-pr'));
+        assert.ok(textResult.stdout.includes('marketplaceEntry: codex'));
+        assert.ok(textResult.stdout.includes('package=release-operations'));
+        assert.ok(textResult.stdout.includes('categories=release'));
         assert.ok(textResult.stdout.includes('runtimeValidation: codex/Codex CLI passed'));
         assert.ok(textResult.stdout.includes('evidence=RUN-056'));
         assert.ok(textResult.stdout.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
@@ -1036,6 +1050,11 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.packageManifests, 1);
         assert.strictEqual(data.packageManifests[0].id, 'release-operations');
         assert.strictEqual(data.packageManifests[0].targets.codex.enabled, true);
+        assert.strictEqual(data.packageManifests[0].marketplaceEntries[0].target, 'codex');
+        assert.strictEqual(
+            data.packageManifests[0].marketplaceEntries[0].packageName,
+            'release-operations',
+        );
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].target, 'codex');
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].evidence[0], 'RUN-056');
         assert.ok(
@@ -1065,6 +1084,7 @@ describe('CLI: preview', () => {
                     item.message.includes('Required package policy grants: github-pr-read') &&
                     item.message.includes('Validation evidence: RUN-055') &&
                     item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.message.includes('Marketplace entries: codex/release-operations') &&
                     item.evidence.includes('RUN-056'),
             ),
         );

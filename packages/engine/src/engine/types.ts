@@ -623,6 +623,8 @@ export interface PackageManifestMetadata {
     policyGrants: string[];
     /** Target harness package declarations keyed by target id. */
     targets: Record<string, { pluginName?: string; enabled?: boolean }>;
+    /** Optional target marketplace/catalog display entries. */
+    marketplaceEntries: PackageMarketplaceEntryMetadata[];
     /** Optional validation evidence identifiers or references. */
     validationEvidence: string[];
     /** Optional structured runtime validation records for target harness claims. */
@@ -631,6 +633,26 @@ export interface PackageManifestMetadata {
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
     warnings: CapabilityWarning[];
+}
+
+/** Canonical package marketplace/catalog display intent. */
+export interface PackageMarketplaceEntryMetadata {
+    /** Target marketplace or catalog family, such as codex or github-copilot. */
+    target: string;
+    /** Optional target-specific marketplace package name. */
+    packageName?: string;
+    /** Optional user-facing title for marketplace displays. */
+    title?: string;
+    /** Optional short summary for marketplace displays. */
+    summary?: string;
+    /** Optional publisher or owner label for marketplace displays. */
+    publisher?: string;
+    /** Optional marketplace category labels. */
+    categories: string[];
+    /** Optional marketplace keyword labels. */
+    keywords: string[];
+    /** Optional documentation, homepage, or repository URL. */
+    url?: string;
 }
 
 /** Structured runtime validation evidence for a package target claim. */
