@@ -22,6 +22,12 @@ generator metadata: the emitting MetaFlow command or extension surface, the
 generation timestamp, and the Codex target adapter version used to classify
 file-backed and runtime-only support.
 
+The CLI report can also act as a release or CI gate. Use
+`metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics` to
+emit the report and exit nonzero when runtime-only concepts have no evidence or
+when retained runtime evidence carries diagnostics. Supported gate checks are
+`missing-evidence`, `diagnostics`, `error-diagnostics`, `failed`, and `not-run`.
+
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence
 that requires refresh. Expired records remain visible, but report diagnostics

@@ -3343,6 +3343,76 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });
 
+    it('rejects unknown Codex support boundary gate checks', async () => {
+        const result = await runCli(['codex-support-boundaries', '--fail-on', 'complete']);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('--fail-on must be a comma-separated list'));
+    });
+
+    it('fails Codex support boundary gates when runtime evidence is missing', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--fail-on',
+            'missing-evidence',
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence, 34);
+        assert.ok(
+            result.stderr.includes(
+                'Codex support boundary gate failed: missing-evidence: 34 runtime-only concept(s) have no matching evidence',
+            ),
+        );
+    });
+
+    it('fails Codex support boundary gates when runtime evidence has diagnostics', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.0',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidence: ['RUN-095'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--fail-on',
+            'diagnostics',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
+        assert.ok(
+            result.stderr.includes(
+                'Codex support boundary gate failed: diagnostics: 1 runtime evidence record(s) have diagnostics',
+            ),
+        );
+    });
+
     it('includes workspace runtime evidence records in Codex support boundary checklist', async () => {
         ws = createTestWorkspace({
             config: {

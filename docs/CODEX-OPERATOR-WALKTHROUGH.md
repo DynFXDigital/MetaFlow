@@ -23,6 +23,7 @@ package, or marketplace candidate.
 ```bash
 metaflow codex-support-boundaries
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
+metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
 metaflow target-support --target codex
 metaflow target-support --target codex --support runtime-only
 metaflow target-support --json --target codex --concept mcpServers
@@ -49,6 +50,11 @@ evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.
+For release gates, add `--fail-on` with comma-separated checks. `missing-evidence`
+fails when runtime-only concepts have no matching evidence, `diagnostics` fails
+when any retained runtime evidence record has diagnostics, `error-diagnostics`
+fails only on error-severity diagnostics, `failed` fails on failed evidence
+coverage, and `not-run` fails on planned but unexecuted evidence.
 For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
 preview and support-boundary JSON output. Local structured artifact refs for
