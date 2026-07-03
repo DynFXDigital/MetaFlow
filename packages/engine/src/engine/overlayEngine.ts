@@ -552,6 +552,65 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                 ),
             );
         }
+
+        for (const entry of manifest.marketplaceEntries) {
+            const targetDeclaration = manifest.targets[entry.target];
+            if (!targetDeclaration) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_MARKETPLACE_TARGET_UNDECLARED',
+                        `Package marketplace entry target "${entry.target}" is not declared in package targets.`,
+                        manifest.manifestPath,
+                    ),
+                );
+                continue;
+            }
+            if (targetDeclaration.enabled === false) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_MARKETPLACE_TARGET_DISABLED',
+                        `Package marketplace entry target "${entry.target}" is disabled in package targets.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
+            if (
+                entry.packageName &&
+                targetDeclaration.pluginName &&
+                entry.packageName !== targetDeclaration.pluginName
+            ) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_MARKETPLACE_PACKAGE_NAME_MISMATCH',
+                        `Package marketplace entry target "${entry.target}" packageName "${entry.packageName}" does not match target pluginName "${targetDeclaration.pluginName}".`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
+        }
+
+        for (const record of manifest.runtimeValidation) {
+            const targetDeclaration = manifest.targets[record.target];
+            if (!targetDeclaration) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_TARGET_UNDECLARED',
+                        `Package runtimeValidation target "${record.target}" is not declared in package targets.`,
+                        manifest.manifestPath,
+                    ),
+                );
+                continue;
+            }
+            if (targetDeclaration.enabled === false) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED',
+                        `Package runtimeValidation target "${record.target}" is disabled in package targets.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
+        }
     }
 }
 

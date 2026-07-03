@@ -5657,6 +5657,60 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('PACKAGE_TARGET_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 
+    it('reports package marketplace and runtime target consistency warnings', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'core');
+        fs.mkdirSync(path.join(layerDir, '.metaflow', 'packages'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, '.metaflow', 'packages', 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                targets: {
+                    codex: { pluginName: 'release-operations', enabled: true },
+                    'github-copilot': { pluginName: 'release-operations', enabled: false },
+                },
+                marketplaceEntries: [
+                    { target: 'codex', packageName: 'release-tools' },
+                    { target: 'github-copilot', packageName: 'release-operations' },
+                    { target: 'future-agent', packageName: 'release-operations' },
+                ],
+                runtimeValidation: [
+                    {
+                        target: 'github-copilot',
+                        harness: 'GitHub Copilot',
+                        adapterVersion: 'github-copilot-v0.1',
+                        scenario: 'Marketplace listing reviewed.',
+                        status: 'partial',
+                    },
+                    {
+                        target: 'future-agent',
+                        harness: 'Future Agent',
+                        adapterVersion: 'future-v0.1',
+                        scenario: 'Future marketplace smoke.',
+                        status: 'not-run',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const codes = layers[0].packageManifests?.[0].warnings.map((warning) => warning.code) ?? [];
+        assert.ok(codes.includes('PACKAGE_MARKETPLACE_PACKAGE_NAME_MISMATCH'));
+        assert.ok(codes.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'));
+        assert.ok(codes.includes('PACKAGE_MARKETPLACE_TARGET_UNDECLARED'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_UNDECLARED'));
+    });
+
     it('planSynchronization fails when Codex repository skills would overwrite unmanaged root files', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         const codexSkillPath = '.agents/skills/codex-metadata/SKILL.md';
