@@ -83,6 +83,23 @@ Existing unmanaged root files block apply. Resolve ownership before forcing
 any overwrite: keep the unmanaged file, move the source metadata, or explicitly
 decide that MetaFlow owns the destination.
 
+Guarded native conflicts use stronger review language than ordinary generated
+file conflicts because the destination is a host-owned or root-owned file such
+as `AGENTS.md`, `.codex/config.toml`, `.codex/hooks.json`,
+`.agents/skills/**`, or `.github/agents/*.agent.md`. Treat each guarded
+conflict as an ownership decision:
+
+1. Keep the existing native file and leave the MetaFlow output as candidate or
+   skipped output.
+2. Move or narrow the source metadata so it no longer projects to the guarded
+   destination.
+3. Convert the destination to MetaFlow ownership only after reviewing the
+   generated content, provenance, policy grants, and target adapter mode.
+
+Do not use `--force` as a substitute for that review. Force is appropriate only
+after the operator has decided that the generated file is authoritative for the
+guarded destination.
+
 ## Apply And Validate
 
 After preview is clean for the intended changes:
@@ -147,10 +164,27 @@ harnesses:
 ```bash
 metaflow export-copilot-mcp
 metaflow export-copilot-mcp --out .vscode/mcp.json
+metaflow export-copilot-mcp --out .vscode/mcp.json --force
 ```
 
-Review secrets, unsupported transports, policy grants, and target warnings
-before applying the handoff through the host workflow.
+The handoff candidate is review-first. MetaFlow reports the supported MCP
+servers, required secrets, policy grants, unsupported transports, and warnings;
+it does not configure GitHub Copilot or grant MCP runtime authority by itself.
+
+Use the handoff in this order:
+
+1. Inspect stdout or the VS Code `MetaFlow: Export GitHub Copilot MCP Handoff`
+   review document.
+2. Confirm every required secret and policy grant has an owner.
+3. Save to `.vscode/mcp.json` only when the repository intentionally carries a
+   Copilot MCP workspace setting.
+4. Use `--force` only after reviewing the existing file and accepting the
+   overwrite.
+5. Validate in GitHub Copilot or VS Code that the MCP server starts and exposes
+   the intended tools.
+
+This handoff is not a Codex MCP projection. Codex MCP configuration remains in
+`.codex/config.toml` when a Codex target adapter manages MCP output.
 
 ## Record Runtime Validation
 
