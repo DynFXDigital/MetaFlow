@@ -72,6 +72,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'tools',
     'hooks',
     'packageManifests',
+    'pluginRuntime',
     'policyGrants',
     'executionSurfaces',
     'memoryScopes',

@@ -870,6 +870,7 @@ export type TargetCapabilityConcept =
     | 'tools'
     | 'hooks'
     | 'packageManifests'
+    | 'pluginRuntime'
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'

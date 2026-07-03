@@ -23,6 +23,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex prompt support now distinguishes canonical MetaFlow prompt metadata from deprecated local-only Codex custom prompts, and directs shared Codex workflows to skills.
 - Codex memory runtime support now distinguishes canonical `.metaflow/memory/**` boundary metadata from opt-in Codex Memories runtime state under the Codex home directory.
 - Codex evaluation runtime support now distinguishes canonical `.metaflow/evaluation/**` evidence metadata from harness-native benchmark, reviewer-agent, CI, hosted trace, and runtime scoring execution evidence.
+- Plugin runtime support now distinguishes Codex and GitHub Copilot package/marketplace metadata from installation, enablement, authentication, discovery, and task-time invocation evidence.
 - Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Codex tool authority guide covering canonical `.metaflow/tools/*.json` metadata, policy grants, execution scope, runtime validation, and the limit between tool description and runtime authority.
 - Codex custom-agent activation proof boundary documentation for `.codex/agents/*.toml` projections and the installed CLI 0.142.3 non-interactive activation limit.

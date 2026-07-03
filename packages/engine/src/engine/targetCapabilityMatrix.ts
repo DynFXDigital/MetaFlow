@@ -186,6 +186,19 @@ const CODEX_MATRIX: MatrixSeed[] = [
         'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
     ),
     row(
+        'pluginRuntime',
+        'runtime-only',
+        ['Codex plugin directory', 'installed Codex plugins', 'plugin enablement', 'plugin app and MCP setup'],
+        [
+            'Codex plugin manifests and marketplace catalogs are repository metadata, but plugin installation, enabled state, workspace sharing, app authentication, MCP setup, restart discovery, and task-time activation are Codex runtime behavior.',
+            'Repository metadata can publish reviewable plugin package and marketplace candidates, but it cannot install plugins into Codex, enable them for a user, authenticate bundled apps, complete MCP setup, share plugins with a workspace, or prove that Codex invoked the plugin in a thread.',
+        ],
+        [
+            'Installed plugins can expose skills, apps, MCP servers, hooks, credentials, and external-service authority and require explicit trust, authentication, and data-sharing review.',
+        ],
+        ['RUN-069'],
+    ),
+    row(
         'policyGrants',
         'partial',
         ['.metaflow/policies/*.json'],
@@ -493,6 +506,19 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-025', 'RUN-026'],
     ),
     row(
+        'pluginRuntime',
+        'runtime-only',
+        ['GitHub Copilot agent plugin install state', 'GitHub Agent HQ marketplace or registry', 'host app and MCP setup'],
+        [
+            'Copilot agent-plugin manifests and marketplace catalogs are repository metadata, but installation, enablement, organization policy, app authentication, MCP setup, and task-time routing are GitHub or Copilot runtime behavior.',
+            'Repository metadata can publish reviewable plugin package and marketplace candidates, but it cannot install plugins into a host, enable them for a user or organization, authenticate bundled apps, complete MCP setup, or prove that the host routed work through the plugin.',
+        ],
+        [
+            'Installed agent plugins can expose skills, apps, MCP servers, credentials, repository authority, and external-service authority and require explicit trust, authentication, and organization-policy review.',
+        ],
+        ['RUN-069'],
+    ),
+    row(
         'policyGrants',
         'partial',
         ['.metaflow/policies/*.json'],
@@ -753,6 +779,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
+        'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
         'Executing harness-native evaluations, benchmark tasks, reviewer-agent scoring, hosted traces, or runtime scoring workflows.',
         'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, Sites deployment, or harness-native evaluation execution without a harness-native run.',
@@ -762,6 +789,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
+        'Plugin runtime: installed plugin identity and version, enabled state, marketplace source, app or MCP authentication state, restart/discovery evidence, representative invocation, result, and known limitations.',
         'Memory runtime: enabled Codex memory setting, thread-level memory controls, generated memory artifact review, recall evidence, and known retention or sharing limits.',
         'Browser, Chrome, Computer Use, and Sites runtime: installed plugin or app state, approval scope, target site/app/project identity, representative operation, result, and known limitations.',
         'Evaluation runtime: selected harness, repository checkout, model or agent identity, sandbox and tool policy, validation command, benchmark or scoring result, artifacts, traces where available, cost/data limits, and known limitations.',

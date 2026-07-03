@@ -224,6 +224,11 @@ Copilot payload candidates as one unsaved JSON review document. This command is
 review-only and does not write `.agents/plugins/marketplace.json` or
 `.github/plugin/marketplace.json`.
 
+Package and marketplace files are not plugin runtime proof. For Codex plugin
+runtime evidence, record the installed plugin identity and version, enabled
+state, marketplace source, app or MCP authentication state, restart or discovery
+evidence, representative invocation, result, and known limitations.
+
 GitHub Copilot MCP handoff is separate from Codex support, but it often appears
 in the same package review because canonical MCP metadata can target multiple
 harnesses:

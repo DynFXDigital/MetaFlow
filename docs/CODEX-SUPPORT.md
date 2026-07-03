@@ -42,6 +42,7 @@ the service connection or prove the behavior.
 | Codex GitHub Action | GitHub Action execution depends on workflow triggers, GitHub secrets, runner operating system, job permissions, sandbox inputs, and Codex action version. | Classify the execution intent in `.metaflow/execution/*.json`; do not generate workflows or claim CI execution without a harness-native run. |
 | Codex app-server integrations | App-server execution depends on a local process, selected transport, client initialization, experimental capability flags where applicable, and listener authentication for WebSocket use. | Classify the execution intent in `.metaflow/execution/*.json`; require integration-specific runtime validation before treating app-server usage as operational. |
 | Codex SDK integrations | SDK-embedded execution depends on application code, API credentials, process sandboxing, trace handling, and deployed environment policy. | Classify the execution intent in `.metaflow/execution/*.json`; require SDK integration evidence before treating the adapter claim as runtime support. |
+| Plugin installation and activation | Plugin use depends on a configured marketplace source, installed plugin bundle, enabled state, workspace sharing policy, restart/discovery behavior, app authentication, MCP setup, and task-time invocation. | Export reviewable package and marketplace candidates; require installed plugin identity, enabled state, authentication/setup evidence, representative invocation, and known limitations before treating plugin runtime behavior as operational. |
 | Codex Memories | Memories are opt-in runtime state controlled by Codex settings or per-thread controls and stored under the user's Codex home directory. | Record intended boundaries in `.metaflow/memory/*.json`; require enabled memory settings, thread-level control evidence, generated memory artifact review, and recall proof before treating memory behavior as operational. |
 | Browser Use and in-app browser | Browser Use depends on the Browser plugin, site approvals, browser state, optional Developer Mode, and the rendered page state available in the running Codex app. | Record browser task intent, target URL, approval scope, and visual validation evidence; do not treat repository metadata as proof of page interaction. |
 | Chrome extension browser use | Chrome use depends on the Chrome plugin, extension installation, active Chrome profile, website allowlists, browser history permission, and signed-in account state. | Record Chrome task intent and required authority; require harness-native evidence before treating signed-in browser operation as supported. |
@@ -65,6 +66,8 @@ MetaFlow does not claim the following outcomes from generated repository files:
   account, MCP OAuth session, or marketplace plugin install.
 - Granting shell, browser, network, credential, memory, or external-service
   authority merely because a package manifest references those capabilities.
+- Installing, enabling, sharing, authenticating, or invoking Codex or GitHub
+  Copilot plugins from repository metadata alone.
 - Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and
   their app, website, OS, hosting, or workspace permissions.
 - Executing harness-native evaluations, benchmark tasks, reviewer-agent
@@ -90,6 +93,7 @@ Static projection support and runtime support use different evidence.
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
 | MCP runtime works | Codex MCP startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
+| Plugin runtime works | Installed plugin identity and version, enabled state, marketplace source, app or MCP authentication state, restart/discovery evidence, representative invocation, result, and known limitations. |
 | Tool runtime works | Tool manifest review, policy grant approval, target runtime configuration, approval behavior, and at least one bounded tool call in the intended environment. |
 | Codex memory runtime works | Enabled Codex memory settings, thread-level memory controls, generated memory artifact review, recall evidence, and known retention or sharing limits. |
 | Browser, Chrome, Computer Use, or Sites runtime works | Installed plugin or app state, approval scope, target site, app, or hosted project identity, representative operation, result, and known limitations. |

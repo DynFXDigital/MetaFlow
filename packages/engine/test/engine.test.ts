@@ -178,6 +178,7 @@ describe('Engine package: public API', () => {
             'tools',
             'hooks',
             'packageManifests',
+            'pluginRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -369,6 +370,31 @@ describe('Engine package: public API', () => {
             copilotPackages?.nativeSurfaces.includes('.metaflow/packages/*.json'),
             'GitHub Copilot package row should name the canonical package metadata surface',
         );
+        const codexPluginRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'pluginRuntime',
+        );
+        assert.strictEqual(codexPluginRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexPluginRuntime?.nativeSurfaces.includes('installed Codex plugins'),
+            'Codex plugin runtime row should name installed plugin state',
+        );
+        assert.ok(
+            codexPluginRuntime?.notes.some((note) => note.includes('cannot install plugins into Codex')),
+            'Codex plugin runtime row should document the repository projection boundary',
+        );
+        assert.ok(
+            codexPluginRuntime?.evidence.includes('RUN-069'),
+            'Codex plugin runtime row should cite plugin runtime boundary evidence',
+        );
+        const copilotPluginRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'pluginRuntime',
+        );
+        assert.strictEqual(copilotPluginRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotPluginRuntime?.notes.some((note) => note.includes('cannot install plugins into a host')),
+            'GitHub Copilot plugin runtime row should document the repository projection boundary',
+        );
 
         const codexEvaluation = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'evaluationSupport',
@@ -547,16 +573,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 18,
+            runtimeOnlyCount: 20,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 11,
+                    runtimeOnlyCount: 12,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 7,
+                    runtimeOnlyCount: 8,
                     documentation: 'README.md',
                 },
             ],
