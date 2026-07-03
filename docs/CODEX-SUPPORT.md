@@ -34,7 +34,10 @@ paths produce diagnostics because they are not portable with the capability.
 Local artifacts may declare an optional lowercase `sha256` digest; MetaFlow
 reports a mismatch when the current file content differs from the reviewed
 digest. `url`, `run`, `other`, and explicit URI refs remain external review
-references.
+references. Runtime evidence records also declare the adapter version used
+when the evidence was reviewed; records whose adapter version differs from the
+current target capability matrix remain visible but produce diagnostics in
+support-boundary reports.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.

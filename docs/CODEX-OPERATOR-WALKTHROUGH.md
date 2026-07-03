@@ -57,7 +57,10 @@ to the metadata layer; stale local paths and escaped local paths also appear as
 diagnostics. When a local artifact declares a `sha256` digest, changed file
 content also appears as a runtime evidence diagnostic. Use `url`, `run`, `other`,
 or explicit URI refs for evidence that intentionally lives outside the metadata
-layer.
+layer. Runtime evidence records declare the adapter version reviewed by the
+evidence; support-boundary output keeps stale-version records visible and adds a
+diagnostic when the record version differs from the current target capability
+matrix.
 
 ## Preview Codex Adapter Output
 

@@ -29,6 +29,7 @@ import {
     LayerContent,
     LayerFile,
     PackageManifestMetadata,
+    RuntimeEvidenceMetadata,
     TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
 } from './types';
@@ -368,6 +369,8 @@ function buildLayerContent(
         knownPolicyGrantIds,
         packageReferenceIndex,
     );
+    const runtimeEvidenceRecords = loadRuntimeEvidenceForLayer(layerAbsPath, knownPolicyGrantIds);
+    validateRuntimeEvidenceAdapterVersions(runtimeEvidenceRecords);
     validatePackageOperationalReadiness(packageManifests);
     validatePackageTargetCompatibility(packageManifests);
     const capability = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
@@ -458,7 +461,7 @@ function buildLayerContent(
         executionProfiles: loadExecutionProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
         memoryScopes: loadMemoryScopesForLayer(layerAbsPath, knownPolicyGrantIds),
         evaluationProfiles: loadEvaluationProfilesForLayer(layerAbsPath, knownPolicyGrantIds),
-        runtimeEvidenceRecords: loadRuntimeEvidenceForLayer(layerAbsPath, knownPolicyGrantIds),
+        runtimeEvidenceRecords,
         agentProfiles,
         instructions,
         prompts,
@@ -696,6 +699,27 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                 );
             }
         }
+    }
+}
+
+function validateRuntimeEvidenceAdapterVersions(records: RuntimeEvidenceMetadata[]): void {
+    const adapterVersionByTarget = new Map<string, string>();
+    for (const entry of getTargetCapabilityMatrix()) {
+        adapterVersionByTarget.set(entry.target, entry.adapterVersion);
+    }
+
+    for (const record of records) {
+        const expectedAdapterVersion = adapterVersionByTarget.get(record.target);
+        if (!expectedAdapterVersion || record.adapterVersion === expectedAdapterVersion) {
+            continue;
+        }
+        record.warnings.push(
+            capabilityWarning(
+                'RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH',
+                `Runtime evidence target "${record.target}" adapterVersion "${record.adapterVersion}" does not match current target adapterVersion "${expectedAdapterVersion}".`,
+                record.manifestPath,
+            ),
+        );
     }
 }
 

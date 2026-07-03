@@ -3911,6 +3911,49 @@ describe('Engine package: overlay pipeline', () => {
         );
     });
 
+    it('warns when canonical runtime evidence adapter versions are stale', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.0',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                evidence: ['RUN-095'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const record = layers[0].runtimeEvidenceRecords?.[0];
+        assert.deepStrictEqual(record?.warnings.map((warning) => warning.code), [
+            'RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH',
+        ]);
+        assert.strictEqual(
+            record?.warnings[0].message,
+            'Runtime evidence target "codex" adapterVersion "codex-v0.0" does not match current target adapterVersion "codex-v0.1".',
+        );
+    });
+
     it('warns when canonical runtime evidence local artifact sha256 does not match', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {

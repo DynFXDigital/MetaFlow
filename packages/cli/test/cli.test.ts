@@ -3516,6 +3516,54 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.content.includes('- Evidence with diagnostics: issuePrOperation'));
     });
 
+    it('surfaces stale runtime evidence adapter versions in Codex support boundaries', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.0',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidence: ['RUN-095'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.deepStrictEqual(
+            issueChecklist.runtimeEvidenceRecords[0].warnings.map(
+                (warning: { code: string }) => warning.code,
+            ),
+            ['RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH'],
+        );
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
+        assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity, {
+            error: 0,
+            warning: 1,
+            info: 0,
+        });
+        assert.ok(data.content.includes('- Evidence with diagnostics: issuePrOperation'));
+    });
+
     it('surfaces stale local runtime evidence artifact hashes in Codex support boundaries', async () => {
         ws = createTestWorkspace({
             config: {
