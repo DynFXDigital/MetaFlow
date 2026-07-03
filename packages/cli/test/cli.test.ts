@@ -65,6 +65,64 @@ function createMcpHandoffWorkspace(): TestWorkspace {
     });
 }
 
+function createPackageMarketplaceWorkspace(): TestWorkspace {
+    return createTestWorkspace({
+        config: standardConfig(),
+        layers: {
+            'company/core': [
+                {
+                    relativePath: '.metaflow/packages/release-operations.json',
+                    content: JSON.stringify({
+                        schemaVersion: 'metaflow.package/v1',
+                        id: 'release-operations',
+                        name: 'Release Operations',
+                        kind: 'agent-plugin',
+                        targets: {
+                            codex: {
+                                pluginName: 'release-operations',
+                                enabled: true,
+                            },
+                            'github-copilot': {
+                                pluginName: 'release-operations',
+                                enabled: false,
+                            },
+                        },
+                        marketplaceEntries: [
+                            {
+                                target: 'codex',
+                                packageName: 'release-operations',
+                                title: 'Release Operations',
+                                summary: 'Release workflow package.',
+                                publisher: 'DynFX',
+                                categories: ['release'],
+                                keywords: ['codex', 'automation'],
+                            },
+                            {
+                                target: 'github-copilot',
+                                packageName: 'release-operations',
+                                title: 'Release Operations',
+                                categories: ['release'],
+                                keywords: ['copilot'],
+                            },
+                        ],
+                        runtimeValidation: [
+                            {
+                                target: 'codex',
+                                harness: 'Codex CLI',
+                                adapterVersion: 'codex-v0.1',
+                                scenario: 'Generated package appears in local marketplace.',
+                                status: 'passed',
+                                evidence: ['RUN-056'],
+                                limitations: ['Cloud package installation is runtime-only.'],
+                            },
+                        ],
+                    }),
+                },
+            ],
+        },
+    });
+}
+
 // ── Init command ───────────────────────────────────────────────────
 
 describe('CLI: init', () => {
@@ -1586,6 +1644,110 @@ describe('CLI: export-copilot-mcp', () => {
             ws.root,
         ]);
         assert.strictEqual(forceResult.exitCode, 0);
+    });
+});
+
+describe('CLI: export-package-marketplace', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    it('should print compact package marketplace candidates to stdout', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli(['export-package-marketplace', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.marketplaces.codex[0].packageId, 'release-operations');
+        assert.strictEqual(data.marketplaces.codex[0].packageName, 'release-operations');
+        assert.strictEqual(data.marketplaces.codex[0].title, 'Release Operations');
+        assert.strictEqual(data.marketplaces['github-copilot'][0].target, 'github-copilot');
+        assert.ok(
+            result.stderr.includes(
+                'PACKAGE_MARKETPLACE_TARGET_DISABLED',
+            ),
+        );
+    });
+
+    it('should print the full package marketplace review object with --json', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli(['export-package-marketplace', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.managed, false);
+        assert.strictEqual(data.requiresOperatorReview, true);
+        assert.strictEqual(data.entries[0].target, 'codex');
+        assert.strictEqual(data.entries[0].sourceLayer, 'primary/company/core');
+        assert.strictEqual(data.entries[0].runtimeValidation[0].evidence[0], 'RUN-056');
+        assert.ok(
+            data.warnings.some((warning: string) =>
+                warning.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),
+            ),
+        );
+    });
+
+    it('should filter package marketplace entries by target', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const result = await runCli([
+            'export-package-marketplace',
+            '--target',
+            'codex',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.marketplaces.codex.length, 1);
+        assert.strictEqual(data.marketplaces['github-copilot'], undefined);
+    });
+
+    it('should write package marketplace exports to an explicit output path', async () => {
+        ws = createPackageMarketplaceWorkspace();
+        const outputPath = path.join(ws.root, 'exports', 'package-marketplace.json');
+
+        const writeResult = await runCli([
+            'export-package-marketplace',
+            '--out',
+            'exports/package-marketplace.json',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(writeResult.exitCode, 0);
+        assert.ok(writeResult.stdout.includes('Wrote package marketplace export: exports'));
+        assert.strictEqual(
+            JSON.parse(fs.readFileSync(outputPath, 'utf-8')).marketplaces.codex[0].packageId,
+            'release-operations',
+        );
+
+        const blockedResult = await runCli([
+            'export-package-marketplace',
+            '--out',
+            'exports/package-marketplace.json',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blockedResult.exitCode, 1);
+        assert.ok(blockedResult.stderr.includes('Output file already exists'));
+
+        const forceResult = await runCli([
+            'export-package-marketplace',
+            '--out',
+            'exports/package-marketplace.json',
+            '--force',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(forceResult.exitCode, 0);
+    });
+
+    it('should fail when no package marketplace entries are configured', async () => {
+        ws = createTestWorkspace({ config: standardConfig() });
+        const result = await runCli(['export-package-marketplace', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('No package marketplace entries are configured'));
     });
 });
 

@@ -3,6 +3,7 @@ import packageMetadata from '../package.json';
 import { registerApplyCommand } from './commands/apply';
 import { registerCleanCommand } from './commands/clean';
 import { registerExportCopilotMcpCommand } from './commands/exportCopilotMcp';
+import { registerExportPackageMarketplaceCommand } from './commands/exportPackageMarketplace';
 import { registerInitCommand } from './commands/init';
 import { registerPreviewCommand } from './commands/preview';
 import { registerProfileCommand } from './commands/profile';
@@ -29,6 +30,7 @@ export function createProgram(): Command {
     registerApplyCommand(program);
     registerCleanCommand(program);
     registerExportCopilotMcpCommand(program);
+    registerExportPackageMarketplaceCommand(program);
     registerProfileCommand(program);
     registerPromoteCommand(program);
     registerValidateCommand(program);
