@@ -1125,6 +1125,7 @@ describe('CLI: preview', () => {
                             enabled: true,
                             materializationMode: 'candidate',
                             concepts: {
+                                projectConfig: 'managed',
                                 skills: 'managed',
                             },
                             validationStatus: 'runtimeVerified',
@@ -1138,6 +1139,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(textResult.exitCode, 0);
         assert.ok(textResult.stdout.includes('Target Adapters: 1'));
         assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
+        assert.ok(textResult.stdout.includes('TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED'));
         assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
 
         const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
@@ -1147,6 +1149,7 @@ describe('CLI: preview', () => {
             (warning: { code: string }) => warning.code,
         );
         assert.ok(warningCodes.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
+        assert.ok(warningCodes.includes('TARGET_ADAPTER_POLICY_GRANTS_RECOMMENDED'));
         assert.ok(warningCodes.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 
