@@ -105,7 +105,7 @@ function filterWarningsForEntry(
     return warnings.filter((warning) => {
         const isTargetSpecific =
             warning.code.startsWith('PACKAGE_MARKETPLACE_TARGET_') ||
-            warning.code.startsWith('PACKAGE_RUNTIME_VALIDATION_TARGET_');
+            warning.code.startsWith('PACKAGE_RUNTIME_VALIDATION_');
         if (!isTargetSpecific) {
             return true;
         }

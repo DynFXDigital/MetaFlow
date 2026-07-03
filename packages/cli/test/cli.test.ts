@@ -1812,6 +1812,10 @@ describe('CLI: export-package-marketplace', () => {
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.marketplaces.codex.length, 1);
         assert.strictEqual(data.marketplaces['github-copilot'], undefined);
+        assert.ok(!result.stderr.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'));
+        assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
+        assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
+        assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 
     it('should export Codex marketplace-shaped package candidates', async () => {
