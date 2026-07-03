@@ -42,6 +42,8 @@ the review total at a glance: runtime-only concepts with no matching record are
 `failed`, `not-run`, or `waived` according to the strongest matching record.
 The summary also counts records and concepts with runtime evidence diagnostics
 by severity so operators can separate coverage presence from evidence quality.
+It separately counts concepts with evidence and no diagnostics from concepts
+with evidence that still needs diagnostic review.
 For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
 preview and support-boundary JSON output. Local structured artifact refs for

@@ -1327,6 +1327,14 @@ describe('Engine package: public API', () => {
         );
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 0);
         assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics,
+            0,
+        );
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics,
+            0,
+        );
+        assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
         );
@@ -1431,6 +1439,14 @@ describe('Engine package: public API', () => {
         });
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 3);
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 3);
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics,
+            0,
+        );
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics,
+            3,
+        );
         assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity, {
             error: 1,
             warning: 2,
@@ -1455,6 +1471,14 @@ describe('Engine package: public API', () => {
             ['issuePrOperation', 'modelProviderRuntime', 'reviewRuntime'].sort(),
         );
         assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords,
+            [],
+        );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords.sort(),
+            ['issuePrOperation', 'modelProviderRuntime', 'reviewRuntime'].sort(),
+        );
+        assert.deepStrictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords,
             ['modelProviderRuntime'],
         );
@@ -1462,7 +1486,7 @@ describe('Engine package: public API', () => {
             (item) => item.concept === 'reviewRuntime',
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
-        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 2 | 1 | 3 | 1 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 3 | 1 | 0 | 2 | 0 | 0 | 1 |'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

@@ -11,7 +11,10 @@ lists the matching evidence records for the covered concepts and summarizes
 coverage by `passed`, `partial`, `failed`, `not-run`, `waived`, and `missing`
 concept status. The coverage summary also reports records and concepts with
 runtime evidence diagnostics by severity so warning-bearing or error-bearing
-proof does not appear as clean coverage.
+proof does not appear as clean coverage. It also separates concepts that have
+evidence without diagnostics from concepts that have evidence with diagnostics,
+so runtime support can be reviewed without treating all recorded proof as
+equally ready.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

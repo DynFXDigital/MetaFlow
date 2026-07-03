@@ -3004,7 +3004,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('pluginRuntime'));
         assert.ok(result.stdout.includes('ideExtensionRuntime'));
         assert.ok(result.stdout.includes('## Runtime Evidence Coverage Summary'));
-        assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Missing evidence | Records |'));
+        assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records |'));
         assert.ok(result.stdout.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(result.stdout.includes('Creating Codex Cloud environments'));
         assert.ok(result.stdout.includes('Enabling Codex Memories'));
@@ -3028,6 +3028,8 @@ describe('CLI: codex-support-boundaries', () => {
             records: 0,
             recordsWithWarnings: 0,
             conceptsWithWarnings: 0,
+            conceptsWithEvidenceWithoutDiagnostics: 0,
+            conceptsWithEvidenceWithDiagnostics: 0,
             diagnosticRecordsBySeverity: {
                 error: 0,
                 warning: 0,
@@ -3056,6 +3058,8 @@ describe('CLI: codex-support-boundaries', () => {
                 missing: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
             },
             conceptsWithWarningRecords: [],
+            conceptsWithEvidenceWithoutDiagnosticRecords: [],
+            conceptsWithEvidenceWithDiagnosticRecords: [],
         });
         assert.ok(
             data.fileBackedRows.some(
@@ -3394,6 +3398,14 @@ describe('CLI: codex-support-boundaries', () => {
         });
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 1);
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 0);
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics,
+            1,
+        );
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics,
+            0,
+        );
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity, {
             error: 0,
             warning: 0,
@@ -3403,8 +3415,16 @@ describe('CLI: codex-support-boundaries', () => {
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.conceptsByStatus.partial, [
             'issuePrOperation',
         ]);
+        assert.deepStrictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords,
+            ['issuePrOperation'],
+        );
+        assert.deepStrictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords,
+            [],
+        );
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
-        assert.ok(data.content.includes('| 34 | 1 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
+        assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
     });
 
     it('surfaces stale local runtime evidence artifact references in Codex support boundaries', async () => {
@@ -3458,6 +3478,14 @@ describe('CLI: codex-support-boundaries', () => {
             info: 0,
         });
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 1);
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics,
+            0,
+        );
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics,
+            1,
+        );
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity, {
             error: 0,
             warning: 1,
@@ -3467,6 +3495,14 @@ describe('CLI: codex-support-boundaries', () => {
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithWarningRecords, [
             'issuePrOperation',
         ]);
+        assert.deepStrictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords,
+            [],
+        );
+        assert.deepStrictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords,
+            ['issuePrOperation'],
+        );
     });
 
     it('surfaces stale local runtime evidence artifact hashes in Codex support boundaries', async () => {

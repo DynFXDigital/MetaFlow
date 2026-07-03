@@ -38,12 +38,16 @@ export interface CodexRuntimeEvidenceCoverageSummary {
     records: number;
     recordsWithWarnings: number;
     conceptsWithWarnings: number;
+    conceptsWithEvidenceWithoutDiagnostics: number;
+    conceptsWithEvidenceWithDiagnostics: number;
     diagnosticRecordsBySeverity: Record<CapabilityDiagnosticSeverity, number>;
     diagnosticConceptsBySeverity: Record<CapabilityDiagnosticSeverity, number>;
     conceptsWithErrorRecords: TargetCapabilityConcept[];
     byStatus: Record<CodexRuntimeEvidenceCoverageStatus, number>;
     conceptsByStatus: Record<CodexRuntimeEvidenceCoverageStatus, TargetCapabilityConcept[]>;
     conceptsWithWarningRecords: TargetCapabilityConcept[];
+    conceptsWithEvidenceWithoutDiagnosticRecords: TargetCapabilityConcept[];
+    conceptsWithEvidenceWithDiagnosticRecords: TargetCapabilityConcept[];
 }
 
 export interface CodexRuntimeEvidenceChecklistItem {
@@ -1615,12 +1619,16 @@ function emptyRuntimeEvidenceCoverageSummary(
         records: 0,
         recordsWithWarnings: 0,
         conceptsWithWarnings: 0,
+        conceptsWithEvidenceWithoutDiagnostics: 0,
+        conceptsWithEvidenceWithDiagnostics: 0,
         diagnosticRecordsBySeverity,
         diagnosticConceptsBySeverity,
         conceptsWithErrorRecords: [],
         byStatus,
         conceptsByStatus,
         conceptsWithWarningRecords: [],
+        conceptsWithEvidenceWithoutDiagnosticRecords: [],
+        conceptsWithEvidenceWithDiagnosticRecords: [],
     };
 }
 
@@ -1706,7 +1714,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
     for (const item of runtimeEvidenceChecklist) {
         runtimeEvidenceCoverageSummary.byStatus[item.coverageStatus] += 1;
         runtimeEvidenceCoverageSummary.conceptsByStatus[item.coverageStatus].push(item.concept);
-        if (item.runtimeEvidenceRecords.some((record) => record.warnings.length > 0)) {
+        const hasDiagnostics = item.runtimeEvidenceRecords.some(
+            (record) => record.warnings.length > 0,
+        );
+        if (hasDiagnostics) {
             runtimeEvidenceCoverageSummary.conceptsWithWarnings += 1;
             runtimeEvidenceCoverageSummary.conceptsWithWarningRecords.push(item.concept);
         }
@@ -1726,6 +1737,17 @@ export function buildCodexSupportBoundariesDocument(options?: {
             continue;
         }
         runtimeEvidenceCoverageSummary.conceptsWithEvidence += 1;
+        if (hasDiagnostics) {
+            runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics += 1;
+            runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords.push(
+                item.concept,
+            );
+        } else {
+            runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics += 1;
+            runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords.push(
+                item.concept,
+            );
+        }
     }
     runtimeEvidenceCoverageSummary.conceptsWithoutEvidence =
         runtimeEvidenceCoverageSummary.byStatus.missing;
@@ -1841,9 +1863,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         '## Runtime Evidence Coverage Summary',
         '',
-        '| Runtime-only concepts | With evidence | Missing evidence | Records | Records with diagnostics | Records with error diagnostics | Concepts with diagnostics | Concepts with error diagnostics | Passed | Partial | Failed | Not run | Waived |',
-        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-        `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
+        '| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records | Records with diagnostics | Records with error diagnostics | Concepts with diagnostics | Concepts with error diagnostics | Passed | Partial | Failed | Not run | Waived |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
         '',
         '## Runtime Evidence Checklist By Concept',
         '',
