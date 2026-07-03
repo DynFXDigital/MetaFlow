@@ -444,6 +444,9 @@ describe('CLI: preview', () => {
         const hookPath = '.metaflow/hooks/release-gate.json';
         const executionProfilePath = '.metaflow/execution/local.json';
         const prExecutionProfilePath = '.metaflow/execution/pr-review.json';
+        const githubActionExecutionProfilePath = '.metaflow/execution/github-action.json';
+        const appServerExecutionProfilePath = '.metaflow/execution/app-server.json';
+        const sdkExecutionProfilePath = '.metaflow/execution/sdk.json';
         const memoryScopePath = '.metaflow/memory/repo-decisions.json';
         const evaluationProfilePath = '.metaflow/evaluation/release-gate.json';
         const agentProfilePath = '.metaflow/agents/reviewer.json';
@@ -578,6 +581,45 @@ describe('CLI: preview', () => {
                             policyGrants: ['github-pr-read'],
                             targets: ['codex'],
                             description: 'Run Codex issue and pull request workflows.',
+                        }),
+                    },
+                    {
+                        relativePath: githubActionExecutionProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.executionProfile/v1',
+                            id: 'github-action',
+                            surface: 'githubAction',
+                            isolation: 'cloud-sandbox',
+                            runner: 'openai/codex-action@v1',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            description: 'Run Codex in GitHub Actions.',
+                        }),
+                    },
+                    {
+                        relativePath: appServerExecutionProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.executionProfile/v1',
+                            id: 'app-server',
+                            surface: 'appServer',
+                            isolation: 'workspace-write',
+                            runner: 'codex app-server',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            description: 'Embed Codex app-server in a product surface.',
+                        }),
+                    },
+                    {
+                        relativePath: sdkExecutionProfilePath,
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.executionProfile/v1',
+                            id: 'sdk',
+                            surface: 'sdkEmbedded',
+                            isolation: 'workspace-write',
+                            runner: '@openai/codex-sdk',
+                            policyGrants: ['github-pr-read'],
+                            targets: ['codex'],
+                            description: 'Embed Codex through the SDK.',
                         }),
                     },
                     {
@@ -732,7 +774,7 @@ describe('CLI: preview', () => {
             ),
         );
         assert.ok(textResult.stdout.includes('targets=codex'));
-        assert.ok(textResult.stdout.includes('Execution Profiles: 2'));
+        assert.ok(textResult.stdout.includes('Execution Profiles: 5'));
         assert.ok(
             textResult.stdout.includes(
                 'local [localWorkstation/workspace-write] runner=codex-cli timeout=900s',
@@ -741,6 +783,21 @@ describe('CLI: preview', () => {
         assert.ok(
             textResult.stdout.includes(
                 'pr-review [issuePrNative/cloud-sandbox] runner=codex-github-review',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'github-action [githubAction/cloud-sandbox] runner=openai/codex-action@v1',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'app-server [appServer/workspace-write] runner=codex app-server',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'sdk [sdkEmbedded/workspace-write] runner=@openai/codex-sdk',
             ),
         );
         assert.ok(textResult.stdout.includes('secrets=OPENAI_API_KEY'));
@@ -942,7 +999,7 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.mcpServers, 1);
         assert.strictEqual(data.summary.githubCopilotMcpHandoff, 1);
         assert.strictEqual(data.summary.hooks, 1);
-        assert.strictEqual(data.summary.executionProfiles, 2);
+        assert.strictEqual(data.summary.executionProfiles, 5);
         assert.strictEqual(data.summary.memoryScopes, 1);
         assert.strictEqual(data.summary.evaluationProfiles, 1);
         assert.strictEqual(data.summary.agentProfiles, 1);
@@ -1017,6 +1074,24 @@ describe('CLI: preview', () => {
         assert.strictEqual(prExecutionProfile.surface, 'issuePrNative');
         assert.strictEqual(prExecutionProfile.isolation, 'cloud-sandbox');
         assert.strictEqual(prExecutionProfile.runner, 'codex-github-review');
+        const githubActionExecutionProfile = data.executionProfiles.find(
+            (profile: { id: string }) => profile.id === 'github-action',
+        );
+        assert.strictEqual(githubActionExecutionProfile.surface, 'githubAction');
+        assert.strictEqual(githubActionExecutionProfile.isolation, 'cloud-sandbox');
+        assert.strictEqual(githubActionExecutionProfile.runner, 'openai/codex-action@v1');
+        const appServerExecutionProfile = data.executionProfiles.find(
+            (profile: { id: string }) => profile.id === 'app-server',
+        );
+        assert.strictEqual(appServerExecutionProfile.surface, 'appServer');
+        assert.strictEqual(appServerExecutionProfile.isolation, 'workspace-write');
+        assert.strictEqual(appServerExecutionProfile.runner, 'codex app-server');
+        const sdkExecutionProfile = data.executionProfiles.find(
+            (profile: { id: string }) => profile.id === 'sdk',
+        );
+        assert.strictEqual(sdkExecutionProfile.surface, 'sdkEmbedded');
+        assert.strictEqual(sdkExecutionProfile.isolation, 'workspace-write');
+        assert.strictEqual(sdkExecutionProfile.runner, '@openai/codex-sdk');
         assert.strictEqual(data.memoryScopes[0].id, 'repo-decisions');
         assert.strictEqual(data.memoryScopes[0].scopeType, 'repository');
         assert.strictEqual(data.memoryScopes[0].storage, 'persistent');
@@ -1232,7 +1307,7 @@ describe('CLI: preview', () => {
             policyGrants: 1,
             mcpServers: 1,
             hooks: 1,
-            executionProfiles: 2,
+            executionProfiles: 5,
             memoryScopes: 1,
             evaluationProfiles: 1,
             packageManifests: 0,
@@ -2245,6 +2320,28 @@ describe('CLI: target-support', () => {
             ),
         );
         assert.ok(result.stdout.includes('evidence: RUN-027, RUN-030, RUN-037, RUN-060'));
+    });
+
+    it('prints Codex programmatic execution support in target-support output', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--concept',
+            'executionSurfaces',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('codex/executionSurfaces: partial'));
+        assert.ok(result.stdout.includes('Codex GitHub Action'));
+        assert.ok(result.stdout.includes('Codex app-server'));
+        assert.ok(result.stdout.includes('Codex SDK'));
+        assert.ok(
+            result.stdout.includes(
+                'Execution profiles can classify issue/PR-native, GitHub Action, app-server, SDK-embedded',
+            ),
+        );
+        assert.ok(result.stdout.includes('evidence: RUN-035, RUN-052, RUN-062'));
     });
 
     it('prints target support rows as JSON', async () => {

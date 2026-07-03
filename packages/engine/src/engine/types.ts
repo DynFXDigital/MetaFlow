@@ -357,7 +357,10 @@ export type ExecutionSurface =
     | 'ciRunner'
     | 'longRunningVm'
     | 'issuePrNative'
-    | 'alwaysOnWorkflow';
+    | 'alwaysOnWorkflow'
+    | 'githubAction'
+    | 'appServer'
+    | 'sdkEmbedded';
 
 /** Isolation boundary declared by a canonical execution profile. */
 export type ExecutionIsolation =

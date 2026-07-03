@@ -16,6 +16,7 @@
 - Parse package runtime validation concept links and warn on unknown target capability concept IDs.
 - Surface package runtime validation concept links in adapter readiness output and warn when those concepts are unsupported for the target.
 - Add issue/PR-native and always-on workflow orchestration surface values to canonical execution profiles.
+- Add Codex GitHub Action, app-server, and SDK-embedded surface values to canonical execution profiles and target capability matrix output.
 - Add static-projection versus harness-runtime evidence metadata to canonical evaluation profiles and adapter readiness output.
 - Add evaluation runtime evidence metadata notes and evidence tags to target capability matrix evaluation-support rows.
 - Identify `.metaflow/packages/*.json` as the canonical package metadata surface in package-manifest target capability matrix rows.

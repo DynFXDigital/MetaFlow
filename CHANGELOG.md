@@ -32,6 +32,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Package runtime validation records can link evidence to target capability concepts such as package manifests, remote MCP runtime, OAuth MCP runtime, and side-effecting MCP runtime.
 - Adapter readiness output now shows package runtime validation concept links and warns when a runtime validation concept is unsupported for the selected target.
 - Canonical execution profiles can now classify issue/PR-native operation and always-on workflow orchestration surfaces.
+- Canonical execution profiles can now classify Codex GitHub Action, app-server, and SDK-embedded programmatic execution surfaces.
 - Canonical evaluation profiles can now distinguish static projection checks from harness-native runtime evaluations and surface harness, adapter, scenario, evidence, and limitation details in preview and adapter readiness output.
 - Target capability support reports now cite evaluation runtime evidence metadata for Codex and GitHub Copilot evaluation support rows.
 - Target capability support reports now identify `.metaflow/packages/*.json` as the canonical package metadata surface for Codex and GitHub Copilot package-manifest rows.

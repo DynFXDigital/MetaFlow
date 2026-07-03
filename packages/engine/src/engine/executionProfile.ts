@@ -41,6 +41,9 @@ const SURFACE_VALUES = new Set<ExecutionSurface>([
     'longRunningVm',
     'issuePrNative',
     'alwaysOnWorkflow',
+    'githubAction',
+    'appServer',
+    'sdkEmbedded',
 ]);
 const ISOLATION_VALUES = new Set<ExecutionIsolation>([
     'none',

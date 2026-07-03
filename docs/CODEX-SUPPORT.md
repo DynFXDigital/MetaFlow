@@ -37,6 +37,9 @@ the service connection or prove the behavior.
 | Linear delegation | Linear tasks depend on the Codex Linear integration, account linking, workspace settings, GitHub connection, and environment selection. | Record as runtime-only issue/task operation; do not generate Linear connector state. |
 | GitHub-triggered Codex review | GitHub review operation depends on Codex GitHub access and repository/PR context outside the metadata repository. | Record review intent and required policy grants; require GitHub/Codex runtime evidence. |
 | PR feedback handling in the Codex app | App PR context depends on the current branch, Git repository state, GitHub access, and authenticated `gh` behavior. | Document as an operator workflow; do not treat projection as proof that PR feedback appears in Codex. |
+| Codex GitHub Action | GitHub Action execution depends on workflow triggers, GitHub secrets, runner operating system, job permissions, sandbox inputs, and Codex action version. | Classify the execution intent in `.metaflow/execution/*.json`; do not generate workflows or claim CI execution without a harness-native run. |
+| Codex app-server integrations | App-server execution depends on a local process, selected transport, client initialization, experimental capability flags where applicable, and listener authentication for WebSocket use. | Classify the execution intent in `.metaflow/execution/*.json`; require integration-specific runtime validation before treating app-server usage as operational. |
+| Codex SDK integrations | SDK-embedded execution depends on application code, API credentials, process sandboxing, trace handling, and deployed environment policy. | Classify the execution intent in `.metaflow/execution/*.json`; require SDK integration evidence before treating the adapter claim as runtime support. |
 | Remote MCP reachability | Codex supports Streamable HTTP MCP configuration, but reachable endpoints, TLS behavior, hosted-agent network policy, and remote executor behavior are runtime concerns. | Project supported config fields where managed, and keep reachability and tool-call proof as validation evidence. |
 | OAuth MCP login | Codex supports OAuth metadata for MCP servers, but login, callback URLs, token handling, and account authorization are runtime concerns. | Project supported OAuth fields where managed, and keep login and callback proof as validation evidence. |
 | Side-effecting MCP tools | MCP tools can read or change external systems, and approval behavior depends on runtime tool authority. Static metadata cannot grant authority safely. | Require policy grants, approval posture, bounded tool-call proof, and audit evidence before package or adapter claims are treated as operational. |
@@ -89,3 +92,6 @@ For command, MCP, HTTP, and manual tool authority, see
 - Codex Slack integration: <https://developers.openai.com/codex/integrations/slack>
 - Codex Linear integration: <https://developers.openai.com/codex/integrations/linear>
 - Codex plugins: <https://developers.openai.com/codex/plugins>
+- Codex GitHub Action: <https://developers.openai.com/codex/github-action>
+- Codex app-server: <https://developers.openai.com/codex/app-server>
+- Codex SDK: <https://developers.openai.com/codex/sdk>

@@ -363,6 +363,26 @@ describe('Engine package: public API', () => {
             codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
             'Codex issue/PR row should document connector authorization requirements',
         );
+        const codexExecution = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'executionSurfaces',
+        );
+        assert.strictEqual(codexExecution?.support, 'partial');
+        assert.ok(
+            codexExecution?.evidence.includes('RUN-062'),
+            'Codex execution row should point to programmatic execution surface proof',
+        );
+        assert.ok(
+            codexExecution?.nativeSurfaces.includes('Codex GitHub Action'),
+            'Codex execution row should name the GitHub Action surface',
+        );
+        assert.ok(
+            codexExecution?.nativeSurfaces.includes('Codex app-server'),
+            'Codex execution row should name the app-server surface',
+        );
+        assert.ok(
+            codexExecution?.nativeSurfaces.includes('Codex SDK'),
+            'Codex execution row should name the SDK surface',
+        );
         const codexRemoteMcp = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'remoteMcpRuntime',
         );
@@ -2289,6 +2309,48 @@ describe('Engine package: overlay pipeline', () => {
             }),
             'utf-8',
         );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'github-action.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'github-action',
+                surface: 'githubAction',
+                isolation: 'cloud-sandbox',
+                runner: 'openai/codex-action@v1',
+                policyGrants: ['shell-test'],
+                targets: ['codex'],
+                description: 'Run Codex from GitHub Actions.',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'app-server.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'app-server',
+                surface: 'appServer',
+                isolation: 'workspace-write',
+                runner: 'codex app-server',
+                policyGrants: ['shell-test'],
+                targets: ['codex'],
+                description: 'Embed Codex app-server in a product surface.',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'execution', 'sdk.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.executionProfile/v1',
+                id: 'sdk',
+                surface: 'sdkEmbedded',
+                isolation: 'workspace-write',
+                runner: '@openai/codex-sdk',
+                policyGrants: ['shell-test'],
+                targets: ['codex'],
+                description: 'Embed Codex through the SDK.',
+            }),
+            'utf-8',
+        );
 
         const config: MetaFlowConfig = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -2297,7 +2359,7 @@ describe('Engine package: overlay pipeline', () => {
 
         const layers = resolveLayers(config, tmpDir);
         assert.strictEqual(layers.length, 1);
-        assert.strictEqual(layers[0].executionProfiles?.length, 3);
+        assert.strictEqual(layers[0].executionProfiles?.length, 6);
         const profile = layers[0].executionProfiles?.find((entry) => entry.id === 'local');
         assert.strictEqual(profile?.id, 'local');
         assert.strictEqual(profile?.surface, 'localWorkstation');
@@ -2319,6 +2381,19 @@ describe('Engine package: overlay pipeline', () => {
         );
         assert.strictEqual(operatorProfile?.surface, 'alwaysOnWorkflow');
         assert.strictEqual(operatorProfile?.isolation, 'vm');
+        const actionProfile = layers[0].executionProfiles?.find(
+            (entry) => entry.id === 'github-action',
+        );
+        assert.strictEqual(actionProfile?.surface, 'githubAction');
+        assert.strictEqual(actionProfile?.runner, 'openai/codex-action@v1');
+        const appServerProfile = layers[0].executionProfiles?.find(
+            (entry) => entry.id === 'app-server',
+        );
+        assert.strictEqual(appServerProfile?.surface, 'appServer');
+        assert.strictEqual(appServerProfile?.runner, 'codex app-server');
+        const sdkProfile = layers[0].executionProfiles?.find((entry) => entry.id === 'sdk');
+        assert.strictEqual(sdkProfile?.surface, 'sdkEmbedded');
+        assert.strictEqual(sdkProfile?.runner, '@openai/codex-sdk');
     });
 
     it('reports validation diagnostics for invalid canonical execution profiles', () => {

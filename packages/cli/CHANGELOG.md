@@ -14,6 +14,7 @@
 - `metaflow status` now displays capability-level target support posture, policy grants, validation evidence, and review-note counts from `.metaflow/capability.json`.
 - `metaflow preview` now reports canonical evaluation profile runtime evidence fields, including evidence kind, harness, adapter version, scenario, evidence references, and limitations.
 - `metaflow target-support` now reports evaluation runtime evidence metadata on evaluationSupport rows.
+- `metaflow preview` and `metaflow target-support` now report Codex GitHub Action, app-server, and SDK-embedded execution surface classifications.
 - `metaflow preview` now reports canonical `.metaflow/skills/<skill-id>/skill.json` metadata and validation warnings.
 - `metaflow preview` now reports canonical `.metaflow/instructions/*.json` and `.metaflow/prompts/*.json` metadata and validation warnings.
 
