@@ -20,7 +20,8 @@ import type {
     GovernanceViolation,
     GitHubCopilotMcpHandoff,
     McpServerMetadata,
-    PackageManifestMetadata,
+    PackageMarketplaceReport,
+    ResolvedPackageMarketplaceManifest,
     SurfacedFileConflict,
     SynchronizationPlanningConflict,
     TargetCapabilityMatrixEntry,
@@ -44,6 +45,7 @@ import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
     buildCodexPluginMarketplaceManifest,
+    buildPackageMarketplaceReport,
     resolvePathFromWorkspace,
     applyFilters,
     applyProfile,
@@ -821,36 +823,10 @@ export function buildTargetSupportReportForExtension(): {
     };
 }
 
-interface ResolvedPackageManifestForExtension extends PackageManifestMetadata {
-    sourceLayer: string;
-    sourceRepo?: string;
-}
-
-interface PackageMarketplaceCandidateEntry {
-    packageId: string;
-    target: string;
-    packageName?: string;
-    title?: string;
-    summary?: string;
-    publisher?: string;
-    categories: string[];
-    keywords: string[];
-    url?: string;
-}
-
-interface PackageMarketplaceReviewEntry extends PackageMarketplaceCandidateEntry {
-    sourceLayer: string;
-    sourceRepo?: string;
-    manifestPath: string;
-    sourceRootPath: string;
-    warnings: CapabilityWarning[];
-    runtimeValidation: PackageManifestMetadata['runtimeValidation'];
-}
-
 function resolvePackageManifestsForExtension(
     config: MetaFlowConfig,
     workspaceRoot: string,
-): ResolvedPackageManifestForExtension[] {
+): ResolvedPackageMarketplaceManifest[] {
     return resolveLayers(config, workspaceRoot).flatMap((layer) =>
         (layer.packageManifests ?? []).map((manifest) => ({
             ...manifest,
@@ -860,221 +836,16 @@ function resolvePackageManifestsForExtension(
     );
 }
 
-function findSourceRootFromPackageManifest(manifestPath: string): string {
-    const parts = path.resolve(manifestPath).split(path.sep);
-    const metaflowIndex = parts.lastIndexOf('.metaflow');
-    if (metaflowIndex <= 0) {
-        return path.dirname(manifestPath);
-    }
-    return parts.slice(0, metaflowIndex).join(path.sep);
-}
-
-function toWorkspaceRelativePackagePath(workspaceRoot: string, sourceRootPath: string): string {
-    const relative = path.relative(workspaceRoot, sourceRootPath).replace(/\\/g, '/');
-    if (!relative || relative === '.') {
-        return '.';
-    }
-    return relative.startsWith('../') || relative.startsWith('./') ? relative : `./${relative}`;
-}
-
-function normalizePackageMarketplaceName(value: string | undefined, fallback: string): string {
-    const normalized = (value ?? fallback)
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return normalized || fallback;
-}
-
-function filterPackageWarningsForEntry(
-    warnings: CapabilityWarning[],
-    target: string,
-): CapabilityWarning[] {
-    return warnings.filter((warning) => {
-        const isTargetSpecific =
-            warning.code.startsWith('PACKAGE_MARKETPLACE_TARGET_') ||
-            warning.code.startsWith('PACKAGE_RUNTIME_VALIDATION_');
-        if (!isTargetSpecific) {
-            return true;
-        }
-        return warning.message.includes(`"${target}"`);
-    });
-}
-
-function buildPackageMarketplaceReviewEntries(
-    manifests: ResolvedPackageManifestForExtension[],
-): PackageMarketplaceReviewEntry[] {
-    const entries: PackageMarketplaceReviewEntry[] = [];
-    for (const manifest of manifests) {
-        for (const entry of manifest.marketplaceEntries) {
-            entries.push({
-                packageId: manifest.id,
-                target: entry.target,
-                ...(entry.packageName ? { packageName: entry.packageName } : {}),
-                ...(entry.title ? { title: entry.title } : {}),
-                ...(entry.summary ? { summary: entry.summary } : {}),
-                ...(entry.publisher ? { publisher: entry.publisher } : {}),
-                categories: entry.categories,
-                keywords: entry.keywords,
-                ...(entry.url ? { url: entry.url } : {}),
-                sourceLayer: manifest.sourceLayer,
-                ...(manifest.sourceRepo ? { sourceRepo: manifest.sourceRepo } : {}),
-                manifestPath: manifest.manifestPath,
-                sourceRootPath: findSourceRootFromPackageManifest(manifest.manifestPath),
-                warnings: filterPackageWarningsForEntry(manifest.warnings, entry.target),
-                runtimeValidation: manifest.runtimeValidation.filter(
-                    (record) => record.target === entry.target,
-                ),
-            });
-        }
-    }
-    return entries.sort((left, right) => {
-        const targetCompare = left.target.localeCompare(right.target);
-        if (targetCompare !== 0) {
-            return targetCompare;
-        }
-        const packageCompare = left.packageId.localeCompare(right.packageId);
-        if (packageCompare !== 0) {
-            return packageCompare;
-        }
-        return (left.packageName ?? '').localeCompare(right.packageName ?? '');
-    });
-}
-
-function buildPackageMarketplaceCandidates(
-    entries: PackageMarketplaceReviewEntry[],
-): Record<string, PackageMarketplaceCandidateEntry[]> {
-    const marketplaces: Record<string, PackageMarketplaceCandidateEntry[]> = {};
-    for (const entry of entries) {
-        marketplaces[entry.target] ??= [];
-        marketplaces[entry.target].push({
-            packageId: entry.packageId,
-            target: entry.target,
-            ...(entry.packageName ? { packageName: entry.packageName } : {}),
-            ...(entry.title ? { title: entry.title } : {}),
-            ...(entry.summary ? { summary: entry.summary } : {}),
-            ...(entry.publisher ? { publisher: entry.publisher } : {}),
-            categories: entry.categories,
-            keywords: entry.keywords,
-            ...(entry.url ? { url: entry.url } : {}),
-        });
-    }
-    return marketplaces;
-}
-
-function buildCodexPackageMarketplacePayload(
-    workspaceRoot: string,
-    entries: PackageMarketplaceReviewEntry[],
-): {
-    name: string;
-    plugins: Array<{
-        name: string;
-        source: { source: 'local'; path: string };
-        policy: { installation: 'AVAILABLE'; authentication: 'ON_INSTALL' };
-        category: string;
-        interface: { displayName: string; description?: string };
-    }>;
-} {
-    const plugins = entries
-        .filter((entry) => entry.target === 'codex')
-        .map((entry) => ({
-            name: entry.packageName ?? entry.packageId,
-            source: {
-                source: 'local' as const,
-                path: toWorkspaceRelativePackagePath(workspaceRoot, entry.sourceRootPath),
-            },
-            policy: {
-                installation: 'AVAILABLE' as const,
-                authentication: 'ON_INSTALL' as const,
-            },
-            category: entry.categories[0] ?? 'Productivity',
-            interface: {
-                displayName: entry.title ?? entry.packageName ?? entry.packageId,
-                ...(entry.summary ? { description: entry.summary } : {}),
-            },
-        }));
-
-    return {
-        name: normalizePackageMarketplaceName(undefined, 'metaflow-codex-marketplace'),
-        plugins,
-    };
-}
-
-function buildGitHubCopilotPackageMarketplacePayload(
-    workspaceRoot: string,
-    entries: PackageMarketplaceReviewEntry[],
-): {
-    name: string;
-    owner: { name: string };
-    plugins: Array<{ name: string; source: string; description?: string }>;
-} {
-    const plugins = entries
-        .filter((entry) => entry.target === 'github-copilot')
-        .map((entry) => ({
-            name: entry.packageName ?? entry.packageId,
-            source: toWorkspaceRelativePackagePath(workspaceRoot, entry.sourceRootPath),
-            ...(entry.summary ? { description: entry.summary } : {}),
-        }));
-
-    return {
-        name: normalizePackageMarketplaceName(undefined, 'metaflow-marketplace'),
-        owner: {
-            name: path.basename(workspaceRoot),
-        },
-        plugins,
-    };
-}
-
 export function buildPackageMarketplaceReportForExtension(
     config: MetaFlowConfig,
     workspaceRoot: string,
-): {
-    generatedBy: string;
-    managed: false;
-    requiresOperatorReview: true;
-    summary: {
-        entries: number;
-        targets: Record<string, number>;
-    };
-    marketplaces: Record<string, PackageMarketplaceCandidateEntry[]>;
-    hostPayloads: {
-        codex: ReturnType<typeof buildCodexPackageMarketplacePayload>;
-        githubCopilot: ReturnType<typeof buildGitHubCopilotPackageMarketplacePayload>;
-    };
-    entries: PackageMarketplaceReviewEntry[];
-    warnings: string[];
-    content: string;
-} {
+): PackageMarketplaceReport & { content: string } {
     const manifests = resolvePackageManifestsForExtension(config, workspaceRoot);
-    const entries = buildPackageMarketplaceReviewEntries(manifests);
-    const targets: Record<string, number> = {};
-    for (const entry of entries) {
-        targets[entry.target] = (targets[entry.target] ?? 0) + 1;
-    }
-    const report = {
+    const report = buildPackageMarketplaceReport({
+        workspaceRoot,
+        manifests,
         generatedBy: 'metaflow extension package-marketplace',
-        managed: false as const,
-        requiresOperatorReview: true as const,
-        summary: {
-            entries: entries.length,
-            targets: Object.fromEntries(
-                Object.entries(targets).sort((left, right) =>
-                    left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
-                ),
-            ),
-        },
-        marketplaces: buildPackageMarketplaceCandidates(entries),
-        hostPayloads: {
-            codex: buildCodexPackageMarketplacePayload(workspaceRoot, entries),
-            githubCopilot: buildGitHubCopilotPackageMarketplacePayload(workspaceRoot, entries),
-        },
-        entries,
-        warnings: entries.flatMap((entry) =>
-            entry.warnings.map(
-                (warning) => `${entry.packageId}/${entry.target}: ${warning.code}: ${warning.message}`,
-            ),
-        ),
-    };
+    });
     return {
         ...report,
         content: JSON.stringify(report, null, 2) + '\n',

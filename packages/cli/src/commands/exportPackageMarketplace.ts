@@ -2,9 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
 import {
+    buildCodexPackageMarketplacePayload,
+    buildGitHubCopilotPackageMarketplacePayload,
+    buildPackageMarketplaceCandidatePayload,
+    buildPackageMarketplaceEntries,
+    buildPackageMarketplaceReport,
+} from '@metaflow/engine';
+import {
     getWorkspaceRoot,
     loadConfigOrExit,
-    ResolvedPackageManifest,
     resolvePackageManifests,
 } from './common';
 
@@ -21,36 +27,6 @@ type PackageMarketplaceExportFormat =
     | 'compact'
     | 'codex-marketplace'
     | 'github-copilot-marketplace';
-
-interface PackageMarketplaceCandidateEntry {
-    packageId: string;
-    target: string;
-    packageName?: string;
-    title?: string;
-    summary?: string;
-    publisher?: string;
-    categories: string[];
-    keywords: string[];
-    url?: string;
-}
-
-interface PackageMarketplaceReviewEntry extends PackageMarketplaceCandidateEntry {
-    sourceLayer: string;
-    sourceRepo?: string;
-    manifestPath: string;
-    sourceRootPath: string;
-    warnings: ResolvedPackageManifest['warnings'];
-    runtimeValidation: ResolvedPackageManifest['runtimeValidation'];
-}
-
-function normalizeMarketplaceName(value: string | undefined, fallback: string): string {
-    const normalized = (value ?? fallback)
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9._-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    return normalized || fallback;
-}
 
 function normalizeFormat(format: string | undefined): PackageMarketplaceExportFormat {
     if (!format || format === 'compact') {
@@ -79,168 +55,6 @@ function resolveOutputPath(workspaceRoot: string, outputPath: string): string {
     }
 
     return resolved;
-}
-
-function findSourceRootFromManifest(manifestPath: string): string {
-    const parts = path.resolve(manifestPath).split(path.sep);
-    const metaflowIndex = parts.lastIndexOf('.metaflow');
-    if (metaflowIndex <= 0) {
-        return path.dirname(manifestPath);
-    }
-    return parts.slice(0, metaflowIndex).join(path.sep);
-}
-
-function toWorkspaceRelativePath(workspaceRoot: string, sourceRootPath: string): string {
-    const relative = path.relative(workspaceRoot, sourceRootPath).replace(/\\/g, '/');
-    if (!relative || relative === '.') {
-        return '.';
-    }
-    return relative.startsWith('../') || relative.startsWith('./') ? relative : `./${relative}`;
-}
-
-function filterWarningsForEntry(
-    warnings: ResolvedPackageManifest['warnings'],
-    target: string,
-): ResolvedPackageManifest['warnings'] {
-    return warnings.filter((warning) => {
-        const isTargetSpecific =
-            warning.code.startsWith('PACKAGE_MARKETPLACE_TARGET_') ||
-            warning.code.startsWith('PACKAGE_RUNTIME_VALIDATION_');
-        if (!isTargetSpecific) {
-            return true;
-        }
-        return warning.message.includes(`"${target}"`);
-    });
-}
-
-function buildPackageMarketplaceEntries(
-    manifests: ResolvedPackageManifest[],
-    target?: string,
-): PackageMarketplaceReviewEntry[] {
-    const entries: PackageMarketplaceReviewEntry[] = [];
-    for (const manifest of manifests) {
-        for (const entry of manifest.marketplaceEntries) {
-            if (target && entry.target !== target) {
-                continue;
-            }
-            entries.push({
-                packageId: manifest.id,
-                target: entry.target,
-                ...(entry.packageName ? { packageName: entry.packageName } : {}),
-                ...(entry.title ? { title: entry.title } : {}),
-                ...(entry.summary ? { summary: entry.summary } : {}),
-                ...(entry.publisher ? { publisher: entry.publisher } : {}),
-                categories: entry.categories,
-                keywords: entry.keywords,
-                ...(entry.url ? { url: entry.url } : {}),
-                sourceLayer: manifest.sourceLayer,
-                ...(manifest.sourceRepo ? { sourceRepo: manifest.sourceRepo } : {}),
-                manifestPath: manifest.manifestPath,
-                sourceRootPath: findSourceRootFromManifest(manifest.manifestPath),
-                warnings: filterWarningsForEntry(manifest.warnings, entry.target),
-                runtimeValidation: manifest.runtimeValidation.filter(
-                    (record) => record.target === entry.target,
-                ),
-            });
-        }
-    }
-    return entries.sort((left, right) => {
-        const targetCompare = left.target.localeCompare(right.target);
-        if (targetCompare !== 0) {
-            return targetCompare;
-        }
-        const packageCompare = left.packageId.localeCompare(right.packageId);
-        if (packageCompare !== 0) {
-            return packageCompare;
-        }
-        return (left.packageName ?? '').localeCompare(right.packageName ?? '');
-    });
-}
-
-function buildCandidatePayload(entries: PackageMarketplaceReviewEntry[]): {
-    marketplaces: Record<string, PackageMarketplaceCandidateEntry[]>;
-} {
-    const marketplaces: Record<string, PackageMarketplaceCandidateEntry[]> = {};
-    for (const entry of entries) {
-        marketplaces[entry.target] ??= [];
-        marketplaces[entry.target].push({
-            packageId: entry.packageId,
-            target: entry.target,
-            ...(entry.packageName ? { packageName: entry.packageName } : {}),
-            ...(entry.title ? { title: entry.title } : {}),
-            ...(entry.summary ? { summary: entry.summary } : {}),
-            ...(entry.publisher ? { publisher: entry.publisher } : {}),
-            categories: entry.categories,
-            keywords: entry.keywords,
-            ...(entry.url ? { url: entry.url } : {}),
-        });
-    }
-    return { marketplaces };
-}
-
-function buildCodexMarketplacePayload(
-    workspaceRoot: string,
-    entries: PackageMarketplaceReviewEntry[],
-    marketplaceName?: string,
-): {
-    name: string;
-    plugins: Array<{
-        name: string;
-        source: { source: 'local'; path: string };
-        policy: { installation: 'AVAILABLE'; authentication: 'ON_INSTALL' };
-        category: string;
-        interface: { displayName: string; description?: string };
-    }>;
-} {
-    const plugins = entries
-        .filter((entry) => entry.target === 'codex')
-        .map((entry) => ({
-            name: entry.packageName ?? entry.packageId,
-            source: {
-                source: 'local' as const,
-                path: toWorkspaceRelativePath(workspaceRoot, entry.sourceRootPath),
-            },
-            policy: {
-                installation: 'AVAILABLE' as const,
-                authentication: 'ON_INSTALL' as const,
-            },
-            category: entry.categories[0] ?? 'Productivity',
-            interface: {
-                displayName: entry.title ?? entry.packageName ?? entry.packageId,
-                ...(entry.summary ? { description: entry.summary } : {}),
-            },
-        }));
-
-    return {
-        name: normalizeMarketplaceName(marketplaceName, 'metaflow-codex-marketplace'),
-        plugins,
-    };
-}
-
-function buildGitHubCopilotMarketplacePayload(
-    workspaceRoot: string,
-    entries: PackageMarketplaceReviewEntry[],
-    marketplaceName?: string,
-): {
-    name: string;
-    owner: { name: string };
-    plugins: Array<{ name: string; source: string; description?: string }>;
-} {
-    const plugins = entries
-        .filter((entry) => entry.target === 'github-copilot')
-        .map((entry) => ({
-            name: entry.packageName ?? entry.packageId,
-            source: toWorkspaceRelativePath(workspaceRoot, entry.sourceRootPath),
-            ...(entry.summary ? { description: entry.summary } : {}),
-        }));
-
-    return {
-        name: normalizeMarketplaceName(marketplaceName, 'metaflow-marketplace'),
-        owner: {
-            name: path.basename(workspaceRoot),
-        },
-        plugins,
-    };
 }
 
 export function registerExportPackageMarketplaceCommand(program: Command): void {
@@ -305,17 +119,13 @@ export function registerExportPackageMarketplaceCommand(program: Command): void 
                 return;
             }
 
-            const review = {
+            const review = buildPackageMarketplaceReport({
+                workspaceRoot,
+                manifests: packageManifests,
+                target: options.target ?? formatTarget,
+                marketplaceName: options.marketplaceName,
                 generatedBy: 'metaflow export-package-marketplace',
-                managed: false,
-                requiresOperatorReview: true,
-                entries,
-                warnings: entries.flatMap((entry) =>
-                    entry.warnings.map(
-                        (warning) => `${entry.packageId}/${entry.target}: ${warning.code}: ${warning.message}`,
-                    ),
-                ),
-            };
+            });
             for (const warning of review.warnings) {
                 console.warn(`Warning: ${warning}`);
             }
@@ -324,19 +134,19 @@ export function registerExportPackageMarketplaceCommand(program: Command): void 
             if (options.json) {
                 payloadObject = review;
             } else if (format === 'codex-marketplace') {
-                payloadObject = buildCodexMarketplacePayload(
+                payloadObject = buildCodexPackageMarketplacePayload(
                     workspaceRoot,
                     entries,
                     options.marketplaceName,
                 );
             } else if (format === 'github-copilot-marketplace') {
-                payloadObject = buildGitHubCopilotMarketplacePayload(
+                payloadObject = buildGitHubCopilotPackageMarketplacePayload(
                     workspaceRoot,
                     entries,
                     options.marketplaceName,
                 );
             } else {
-                payloadObject = buildCandidatePayload(entries);
+                payloadObject = buildPackageMarketplaceCandidatePayload(entries);
             }
 
             const payload = `${JSON.stringify(payloadObject, null, 2)}\n`;

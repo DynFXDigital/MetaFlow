@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    buildPackageMarketplaceReport,
     loadPackageManifestsForLayer,
     parsePackageManifestContent,
 } from '../src/index';
@@ -228,6 +229,137 @@ describe('packageManifest parser', () => {
             assert.strictEqual(manifests[0].id, 'release-operations');
         } finally {
             fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('builds shared package marketplace reports for CLI and extension consumers', () => {
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'package-marketplace-report-'));
+        try {
+            const manifestPath = path.join(
+                workspaceRoot,
+                '.ai',
+                'ai-metadata',
+                'company',
+                'core',
+                '.metaflow',
+                'packages',
+                'release-operations.json',
+            );
+            const manifest = {
+                ...parsePackageManifestContent(
+                    JSON.stringify({
+                        schemaVersion: 'metaflow.package/v1',
+                        id: 'release-operations',
+                        name: 'Release Operations',
+                        kind: 'agent-plugin',
+                        targets: {
+                            codex: { pluginName: 'release-operations', enabled: true },
+                            'github-copilot': { pluginName: 'release-operations', enabled: false },
+                        },
+                        marketplaceEntries: [
+                            {
+                                target: 'codex',
+                                packageName: 'release-operations',
+                                title: 'Release Operations',
+                                summary: 'Release workflow package.',
+                                categories: ['release'],
+                                keywords: ['codex'],
+                            },
+                            {
+                                target: 'github-copilot',
+                                packageName: 'release-operations',
+                                title: 'Release Operations',
+                                categories: ['release'],
+                                keywords: ['copilot'],
+                            },
+                        ],
+                        runtimeValidation: [
+                            {
+                                target: 'codex',
+                                harness: 'Codex CLI',
+                                adapterVersion: 'codex-v0.1',
+                                scenario: 'Generated package appears in local marketplace.',
+                                status: 'passed',
+                                evidence: ['RUN-056'],
+                            },
+                        ],
+                    }),
+                    manifestPath,
+                ),
+                sourceLayer: 'primary/company/core',
+                sourceRepo: 'primary',
+                warnings: [
+                    {
+                        code: 'PACKAGE_MARKETPLACE_TARGET_DISABLED',
+                        message:
+                            'Package marketplace entry targets "github-copilot", but that package target is disabled.',
+                        filePath: manifestPath,
+                        severity: 'warning' as const,
+                    },
+                ],
+            };
+
+            const report = buildPackageMarketplaceReport({
+                workspaceRoot,
+                manifests: [manifest],
+                generatedBy: 'test package marketplace report',
+                marketplaceName: 'Release Packages',
+            });
+
+            assert.strictEqual(report.generatedBy, 'test package marketplace report');
+            assert.strictEqual(report.managed, false);
+            assert.strictEqual(report.requiresOperatorReview, true);
+            assert.deepStrictEqual(report.summary.targets, { codex: 1, 'github-copilot': 1 });
+            assert.strictEqual(report.marketplaces.codex[0].packageId, 'release-operations');
+            assert.deepStrictEqual(report.hostPayloads.codex, {
+                name: 'release-packages',
+                plugins: [
+                    {
+                        name: 'release-operations',
+                        source: {
+                            source: 'local',
+                            path: './.ai/ai-metadata/company/core',
+                        },
+                        policy: {
+                            installation: 'AVAILABLE',
+                            authentication: 'ON_INSTALL',
+                        },
+                        category: 'release',
+                        interface: {
+                            displayName: 'Release Operations',
+                            description: 'Release workflow package.',
+                        },
+                    },
+                ],
+            });
+            assert.deepStrictEqual(report.hostPayloads.githubCopilot, {
+                name: 'release-packages',
+                owner: { name: path.basename(workspaceRoot) },
+                plugins: [
+                    {
+                        name: 'release-operations',
+                        source: './.ai/ai-metadata/company/core',
+                    },
+                ],
+            });
+            assert.deepStrictEqual(report.entries[0].runtimeValidation, [
+                {
+                    target: 'codex',
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Generated package appears in local marketplace.',
+                    status: 'passed',
+                    evidence: ['RUN-056'],
+                    limitations: [],
+                },
+            ]);
+            assert.ok(
+                report.warnings.some((warning) =>
+                    warning.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),
+                ),
+            );
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
         }
     });
 });

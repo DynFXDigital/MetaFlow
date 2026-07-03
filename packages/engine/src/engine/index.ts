@@ -163,6 +163,22 @@ export {
     parsePackageManifestContent,
     packageManifestConstants,
 } from './packageManifest';
+export {
+    buildCodexPackageMarketplacePayload,
+    buildGitHubCopilotPackageMarketplacePayload,
+    buildPackageMarketplaceCandidatePayload,
+    buildPackageMarketplaceEntries,
+    buildPackageMarketplaceReport,
+    normalizePackageMarketplaceName,
+} from './packageMarketplaceExport';
+export type {
+    CodexPackageMarketplacePayload,
+    GitHubCopilotPackageMarketplacePayload,
+    PackageMarketplaceCandidateEntry,
+    PackageMarketplaceReport,
+    PackageMarketplaceReviewEntry,
+    ResolvedPackageMarketplaceManifest,
+} from './packageMarketplaceExport';
 export { loadToolsForLayer, parseToolContent, toolManifestConstants } from './toolManifest';
 export {
     parseRepoManifestContent,
