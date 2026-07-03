@@ -741,6 +741,33 @@ export function buildGitHubCopilotMcpHandoffForWorkspace(
     return buildGitHubCopilotMcpHandoff(mcpServers);
 }
 
+export function resolveGitHubCopilotMcpHandoffDestination(
+    workspaceRoot: string,
+    handoff: GitHubCopilotMcpHandoff,
+): string {
+    const destinationPath = path.resolve(workspaceRoot, handoff.destination);
+    if (!isPathWithin(destinationPath, workspaceRoot)) {
+        throw new Error(`${handoff.destination} is outside the workspace.`);
+    }
+    return destinationPath;
+}
+
+export async function writeGitHubCopilotMcpHandoff(
+    workspaceRoot: string,
+    handoff: GitHubCopilotMcpHandoff,
+    options?: { overwrite?: boolean },
+): Promise<{ destinationPath: string; written: boolean; existed: boolean }> {
+    const destinationPath = resolveGitHubCopilotMcpHandoffDestination(workspaceRoot, handoff);
+    const existed = fs.existsSync(destinationPath);
+    if (existed && !options?.overwrite) {
+        return { destinationPath, written: false, existed };
+    }
+
+    await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
+    await fsp.writeFile(destinationPath, handoff.content, 'utf-8');
+    return { destinationPath, written: true, existed };
+}
+
 function cloneConfigError(error: ConfigError): ConfigError {
     return {
         message: error.message,
@@ -5975,13 +6002,74 @@ export function registerCommands(
                     logWarn(`  ${warning}`);
                 }
 
-                const doc = await vscode.workspace.openTextDocument({
-                    language: 'json',
-                    content: handoff.content,
-                });
+                const action = await vscode.window.showQuickPick(
+                    [
+                        {
+                            label: 'Open Unsaved JSON',
+                            description: 'Review without writing workspace files',
+                            action: 'open' as const,
+                        },
+                        {
+                            label: `Save to ${handoff.destination}`,
+                            description: 'Write after explicit confirmation',
+                            action: 'save' as const,
+                        },
+                    ],
+                    {
+                        placeHolder:
+                            'Choose how to export the GitHub Copilot MCP handoff candidate',
+                    },
+                );
+                if (!action) {
+                    return;
+                }
+
+                if (action.action === 'open') {
+                    const doc = await vscode.workspace.openTextDocument({
+                        language: 'json',
+                        content: handoff.content,
+                    });
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                    vscode.window.showInformationMessage(
+                        `MetaFlow: Opened GitHub Copilot MCP handoff for ${handoff.destination}. Review before saving or applying it.`,
+                    );
+                    return;
+                }
+
+                const destinationPath = resolveGitHubCopilotMcpHandoffDestination(
+                    ws.uri.fsPath,
+                    handoff,
+                );
+                const destinationExists = fs.existsSync(destinationPath);
+                const confirmLabel = destinationExists ? 'Overwrite' : 'Save';
+                const confirmation = await vscode.window.showWarningMessage(
+                    destinationExists
+                        ? `MetaFlow: ${handoff.destination} already exists. Overwrite it with the reviewed MCP handoff candidate?`
+                        : `MetaFlow: Save the reviewed MCP handoff candidate to ${handoff.destination}?`,
+                    { modal: true },
+                    confirmLabel,
+                    'Cancel',
+                );
+                if (confirmation !== confirmLabel) {
+                    return;
+                }
+
+                const writeResult = await writeGitHubCopilotMcpHandoff(
+                    ws.uri.fsPath,
+                    handoff,
+                    { overwrite: destinationExists },
+                );
+                if (!writeResult.written) {
+                    vscode.window.showWarningMessage(
+                        `MetaFlow: ${handoff.destination} already exists. Choose overwrite to replace it.`,
+                    );
+                    return;
+                }
+
+                const doc = await vscode.workspace.openTextDocument(writeResult.destinationPath);
                 await vscode.window.showTextDocument(doc, { preview: false });
                 vscode.window.showInformationMessage(
-                    `MetaFlow: Opened GitHub Copilot MCP handoff for ${handoff.destination}. Review before saving or applying it.`,
+                    `MetaFlow: Saved GitHub Copilot MCP handoff to ${handoff.destination}.`,
                 );
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);

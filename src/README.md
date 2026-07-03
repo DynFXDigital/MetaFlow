@@ -113,7 +113,7 @@ Codex support is separate from VS Code and GitHub Copilot plugin mode.
 - `.codex/**` files, including `config.toml`, hooks, rules, and custom agent definitions, synchronize root-relative without inline MetaFlow provenance comments; managed state remains the provenance source for drift and clean safety.
 - Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's capability plugin maintenance commands generate that manifest separately from the GitHub Copilot `plugin.json`.
 - Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow generates that marketplace separately from `.github/plugin/marketplace.json` so Codex and GitHub Copilot discovery stay host-native.
-- `MetaFlow: Export GitHub Copilot MCP Handoff` opens a reviewable `.vscode/mcp.json` candidate from canonical `.metaflow/mcp/*.json` metadata without writing workspace MCP settings automatically.
+- `MetaFlow: Export GitHub Copilot MCP Handoff` opens a reviewable `.vscode/mcp.json` candidate from canonical `.metaflow/mcp/*.json` metadata, or saves it after explicit confirmation and overwrite review.
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
@@ -187,7 +187,7 @@ description: Shared repository-level metadata for this workspace.
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                  | `Ctrl+Shift+R` |
 | `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                |                |
-| `MetaFlow: Export GitHub Copilot MCP Handoff` | Open a reviewable `.vscode/mcp.json` candidate from canonical MCP metadata without writing it automatically        |                |
+| `MetaFlow: Export GitHub Copilot MCP Handoff` | Open or confirmation-save a reviewable `.vscode/mcp.json` candidate from canonical MCP metadata                  |                |
 | `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                       |                |
 | `MetaFlow: Clean`                          | Remove synchronized files                                                                                             |                |
 | `MetaFlow: Status`                         | Show current status in output channel                                                                                 |                |

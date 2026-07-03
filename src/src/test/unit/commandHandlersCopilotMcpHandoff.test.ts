@@ -115,4 +115,69 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             ),
         );
     });
+
+    test('writes handoff content only when overwrite policy allows it', async () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-mcp-write-'));
+        const {
+            resolveGitHubCopilotMcpHandoffDestination,
+            writeGitHubCopilotMcpHandoff,
+        } = loadCommandHandlers();
+        const handoff = {
+            target: 'github-copilot' as const,
+            destination: '.vscode/mcp.json',
+            format: 'vscode-mcp-json' as const,
+            managed: false as const,
+            requiresOperatorReview: true as const,
+            servers: [],
+            content: '{\n  "servers": {}\n}\n',
+            warnings: [],
+        };
+
+        const destinationPath = resolveGitHubCopilotMcpHandoffDestination(tmpDir, handoff);
+        assert.strictEqual(destinationPath, path.join(tmpDir, '.vscode', 'mcp.json'));
+
+        const firstWrite = await writeGitHubCopilotMcpHandoff(tmpDir, handoff);
+        assert.deepStrictEqual(
+            { written: firstWrite.written, existed: firstWrite.existed },
+            { written: true, existed: false },
+        );
+        assert.strictEqual(fs.readFileSync(destinationPath, 'utf-8'), handoff.content);
+
+        fs.writeFileSync(destinationPath, 'local edits\n', 'utf-8');
+        const blockedWrite = await writeGitHubCopilotMcpHandoff(tmpDir, handoff);
+        assert.deepStrictEqual(
+            { written: blockedWrite.written, existed: blockedWrite.existed },
+            { written: false, existed: true },
+        );
+        assert.strictEqual(fs.readFileSync(destinationPath, 'utf-8'), 'local edits\n');
+
+        const overwriteWrite = await writeGitHubCopilotMcpHandoff(tmpDir, handoff, {
+            overwrite: true,
+        });
+        assert.deepStrictEqual(
+            { written: overwriteWrite.written, existed: overwriteWrite.existed },
+            { written: true, existed: true },
+        );
+        assert.strictEqual(fs.readFileSync(destinationPath, 'utf-8'), handoff.content);
+    });
+
+    test('rejects handoff destinations outside the workspace', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-mcp-boundary-'));
+        const { resolveGitHubCopilotMcpHandoffDestination } = loadCommandHandlers();
+        const handoff = {
+            target: 'github-copilot' as const,
+            destination: '../mcp.json',
+            format: 'vscode-mcp-json' as const,
+            managed: false as const,
+            requiresOperatorReview: true as const,
+            servers: [],
+            content: '{}\n',
+            warnings: [],
+        };
+
+        assert.throws(
+            () => resolveGitHubCopilotMcpHandoffDestination(tmpDir!, handoff),
+            /outside the workspace/,
+        );
+    });
 });
