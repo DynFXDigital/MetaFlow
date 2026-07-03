@@ -2207,6 +2207,9 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(result.stdout.includes('Creating Codex Cloud environments'));
         assert.ok(result.stdout.includes('MCP OAuth'));
+        assert.ok(result.stdout.includes('## Related Operator Guides'));
+        assert.ok(result.stdout.includes('docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md'));
+        assert.ok(result.stdout.includes('docs/CODEX-TOOL-AUTHORITY-GUIDE.md'));
     });
 
     it('prints Codex support boundaries as JSON', async () => {
@@ -2216,6 +2219,12 @@ describe('CLI: codex-support-boundaries', () => {
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
         assert.strictEqual(data.runtimeOnlyCount, 2);
+        assert.deepStrictEqual(data.relatedGuides, [
+            'docs/CODEX-SUPPORT.md',
+            'docs/CODEX-OPERATOR-WALKTHROUGH.md',
+            'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+            'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
+        ]);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });

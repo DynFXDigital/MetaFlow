@@ -255,6 +255,7 @@ export {
     buildTargetCapabilitySupportReference,
     getTargetCapabilityMatrix,
 } from './targetCapabilityMatrix';
+export type { CodexSupportBoundariesDocument } from './targetCapabilityMatrix';
 export type { ProvenanceData } from './provenanceHeader';
 export type {
     ManagedState,

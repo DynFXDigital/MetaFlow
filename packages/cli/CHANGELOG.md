@@ -5,6 +5,7 @@
 ### Added
 
 - `metaflow codex-support-boundaries` command for printing or writing the Codex file-backed, runtime-only, and not-technically-projectable support boundary report from the terminal.
+- `metaflow codex-support-boundaries` now includes related operator, package maintainer, and tool authority guide references in Markdown and JSON output.
 - `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.
 - Target-aware lifecycle output for `metaflow status`, `metaflow validate`, `metaflow apply`, and `metaflow clean`, including target support summaries and `[codex]`-style mutation labels from managed projection metadata.
 - Operator documentation for `export-copilot-mcp` now covers review-first handoff usage, required secret/policy checks, overwrite handling, and the boundary between GitHub Copilot MCP handoff and Codex MCP projection.

@@ -226,6 +226,13 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(document.content.includes('Creating Codex Cloud environments'));
         assert.ok(document.content.includes('MCP OAuth'));
+        assert.deepStrictEqual(document.relatedGuides, [
+            'docs/CODEX-SUPPORT.md',
+            'docs/CODEX-OPERATOR-WALKTHROUGH.md',
+            'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+            'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
+        ]);
+        assert.ok(document.content.includes('## Related Operator Guides'));
     });
 
     test('builds package marketplace report content for extension review', () => {

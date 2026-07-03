@@ -13,6 +13,7 @@ const GITHUB_COPILOT_ADAPTER_VERSION = 'github-copilot-v0.1';
 export interface CodexSupportBoundariesDocument {
     generatedBy: string;
     runtimeOnlyCount: number;
+    relatedGuides: string[];
     content: string;
 }
 
@@ -476,6 +477,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
     );
     const runtimeOnlyRows = codexRows.filter((entry) => entry.support === 'runtime-only');
     const supportedRows = codexRows.filter((entry) => entry.support !== 'runtime-only');
+    const relatedGuides = [
+        'docs/CODEX-SUPPORT.md',
+        'docs/CODEX-OPERATOR-WALKTHROUGH.md',
+        'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+        'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
+    ];
     const lines: string[] = [
         '# Codex Support Boundaries',
         '',
@@ -527,11 +534,16 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '- MCP runtime: startup, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         '- Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
         '',
+        '## Related Operator Guides',
+        '',
+        ...relatedGuides.map((guide) => `- ${guide}`),
+        '',
     );
 
     return {
         generatedBy,
         runtimeOnlyCount: runtimeOnlyRows.length,
+        relatedGuides,
         content: `${lines.join('\n')}\n`,
     };
 }

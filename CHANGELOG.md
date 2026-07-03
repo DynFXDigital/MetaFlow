@@ -16,6 +16,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
 - Codex operator walkthrough covering preview, adapter readiness, guarded native outputs, package marketplace export, and runtime-validation evidence.
 - Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, unsupported surfaces, and the terminal `codex-support-boundaries` report.
+- Codex support boundary reports now link related operator, package maintainer, and tool authority guides in Markdown and JSON output.
 - Codex operator guidance now spells out guarded native conflict ownership decisions for root/host files and the GitHub Copilot MCP handoff review workflow.
 - Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Codex tool authority guide covering canonical `.metaflow/tools/*.json` metadata, policy grants, execution scope, runtime validation, and the limit between tool description and runtime authority.

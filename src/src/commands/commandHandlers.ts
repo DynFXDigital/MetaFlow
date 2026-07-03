@@ -15,6 +15,7 @@ import type {
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
+    CodexSupportBoundariesDocument,
     GovernanceComplianceResult,
     GovernanceContract,
     GovernanceViolation,
@@ -824,11 +825,7 @@ export function buildTargetSupportReportForExtension(): {
     };
 }
 
-export function buildCodexSupportBoundariesDocumentForExtension(): {
-    generatedBy: string;
-    runtimeOnlyCount: number;
-    content: string;
-} {
+export function buildCodexSupportBoundariesDocumentForExtension(): CodexSupportBoundariesDocument {
     return buildCodexSupportBoundariesDocument({
         generatedBy: 'metaflow extension codex-support-boundaries',
     });
