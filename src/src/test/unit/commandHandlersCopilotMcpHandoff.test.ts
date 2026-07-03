@@ -208,6 +208,22 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                     entry.support === 'runtime-only',
             ),
         );
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'tools' &&
+                    entry.documentation === 'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
+            ),
+        );
+        assert.ok(
+            content.entries.some(
+                (entry: { target: string; concept: string; documentation: string }) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'packageManifests' &&
+                    entry.documentation === 'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+            ),
+        );
     });
 
     test('builds Codex support boundaries markdown for extension review', () => {
