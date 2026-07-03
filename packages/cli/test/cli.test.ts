@@ -3337,6 +3337,8 @@ describe('CLI: codex-support-boundaries', () => {
                             adapterVersion: 'codex-v0.1',
                             scenario: 'Codex opens a draft pull request from an assigned issue.',
                             status: 'partial',
+                            validatedAt: '2026-07-03T12:00:00Z',
+                            expiresAt: '2099-01-01T00:00:00Z',
                             evidence: ['RUN-095'],
                             evidenceArtifacts: [
                                 {
@@ -3365,6 +3367,8 @@ describe('CLI: codex-support-boundaries', () => {
         );
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].id, 'codex-pr-review-smoke');
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].status, 'partial');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].validatedAt, '2026-07-03T12:00:00Z');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].expiresAt, '2099-01-01T00:00:00Z');
         assert.strictEqual(issueChecklist.coverageStatus, 'partial');
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].evidenceArtifacts[0].ref, 'doc/ftr/run-095.md');
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.records, 1);
@@ -3471,6 +3475,49 @@ describe('CLI: codex-support-boundaries', () => {
                 (warning: { code: string }) => warning.code,
             ),
             ['RUNTIME_EVIDENCE_ARTIFACT_HASH_MISMATCH'],
+        );
+    });
+
+    it('surfaces expired runtime evidence in Codex support boundaries', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            expiresAt: '2000-01-01T00:00:00Z',
+                            evidence: ['RUN-095'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].expiresAt, '2000-01-01T00:00:00Z');
+        assert.deepStrictEqual(
+            issueChecklist.runtimeEvidenceRecords[0].warnings.map(
+                (warning: { code: string }) => warning.code,
+            ),
+            ['RUNTIME_EVIDENCE_EXPIRED'],
         );
     });
 

@@ -529,6 +529,10 @@ export interface RuntimeEvidenceMetadata {
     status: RuntimeEvidenceStatus;
     /** Optional command or procedure used to validate the scenario. */
     command?: string;
+    /** Optional ISO-8601 timestamp for when the runtime evidence was validated. */
+    validatedAt?: string;
+    /** Optional ISO-8601 timestamp after which the runtime evidence requires review. */
+    expiresAt?: string;
     /** Evidence identifiers, paths, or external references. */
     evidence: string[];
     /** Structured evidence artifacts associated with this record. */

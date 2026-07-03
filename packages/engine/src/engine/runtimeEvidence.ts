@@ -109,6 +109,8 @@ const KNOWN_FIELDS = new Set([
     'scenario',
     'status',
     'command',
+    'validatedAt',
+    'expiresAt',
     'evidence',
     'evidenceArtifacts',
     'limitations',
@@ -126,6 +128,8 @@ type RuntimeEvidenceFields = {
     scenario?: unknown;
     status?: unknown;
     command?: unknown;
+    validatedAt?: unknown;
+    expiresAt?: unknown;
     evidence?: unknown;
     evidenceArtifacts?: unknown;
     limitations?: unknown;
@@ -313,6 +317,31 @@ function resolveLocalEvidenceArtifactPath(
 
 function sha256File(filePath: string): string {
     return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function parseIsoTimestamp(
+    value: unknown,
+    fieldName: 'validatedAt' | 'expiresAt',
+    warningCode: string,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): string | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    const timestamp = parseNonEmptyString(value);
+    if (!timestamp || Number.isNaN(Date.parse(timestamp))) {
+        warnings.push(
+            toWarning(
+                warningCode,
+                `Runtime evidence ${fieldName} must be an ISO-8601 timestamp when present.`,
+                manifestPath,
+                'error',
+            ),
+        );
+        return undefined;
+    }
+    return timestamp;
 }
 
 function warnOnLocalEvidenceArtifacts(
@@ -523,6 +552,29 @@ export function parseRuntimeEvidenceContent(
             ),
         );
     }
+    const validatedAt = parseIsoTimestamp(
+        fields.validatedAt,
+        'validatedAt',
+        'RUNTIME_EVIDENCE_VALIDATED_AT_INVALID',
+        manifestPath,
+        warnings,
+    );
+    const expiresAt = parseIsoTimestamp(
+        fields.expiresAt,
+        'expiresAt',
+        'RUNTIME_EVIDENCE_EXPIRES_AT_INVALID',
+        manifestPath,
+        warnings,
+    );
+    if (expiresAt && Date.parse(expiresAt) < Date.now()) {
+        warnings.push(
+            toWarning(
+                'RUNTIME_EVIDENCE_EXPIRED',
+                `Runtime evidence expired at "${expiresAt}" and requires review before support claims rely on it.`,
+                manifestPath,
+            ),
+        );
+    }
 
     const evidence = parseStringArray(
         fields.evidence,
@@ -596,6 +648,8 @@ export function parseRuntimeEvidenceContent(
         scenario: scenario ?? '',
         status: status ?? 'not-run',
         ...(command ? { command } : {}),
+        ...(validatedAt ? { validatedAt } : {}),
+        ...(expiresAt ? { expiresAt } : {}),
         evidence,
         evidenceArtifacts,
         limitations,

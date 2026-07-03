@@ -3733,6 +3733,8 @@ describe('Engine package: overlay pipeline', () => {
                 scenario: 'Codex opens a draft pull request from an assigned issue.',
                 status: 'partial',
                 command: '@codex review',
+                validatedAt: '2026-07-03T12:00:00Z',
+                expiresAt: '2099-01-01T00:00:00Z',
                 evidence: ['RUN-095'],
                 evidenceArtifacts: [
                     {
@@ -3765,6 +3767,8 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(record?.scenario, 'Codex opens a draft pull request from an assigned issue.');
         assert.strictEqual(record?.status, 'partial');
         assert.strictEqual(record?.command, '@codex review');
+        assert.strictEqual(record?.validatedAt, '2026-07-03T12:00:00Z');
+        assert.strictEqual(record?.expiresAt, '2099-01-01T00:00:00Z');
         assert.deepStrictEqual(record?.evidence, ['RUN-095']);
         assert.deepStrictEqual(record?.evidenceArtifacts, [
             {
@@ -3885,6 +3889,32 @@ describe('Engine package: overlay pipeline', () => {
         ]);
     });
 
+    it('warns when canonical runtime evidence freshness metadata is invalid or expired', () => {
+        const record = parseRuntimeEvidenceContent(
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                validatedAt: 'not-a-date',
+                expiresAt: '2000-01-01T00:00:00Z',
+                evidence: ['RUN-095'],
+            }),
+            'runtime-evidence.json',
+        );
+
+        assert.strictEqual(record.validatedAt, undefined);
+        assert.strictEqual(record.expiresAt, '2000-01-01T00:00:00Z');
+        assert.deepStrictEqual(
+            record.warnings.map((warning) => warning.code),
+            ['RUNTIME_EVIDENCE_VALIDATED_AT_INVALID', 'RUNTIME_EVIDENCE_EXPIRED'],
+        );
+    });
+
     it('reports validation diagnostics for invalid canonical runtime evidence', () => {
         const record = parseRuntimeEvidenceContent(
             JSON.stringify({
@@ -3897,6 +3927,8 @@ describe('Engine package: overlay pipeline', () => {
                 scenario: '',
                 status: 'unknown',
                 command: '',
+                validatedAt: 'not-a-date',
+                expiresAt: 42,
                 evidence: ['RUN-095', 42],
                 evidenceArtifacts: [
                     { kind: 'video', ref: '' },
@@ -3926,6 +3958,8 @@ describe('Engine package: overlay pipeline', () => {
                 'RUNTIME_EVIDENCE_CONCEPT_REQUIRED',
                 'RUNTIME_EVIDENCE_REQUIRED_FIELD_INVALID',
                 'RUNTIME_EVIDENCE_COMMAND_INVALID',
+                'RUNTIME_EVIDENCE_VALIDATED_AT_INVALID',
+                'RUNTIME_EVIDENCE_EXPIRES_AT_INVALID',
                 'RUNTIME_EVIDENCE_EVIDENCE_INVALID',
                 'RUNTIME_EVIDENCE_ARTIFACT_INVALID',
                 'RUNTIME_EVIDENCE_ARTIFACT_INVALID',

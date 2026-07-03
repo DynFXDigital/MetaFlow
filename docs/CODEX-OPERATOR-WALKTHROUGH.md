@@ -40,12 +40,13 @@ an explicit evidence expectation. The runtime evidence coverage summary gives
 the review total at a glance: runtime-only concepts with no matching record are
 `missing`, while supplied records classify each concept as `passed`, `partial`,
 `failed`, `not-run`, or `waived` according to the strongest matching record.
-For `.metaflow/runtime-evidence/*.json` records, local structured artifact refs
-for reports, logs, screenshots, traces, recordings, and files are resolved
-relative to the metadata layer; stale local paths appear as diagnostics in
-preview and support-boundary JSON output. When a local artifact declares a
-`sha256` digest, changed file content also appears as a runtime evidence
-diagnostic.
+For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
+make proof freshness explicit, and expired evidence appears as a diagnostic in
+preview and support-boundary JSON output. Local structured artifact refs for
+reports, logs, screenshots, traces, recordings, and files are resolved relative
+to the metadata layer; stale local paths also appear as diagnostics. When a
+local artifact declares a `sha256` digest, changed file content also appears as
+a runtime evidence diagnostic.
 
 ## Preview Codex Adapter Output
 
