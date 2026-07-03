@@ -73,6 +73,7 @@ function printEntry(entry: TargetCapabilityMatrixEntry): void {
     if (entry.nativeSurfaces.length > 0) {
         console.log(`  surfaces: ${entry.nativeSurfaces.join(', ')}`);
     }
+    console.log(`  docs: ${entry.documentation}`);
     for (const note of entry.notes) {
         console.log(`  note: ${note}`);
     }

@@ -2133,6 +2133,20 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('codex/issuePrOperation: runtime-only'));
     });
 
+    it('prints concept-specific Codex support guide references', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--concept',
+            'tools',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('codex/tools: partial'));
+        assert.ok(result.stdout.includes('docs: docs/CODEX-TOOL-AUTHORITY-GUIDE.md'));
+    });
+
     it('prints target support rows as JSON', async () => {
         const result = await runCli([
             'target-support',
@@ -2155,6 +2169,26 @@ describe('CLI: target-support', () => {
         assert.strictEqual(data.entries[0].support, 'partial');
         assert.strictEqual(data.entries[0].documentation, 'docs/CODEX-SUPPORT.md');
         assert.ok(data.entries[0].notes.some((note: string) => note.includes('Side-effecting MCP')));
+    });
+
+    it('prints Codex package support guide references as JSON', async () => {
+        const result = await runCli([
+            'target-support',
+            '--json',
+            '--target',
+            'codex',
+            '--concept',
+            'packageManifests',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.entries[0].target, 'codex');
+        assert.strictEqual(data.entries[0].concept, 'packageManifests');
+        assert.strictEqual(
+            data.entries[0].documentation,
+            'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+        );
     });
 
     it('prints target support runtime-only documentation references as JSON', async () => {

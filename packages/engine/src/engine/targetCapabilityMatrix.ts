@@ -5,7 +5,9 @@ import {
     TargetCapabilitySupportStatus,
 } from './types';
 
-type MatrixSeed = Omit<TargetCapabilityMatrixEntry, 'adapterVersion' | 'documentation' | 'target'>;
+type MatrixSeed = Omit<TargetCapabilityMatrixEntry, 'adapterVersion' | 'documentation' | 'target'> & {
+    documentation?: string;
+};
 
 const CODEX_ADAPTER_VERSION = 'codex-v0.1';
 const GITHUB_COPILOT_ADAPTER_VERSION = 'github-copilot-v0.1';
@@ -24,6 +26,7 @@ function row(
     notes: string[],
     authorityImplications: string[] = [],
     evidence: string[] = [],
+    documentation?: string,
 ): MatrixSeed {
     return {
         concept,
@@ -32,6 +35,7 @@ function row(
         notes,
         authorityImplications,
         evidence,
+        ...(documentation ? { documentation } : {}),
     };
 }
 
@@ -131,6 +135,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
             'Tool use requires explicit command, MCP, network, secret, approval, and sandbox authority review.',
         ],
         ['RUN-052'],
+        'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
     ),
     row(
         'hooks',
@@ -154,6 +159,7 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ],
         ['Third-party plugin packages must be treated as trusted code.'],
         ['RUN-025', 'RUN-026', 'RUN-027'],
+        'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
     ),
     row(
         'policyGrants',
@@ -429,7 +435,7 @@ export function getTargetCapabilityMatrix(
             ...matrix.rows.map((entry) => ({
                 target,
                 adapterVersion: matrix.adapterVersion,
-                documentation: matrix.documentation,
+                documentation: entry.documentation ?? matrix.documentation,
                 ...entry,
             })),
         );

@@ -260,6 +260,7 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'codex' && entry.concept === 'tools',
         );
         assert.strictEqual(codexTools?.support, 'partial');
+        assert.strictEqual(codexTools?.documentation, 'docs/CODEX-TOOL-AUTHORITY-GUIDE.md');
         assert.ok(
             codexTools?.nativeSurfaces.includes('.metaflow/tools/*.json'),
             'Codex tools row should name the canonical tool metadata surface',
@@ -276,6 +277,10 @@ describe('Engine package: public API', () => {
             (entry) => entry.target === 'codex' && entry.concept === 'packageManifests',
         );
         assert.strictEqual(codexPackages?.support, 'supported');
+        assert.strictEqual(
+            codexPackages?.documentation,
+            'docs/CODEX-PACKAGE-MAINTAINER-GUIDE.md',
+        );
         assert.ok(
             codexPackages?.nativeSurfaces.includes('.metaflow/packages/*.json'),
             'Codex package row should name the canonical package metadata surface',
