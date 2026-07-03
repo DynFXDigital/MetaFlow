@@ -2994,6 +2994,8 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('evaluationRuntime'));
         assert.ok(result.stdout.includes('pluginRuntime'));
         assert.ok(result.stdout.includes('ideExtensionRuntime'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Coverage Summary'));
+        assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Missing evidence | Records |'));
         assert.ok(result.stdout.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(result.stdout.includes('Creating Codex Cloud environments'));
         assert.ok(result.stdout.includes('Enabling Codex Memories'));
@@ -3010,6 +3012,28 @@ describe('CLI: codex-support-boundaries', () => {
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.generatedBy, 'metaflow codex-support-boundaries');
         assert.strictEqual(data.runtimeOnlyCount, 34);
+        assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary, {
+            totalRuntimeOnlyConcepts: 34,
+            conceptsWithEvidence: 0,
+            conceptsWithoutEvidence: 34,
+            records: 0,
+            byStatus: {
+                passed: 0,
+                partial: 0,
+                failed: 0,
+                'not-run': 0,
+                waived: 0,
+                missing: 34,
+            },
+            conceptsByStatus: {
+                passed: [],
+                partial: [],
+                failed: [],
+                'not-run': [],
+                waived: [],
+                missing: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
+            },
+        });
         assert.ok(
             data.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -3262,10 +3286,12 @@ describe('CLI: codex-support-boundaries', () => {
             data.runtimeEvidenceChecklist.some(
                 (item: {
                     concept: string;
+                    coverageStatus: string;
                     runtimeEvidenceExpected: string;
                     notAchievableByRepositoryProjection: string;
                 }) =>
                     item.concept === 'issuePrOperation' &&
+                    item.coverageStatus === 'missing' &&
                     item.runtimeEvidenceExpected.includes('representative operation') &&
                     item.notAchievableByRepositoryProjection
                         .toLowerCase()
@@ -3325,8 +3351,16 @@ describe('CLI: codex-support-boundaries', () => {
         );
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].id, 'codex-pr-review-smoke');
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].status, 'partial');
+        assert.strictEqual(issueChecklist.coverageStatus, 'partial');
         assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].evidenceArtifacts[0].ref, 'doc/ftr/run-095.md');
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.records, 1);
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 1);
+        assert.strictEqual(data.runtimeEvidenceCoverageSummary.byStatus.partial, 1);
+        assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.conceptsByStatus.partial, [
+            'issuePrOperation',
+        ]);
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
+        assert.ok(data.content.includes('| 34 | 1 | 33 | 1 | 0 | 1 | 0 | 0 | 0 |'));
     });
 
     it('writes Codex support boundaries to an explicit output path', async () => {

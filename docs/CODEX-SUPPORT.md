@@ -7,7 +7,9 @@ metadata cannot create or prove the runtime behavior. The generated support
 boundary report also includes a concept-keyed runtime evidence checklist so
 each runtime-only matrix row has an explicit review expectation. When a
 workspace supplies `.metaflow/runtime-evidence/*.json` records, the checklist
-lists the matching evidence records for the covered concepts.
+lists the matching evidence records for the covered concepts and summarizes
+coverage by `passed`, `partial`, `failed`, `not-run`, `waived`, and `missing`
+concept status.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.

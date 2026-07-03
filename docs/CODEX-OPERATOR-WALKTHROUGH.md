@@ -36,7 +36,10 @@ matrix rows or JSON inspection for a specific canonical concept.
 The boundary report includes a runtime evidence checklist keyed by target
 capability concept. Use that section when a package, target adapter, release
 gate, or manual review needs to prove that every runtime-only Codex concept has
-an explicit evidence expectation.
+an explicit evidence expectation. The runtime evidence coverage summary gives
+the review total at a glance: runtime-only concepts with no matching record are
+`missing`, while supplied records classify each concept as `passed`, `partial`,
+`failed`, `not-run`, or `waived` according to the strongest matching record.
 
 ## Preview Codex Adapter Output
 

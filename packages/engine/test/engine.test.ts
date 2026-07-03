@@ -1316,20 +1316,116 @@ describe('Engine package: public API', () => {
 
         assert.deepStrictEqual(checklistConcepts, runtimeOnlyConcepts);
         assert.strictEqual(document.runtimeEvidenceChecklist.length, document.runtimeOnlyCount);
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts,
+            document.runtimeOnlyCount,
+        );
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 0);
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
+            document.runtimeOnlyCount,
+        );
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.byStatus.missing,
+            document.runtimeOnlyCount,
+        );
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item) =>
                     item.concept === 'issuePrOperation' &&
+                    item.coverageStatus === 'missing' &&
                     item.runtimeEvidenceExpected.includes('representative operation') &&
                     item.notAchievableByRepositoryProjection
                         .toLowerCase()
                         .includes('repository metadata'),
             ),
         );
+        assert.ok(document.content.includes('## Runtime Evidence Coverage Summary'));
         assert.ok(document.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(
-            document.content.includes('| issuePrOperation | Runtime evidence for issuePrOperation'),
+            document.content.includes(
+                '| issuePrOperation | missing | Runtime evidence for issuePrOperation',
+            ),
         );
+    });
+
+    it('summarizes Codex runtime evidence coverage by concept status', () => {
+        const document = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-smoke',
+                    manifestPath: 'runtime-evidence/codex-review-smoke.json',
+                    target: 'codex',
+                    concepts: ['issuePrOperation', 'reviewRuntime'],
+                    harness: 'Codex Cloud',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex reviews a pull request.',
+                    status: 'partial',
+                    evidence: ['RUN-096'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'report',
+                            ref: 'doc/ftr/run-096.md',
+                        },
+                    ],
+                    limitations: [],
+                    policyGrants: [],
+                    warnings: [],
+                },
+                {
+                    id: 'codex-provider-waiver',
+                    manifestPath: 'runtime-evidence/codex-provider-waiver.json',
+                    target: 'codex',
+                    concepts: ['modelProviderRuntime'],
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Provider routing is unavailable in this environment.',
+                    status: 'waived',
+                    evidence: [],
+                    evidenceArtifacts: [],
+                    limitations: ['No AWS Bedrock access in the validation environment.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+                {
+                    id: 'copilot-review-smoke',
+                    manifestPath: 'runtime-evidence/copilot-review-smoke.json',
+                    target: 'github-copilot',
+                    concepts: ['reviewRuntime'],
+                    harness: 'GitHub Copilot',
+                    adapterVersion: 'github-copilot-v0.1',
+                    scenario: 'Copilot reviews a pull request.',
+                    status: 'passed',
+                    evidence: ['RUN-X'],
+                    evidenceArtifacts: [],
+                    limitations: [],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.records, 2);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 3);
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
+            document.runtimeOnlyCount - 3,
+        );
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.byStatus.partial, 2);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.byStatus.waived, 1);
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsByStatus.partial.sort(),
+            ['issuePrOperation', 'reviewRuntime'].sort(),
+        );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsByStatus.waived,
+            ['modelProviderRuntime'],
+        );
+        const reviewChecklist = document.runtimeEvidenceChecklist.find(
+            (item) => item.concept === 'reviewRuntime',
+        );
+        assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
+        assert.ok(document.content.includes('| 34 | 3 | 31 | 2 | 0 | 2 | 0 | 0 | 1 |'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

@@ -494,14 +494,25 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 .sort(),
             document.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
         );
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts,
+            document.runtimeOnlyCount,
+        );
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 0);
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
+            document.runtimeOnlyCount,
+        );
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item: {
                     concept: string;
+                    coverageStatus: string;
                     runtimeEvidenceExpected: string;
                     notAchievableByRepositoryProjection: string;
                 }) =>
                     item.concept === 'issuePrOperation' &&
+                    item.coverageStatus === 'missing' &&
                     item.runtimeEvidenceExpected.includes('representative operation') &&
                     item.notAchievableByRepositoryProjection
                         .toLowerCase()

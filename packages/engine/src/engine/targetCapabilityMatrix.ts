@@ -1,6 +1,8 @@
 import {
     ProjectionTarget,
     RuntimeEvidenceMetadata,
+    RuntimeEvidenceStatus,
+    TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
     TargetCapabilitySupportReference,
     TargetCapabilitySupportStatus,
@@ -18,11 +20,23 @@ export interface CodexSupportBoundariesDocument {
     runtimeOnlyCount: number;
     fileBackedRows: TargetCapabilityMatrixEntry[];
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
+    runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
     relatedGuides: string[];
     content: string;
+}
+
+export type CodexRuntimeEvidenceCoverageStatus = RuntimeEvidenceStatus | 'missing';
+
+export interface CodexRuntimeEvidenceCoverageSummary {
+    totalRuntimeOnlyConcepts: number;
+    conceptsWithEvidence: number;
+    conceptsWithoutEvidence: number;
+    records: number;
+    byStatus: Record<CodexRuntimeEvidenceCoverageStatus, number>;
+    conceptsByStatus: Record<CodexRuntimeEvidenceCoverageStatus, TargetCapabilityConcept[]>;
 }
 
 export interface CodexRuntimeEvidenceChecklistItem {
@@ -33,6 +47,7 @@ export interface CodexRuntimeEvidenceChecklistItem {
     authorityImplications: string[];
     evidence: string[];
     runtimeEvidenceRecords: RuntimeEvidenceMetadata[];
+    coverageStatus: CodexRuntimeEvidenceCoverageStatus;
 }
 
 function row(
@@ -1544,6 +1559,74 @@ export function buildTargetCapabilitySupportReference(
     };
 }
 
+const RUNTIME_EVIDENCE_COVERAGE_STATUSES: CodexRuntimeEvidenceCoverageStatus[] = [
+    'passed',
+    'partial',
+    'failed',
+    'not-run',
+    'waived',
+    'missing',
+];
+
+function emptyRuntimeEvidenceCoverageSummary(
+    totalRuntimeOnlyConcepts: number,
+): CodexRuntimeEvidenceCoverageSummary {
+    const byStatus: Record<CodexRuntimeEvidenceCoverageStatus, number> = {
+        passed: 0,
+        partial: 0,
+        failed: 0,
+        'not-run': 0,
+        waived: 0,
+        missing: 0,
+    };
+    const conceptsByStatus: Record<
+        CodexRuntimeEvidenceCoverageStatus,
+        TargetCapabilityConcept[]
+    > = {
+        passed: [],
+        partial: [],
+        failed: [],
+        'not-run': [],
+        waived: [],
+        missing: [],
+    };
+
+    return {
+        totalRuntimeOnlyConcepts,
+        conceptsWithEvidence: 0,
+        conceptsWithoutEvidence: totalRuntimeOnlyConcepts,
+        records: 0,
+        byStatus,
+        conceptsByStatus,
+    };
+}
+
+function classifyRuntimeEvidenceCoverageStatus(
+    records: RuntimeEvidenceMetadata[],
+): CodexRuntimeEvidenceCoverageStatus {
+    if (records.length === 0) {
+        return 'missing';
+    }
+
+    if (records.some((record) => record.status === 'passed')) {
+        return 'passed';
+    }
+
+    if (records.some((record) => record.status === 'partial')) {
+        return 'partial';
+    }
+
+    if (records.some((record) => record.status === 'failed')) {
+        return 'failed';
+    }
+
+    if (records.some((record) => record.status === 'not-run')) {
+        return 'not-run';
+    }
+
+    return 'waived';
+}
+
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
     runtimeEvidenceRecords?: RuntimeEvidenceMetadata[];
@@ -1559,6 +1642,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         const matchingRuntimeEvidence = runtimeEvidenceRecords.filter(
             (record) => record.target === 'codex' && record.concepts.includes(row.concept),
         );
+        const coverageStatus = classifyRuntimeEvidenceCoverageStatus(matchingRuntimeEvidence);
         return {
             concept: row.concept,
             nativeSurfaces: row.nativeSurfaces,
@@ -1570,8 +1654,26 @@ export function buildCodexSupportBoundariesDocument(options?: {
             authorityImplications: row.authorityImplications,
             evidence: row.evidence,
             runtimeEvidenceRecords: matchingRuntimeEvidence,
+            coverageStatus,
         };
     });
+    const runtimeEvidenceCoverageSummary = emptyRuntimeEvidenceCoverageSummary(
+        runtimeOnlyRows.length,
+    );
+    runtimeEvidenceCoverageSummary.records = runtimeEvidenceRecords.filter(
+        (record) => record.target === 'codex',
+    ).length;
+    for (const item of runtimeEvidenceChecklist) {
+        runtimeEvidenceCoverageSummary.byStatus[item.coverageStatus] += 1;
+        runtimeEvidenceCoverageSummary.conceptsByStatus[item.coverageStatus].push(item.concept);
+        if (item.coverageStatus === 'missing') {
+            continue;
+        }
+        runtimeEvidenceCoverageSummary.conceptsWithEvidence += 1;
+    }
+    runtimeEvidenceCoverageSummary.conceptsWithoutEvidence =
+        runtimeEvidenceCoverageSummary.byStatus.missing;
+
     const relatedGuides = [
         'docs/CODEX-SUPPORT.md',
         'docs/CODEX-OPERATOR-WALKTHROUGH.md',
@@ -1681,10 +1783,16 @@ export function buildCodexSupportBoundariesDocument(options?: {
 
     lines.push(
         '',
+        '## Runtime Evidence Coverage Summary',
+        '',
+        '| Runtime-only concepts | With evidence | Missing evidence | Records | Passed | Partial | Failed | Not run | Waived |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
+        '',
         '## Runtime Evidence Checklist By Concept',
         '',
-        '| Concept | Runtime evidence expected | Authority implications | Evidence records |',
-        '| --- | --- | --- | --- |',
+        '| Concept | Coverage | Runtime evidence expected | Authority implications | Evidence records |',
+        '| --- | --- | --- | --- | --- |',
     );
 
     for (const item of runtimeEvidenceChecklist) {
@@ -1695,7 +1803,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
                       .join('<br>')
                 : 'none recorded';
         lines.push(
-            `| ${item.concept} | ${item.runtimeEvidenceExpected} | ${item.authorityImplications.join(' ')} | ${records} |`,
+            `| ${item.concept} | ${item.coverageStatus} | ${item.runtimeEvidenceExpected} | ${item.authorityImplications.join(' ')} | ${records} |`,
         );
     }
 
@@ -1720,6 +1828,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeOnlyCount: runtimeOnlyRows.length,
         fileBackedRows: supportedRows,
         runtimeOnlyRows,
+        runtimeEvidenceCoverageSummary,
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,
