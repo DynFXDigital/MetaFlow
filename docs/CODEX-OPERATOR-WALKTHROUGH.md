@@ -130,6 +130,12 @@ The package marketplace export converts canonical `marketplaceEntries` metadata
 into Codex-shaped candidate payloads. It does not mutate host files unless an
 explicit `--out` path is supplied, and existing files require `--force`.
 
+In VS Code, use `MetaFlow: Open Package Marketplace Report` to open the same
+canonical package marketplace entries, Codex payload candidates, and GitHub
+Copilot payload candidates as one unsaved JSON review document. This command is
+review-only and does not write `.agents/plugins/marketplace.json` or
+`.github/plugin/marketplace.json`.
+
 GitHub Copilot MCP handoff is separate from Codex support, but it often appears
 in the same package review because canonical MCP metadata can target multiple
 harnesses:

@@ -21,7 +21,7 @@ loads from files in the workspace.
 | Agents | `.codex/agents/*.toml` | Canonical agent profiles project to Codex custom-agent configuration when the target adapter enables agent materialization. |
 | Hooks | `.codex/hooks.json` | Supported command lifecycle hook metadata projects to Codex hook JSON when the target adapter enables hook materialization. |
 | Plugins | `.codex-plugin/plugin.json` | Codex plugin manifests stay separate from GitHub Copilot `plugin.json` manifests. |
-| Local plugin marketplace | `.agents/plugins/marketplace.json` | Canonical package marketplace entries can export Codex-shaped candidate payloads for operator review. |
+| Local plugin marketplace | `.agents/plugins/marketplace.json` | Canonical package marketplace entries can export Codex-shaped candidate payloads for operator review through the CLI or VS Code package marketplace report. |
 
 ## Runtime-Only Codex Surfaces
 
@@ -68,7 +68,7 @@ Static projection support and runtime support use different evidence.
 | Codex can discover the generated file | Local Codex CLI, IDE extension, or app smoke evidence against the generated workspace. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
 | MCP runtime works | Codex MCP startup, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
-| Package marketplace readiness | Reviewable marketplace candidate output plus package policy grants, runtime validation records, and operator acceptance. |
+| Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
 
 ## Source Map
 
