@@ -102,6 +102,7 @@ suite('Diagnostics Tool', () => {
                 return {
                     capabilityWarnings: [],
                     configDiagnostics: [],
+                    synchronizationPlanningConflicts: [],
                     governance: { validationErrors: [] },
                     warnings: [],
                 };
@@ -130,6 +131,7 @@ suite('Diagnostics Tool', () => {
             return {
                 capabilityWarnings: [],
                 configDiagnostics: [],
+                synchronizationPlanningConflicts: [],
                 governance: { validationErrors: [] },
                 warnings: [],
             };
@@ -146,6 +148,7 @@ suite('Diagnostics Tool', () => {
         const tool = module.createDiagnosticsTool(() => ({
             capabilityWarnings: [],
             configDiagnostics: [],
+            synchronizationPlanningConflicts: [],
             governance: { validationErrors: [] },
             warnings: [
                 {
@@ -179,6 +182,7 @@ suite('Diagnostics Tool', () => {
         const tool = module.createDiagnosticsTool(() => ({
             capabilityWarnings: [],
             configDiagnostics: [],
+            synchronizationPlanningConflicts: [],
             governance: { validationErrors: [] },
             warnings: [],
         }));
@@ -199,6 +203,7 @@ suite('Diagnostics Tool', () => {
         module.registerDiagnosticsTool({ subscriptions } as never, () => ({
             capabilityWarnings: [],
             configDiagnostics: [],
+            synchronizationPlanningConflicts: [],
             governance: { validationErrors: [] },
             warnings: [],
         }));

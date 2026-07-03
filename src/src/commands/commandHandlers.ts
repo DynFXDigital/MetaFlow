@@ -21,6 +21,7 @@ import type {
     GitHubCopilotMcpHandoff,
     McpServerMetadata,
     SurfacedFileConflict,
+    SynchronizationPlanningConflict,
 } from '@metaflow/engine';
 import {
     buildGitHubCopilotMcpHandoff,
@@ -679,6 +680,7 @@ export interface ExtensionState {
     governanceCompliance?: GovernanceComplianceResult;
     capabilityWarnings: string[];
     configWarnings: string[];
+    synchronizationPlanningConflicts: SynchronizationPlanningConflict[];
     capabilityPluginMetadataDirtyVersion: number;
     capabilityPluginMetadataSettledVersion: number;
     capabilityDiagnosticFilePaths: string[];
@@ -710,6 +712,7 @@ export function createState(): ExtensionState {
         governanceCompliance: undefined,
         capabilityWarnings: [],
         configWarnings: [],
+        synchronizationPlanningConflicts: [],
         capabilityPluginMetadataDirtyVersion: 0,
         capabilityPluginMetadataSettledVersion: 0,
         capabilityDiagnosticFilePaths: [],
@@ -776,6 +779,28 @@ function cloneConfigError(error: ConfigError): ConfigError {
         ...(error.line !== undefined ? { line: error.line } : {}),
         ...(error.column !== undefined ? { column: error.column } : {}),
     };
+}
+
+function cloneSynchronizationPlanningConflict(
+    conflict: SynchronizationPlanningConflict,
+): SynchronizationPlanningConflict {
+    return {
+        kind: conflict.kind,
+        destinationRelativePath: conflict.destinationRelativePath,
+        ...(conflict.fullPath !== undefined ? { fullPath: conflict.fullPath } : {}),
+        ...(conflict.trackedRelativePath !== undefined
+            ? { trackedRelativePath: conflict.trackedRelativePath }
+            : {}),
+        sources: conflict.sources.map((source) => ({ ...source })),
+        remediation: conflict.remediation,
+    };
+}
+
+function setSynchronizationPlanningConflicts(
+    state: ExtensionState,
+    conflicts: SynchronizationPlanningConflict[],
+): void {
+    state.synchronizationPlanningConflicts = conflicts.map(cloneSynchronizationPlanningConflict);
 }
 
 function formatConfigWarningMessage(warning: {
@@ -5499,6 +5524,7 @@ export function registerCommands(
             const pendingCapabilityPluginMetadataDirtyVersion =
                 state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
+            setSynchronizationPlanningConflicts(state, []);
             if (!refreshOptions.skipLoadingState) {
                 updateStatusBar('loading');
                 state.isLoading = true;
@@ -5943,6 +5969,7 @@ export function registerCommands(
                     state.config.fileNamingStrategy,
                     state.config.layerSources,
                 );
+                setSynchronizationPlanningConflicts(state, []);
                 showOutputChannel();
                 logInfo('=== Overlay Preview ===');
                 for (const c of changes) {
@@ -5959,6 +5986,7 @@ export function registerCommands(
                 const message = err instanceof Error ? err.message : String(err);
                 showOutputChannel();
                 if (isSynchronizationPlanningError(err)) {
+                    setSynchronizationPlanningConflicts(state, err.conflicts);
                     logError(`Synchronization planning conflicts: ${err.conflicts.length}`);
                     for (const conflict of err.conflicts) {
                         logError(
@@ -6107,6 +6135,7 @@ export function registerCommands(
                             fileNamingStrategy: config.fileNamingStrategy,
                             layerSources: config.layerSources,
                         });
+                        setSynchronizationPlanningConflicts(state, []);
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
                         await injectWorkspaceSettings(
@@ -6147,6 +6176,9 @@ export function registerCommands(
                 );
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
+                if (isSynchronizationPlanningError(err)) {
+                    setSynchronizationPlanningConflicts(state, err.conflicts);
+                }
                 showOutputChannel();
                 logError(message);
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);

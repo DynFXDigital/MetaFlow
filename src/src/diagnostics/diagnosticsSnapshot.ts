@@ -1,5 +1,10 @@
 import * as vscode from 'vscode';
-import type { ConfigError, GovernanceComplianceResult, GovernanceContract } from '@metaflow/engine';
+import type {
+    ConfigError,
+    GovernanceComplianceResult,
+    GovernanceContract,
+    SynchronizationPlanningConflict,
+} from '@metaflow/engine';
 import {
     formatDiagnosticLocation,
     getDiagnosticsSnapshot,
@@ -12,10 +17,11 @@ export interface DiagnosticsSnapshotState {
     governanceContractPath?: string;
     governanceContractErrors: ConfigError[];
     governanceCompliance?: GovernanceComplianceResult;
+    synchronizationPlanningConflicts?: SynchronizationPlanningConflict[];
 }
 
 export interface DiagnosticsSnapshotWarning {
-    category: 'capability' | 'config' | 'governance';
+    category: 'capability' | 'config' | 'governance' | 'synchronization';
     message: string;
     code?: string | number;
     severity?: number | 'warn' | 'error';
@@ -28,6 +34,7 @@ export interface DiagnosticsSnapshotWarning {
 export interface DiagnosticsSnapshotPayload {
     capabilityWarnings: string[];
     configDiagnostics: ConfigDiagnosticEntry[];
+    synchronizationPlanningConflicts: SynchronizationPlanningConflict[];
     governance: {
         contractPath?: string;
         validationErrors: ConfigError[];
@@ -58,6 +65,21 @@ function cloneGovernanceComplianceResult(
         allowedProfiles: [...result.allowedProfiles],
         lockedProfiles: [...result.lockedProfiles],
         violations: result.violations.map((violation) => ({ ...violation })),
+    };
+}
+
+function cloneSynchronizationPlanningConflict(
+    conflict: SynchronizationPlanningConflict,
+): SynchronizationPlanningConflict {
+    return {
+        kind: conflict.kind,
+        destinationRelativePath: conflict.destinationRelativePath,
+        ...(conflict.fullPath !== undefined ? { fullPath: conflict.fullPath } : {}),
+        ...(conflict.trackedRelativePath !== undefined
+            ? { trackedRelativePath: conflict.trackedRelativePath }
+            : {}),
+        sources: conflict.sources.map((source) => ({ ...source })),
+        remediation: conflict.remediation,
     };
 }
 
@@ -100,6 +122,7 @@ function buildWarningSummary(
     capabilityWarnings: string[],
     configDiagnostics: ConfigDiagnosticEntry[],
     compliance: GovernanceComplianceResult | undefined,
+    synchronizationPlanningConflicts: SynchronizationPlanningConflict[],
 ): DiagnosticsSnapshotWarning[] {
     const warnings: DiagnosticsSnapshotWarning[] = [];
 
@@ -137,6 +160,17 @@ function buildWarningSummary(
         }
     }
 
+    for (const conflict of synchronizationPlanningConflicts) {
+        warnings.push({
+            category: 'synchronization',
+            message: `${conflict.destinationRelativePath}: ${conflict.remediation}`,
+            code: conflict.kind,
+            severity: 'error',
+            file: conflict.fullPath,
+            remediationHint: conflict.remediation,
+        });
+    }
+
     return warnings;
 }
 
@@ -146,16 +180,25 @@ export function buildDiagnosticsSnapshot(
 ): DiagnosticsSnapshotPayload {
     const configDiagnostics = getDiagnosticsSnapshot(diagnosticCollection);
     const compliance = cloneGovernanceComplianceResult(state.governanceCompliance);
+    const synchronizationPlanningConflicts = (
+        state.synchronizationPlanningConflicts ?? []
+    ).map(cloneSynchronizationPlanningConflict);
 
     return {
         capabilityWarnings: [...state.capabilityWarnings],
         configDiagnostics,
+        synchronizationPlanningConflicts,
         governance: {
             contractPath: state.governanceContractPath,
             validationErrors: state.governanceContractErrors.map(cloneConfigError),
             compliance,
         },
-        warnings: buildWarningSummary(state.capabilityWarnings, configDiagnostics, compliance),
+        warnings: buildWarningSummary(
+            state.capabilityWarnings,
+            configDiagnostics,
+            compliance,
+            synchronizationPlanningConflicts,
+        ),
     };
 }
 

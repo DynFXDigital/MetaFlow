@@ -136,6 +136,70 @@ suite('Diagnostics Snapshot', () => {
         );
     });
 
+    test('summarizes synchronization planning conflicts with remediation', () => {
+        const module = loadDiagnosticsSnapshotWithMock({});
+
+        const snapshot = module.buildDiagnosticsSnapshot(
+            {
+                capabilityWarnings: [],
+                governanceContractErrors: [],
+                synchronizationPlanningConflicts: [
+                    {
+                        kind: 'guarded-native-destination',
+                        destinationRelativePath: 'AGENTS.md',
+                        fullPath: 'C:\\ws\\AGENTS.md',
+                        sources: [
+                            {
+                                sourceRelativePath: 'AGENTS.md',
+                                sourceLayer: 'primary/company/core',
+                                sourceRepo: 'primary',
+                            },
+                        ],
+                        remediation:
+                            'Remove or rename the unmanaged destination, then rerun MetaFlow.',
+                    },
+                ],
+            },
+            makeCollection([]),
+        );
+
+        assert.strictEqual(snapshot.synchronizationPlanningConflicts.length, 1);
+        const syncWarning = snapshot.warnings.find((w) => w.category === 'synchronization');
+        assert.ok(syncWarning);
+        assert.strictEqual(syncWarning?.code, 'guarded-native-destination');
+        assert.strictEqual(syncWarning?.severity, 'error');
+        assert.ok(syncWarning?.message.includes('AGENTS.md'));
+        assert.ok(syncWarning?.remediationHint?.includes('Remove or rename'));
+    });
+
+    test('clones synchronization planning conflicts in the snapshot payload', () => {
+        const module = loadDiagnosticsSnapshotWithMock({});
+        const sourceConflict = {
+            kind: 'unmanaged-destination' as const,
+            destinationRelativePath: '.agents/skills/testing/SKILL.md',
+            fullPath: 'C:\\ws\\.agents\\skills\\testing\\SKILL.md',
+            sources: [
+                {
+                    sourceRelativePath: '.agents/skills/testing/SKILL.md',
+                    sourceLayer: 'primary/company/core',
+                },
+            ],
+            remediation: 'Review the unmanaged file.',
+        };
+
+        const snapshot = module.buildDiagnosticsSnapshot(
+            {
+                capabilityWarnings: [],
+                governanceContractErrors: [],
+                synchronizationPlanningConflicts: [sourceConflict],
+            },
+            makeCollection([]),
+        );
+
+        snapshot.synchronizationPlanningConflicts[0].sources[0].sourceLayer = 'mutated';
+        assert.strictEqual(sourceConflict.sources[0].sourceLayer, 'primary/company/core');
+    });
+
     test('formats warning messages with code prefix and file location', () => {
         const module = loadDiagnosticsSnapshotWithMock({});
 
