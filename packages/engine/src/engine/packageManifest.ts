@@ -80,6 +80,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'policyGrants',
     'executionSurfaces',
     'memoryScopes',
+    'chronicleRuntime',
     'cloudEnvironmentRuntime',
     'appConnectorRuntime',
     'localCloudHandoff',

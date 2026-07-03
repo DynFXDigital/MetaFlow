@@ -878,6 +878,7 @@ export type TargetCapabilityConcept =
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'
+    | 'chronicleRuntime'
     | 'cloudEnvironmentRuntime'
     | 'appConnectorRuntime'
     | 'localCloudHandoff'

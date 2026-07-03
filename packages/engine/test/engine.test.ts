@@ -186,6 +186,7 @@ describe('Engine package: public API', () => {
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
+            'chronicleRuntime',
             'memoryRuntime',
             'cloudEnvironmentRuntime',
             'appConnectorRuntime',
@@ -351,6 +352,22 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexRemoteConnectionRuntime?.evidence.includes('RUN-077'),
             'Codex remote connection runtime row should point to runtime-boundary evidence',
+        );
+        const codexChronicleRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'chronicleRuntime',
+        );
+        assert.strictEqual(codexChronicleRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexChronicleRuntime?.nativeSurfaces.includes('Codex Chronicle'),
+            'Codex Chronicle runtime row should name Chronicle',
+        );
+        assert.ok(
+            codexChronicleRuntime?.notes.some((note) => note.includes('cannot enable Memories')),
+            'Codex Chronicle runtime row should document Chronicle enablement boundary',
+        );
+        assert.ok(
+            codexChronicleRuntime?.evidence.includes('RUN-078'),
+            'Codex Chronicle runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -800,17 +817,28 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot remote connection row should document unsupported Codex-only surface',
         );
+        const copilotChronicleRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'chronicleRuntime',
+        );
+        assert.strictEqual(copilotChronicleRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotChronicleRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot Chronicle row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 35,
+            runtimeOnlyCount: 36,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 20,
+                    runtimeOnlyCount: 21,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

@@ -340,6 +340,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-067'],
     ),
     row(
+        'chronicleRuntime',
+        'runtime-only',
+        [
+            'Codex Chronicle',
+            'Codex app Personalization settings',
+            'macOS Screen Recording permission',
+            'macOS Accessibility permission',
+            'Chronicle screen context memories',
+        ],
+        [
+            'Chronicle is opt-in Codex app runtime state on macOS that augments Codex Memories with recent screen context and is not repository metadata projection.',
+            'Repository metadata can describe Chronicle evidence expectations, but it cannot enable Memories, turn on Chronicle, grant macOS Screen Recording or Accessibility permissions, pause or resume Chronicle, create or remove Chronicle memories, process screen captures, or prove Chronicle recall behavior.',
+            'Chronicle-generated memories are stored locally under the Codex home directory and screen captures are temporarily stored on device while Chronicle is running.',
+        ],
+        [
+            'Chronicle can expose visible screen content, OCR text, local file paths, tool and workflow context, and generated memory content; it increases prompt-injection risk and requires explicit consent, privacy, retention, and sensitive-content controls.',
+        ],
+        ['RUN-078'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -803,6 +823,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-067'],
     ),
     row(
+        'chronicleRuntime',
+        'unsupported',
+        [],
+        [
+            'Codex Chronicle is a Codex app macOS screen-context memory surface and is not a GitHub Copilot target surface.',
+            'GitHub Copilot personalization, host memory, and Agent HQ context behavior must be represented through memoryRuntime or GitHub-specific target concepts instead.',
+        ],
+        ['Screen-context memory authority must be represented through the target harness controls.'],
+        ['RUN-078'],
+    ),
+    row(
         'cloudEnvironmentRuntime',
         'runtime-only',
         [
@@ -1075,6 +1106,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
+        'Enabling Chronicle, granting macOS Screen Recording or Accessibility permissions, capturing screen context, processing Chronicle screenshot frames or OCR text, creating Chronicle memories, pausing or resuming Chronicle, or proving Chronicle recall behavior from repository metadata alone.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing, enabling, sharing, authenticating, or invoking Codex or GitHub Copilot plugins from repository metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
@@ -1091,6 +1123,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
+        'Chronicle runtime: Codex app and macOS host identity, ChatGPT plan eligibility, Memories setting state, Chronicle opt-in and consent state, Screen Recording and Accessibility permission posture, pause or resume state, temporary screen-capture storage posture, Chronicle memory artifact review, representative recall behavior, prompt-injection risk controls, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

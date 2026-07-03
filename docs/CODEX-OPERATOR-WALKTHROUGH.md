@@ -50,8 +50,8 @@ Review these sections in the preview output:
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
-  remote connection runtime, app connector runtime, local/cloud handoff,
-  issue/PR operation, and evaluation support.
+  remote connection runtime, Chronicle runtime, app connector runtime,
+  local/cloud handoff, issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
 - Boundary rows: runtime-only Codex behavior that repository projection cannot
@@ -207,6 +207,13 @@ per-thread controls, so a memory claim needs enabled settings, generated memory
 artifact review, recall evidence, and known retention or sharing limits before
 operators treat it as operational.
 
+Chronicle extends that runtime boundary. MetaFlow can record Chronicle intent
+and evidence expectations, but the Codex app owns Memories enablement,
+Chronicle opt-in, user consent, ChatGPT plan eligibility, macOS Screen
+Recording and Accessibility permissions, pause or resume state, temporary
+screen-capture storage, generated Chronicle memory files, screen-content prompt
+injection risk, and recall proof.
+
 Evaluation metadata follows the same split. Canonical
 `.metaflow/evaluation/*.json` records expected checks, evidence, limitations,
 and target posture. Codex evaluation execution is a runtime activity: benchmark
@@ -339,6 +346,8 @@ Runtime validation is required for:
 - Codex Cloud environment provisioning, setup, secrets, and internet access.
 - ChatGPT mobile or other-device remote control, connected hosts, and SSH host
   project execution.
+- Chronicle opt-in, consent, macOS screen permissions, generated memories,
+  prompt-injection controls, and recall proof.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.
