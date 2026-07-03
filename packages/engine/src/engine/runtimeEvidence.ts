@@ -315,6 +315,11 @@ function resolveLocalEvidenceArtifactPath(
         : path.resolve(layerRoot, artifact.ref);
 }
 
+function isPathWithinRoot(candidatePath: string, rootPath: string): boolean {
+    const relative = path.relative(rootPath, candidatePath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 function sha256File(filePath: string): string {
     return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
@@ -357,6 +362,16 @@ function warnOnLocalEvidenceArtifacts(
     for (const artifact of artifacts) {
         const artifactPath = resolveLocalEvidenceArtifactPath(artifact, layerRoot);
         if (!artifactPath) {
+            continue;
+        }
+        if (!isPathWithinRoot(artifactPath, layerRoot)) {
+            warnings.push(
+                toWarning(
+                    'RUNTIME_EVIDENCE_ARTIFACT_OUTSIDE_LAYER',
+                    `Runtime evidence artifact "${artifact.ref}" resolves outside the metadata layer; use a packaged relative artifact or an explicit external reference.`,
+                    manifestPath,
+                ),
+            );
             continue;
         }
         if (!fs.existsSync(artifactPath)) {

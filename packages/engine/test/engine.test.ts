@@ -3889,6 +3889,54 @@ describe('Engine package: overlay pipeline', () => {
         ]);
     });
 
+    it('warns when canonical runtime evidence local artifact refs escape the metadata layer', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                evidenceArtifacts: [
+                    {
+                        kind: 'report',
+                        ref: '../outside-run.md',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const record = layers[0].runtimeEvidenceRecords?.[0];
+        assert.deepStrictEqual(record?.warnings.map((warning) => warning.code), [
+            'RUNTIME_EVIDENCE_ARTIFACT_OUTSIDE_LAYER',
+        ]);
+        assert.strictEqual(
+            record?.warnings[0].message,
+            'Runtime evidence artifact "../outside-run.md" resolves outside the metadata layer; use a packaged relative artifact or an explicit external reference.',
+        );
+    });
+
     it('warns when canonical runtime evidence freshness metadata is invalid or expired', () => {
         const record = parseRuntimeEvidenceContent(
             JSON.stringify({

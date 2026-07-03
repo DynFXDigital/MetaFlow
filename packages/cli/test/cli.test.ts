@@ -3478,6 +3478,52 @@ describe('CLI: codex-support-boundaries', () => {
         );
     });
 
+    it('surfaces escaped local runtime evidence artifact refs in Codex support boundaries', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'report',
+                                    ref: '../outside-run.md',
+                                },
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['codex-support-boundaries', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        const issueChecklist = data.runtimeEvidenceChecklist.find(
+            (item: { concept: string }) => item.concept === 'issuePrOperation',
+        );
+        assert.deepStrictEqual(
+            issueChecklist.runtimeEvidenceRecords[0].warnings.map(
+                (warning: { code: string }) => warning.code,
+            ),
+            ['RUNTIME_EVIDENCE_ARTIFACT_OUTSIDE_LAYER'],
+        );
+    });
+
     it('surfaces expired runtime evidence in Codex support boundaries', async () => {
         ws = createTestWorkspace({
             config: {

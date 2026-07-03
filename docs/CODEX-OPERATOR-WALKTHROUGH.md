@@ -44,9 +44,11 @@ For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
 preview and support-boundary JSON output. Local structured artifact refs for
 reports, logs, screenshots, traces, recordings, and files are resolved relative
-to the metadata layer; stale local paths also appear as diagnostics. When a
-local artifact declares a `sha256` digest, changed file content also appears as
-a runtime evidence diagnostic.
+to the metadata layer; stale local paths and escaped local paths also appear as
+diagnostics. When a local artifact declares a `sha256` digest, changed file
+content also appears as a runtime evidence diagnostic. Use `url`, `run`, `other`,
+or explicit URI refs for evidence that intentionally lives outside the metadata
+layer.
 
 ## Preview Codex Adapter Output
 
