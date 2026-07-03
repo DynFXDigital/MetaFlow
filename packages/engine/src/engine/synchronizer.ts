@@ -87,6 +87,50 @@ interface ManagedRemapConflict {
     sourceRepo?: string;
 }
 
+export type SynchronizationPlanningConflictKind =
+    | 'destination-collision'
+    | 'unmanaged-destination'
+    | 'guarded-native-destination'
+    | 'managed-remap';
+
+export interface SynchronizationPlanningConflictSource {
+    sourceRelativePath: string;
+    sourceLayer: string;
+    sourceRepo?: string;
+    sourcePath?: string;
+}
+
+export interface SynchronizationPlanningConflict {
+    kind: SynchronizationPlanningConflictKind;
+    destinationRelativePath: string;
+    fullPath?: string;
+    trackedRelativePath?: string;
+    sources: SynchronizationPlanningConflictSource[];
+    remediation: string;
+}
+
+export class SynchronizationPlanningError extends Error {
+    conflicts: SynchronizationPlanningConflict[];
+
+    constructor(message: string, conflicts: SynchronizationPlanningConflict[]) {
+        super(message);
+        this.name = 'SynchronizationPlanningError';
+        this.conflicts = conflicts;
+    }
+}
+
+export function isSynchronizationPlanningError(
+    error: unknown,
+): error is SynchronizationPlanningError {
+    return (
+        error instanceof SynchronizationPlanningError ||
+        (typeof error === 'object' &&
+            error !== null &&
+            (error as { name?: unknown }).name === 'SynchronizationPlanningError' &&
+            Array.isArray((error as { conflicts?: unknown }).conflicts))
+    );
+}
+
 function slugToken(value: string): string {
     return value
         .toLowerCase()
@@ -289,6 +333,64 @@ function formatSynchronizationPlanningError(
     return lines.join('\n');
 }
 
+function sourceFromPlannedFile(entry: PlannedSynchronizedFile): SynchronizationPlanningConflictSource {
+    return {
+        sourceRelativePath: entry.sourceRelativePath,
+        sourceLayer: entry.sourceLayer,
+        sourceRepo: entry.sourceRepo,
+        sourcePath: entry.sourcePath,
+    };
+}
+
+function buildSynchronizationPlanningConflicts(
+    collisions: DestinationCollision[],
+    unmanagedConflicts: UnmanagedDestinationConflict[],
+    remapConflicts: ManagedRemapConflict[],
+): SynchronizationPlanningConflict[] {
+    const conflicts: SynchronizationPlanningConflict[] = [];
+
+    for (const collision of collisions) {
+        conflicts.push({
+            kind: 'destination-collision',
+            destinationRelativePath: collision.destinationRelativePath,
+            sources: collision.contenders.map(sourceFromPlannedFile),
+            remediation: 'Resolve the layer outputs so only one write-enabled source maps to this destination.',
+        });
+    }
+
+    for (const conflict of unmanagedConflicts) {
+        const guarded = isGuardedNativeDestination(conflict.destinationRelativePath);
+        conflicts.push({
+            kind: guarded ? 'guarded-native-destination' : 'unmanaged-destination',
+            destinationRelativePath: conflict.destinationRelativePath,
+            fullPath: conflict.fullPath,
+            sources: [sourceFromPlannedFile(conflict.entry)],
+            remediation: guarded
+                ? 'Remove or rename the existing file, clean managed state if the file was previously synchronized, or set the target adapter concept to candidate, report-only, or disabled.'
+                : 'Remove or rename the existing file, or use the prefixed naming strategy.',
+        });
+    }
+
+    for (const conflict of remapConflicts) {
+        conflicts.push({
+            kind: 'managed-remap',
+            destinationRelativePath: conflict.destinationRelativePath,
+            trackedRelativePath: conflict.trackedRelativePath,
+            sources: [
+                {
+                    sourceRelativePath: conflict.sourceRelativePath,
+                    sourceLayer: conflict.sourceLayer,
+                    sourceRepo: conflict.sourceRepo,
+                },
+            ],
+            remediation:
+                'Automatic migration is not supported; clean or remove the old synchronized output first.',
+        });
+    }
+
+    return conflicts;
+}
+
 function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSynchronizationPlan {
     const outputDir = options.outputDir ?? DEFAULT_OUTPUT_DIR;
     const fileNamingStrategy = resolveFileNamingStrategy(options.fileNamingStrategy);
@@ -429,8 +531,14 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
     }
 
     if (collisions.length > 0 || unmanagedConflicts.length > 0 || remapConflicts.length > 0) {
-        throw new Error(
+        const conflicts = buildSynchronizationPlanningConflicts(
+            collisions,
+            unmanagedConflicts,
+            remapConflicts,
+        );
+        throw new SynchronizationPlanningError(
             formatSynchronizationPlanningError(collisions, unmanagedConflicts, remapConflicts),
+            conflicts,
         );
     }
 

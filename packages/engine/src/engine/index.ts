@@ -69,8 +69,10 @@ export { checkDrift, checkAllDrift } from './driftDetector';
 export {
     apply,
     clean,
+    isSynchronizationPlanningError,
     planSynchronization,
     preview,
+    SynchronizationPlanningError,
     toSynchronizedRelativePath,
 } from './synchronizer';
 export {
@@ -216,6 +218,9 @@ export type {
     ApplyResult,
     PlannedSynchronizedFile,
     PlanSynchronizationOptions,
+    SynchronizationPlanningConflict,
+    SynchronizationPlanningConflictKind,
+    SynchronizationPlanningConflictSource,
     SynchronizationPlan,
 } from './synchronizer';
 export type { SettingsEntry } from './settingsInjector';

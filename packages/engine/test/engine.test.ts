@@ -42,6 +42,7 @@ import {
     checkAllDrift,
     apply,
     clean,
+    isSynchronizationPlanningError,
     planSynchronization,
     preview,
     computeSettingsEntries,
@@ -3946,6 +3947,41 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(message.includes('AGENTS.md'));
         assert.ok(message.includes('target adapter concept to candidate, report-only, or disabled'));
         assert.ok(!message.includes('prefixed naming strategy'));
+    });
+
+    it('planSynchronization exposes structured guarded native destination conflicts', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'AGENTS.md'), '# Managed Guidance', 'utf-8');
+        fs.writeFileSync(path.join(tmpDir, 'AGENTS.md'), '# User Guidance', 'utf-8');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        try {
+            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files });
+            assert.fail('Expected planSynchronization to throw');
+        } catch (err: unknown) {
+            if (!isSynchronizationPlanningError(err)) {
+                assert.fail('Expected a SynchronizationPlanningError');
+            }
+            assert.strictEqual(err.conflicts.length, 1);
+            assert.strictEqual(err.conflicts[0].kind, 'guarded-native-destination');
+            assert.strictEqual(err.conflicts[0].destinationRelativePath, 'AGENTS.md');
+            assert.strictEqual(err.conflicts[0].sources[0].sourceLayer, 'core');
+            assert.ok(
+                err.conflicts[0].remediation.includes(
+                    'target adapter concept to candidate, report-only, or disabled',
+                ),
+            );
+        }
     });
 
     it('target adapter candidate mode reports Codex project instructions without writing', () => {

@@ -45,6 +45,7 @@ import {
     apply,
     clean,
     preview,
+    isSynchronizationPlanningError,
     computePluginRootPaths,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
@@ -5917,6 +5918,14 @@ export function registerCommands(
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
                 showOutputChannel();
+                if (isSynchronizationPlanningError(err)) {
+                    logError(`Synchronization planning conflicts: ${err.conflicts.length}`);
+                    for (const conflict of err.conflicts) {
+                        logError(
+                            `  [${conflict.kind}] ${conflict.destinationRelativePath}: ${conflict.remediation}`,
+                        );
+                    }
+                }
                 logError(message);
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }

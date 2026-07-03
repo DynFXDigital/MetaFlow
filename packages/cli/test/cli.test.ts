@@ -1096,6 +1096,35 @@ describe('CLI: preview', () => {
         assert.ok(typeof data.error === 'string' && data.error.length > 0);
     });
 
+    it('emits structured JSON conflicts for guarded native destination failures', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'AGENTS.md',
+                        content: '# Managed Guidance',
+                    },
+                ],
+            },
+        });
+        fs.writeFileSync(path.join(ws.root, 'AGENTS.md'), '# User Guidance', 'utf-8');
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.ok(typeof data.error === 'string' && data.error.length > 0);
+        assert.strictEqual(data.conflicts.length, 1);
+        assert.strictEqual(data.conflicts[0].kind, 'guarded-native-destination');
+        assert.strictEqual(data.conflicts[0].destinationRelativePath, 'AGENTS.md');
+        assert.ok(
+            data.conflicts[0].remediation.includes(
+                'target adapter concept to candidate, report-only, or disabled',
+            ),
+        );
+    });
+
     it('prints surfaced capability conflict warnings', async () => {
         ws = createTestWorkspace({
             config: standardConfig({ layers: ['company/core', 'company/extra'] }),

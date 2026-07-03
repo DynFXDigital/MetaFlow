@@ -4,6 +4,7 @@ import {
     computeSettingsEntries,
     describeProjectionWithTargetAdapters,
     getTargetCapabilityMatrix,
+    isSynchronizationPlanningError,
     preview,
     AdapterReadinessReport,
     TargetCapabilityMatrixEntry,
@@ -560,7 +561,17 @@ export function registerPreviewCommand(program: Command): void {
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);
                 if (options.json) {
-                    console.log(JSON.stringify({ error: message }, null, 2));
+                    const conflicts = isSynchronizationPlanningError(err) ? err.conflicts : [];
+                    console.log(
+                        JSON.stringify(
+                            {
+                                error: message,
+                                conflicts,
+                            },
+                            null,
+                            2,
+                        ),
+                    );
                 } else {
                     console.error(`Error: ${message}`);
                 }
