@@ -483,10 +483,10 @@ function walkDirectory(
 /**
  * Normalize layer-relative paths into artifact-relative paths.
  *
- * Metadata packs commonly nest artifacts under `.github/`.
+ * Metadata packs commonly nest artifacts under `.github/` or `.metaflow/`.
  * The overlay/classifier pipeline expects paths rooted at artifact dirs
  * (e.g., `instructions/**`, `skills/**`), so we strip an optional leading
- * `.github/` prefix here.
+ * `.github/` prefix here and expand supported canonical MetaFlow sources below.
  */
 function normalizeLayerRelativePath(relativePath: string): string {
     const posixPath = relativePath.replace(/\\/g, '/');
@@ -498,6 +498,16 @@ function normalizeLayerRelativePath(relativePath: string): string {
 
 function expandLayerRelativePaths(relativePath: string): string[] {
     const normalized = normalizeLayerRelativePath(relativePath);
+    const canonicalInstructionMatch = normalized.match(/^\.metaflow\/instructions\/([^/]+\.md)$/);
+    if (canonicalInstructionMatch) {
+        return [`instructions/${canonicalInstructionMatch[1]}`];
+    }
+
+    const canonicalPromptMatch = normalized.match(/^\.metaflow\/prompts\/([^/]+\.md)$/);
+    if (canonicalPromptMatch) {
+        return [`prompts/${canonicalPromptMatch[1]}`];
+    }
+
     const canonicalSkillMatch = normalized.match(/^\.metaflow\/skills\/([^/]+)\/SKILL\.md$/);
     if (!canonicalSkillMatch) {
         return [normalized];
@@ -715,6 +725,16 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
             }
         }
 
+        const instructionsDir = path.join(metaFlowDirPath, 'instructions');
+        if (hasMarkdownFile(instructionsDir)) {
+            return true;
+        }
+
+        const promptsDir = path.join(metaFlowDirPath, 'prompts');
+        if (hasMarkdownFile(promptsDir)) {
+            return true;
+        }
+
         const policiesDir = path.join(metaFlowDirPath, 'policies');
         if (fs.existsSync(policiesDir) && fs.statSync(policiesDir).isDirectory()) {
             const policyEntries = fs.readdirSync(policiesDir, { withFileTypes: true });
@@ -834,6 +854,18 @@ function hasCanonicalMetaFlowArtifactsDir(metaFlowDirPath: string): boolean {
         return toolEntries.some(
             (entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'),
         );
+    } catch {
+        return false;
+    }
+}
+
+function hasMarkdownFile(dirPath: string): boolean {
+    try {
+        if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+            return false;
+        }
+        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+        return entries.some((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
     } catch {
         return false;
     }

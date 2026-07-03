@@ -163,6 +163,8 @@ describe('Engine package: public API', () => {
     it('target capability matrix covers Codex and GitHub Copilot adapter concepts', () => {
         const matrix = getTargetCapabilityMatrix();
         const requiredConcepts = [
+            'instructions',
+            'prompts',
             'skills',
             'agents',
             'projectConfig',
@@ -827,6 +829,58 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(instruction?.classification, 'settings');
     });
 
+    it('projects canonical MetaFlow instructions and prompts to artifact paths', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'prompts'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'instructions', 'release-policy.md'),
+            '# Release Policy',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'prompts', 'review.md'),
+            '# Review Prompt',
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+            injection: {
+                instructions: 'settings',
+                prompts: 'settings',
+            },
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        const instruction = files.find((file) => file.relativePath === 'instructions/release-policy.md');
+        const prompt = files.find((file) => file.relativePath === 'prompts/review.md');
+
+        assert.strictEqual(instruction?.sourceRelativePath, '.metaflow/instructions/release-policy.md');
+        assert.strictEqual(prompt?.sourceRelativePath, '.metaflow/prompts/review.md');
+
+        classifyFiles(files, config.injection);
+        assert.strictEqual(instruction?.classification, 'settings');
+        assert.strictEqual(prompt?.classification, 'settings');
+
+        const instructionProjection = describeProjectionWithTargetAdapters(
+            instruction?.relativePath ?? '',
+            instruction?.sourceRelativePath,
+        );
+        assert.strictEqual(instructionProjection.targetAdapterConcept, 'instructions');
+        assert.strictEqual(instructionProjection.lossiness, 'none');
+
+        const promptProjection = describeProjectionWithTargetAdapters(
+            prompt?.relativePath ?? '',
+            prompt?.sourceRelativePath,
+        );
+        assert.strictEqual(promptProjection.targetAdapterConcept, 'prompts');
+        assert.strictEqual(promptProjection.lossiness, 'none');
+    });
+
     it('discovers CAPABILITY-only layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-capability-only-repo');
         fs.mkdirSync(path.join(repoRoot, 'capabilities', 'empty-capability'), {
@@ -888,6 +942,44 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/policy-only']);
+    });
+
+    it('discovers canonical .metaflow instruction and prompt layer directories', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'discover-canonical-content-repo');
+        fs.mkdirSync(
+            path.join(repoRoot, 'capabilities', 'content-only', '.metaflow', 'instructions'),
+            { recursive: true },
+        );
+        fs.mkdirSync(path.join(repoRoot, 'capabilities', 'content-only', '.metaflow', 'prompts'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'content-only',
+                '.metaflow',
+                'instructions',
+                'release-policy.md',
+            ),
+            '# Release Policy',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(
+                repoRoot,
+                'capabilities',
+                'content-only',
+                '.metaflow',
+                'prompts',
+                'review.md',
+            ),
+            '# Review Prompt',
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['capabilities/content-only']);
     });
 
     it('discovers canonical .metaflow MCP server layer directories', () => {

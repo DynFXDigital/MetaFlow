@@ -317,6 +317,10 @@ describe('CLI: preview', () => {
 
     it('shows target and lossiness metadata for canonical MetaFlow skill projections', async () => {
         const canonicalSkillPath = '.metaflow/skills/release-readiness/SKILL.md';
+        const canonicalInstructionPath = '.metaflow/instructions/release-policy.md';
+        const instructionPath = 'instructions/release-policy.md';
+        const canonicalPromptPath = '.metaflow/prompts/review.md';
+        const promptPath = 'prompts/review.md';
         const codexSkillPath = '.agents/skills/release-readiness/SKILL.md';
         const codexInstructionsPath = 'AGENTS.md';
         const policyGrantPath = '.metaflow/policies/github-pr-read.json';
@@ -340,6 +344,14 @@ describe('CLI: preview', () => {
                     {
                         relativePath: canonicalSkillPath,
                         content: '# Release Readiness',
+                    },
+                    {
+                        relativePath: canonicalInstructionPath,
+                        content: '# Release Policy',
+                    },
+                    {
+                        relativePath: canonicalPromptPath,
+                        content: '# Review Prompt',
                     },
                     {
                         relativePath: codexInstructionsPath,
@@ -491,6 +503,8 @@ describe('CLI: preview', () => {
         const textResult = await runCli(['preview', '-w', ws.root]);
         assert.strictEqual(textResult.exitCode, 0);
         assert.ok(textResult.stdout.includes(`[codex] ${codexSkillPath}`));
+        assert.ok(textResult.stdout.includes(`[github-copilot] ${instructionPath}`));
+        assert.ok(textResult.stdout.includes(`[github-copilot] ${promptPath}`));
         assert.ok(textResult.stdout.includes('lossiness=none'));
         assert.ok(
             textResult.stdout.includes(
@@ -499,6 +513,7 @@ describe('CLI: preview', () => {
         );
         assert.ok(textResult.stdout.includes('skip [codex] AGENTS.md (target-adapter-candidate)'));
         assert.ok(textResult.stdout.includes('MetaFlow source projected to Codex'));
+        assert.ok(textResult.stdout.includes('MetaFlow source projected to GitHub Copilot'));
         assert.ok(textResult.stdout.includes('target adapter concept skills'));
         assert.ok(textResult.stdout.includes('Target Capability Matrix:'));
         assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
@@ -625,6 +640,12 @@ describe('CLI: preview', () => {
         const codexChange = data.pendingChanges.find(
             (change: { relativePath: string }) => change.relativePath === codexSkillPath,
         );
+        const instruction = data.effectiveFiles.find(
+            (file: { relativePath: string }) => file.relativePath === instructionPath,
+        );
+        const prompt = data.effectiveFiles.find(
+            (file: { relativePath: string }) => file.relativePath === promptPath,
+        );
         const codexInstructionsChange = data.pendingChanges.find(
             (change: { relativePath: string }) => change.relativePath === codexInstructionsPath,
         );
@@ -651,6 +672,16 @@ describe('CLI: preview', () => {
         assert.deepStrictEqual(codexChange.projection.targetAdapterRequiredPolicyGrants, [
             'github-pr-read',
         ]);
+        assert.strictEqual(instruction.sourceRelativePath, canonicalInstructionPath);
+        assert.strictEqual(instruction.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(instruction.projection.target, 'github-copilot');
+        assert.strictEqual(instruction.projection.lossiness, 'none');
+        assert.strictEqual(instruction.projection.targetAdapterConcept, 'instructions');
+        assert.strictEqual(prompt.sourceRelativePath, canonicalPromptPath);
+        assert.strictEqual(prompt.projection.sourceFormat, 'metaflow');
+        assert.strictEqual(prompt.projection.target, 'github-copilot');
+        assert.strictEqual(prompt.projection.lossiness, 'none');
+        assert.strictEqual(prompt.projection.targetAdapterConcept, 'prompts');
         assert.strictEqual(codexInstructionsChange.action, 'skip');
         assert.strictEqual(codexInstructionsChange.reason, 'target-adapter-candidate');
         assert.strictEqual(
@@ -823,6 +854,16 @@ describe('CLI: preview', () => {
             codexSkillSupport.evidence.includes('RUN-030'),
             'Codex skill support should point to the live canonical consumer smoke',
         );
+        const codexPromptSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'codex' && entry.concept === 'prompts',
+        );
+        assert.strictEqual(codexPromptSupport.support, 'partial');
+        const copilotPromptSupport = data.targetCapabilityMatrix.find(
+            (entry: { target: string; concept: string }) =>
+                entry.target === 'github-copilot' && entry.concept === 'prompts',
+        );
+        assert.strictEqual(copilotPromptSupport.support, 'supported');
         const codexAgentSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'agents',
@@ -890,6 +931,8 @@ describe('CLI: preview', () => {
             executionProfiles: 1,
             memoryScopes: 1,
             evaluationProfiles: 1,
+            packageManifests: 0,
+            tools: 0,
         });
         assert.ok(
             codexAdapterReport.actionItems.some(

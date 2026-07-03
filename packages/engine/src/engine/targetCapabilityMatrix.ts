@@ -31,10 +31,24 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'instructions',
         'supported',
-        ['AGENTS.md', 'AGENTS.override.md'],
-        ['Root project instructions materialize as guarded repository-root Codex files.'],
+        ['.metaflow/instructions/*.md', 'AGENTS.md', 'AGENTS.override.md'],
+        [
+            'Canonical MetaFlow instruction files project to shared instruction artifacts.',
+            'Root project instructions materialize as guarded repository-root Codex files.',
+        ],
         [],
         ['RUN-023'],
+    ),
+    row(
+        'prompts',
+        'partial',
+        ['.metaflow/prompts/*.md', 'prompts/*.md'],
+        [
+            'Canonical MetaFlow prompt files project to shared prompt artifacts.',
+            'Codex does not expose a direct repository prompt-file surface equivalent to GitHub Copilot prompts.',
+        ],
+        [],
+        ['RUN-052'],
     ),
     row(
         'skills',
@@ -199,10 +213,19 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
     row(
         'instructions',
         'supported',
-        ['.github/instructions/**', '.github/copilot-instructions.md'],
+        ['.metaflow/instructions/*.md', '.github/instructions/**', '.github/copilot-instructions.md'],
         [
+            'Canonical MetaFlow instruction files project to Copilot-compatible instruction artifacts.',
             'Copilot instruction metadata is supported through existing plugin/settings and synchronized-file flows.',
         ],
+        [],
+        ['RUN-022'],
+    ),
+    row(
+        'prompts',
+        'supported',
+        ['.metaflow/prompts/*.md', 'prompts/*.md', '.github/prompts/**'],
+        ['Canonical MetaFlow prompt files project to Copilot-compatible prompt artifacts.'],
         [],
         ['RUN-022'],
     ),

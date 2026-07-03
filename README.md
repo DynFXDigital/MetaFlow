@@ -100,6 +100,7 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - Codex repository skills are authored under `.agents/skills/**` in a capability and synchronize to the same root-relative `.agents/skills/**` path in the consuming workspace.
 - Canonical MetaFlow skills can be authored under `.metaflow/skills/<skill-id>/SKILL.md`; MetaFlow projects each skill to both `skills/<skill-id>/SKILL.md` for Copilot plugin packaging and `.agents/skills/<skill-id>/SKILL.md` for Codex repository skills while retaining the canonical source path in managed state.
 - Codex skill files remain synchronized metadata even when the workspace uses plugin mode for Copilot `skills/**` artifacts.
+- Canonical MetaFlow instruction and prompt files can be authored under `.metaflow/instructions/*.md` and `.metaflow/prompts/*.md`; MetaFlow projects them to `instructions/*.md` and `prompts/*.md` with canonical source provenance and target projection metadata.
 - Existing unmanaged `.agents/skills/**` destinations are protected from accidental overwrite, and managed Codex skill files use the same drift-aware apply and clean behavior as other synchronized files.
 - `AGENTS.md` and `AGENTS.override.md` are synchronized to the consuming repository root as Codex project instructions with unmanaged-destination and drift protection.
 - `.codex/**` project configuration and policy files synchronize root-relative with managed-state-only provenance; existing unmanaged `.codex/**` destinations block apply before overwrite.

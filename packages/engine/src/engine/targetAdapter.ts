@@ -50,6 +50,7 @@ const VALIDATION_STATUS_VALUES = new Set<TargetAdapterValidationStatus>([
 ]);
 const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'instructions',
+    'prompts',
     'skills',
     'agents',
     'projectConfig',

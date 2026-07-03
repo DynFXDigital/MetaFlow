@@ -75,12 +75,24 @@ function inferTargetAdapterConcept(
         paths.some(
             (path) =>
                 isCodexProjectInstructionPath(path) ||
+                /^\.metaflow\/instructions\/[^/]+\.md$/.test(path) ||
                 path === 'copilot-instructions.md' ||
                 path.startsWith('instructions/') ||
                 path.startsWith('.github/instructions/'),
         )
     ) {
         return 'instructions';
+    }
+
+    if (
+        paths.some(
+            (path) =>
+                /^\.metaflow\/prompts\/[^/]+\.md$/.test(path) ||
+                path.startsWith('prompts/') ||
+                path.startsWith('.github/prompts/'),
+        )
+    ) {
+        return 'prompts';
     }
 
     if (
@@ -157,6 +169,8 @@ function inferLossiness(
     const normalizedSource = normalizeArtifactPath(sourceRelativePath);
     const normalizedDestination = normalizeArtifactPath(destinationRelativePath);
     const canonicalSkill = /^\.metaflow\/skills\/[^/]+\/SKILL\.md$/.test(normalizedSource);
+    const canonicalInstruction = /^\.metaflow\/instructions\/[^/]+\.md$/.test(normalizedSource);
+    const canonicalPrompt = /^\.metaflow\/prompts\/[^/]+\.md$/.test(normalizedSource);
     const canonicalAgentProfile = /^\.metaflow\/agents\/[^/]+\.json$/.test(normalizedSource);
     const canonicalProjectConfig = /^\.metaflow\/project-config\/[^/]+\.json$/.test(
         normalizedSource,
@@ -167,6 +181,16 @@ function inferLossiness(
     const canonicalHooks =
         normalizedSource === '.metaflow/hooks' ||
         /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSource);
+    if (
+        canonicalInstruction &&
+        target === 'github-copilot' &&
+        normalizedDestination.startsWith('instructions/')
+    ) {
+        return 'none';
+    }
+    if (canonicalPrompt && target === 'github-copilot' && normalizedDestination.startsWith('prompts/')) {
+        return 'none';
+    }
     if (
         canonicalSkill &&
         (target === 'codex' || target === 'github-copilot') &&

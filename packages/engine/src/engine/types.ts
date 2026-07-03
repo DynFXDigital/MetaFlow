@@ -720,6 +720,7 @@ export interface ProjectionMetadata {
 /** Canonical concept covered by a target adapter capability matrix. */
 export type TargetCapabilityConcept =
     | 'instructions'
+    | 'prompts'
     | 'skills'
     | 'agents'
     | 'projectConfig'
