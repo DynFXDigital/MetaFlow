@@ -185,6 +185,12 @@ reviews use the same vocabulary as `metaflow target-support`. Concept links are
 also included in adapter readiness output, and concept links that are unsupported
 for the selected target remain package diagnostics.
 
+Positive `passed` or `partial` records that link runtime-only target concepts
+such as `issuePrOperation`, `remoteMcpRuntime`, or `oauthMcpRuntime` need
+structured `evidenceArtifacts` for package review. Records without structured
+artifacts remain compatible, but package readiness and marketplace reports emit
+`PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_RECOMMENDED`.
+
 Runtime validation is required for:
 
 - Codex Cloud tasks.

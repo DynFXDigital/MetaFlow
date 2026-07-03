@@ -553,8 +553,10 @@ function packageWarning(
 
 function validatePackageOperationalReadiness(packageManifests: PackageManifestMetadata[]): void {
     const adapterVersionByTarget = new Map<string, string>();
+    const supportByTargetConcept = new Map<string, TargetCapabilityMatrixEntry>();
     for (const entry of getTargetCapabilityMatrix()) {
         adapterVersionByTarget.set(entry.target, entry.adapterVersion);
+        supportByTargetConcept.set(`${entry.target}:${entry.concept}`, entry);
     }
 
     for (const manifest of packageManifests) {
@@ -669,6 +671,24 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                     packageWarning(
                         'PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED',
                         `Package runtimeValidation target "${record.target}" should include a validation command or evidence reference so the runtime claim is reviewable.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
+            const runtimeOnlyConcepts = (record.concepts ?? []).filter(
+                (concept) =>
+                    supportByTargetConcept.get(`${record.target}:${concept}`)?.support ===
+                    'runtime-only',
+            );
+            if (
+                runtimeOnlyConcepts.length > 0 &&
+                (record.status === 'passed' || record.status === 'partial') &&
+                (record.evidenceArtifacts ?? []).length === 0
+            ) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_RECOMMENDED',
+                        `Package runtimeValidation target "${record.target}" status "${record.status}" links runtime-only concepts (${runtimeOnlyConcepts.join(', ')}) but declares no structured evidenceArtifacts for artifact review.`,
                         manifest.manifestPath,
                     ),
                 );

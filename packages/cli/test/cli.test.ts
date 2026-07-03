@@ -124,6 +124,7 @@ function createPackageMarketplaceWorkspace(): TestWorkspace {
                             },
                             {
                                 target: 'github-copilot',
+                                concepts: ['issuePrOperation'],
                                 harness: 'GitHub Copilot',
                                 adapterVersion: 'github-copilot-v0.0',
                                 scenario: 'Marketplace listing reviewed.',
@@ -2132,6 +2133,9 @@ describe('CLI: export-package-marketplace', () => {
             result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'),
         );
         assert.ok(
+            result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_RECOMMENDED'),
+        );
+        assert.ok(
             result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
         );
         assert.ok(
@@ -2168,6 +2172,9 @@ describe('CLI: export-package-marketplace', () => {
             warningText.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'),
         );
         assert.ok(
+            warningText.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_RECOMMENDED'),
+        );
+        assert.ok(
             warningText.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
         );
         assert.ok(
@@ -2195,6 +2202,9 @@ describe('CLI: export-package-marketplace', () => {
         assert.ok(!result.stderr.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'));
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
+        assert.ok(
+            !result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_ARTIFACT_RECOMMENDED'),
+        );
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
         assert.ok(!result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_SOURCE_RECOMMENDED'));
     });
