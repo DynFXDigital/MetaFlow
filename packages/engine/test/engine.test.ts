@@ -410,6 +410,18 @@ describe('Engine package: public API', () => {
                     policyGrants: ['github-pr-read'],
                     targets: { codex: { enabled: true } },
                     validationEvidence: ['RUN-055'],
+                    runtimeValidation: [
+                        {
+                            target: 'codex',
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Generated package appears in local marketplace.',
+                            status: 'passed',
+                            command: 'codex plugin list',
+                            evidence: ['RUN-056'],
+                            limitations: ['Cloud package installation is runtime-only.'],
+                        },
+                    ],
                     warnings: [
                         {
                             code: 'PACKAGE_TARGET_CONCEPT_PARTIAL',
@@ -483,7 +495,9 @@ describe('Engine package: public API', () => {
                     item.concept === 'packageManifests' &&
                     item.metadataId === 'release-operations' &&
                     item.message.includes('Required package policy grants: github-pr-read') &&
-                    item.message.includes('Validation evidence: RUN-055'),
+                    item.message.includes('Validation evidence: RUN-055') &&
+                    item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.evidence.includes('RUN-056'),
             ),
         );
         assert.ok(

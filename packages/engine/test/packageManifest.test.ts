@@ -28,6 +28,18 @@ describe('packageManifest parser', () => {
                     'github-copilot': { pluginName: 'release-operations' },
                 },
                 validationEvidence: ['RUN-055'],
+                runtimeValidation: [
+                    {
+                        target: 'codex',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Generated package appears in local Codex plugin marketplace.',
+                        status: 'passed',
+                        command: 'codex plugin list',
+                        evidence: ['RUN-056'],
+                        limitations: ['Cloud task installation is not represented by static files.'],
+                    },
+                ],
                 description: 'Release workflow package.',
             }),
             '/tmp/.metaflow/packages/release-operations.json',
@@ -59,6 +71,18 @@ describe('packageManifest parser', () => {
             enabled: true,
         });
         assert.deepStrictEqual(parsed.validationEvidence, ['RUN-055']);
+        assert.deepStrictEqual(parsed.runtimeValidation, [
+            {
+                target: 'codex',
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Generated package appears in local Codex plugin marketplace.',
+                status: 'passed',
+                command: 'codex plugin list',
+                evidence: ['RUN-056'],
+                limitations: ['Cloud task installation is not represented by static files.'],
+            },
+        ]);
         assert.strictEqual(parsed.description, 'Release workflow package.');
         assert.deepStrictEqual(parsed.warnings, []);
     });
@@ -75,6 +99,16 @@ describe('packageManifest parser', () => {
                 targets: { codex: { pluginName: '', enabled: 'yes' }, '': {} },
                 policyGrants: ['missing-grant'],
                 validationEvidence: [7],
+                runtimeValidation: [
+                    'bad',
+                    {
+                        target: '',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Smoke.',
+                        status: 'unknown',
+                    },
+                ],
                 description: '',
                 extra: true,
             }),
@@ -94,6 +128,7 @@ describe('packageManifest parser', () => {
         assert.ok(codes.includes('PACKAGE_TARGET_ENABLED_INVALID'));
         assert.ok(codes.includes('PACKAGE_POLICY_GRANT_UNKNOWN'));
         assert.ok(codes.includes('PACKAGE_VALIDATION_EVIDENCE_INVALID'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_INVALID'));
         assert.ok(codes.includes('PACKAGE_DESCRIPTION_INVALID'));
         assert.ok(codes.includes('PACKAGE_UNKNOWN_FIELD'));
     });

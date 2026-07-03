@@ -625,10 +625,32 @@ export interface PackageManifestMetadata {
     targets: Record<string, { pluginName?: string; enabled?: boolean }>;
     /** Optional validation evidence identifiers or references. */
     validationEvidence: string[];
+    /** Optional structured runtime validation records for target harness claims. */
+    runtimeValidation: PackageRuntimeValidationMetadata[];
     /** Optional user-facing description. */
     description?: string;
     /** Warnings emitted while parsing/validating this manifest. */
     warnings: CapabilityWarning[];
+}
+
+/** Structured runtime validation evidence for a package target claim. */
+export interface PackageRuntimeValidationMetadata {
+    /** Target harness family validated by this record. */
+    target: string;
+    /** Human-readable harness or surface tested, such as Codex CLI. */
+    harness: string;
+    /** Adapter version or contract used during validation. */
+    adapterVersion: string;
+    /** Scenario validated by the evidence. */
+    scenario: string;
+    /** Validation status for the scenario. */
+    status: 'passed' | 'partial' | 'failed' | 'not-run';
+    /** Optional command or procedure used to validate the scenario. */
+    command?: string;
+    /** Evidence identifiers, paths, or external references. */
+    evidence: string[];
+    /** Known limitations observed during validation. */
+    limitations: string[];
 }
 
 /** Invocation family declared by a canonical tool manifest. */

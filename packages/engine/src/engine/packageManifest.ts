@@ -11,6 +11,7 @@ import {
     CapabilityDiagnosticSeverity,
     CapabilityWarning,
     PackageManifestMetadata,
+    PackageRuntimeValidationMetadata,
 } from './types';
 
 const CANONICAL_METAFLOW_DIR_NAME = '.metaflow';
@@ -32,6 +33,7 @@ const KNOWN_FIELDS = new Set([
     'policyGrants',
     'targets',
     'validationEvidence',
+    'runtimeValidation',
     'description',
 ]);
 
@@ -50,8 +52,11 @@ type PackageFields = {
     policyGrants?: unknown;
     targets?: unknown;
     validationEvidence?: unknown;
+    runtimeValidation?: unknown;
     description?: unknown;
 };
+
+const RUNTIME_VALIDATION_STATUSES = new Set(['passed', 'partial', 'failed', 'not-run']);
 
 export interface PackageReferenceIndex {
     agents?: Set<string>;
@@ -190,6 +195,102 @@ function parseTargets(
     return targets;
 }
 
+function parseRuntimeValidation(
+    value: unknown,
+    manifestPath: string | undefined,
+    warnings: CapabilityWarning[],
+): PackageRuntimeValidationMetadata[] {
+    if (value === undefined) {
+        return [];
+    }
+    if (!Array.isArray(value)) {
+        warnings.push(
+            toWarning(
+                'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                'Package runtimeValidation must be an array of validation record objects when present.',
+                manifestPath,
+                'error',
+            ),
+        );
+        return [];
+    }
+
+    const records: PackageRuntimeValidationMetadata[] = [];
+    for (const entry of value) {
+        if (!isObjectRecord(entry)) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                    'Package runtimeValidation entries must be objects.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const target = parseNonEmptyString(entry.target);
+        const harness = parseNonEmptyString(entry.harness);
+        const adapterVersion = parseNonEmptyString(entry.adapterVersion);
+        const scenario = parseNonEmptyString(entry.scenario);
+        const status = parseNonEmptyString(entry.status);
+        if (
+            !target ||
+            !harness ||
+            !adapterVersion ||
+            !scenario ||
+            !status ||
+            !RUNTIME_VALIDATION_STATUSES.has(status)
+        ) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                    'Package runtimeValidation entries require non-empty target, harness, adapterVersion, scenario, and status fields; status must be passed, partial, failed, or not-run.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+            continue;
+        }
+
+        const command = parseNonEmptyString(entry.command);
+        if (entry.command !== undefined && !command) {
+            warnings.push(
+                toWarning(
+                    'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                    'Package runtimeValidation command must be a non-empty string when present.',
+                    manifestPath,
+                    'error',
+                ),
+            );
+        }
+
+        records.push({
+            target,
+            harness,
+            adapterVersion,
+            scenario,
+            status: status as PackageRuntimeValidationMetadata['status'],
+            ...(command ? { command } : {}),
+            evidence: parseStringArray(
+                entry.evidence,
+                'runtimeValidation.evidence',
+                'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                manifestPath,
+                warnings,
+            ),
+            limitations: parseStringArray(
+                entry.limitations,
+                'runtimeValidation.limitations',
+                'PACKAGE_RUNTIME_VALIDATION_INVALID',
+                manifestPath,
+                warnings,
+            ),
+        });
+    }
+    return records;
+}
+
 function warnOnUnknownReferences(
     values: string[],
     knownIds: Set<string> | undefined,
@@ -235,6 +336,7 @@ function emptyPackage(
         policyGrants: [],
         targets: {},
         validationEvidence: [],
+        runtimeValidation: [],
         warnings,
     };
 }
@@ -444,6 +546,11 @@ export function parsePackageManifestContent(
         manifestPath,
         warnings,
     );
+    const runtimeValidation = parseRuntimeValidation(
+        fields.runtimeValidation,
+        manifestPath,
+        warnings,
+    );
     const targets = parseTargets(fields.targets, manifestPath, warnings);
     const description = parseNonEmptyString(fields.description);
     if (fields.description !== undefined && !description) {
@@ -472,6 +579,7 @@ export function parsePackageManifestContent(
         policyGrants,
         targets,
         validationEvidence,
+        runtimeValidation,
         description,
         warnings,
     };

@@ -625,6 +625,20 @@ export function registerPreviewCommand(program: Command): void {
                         if (manifest.description) {
                             console.log(`    description: ${manifest.description}`);
                         }
+                        for (const record of manifest.runtimeValidation) {
+                            const command = record.command ? ` command=${record.command}` : '';
+                            const evidence =
+                                record.evidence.length > 0
+                                    ? ` evidence=${record.evidence.join(',')}`
+                                    : '';
+                            const limitations =
+                                record.limitations.length > 0
+                                    ? ` limitations=${record.limitations.join('; ')}`
+                                    : '';
+                            console.log(
+                                `    runtimeValidation: ${record.target}/${record.harness} ${record.status} adapter=${record.adapterVersion} scenario=${record.scenario}${command}${evidence}${limitations}`,
+                            );
+                        }
                         for (const warning of manifest.warnings) {
                             const severity = warning.severity ? `${warning.severity}: ` : '';
                             console.log(`    ! ${severity}${warning.code}: ${warning.message}`);

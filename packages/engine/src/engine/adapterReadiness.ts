@@ -263,12 +263,29 @@ export function buildAdapterReadinessReports(
                 manifest.validationEvidence.length > 0
                     ? ` Validation evidence: ${manifest.validationEvidence.join(', ')}.`
                     : '';
+            const runtimeValidation = manifest.runtimeValidation.filter(
+                (record) => record.target === target,
+            );
+            const runtimeText =
+                runtimeValidation.length > 0
+                    ? ` Runtime validation: ${runtimeValidation
+                          .map(
+                              (record) =>
+                                  `${record.harness}/${record.adapterVersion} ${record.status} "${record.scenario}"`,
+                          )
+                          .join('; ')}.`
+                    : '';
+            const packageEvidence = uniqueSorted([
+                ...rowEvidence(packageRow),
+                ...manifest.validationEvidence,
+                ...runtimeValidation.flatMap((record) => record.evidence),
+            ]);
             actionItems.push(
                 action(
                     'packageManifests',
                     manifest.id,
-                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.${grantText}${evidenceText}`,
-                    rowEvidence(packageRow),
+                    `${label} package ${manifest.id} (${manifest.kind}) requires target package manifest and marketplace review before publication.${grantText}${evidenceText}${runtimeText}`,
+                    packageEvidence,
                 ),
             );
             for (const warning of manifest.warnings) {

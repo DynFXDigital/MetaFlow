@@ -998,6 +998,18 @@ describe('CLI: preview', () => {
                                 },
                             },
                             validationEvidence: ['RUN-055'],
+                            runtimeValidation: [
+                                {
+                                    target: 'codex',
+                                    harness: 'Codex CLI',
+                                    adapterVersion: 'codex-v0.1',
+                                    scenario: 'Generated package appears in local marketplace.',
+                                    status: 'passed',
+                                    command: 'codex plugin list',
+                                    evidence: ['RUN-056'],
+                                    limitations: ['Cloud package installation is runtime-only.'],
+                                },
+                            ],
                             description: 'Release workflow package.',
                         }),
                     },
@@ -1013,6 +1025,8 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('components: agents=release-steward'));
         assert.ok(textResult.stdout.includes('skills=release-readiness'));
         assert.ok(textResult.stdout.includes('tools=create-pr'));
+        assert.ok(textResult.stdout.includes('runtimeValidation: codex/Codex CLI passed'));
+        assert.ok(textResult.stdout.includes('evidence=RUN-056'));
         assert.ok(textResult.stdout.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
         assert.ok(textResult.stdout.includes('[packageManifests]'));
 
@@ -1022,6 +1036,8 @@ describe('CLI: preview', () => {
         assert.strictEqual(data.summary.packageManifests, 1);
         assert.strictEqual(data.packageManifests[0].id, 'release-operations');
         assert.strictEqual(data.packageManifests[0].targets.codex.enabled, true);
+        assert.strictEqual(data.packageManifests[0].runtimeValidation[0].target, 'codex');
+        assert.strictEqual(data.packageManifests[0].runtimeValidation[0].evidence[0], 'RUN-056');
         assert.ok(
             data.packageManifests[0].warnings.some(
                 (warning: { code: string }) => warning.code === 'PACKAGE_TARGET_CONCEPT_PARTIAL',
@@ -1038,11 +1054,18 @@ describe('CLI: preview', () => {
         );
         assert.ok(
             codexReport.actionItems.some(
-                (item: { concept: string; metadataId: string; message: string }) =>
+                (item: {
+                    concept: string;
+                    metadataId: string;
+                    message: string;
+                    evidence: string[];
+                }) =>
                     item.concept === 'packageManifests' &&
                     item.metadataId === 'release-operations' &&
                     item.message.includes('Required package policy grants: github-pr-read') &&
-                    item.message.includes('Validation evidence: RUN-055'),
+                    item.message.includes('Validation evidence: RUN-055') &&
+                    item.message.includes('Codex CLI/codex-v0.1 passed') &&
+                    item.evidence.includes('RUN-056'),
             ),
         );
         assert.ok(
