@@ -1051,6 +1051,48 @@ describe('CLI: preview', () => {
         );
     });
 
+    it('shows target adapter warning diagnostics in preview text and JSON', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/targets/codex.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.targetAdapter/v1',
+                            id: 'codex-default',
+                            target: 'codex',
+                            enabled: true,
+                            materializationMode: 'candidate',
+                            concepts: {
+                                skills: 'managed',
+                            },
+                            validationStatus: 'runtimeVerified',
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes('Target Adapters: 1'));
+        assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
+        assert.ok(textResult.stdout.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
+
+        const jsonResult = await runCli(['preview', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        const warningCodes = data.targetAdapters[0].warnings.map(
+            (warning: { code: string }) => warning.code,
+        );
+        assert.ok(warningCodes.includes('TARGET_ADAPTER_VERSION_RECOMMENDED'));
+        assert.ok(warningCodes.includes('TARGET_ADAPTER_VALIDATION_EVIDENCE_RECOMMENDED'));
+    });
+
     it('shows canonical package manifests in preview output', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
