@@ -44,6 +44,11 @@
         "icon": "$(eye)"
       },
       {
+        "command": "metaflow.openTargetSupportReport",
+        "title": "MetaFlow: Open Target Support Report",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "metaflow.exportCopilotMcpHandoff",
         "title": "MetaFlow: Export GitHub Copilot MCP Handoff",
         "icon": "$(json)"

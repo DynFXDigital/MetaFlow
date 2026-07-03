@@ -22,6 +22,7 @@ import type {
     McpServerMetadata,
     SurfacedFileConflict,
     SynchronizationPlanningConflict,
+    TargetCapabilityMatrixEntry,
 } from '@metaflow/engine';
 import {
     buildGitHubCopilotMcpHandoff,
@@ -62,6 +63,7 @@ import {
     reconcileConfiguredCapabilityReferences,
     saveManagedState,
     toAuthoredConfig,
+    getTargetCapabilityMatrix,
 } from '@metaflow/engine';
 import {
     formatDiagnosticLocation,
@@ -769,6 +771,46 @@ export async function writeGitHubCopilotMcpHandoff(
     await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
     await fsp.writeFile(destinationPath, handoff.content, 'utf-8');
     return { destinationPath, written: true, existed };
+}
+
+export function buildTargetSupportReportForExtension(): {
+    generatedBy: string;
+    summary: {
+        entries: number;
+        targets: Record<string, number>;
+    };
+    entries: TargetCapabilityMatrixEntry[];
+    content: string;
+} {
+    const entries = getTargetCapabilityMatrix().sort((left, right) => {
+        const targetCompare = left.target.localeCompare(right.target, undefined, {
+            sensitivity: 'base',
+        });
+        if (targetCompare !== 0) {
+            return targetCompare;
+        }
+        return left.concept.localeCompare(right.concept, undefined, { sensitivity: 'base' });
+    });
+    const targets: Record<string, number> = {};
+    for (const entry of entries) {
+        targets[entry.target] = (targets[entry.target] ?? 0) + 1;
+    }
+    const report = {
+        generatedBy: 'metaflow extension target-support',
+        summary: {
+            entries: entries.length,
+            targets: Object.fromEntries(
+                Object.entries(targets).sort((left, right) =>
+                    left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
+                ),
+            ),
+        },
+        entries,
+    };
+    return {
+        ...report,
+        content: JSON.stringify(report, null, 2) + '\n',
+    };
 }
 
 function cloneConfigError(error: ConfigError): ConfigError {
@@ -5994,6 +6036,32 @@ export function registerCommands(
                         );
                     }
                 }
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+            }
+        }),
+    );
+
+    // ── metaflow.openTargetSupportReport ──────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.openTargetSupportReport', async () => {
+            try {
+                const report = buildTargetSupportReportForExtension();
+                showOutputChannel();
+                logInfo('=== Target Support Report ===');
+                logInfo(`${report.summary.entries} support row(s) across ${Object.keys(report.summary.targets).length} target(s).`);
+
+                const doc = await vscode.workspace.openTextDocument({
+                    language: 'json',
+                    content: report.content,
+                });
+                await vscode.window.showTextDocument(doc, { preview: false });
+                vscode.window.showInformationMessage(
+                    'MetaFlow: Opened target support report. Review runtime-only and partial rows before relying on target projections.',
+                );
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
                 logError(message);
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }

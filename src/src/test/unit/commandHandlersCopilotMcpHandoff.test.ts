@@ -180,4 +180,24 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             /outside the workspace/,
         );
     });
+
+    test('builds target support report content for extension review', () => {
+        const { buildTargetSupportReportForExtension } = loadCommandHandlers();
+        const report = buildTargetSupportReportForExtension();
+        const content = JSON.parse(report.content);
+
+        assert.strictEqual(report.generatedBy, 'metaflow extension target-support');
+        assert.strictEqual(content.generatedBy, report.generatedBy);
+        assert.strictEqual(content.summary.entries, report.summary.entries);
+        assert.ok(report.summary.targets.codex > 0);
+        assert.ok(report.summary.targets['github-copilot'] > 0);
+        assert.ok(
+            report.entries.some(
+                (entry) =>
+                    entry.target === 'codex' &&
+                    entry.concept === 'issuePrOperation' &&
+                    entry.support === 'runtime-only',
+            ),
+        );
+    });
 });
