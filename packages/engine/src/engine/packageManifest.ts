@@ -85,6 +85,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'localCloudHandoff',
     'issuePrOperation',
     'reviewRuntime',
+    'remoteConnectionRuntime',
     'remoteMcpRuntime',
     'oauthMcpRuntime',
     'sideEffectMcpRuntime',

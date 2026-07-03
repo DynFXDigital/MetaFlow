@@ -421,6 +421,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-076'],
     ),
     row(
+        'remoteConnectionRuntime',
+        'runtime-only',
+        [
+            'Codex mobile remote control',
+            'Codex App connected hosts',
+            'ChatGPT mobile Codex access',
+            'Codex SSH host projects',
+            'Codex secure relay',
+        ],
+        [
+            'Codex remote connections are runtime state across paired devices, connected Mac or Windows hosts, ChatGPT mobile access, SSH host configuration, account or workspace authorization, and host availability.',
+            'Repository metadata can describe remote-connection evidence expectations, but it cannot pair devices, keep hosts awake or online, configure SSH hosts, install or authenticate remote Codex, expose host plugins or tools, approve remote actions, or prove remote task behavior.',
+            'Remote sessions use the connected host or SSH environment for repository files, shell commands, credentials, plugins, MCP servers, skills, browser access, Computer Use, sandbox settings, security controls, and approvals.',
+        ],
+        [
+            'Remote connection runtime can expose host files, credentials, plugins, MCP servers, browser sessions, Computer Use, SSH accounts, shell commands, approvals, screenshots, terminal output, and repository changes across devices.',
+        ],
+        ['RUN-077'],
+    ),
+    row(
         'remoteMcpRuntime',
         'runtime-only',
         ['Codex Streamable HTTP MCP runtime', 'remote MCP endpoints', 'agent network policy'],
@@ -850,6 +870,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-076'],
     ),
     row(
+        'remoteConnectionRuntime',
+        'unsupported',
+        [],
+        [
+            'Codex remote connections are a Codex app, ChatGPT mobile, and SSH-host runtime surface and are not a GitHub Copilot target surface.',
+            'GitHub Copilot remote development and hosted-agent workflows must be represented through GitHub-specific execution, app connector, or cloud environment concepts instead.',
+        ],
+        ['Remote host authority must be represented through the target harness controls.'],
+        ['RUN-077'],
+    ),
+    row(
         'remoteMcpRuntime',
         'runtime-only',
         ['GitHub Copilot MCP runtime', 'remote MCP endpoints', 'host network policy'],
@@ -1039,6 +1070,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
         'Granting runtime permissions, approving boundary-crossing actions, selecting effective managed requirements, running auto-review decisions, enforcing OS sandboxing, or proving permission behavior from repository metadata alone.',
         'Opening Codex review panes, running /review, enabling GitHub code review settings, triggering @codex review, posting pull request reviews, reading pull request feedback, or proving review-feedback handling from repository metadata alone.',
+        'Pairing remote devices, keeping hosts awake or online, configuring SSH hosts, installing or authenticating remote Codex, exposing host tools or plugins, approving remote actions, or proving remote task behavior from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -1058,6 +1090,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
         'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
+        'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

@@ -44,6 +44,7 @@ the service connection or prove the behavior.
 | Slack delegation | Slack tasks depend on the Codex Slack app, workspace install or admin approval, channel membership, connected GitHub account, and a Codex environment. | Record as runtime-only issue/task operation; do not generate Slack app state. |
 | Linear delegation | Linear tasks depend on the Codex Linear integration, account linking, workspace settings, GitHub connection, and environment selection. | Record as runtime-only issue/task operation; do not generate Linear connector state. |
 | Review runtime | The Codex review pane, `/review`, inline comments, PR feedback in the app, GitHub-triggered `@codex review`, automatic reviews, and follow-up fix tasks depend on Git repository state, GitHub access, Codex Cloud setup, code-review settings, GitHub CLI or connector authentication, and repository permissions. | Record review guidance and required evidence; do not open review panes, enable code-review settings, trigger reviews, post GitHub reviews, read PR feedback, or prove feedback handling from repository metadata. |
+| Remote connections | Codex remote control from ChatGPT mobile or another Codex App device, connected Mac or Windows hosts, SSH host projects, and secure relay behavior depend on paired devices, account or workspace authorization, host availability, SSH configuration, host tools, host plugins, MCP servers, browser setup, Computer Use, sandbox settings, and approvals. | Record remote-connection intent and required evidence; do not pair devices, keep hosts awake or online, configure SSH hosts, expose host tools or plugins, approve remote actions, or prove remote task behavior from repository metadata. |
 | GitHub-triggered Codex review | GitHub review operation depends on Codex GitHub access and repository/PR context outside the metadata repository. | Record review intent and required policy grants; require GitHub/Codex runtime evidence. |
 | PR feedback handling in the Codex app | App PR context depends on the current branch, Git repository state, GitHub access, and authenticated `gh` behavior. | Document as an operator workflow; do not treat projection as proof that PR feedback appears in Codex. |
 | Codex GitHub Action | GitHub Action execution depends on workflow triggers, GitHub secrets, runner operating system, job permissions, sandbox inputs, and Codex action version. | Classify the execution intent in `.metaflow/execution/*.json`; do not generate workflows or claim CI execution without a harness-native run. |
@@ -101,7 +102,11 @@ MetaFlow does not claim the following outcomes from generated repository files:
   their app, website, OS, hosting, or workspace permissions.
 - Executing harness-native evaluations, benchmark tasks, reviewer-agent
   scoring, hosted traces, or runtime scoring workflows.
-- Proving hosted Codex Cloud, Slack, Linear, GitHub review, remote MCP
+- Pairing remote devices, keeping hosts awake or online, configuring SSH hosts,
+  installing or authenticating remote Codex, exposing host tools or plugins,
+  approving remote actions, or proving remote task behavior from repository
+  metadata alone.
+- Proving hosted Codex Cloud, Slack, Linear, GitHub review, remote connection, remote MCP
   reachability, OAuth MCP login, side-effecting MCP behavior, browser
   interaction, Chrome profile operation, desktop automation, Sites deployment,
   or harness-native evaluation execution without a harness-native run.
@@ -124,6 +129,7 @@ Static projection support and runtime support use different evidence.
 | Authentication runtime works | Authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations. |
 | Permission runtime works | Active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations. |
 | Review runtime works | Selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations. |
+| Remote connection runtime works | Connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files, tools, plugins, MCP, browser, Computer Use posture, approval behavior, representative remote task, result, and known limitations. |
 | Codex Cloud environment works | A Codex-hosted task showing the selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, task result, cost or audit limits, and known limitations. |
 | App connector works | Installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |

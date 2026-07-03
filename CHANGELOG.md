@@ -31,6 +31,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Authentication runtime support now distinguishes Codex, GitHub Copilot, and Agent HQ sign-in, workspace identity, access tokens, credentials, SSO, RBAC, entitlements, and connected account state from repository metadata projection.
 - Permission runtime support now distinguishes Codex, GitHub Copilot, and Agent HQ sandboxing, approval policies, permission profiles, managed requirements, auto-review, network controls, and host tool approvals from repository metadata projection.
 - Review runtime support now distinguishes Codex review panes, `/review`, GitHub-triggered `@codex review`, automatic reviews, PR feedback handling, and GitHub Copilot or Agent HQ review routing from repository metadata projection.
+- Remote connection runtime support now distinguishes ChatGPT mobile control, connected Codex App hosts, SSH host projects, secure relay access, host-provided tools, and remote approvals from repository metadata projection.
 - Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Codex tool authority guide covering canonical `.metaflow/tools/*.json` metadata, policy grants, execution scope, runtime validation, and the limit between tool description and runtime authority.
 - Codex custom-agent activation proof boundary documentation for `.codex/agents/*.toml` projections and the installed CLI 0.142.3 non-interactive activation limit.

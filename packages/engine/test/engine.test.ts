@@ -192,6 +192,7 @@ describe('Engine package: public API', () => {
             'localCloudHandoff',
             'issuePrOperation',
             'reviewRuntime',
+            'remoteConnectionRuntime',
             'remoteMcpRuntime',
             'oauthMcpRuntime',
             'sideEffectMcpRuntime',
@@ -332,6 +333,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexReviewRuntime?.evidence.includes('RUN-076'),
             'Codex review runtime row should point to runtime-boundary evidence',
+        );
+        const codexRemoteConnectionRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'remoteConnectionRuntime',
+        );
+        assert.strictEqual(codexRemoteConnectionRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexRemoteConnectionRuntime?.nativeSurfaces.includes('Codex mobile remote control'),
+            'Codex remote connection runtime row should name mobile remote control',
+        );
+        assert.ok(
+            codexRemoteConnectionRuntime?.notes.some((note) =>
+                note.includes('cannot pair devices'),
+            ),
+            'Codex remote connection runtime row should document pairing boundary',
+        );
+        assert.ok(
+            codexRemoteConnectionRuntime?.evidence.includes('RUN-077'),
+            'Codex remote connection runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -769,17 +788,29 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot review runtime row should document host review boundary',
         );
+        const copilotRemoteConnectionRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' &&
+                entry.concept === 'remoteConnectionRuntime',
+        );
+        assert.strictEqual(copilotRemoteConnectionRuntime?.support, 'unsupported');
+        assert.ok(
+            copilotRemoteConnectionRuntime?.notes.some((note) =>
+                note.includes('not a GitHub Copilot target surface'),
+            ),
+            'GitHub Copilot remote connection row should document unsupported Codex-only surface',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 34,
+            runtimeOnlyCount: 35,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 19,
+                    runtimeOnlyCount: 20,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {

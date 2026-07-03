@@ -50,7 +50,8 @@ Review these sections in the preview output:
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
-  app connector runtime, local/cloud handoff, issue/PR operation, and evaluation support.
+  remote connection runtime, app connector runtime, local/cloud handoff,
+  issue/PR operation, and evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
 - Boundary rows: runtime-only Codex behavior that repository projection cannot
@@ -213,6 +214,13 @@ tasks, reviewer-agent scoring, hosted traces, CI or cloud runs, model or agent
 identity, sandbox and tool policy, artifacts, and cost or data limits require
 evidence from the target harness.
 
+Remote connections are also runtime-owned. MetaFlow can record remote access
+intent and evidence expectations, but ChatGPT mobile control, paired Codex App
+devices, connected Mac or Windows hosts, SSH host projects, secure relay
+availability, host plugins and tools, MCP servers, browser setup, Computer Use,
+sandbox settings, and approvals come from the connected host and active Codex
+runtime.
+
 ## Review Migration Candidates
 
 Use migration suggestions when a metadata repository still contains legacy or
@@ -329,6 +337,8 @@ Runtime validation is required for:
 
 - Codex Cloud task execution.
 - Codex Cloud environment provisioning, setup, secrets, and internet access.
+- ChatGPT mobile or other-device remote control, connected hosts, and SSH host
+  project execution.
 - Scheduled automation creation, local or worktree execution, Triage state,
   archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.
