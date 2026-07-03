@@ -1953,6 +1953,11 @@ describe('CLI: target-support', () => {
 
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Target Support Matrix: 2'));
+        assert.ok(
+            result.stdout.includes(
+                'Runtime-only support boundaries: 2 rows require operator or harness evidence; codex=2 see docs/CODEX-SUPPORT.md.',
+            ),
+        );
         assert.ok(result.stdout.includes('codex/localCloudHandoff: runtime-only'));
         assert.ok(result.stdout.includes('codex/issuePrOperation: runtime-only'));
     });
@@ -1978,6 +1983,30 @@ describe('CLI: target-support', () => {
         assert.strictEqual(data.entries[0].concept, 'mcpServers');
         assert.strictEqual(data.entries[0].support, 'partial');
         assert.ok(data.entries[0].notes.some((note: string) => note.includes('Side-effecting MCP')));
+    });
+
+    it('prints target support runtime-only documentation references as JSON', async () => {
+        const result = await runCli([
+            'target-support',
+            '--json',
+            '--target',
+            'codex',
+            '--support',
+            'runtime-only',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.deepStrictEqual(data.supportReference, {
+            runtimeOnlyCount: 2,
+            targets: [
+                {
+                    target: 'codex',
+                    runtimeOnlyCount: 2,
+                    documentation: 'docs/CODEX-SUPPORT.md',
+                },
+            ],
+        });
     });
 
     it('rejects unknown support filters', async () => {

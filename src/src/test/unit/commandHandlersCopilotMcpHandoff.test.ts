@@ -191,6 +191,15 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 4);
+        assert.ok(
+            report.supportReference?.targets.some(
+                (target) =>
+                    target.target === 'codex' &&
+                    target.runtimeOnlyCount === 2 &&
+                    target.documentation === 'docs/CODEX-SUPPORT.md',
+            ),
+        );
         assert.ok(
             report.entries.some(
                 (entry) =>
