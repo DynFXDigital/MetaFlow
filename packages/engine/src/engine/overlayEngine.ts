@@ -62,6 +62,7 @@ import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
     isCodexRepositorySkillPath,
+    isCodexWorktreeIncludePath,
 } from './codexPaths';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
@@ -1093,6 +1094,9 @@ function isKnownArtifactPath(relativePath: string): boolean {
     if (isCodexProjectConfigPath(relativePath)) {
         return true;
     }
+    if (isCodexWorktreeIncludePath(relativePath)) {
+        return true;
+    }
 
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
@@ -1157,6 +1161,7 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             childNames.has('.agents') &&
             hasCodexRepositorySkillsDir(path.join(currentDir, '.agents'));
         const hasCodexProjectInstructions = hasCodexProjectInstructionFile(childNames, currentDir);
+        const hasCodexWorktreeInclude = hasCodexWorktreeIncludeFile(childNames, currentDir);
         const hasCodexProjectConfig =
             childNames.has('.codex') && hasCodexProjectConfigDir(path.join(currentDir, '.codex'));
         const hasCanonicalMetaFlowArtifacts =
@@ -1169,6 +1174,7 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             hasGithubArtifacts ||
             hasCodexRepositorySkills ||
             hasCodexProjectInstructions ||
+            hasCodexWorktreeInclude ||
             hasCodexProjectConfig ||
             hasCanonicalMetaFlowArtifacts ||
             hasCapabilityManifest
@@ -1216,6 +1222,17 @@ function hasCodexProjectInstructionFile(childNames: Set<string>, currentDir: str
         }
     }
     return false;
+}
+
+function hasCodexWorktreeIncludeFile(childNames: Set<string>, currentDir: string): boolean {
+    if (!childNames.has('.worktreeinclude')) {
+        return false;
+    }
+    try {
+        return fs.statSync(path.join(currentDir, '.worktreeinclude')).isFile();
+    } catch {
+        return false;
+    }
 }
 
 function hasCodexRepositorySkillsDir(agentsDirPath: string): boolean {

@@ -19,6 +19,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex support boundary reports now link related operator, package maintainer, and tool authority guides in Markdown and JSON output.
 - Codex command-rules target support reports for `.codex/rules/*.rules` policy files.
 - Codex command-rules files now report the `commandRules` projection concept and honor target-adapter materialization gates separately from `.codex/config.toml`.
+- Codex `.worktreeinclude` files now synchronize at the repository root with managed-state-only provenance and report the `worktreeInclude` projection concept.
 - Codex operator guidance now spells out guarded native conflict ownership decisions for root/host files and the GitHub Copilot MCP handoff review workflow.
 - Codex prompt support now distinguishes canonical MetaFlow prompt metadata from deprecated local-only Codex custom prompts, and directs shared Codex workflows to skills.
 - Codex memory runtime support now distinguishes canonical `.metaflow/memory/**` boundary metadata from opt-in Codex Memories runtime state under the Codex home directory.

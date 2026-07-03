@@ -68,6 +68,7 @@ const TARGET_CAPABILITY_CONCEPTS = new Set<TargetCapabilityConcept>([
     'agents',
     'projectConfig',
     'commandRules',
+    'worktreeInclude',
     'mcpServers',
     'tools',
     'hooks',

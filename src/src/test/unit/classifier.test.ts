@@ -82,6 +82,10 @@ suite('classifier', () => {
                 'synchronized',
             );
         });
+
+        test('Codex worktree include remains synchronized', () => {
+            assert.strictEqual(classifySingle('.worktreeinclude', undefined), 'synchronized');
+        });
     });
 
     suite('injection config override', () => {
@@ -177,6 +181,13 @@ suite('classifier', () => {
             );
             assert.strictEqual(
                 classifySingle('.codex/hooks.json', { hooks: 'settings' }),
+                'synchronized',
+            );
+        });
+
+        test('Codex worktree include ignores injection overrides', () => {
+            assert.strictEqual(
+                classifySingle('.worktreeinclude', { hooks: 'settings' }),
                 'synchronized',
             );
         });

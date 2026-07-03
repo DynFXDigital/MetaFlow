@@ -301,10 +301,10 @@ describe('CLI: status', () => {
         assert.ok(textResult.stdout.includes('notes=1'));
         assert.ok(textResult.stdout.includes('github-copilot=disabled'));
         assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
-        assert.ok(textResult.stdout.includes('Target Capability Support: 72'));
+        assert.ok(textResult.stdout.includes('Target Capability Support: 74'));
         assert.ok(
             textResult.stdout.includes(
-                'codex (codex-v0.1): partial=11, runtime-only=22, supported=3',
+                'codex (codex-v0.1): partial=12, runtime-only=22, supported=3',
             ),
         );
         assert.ok(
@@ -331,12 +331,12 @@ describe('CLI: status', () => {
             'Runtime integrations require harness evidence.',
         ]);
         assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 72);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 74);
         const codexTargetSupport = data.targetCapabilitySupport.targets.find(
             (entry: { target: string }) => entry.target === 'codex',
         );
         assert.strictEqual(codexTargetSupport.adapterVersion, 'codex-v0.1');
-        assert.strictEqual(codexTargetSupport.counts.partial, 11);
+        assert.strictEqual(codexTargetSupport.counts.partial, 12);
         assert.strictEqual(codexTargetSupport.counts['runtime-only'], 22);
         assert.strictEqual(codexTargetSupport.counts.supported, 3);
         assert.deepStrictEqual(data.targetCapabilitySupport.supportReference, {
@@ -3455,6 +3455,46 @@ describe('CLI: apply', () => {
         assert.ok(state.files['.codex/config.toml'], 'state should track Codex project config');
     });
 
+    it('should synchronize Codex worktree include without inline provenance', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.worktreeinclude',
+                        content: '.env.local\nconfig/secrets.json\n',
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(previewResult.stdout.includes('.worktreeinclude'));
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+
+        const rootIncludePath = path.join(ws.root, '.worktreeinclude');
+        assert.ok(
+            fs.existsSync(rootIncludePath),
+            'Codex worktree include should be synchronized at repo root',
+        );
+        assert.ok(
+            !fs.existsSync(path.join(ws.root, '.github', '.worktreeinclude')),
+            'Codex worktree include should not be nested under .github',
+        );
+
+        const written = fs.readFileSync(rootIncludePath, 'utf-8');
+        assert.strictEqual(written, '.env.local\nconfig/secrets.json\n');
+        assert.ok(!written.includes('metaflow:provenance'));
+
+        const statePath = path.join(ws.root, '.metaflow', 'state.json');
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        assert.ok(state.files['.worktreeinclude'], 'state should track Codex worktree include');
+        assert.strictEqual(state.files['.worktreeinclude'].projectionTarget, 'codex');
+    });
+
     it('should keep managed Codex command rules candidate-only without policy grants', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
@@ -3900,7 +3940,7 @@ describe('CLI: validate', () => {
         const result = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('passed'));
-        assert.ok(result.stdout.includes('Target Capability Support: 72'));
+        assert.ok(result.stdout.includes('Target Capability Support: 74'));
         assert.ok(
             result.stdout.includes(
                 'Runtime-only support boundaries: 38 rows require operator or harness evidence',
@@ -3959,7 +3999,7 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
-        assert.strictEqual(data.targetCapabilitySupport.entries, 72);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 74);
         assert.ok(
             data.targetCapabilitySupport.targets.some(
             (entry: { target: string; counts: Record<string, number> }) =>

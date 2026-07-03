@@ -22,6 +22,7 @@ import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
     isCodexRepositorySkillPath,
+    isCodexWorktreeIncludePath,
 } from './codexPaths';
 import { ArtifactClassification, EffectiveFile } from './types';
 
@@ -127,6 +128,9 @@ export function classifySingle(
         return 'synchronized';
     }
     if (isCodexProjectConfigPath(normalized)) {
+        return 'synchronized';
+    }
+    if (isCodexWorktreeIncludePath(normalized)) {
         return 'synchronized';
     }
     if (/^\.github\/agents\/[^/]+\.agent\.md$/.test(normalized)) {

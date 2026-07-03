@@ -3,6 +3,7 @@
 const CODEX_REPOSITORY_SKILLS_ROOT = '.agents/skills';
 const CODEX_PROJECT_CONFIG_ROOT = '.codex';
 const CODEX_COMMAND_RULES_ROOT = '.codex/rules';
+const CODEX_WORKTREE_INCLUDE_FILE = '.worktreeinclude';
 const CODEX_PROJECT_INSTRUCTION_FILES = new Set(['AGENTS.md', 'AGENTS.override.md']);
 
 export function normalizeArtifactPath(relativePath: string): string {
@@ -37,14 +38,19 @@ export function isCodexCommandRulesPath(relativePath: string): boolean {
     );
 }
 
+export function isCodexWorktreeIncludePath(relativePath: string): boolean {
+    return normalizeArtifactPath(relativePath) === CODEX_WORKTREE_INCLUDE_FILE;
+}
+
 export function isCodexRootRelativeSynchronizedPath(relativePath: string): boolean {
     return (
         isCodexRepositorySkillPath(relativePath) ||
         isCodexProjectInstructionPath(relativePath) ||
-        isCodexProjectConfigPath(relativePath)
+        isCodexProjectConfigPath(relativePath) ||
+        isCodexWorktreeIncludePath(relativePath)
     );
 }
 
 export function usesInlineProvenanceHeader(relativePath: string): boolean {
-    return !isCodexProjectConfigPath(relativePath);
+    return !isCodexProjectConfigPath(relativePath) && !isCodexWorktreeIncludePath(relativePath);
 }

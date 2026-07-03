@@ -217,6 +217,20 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-024', 'RUN-043'],
     ),
     row(
+        'worktreeInclude',
+        'partial',
+        ['.worktreeinclude', 'Codex app managed worktrees', '.gitignore-style copy patterns'],
+        [
+            'Codex worktree include files list ignored setup paths that the local Codex app copies into new Codex-managed worktrees.',
+            'MetaFlow can materialize guarded `.worktreeinclude` files and report the intended copy policy, but it cannot create Codex-managed worktrees, copy ignored files, overwrite existing files, copy source symlinks, or prove copied-file availability.',
+            'Codex automatically copies ignored `AGENTS.override.md` into local managed worktrees, so `.worktreeinclude` does not need to list it.',
+        ],
+        [
+            'Ignored setup files can include secrets, credentials, tokens, local endpoints, or machine-specific configuration and require explicit copy-scope review.',
+        ],
+        ['RUN-080'],
+    ),
+    row(
         'commandRules',
         'partial',
         ['.codex/rules/*.rules', 'Codex rules config layers', 'Codex execpolicy check'],
@@ -751,6 +765,17 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-064'],
     ),
     row(
+        'worktreeInclude',
+        'unsupported',
+        [],
+        [
+            'Codex `.worktreeinclude` is specific to local Codex app managed worktrees.',
+            'GitHub Copilot and Agent HQ use separate hosted workspace, runner, repository, and setup mechanisms instead of Codex managed-worktree copy patterns.',
+        ],
+        ['Ignored setup-file copy behavior must be represented through the target harness setup and secret-management controls.'],
+        ['RUN-080'],
+    ),
+    row(
         'mcpServers',
         'partial',
         ['.metaflow/mcp/*.json', 'GitHub Copilot repository MCP settings', '.github/agents/*.agent.md'],
@@ -1142,6 +1167,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
         'Granting runtime permissions, approving boundary-crossing actions, selecting effective managed requirements, running auto-review decisions, enforcing OS sandboxing, or proving permission behavior from repository metadata alone.',
         'Assigning enterprise roles, applying cloud-managed requirements, writing device-level policy, selecting effective governance layers, changing organization policy, approving marketplace sources, enforcing feature pins, or proving enterprise policy behavior from repository metadata alone.',
+        'Creating Codex-managed worktrees, copying ignored files into them, copying source symlinks, overwriting existing files, or proving `.worktreeinclude` copy behavior from repository metadata alone.',
         'Opening Codex review panes, running /review, enabling GitHub code review settings, triggering @codex review, posting pull request reviews, reading pull request feedback, or proving review-feedback handling from repository metadata alone.',
         'Pairing remote devices, keeping hosts awake or online, configuring SSH hosts, installing or authenticating remote Codex, exposing host tools or plugins, approving remote actions, or proving remote task behavior from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
@@ -1164,6 +1190,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
         'Permission runtime: active permission profile or sandbox mode, approval policy, reviewer mode, managed requirements source, effective writable roots, network posture, command or tool approval result, side-effecting app or MCP approval behavior, protected path behavior, and known limitations.',
         'Enterprise policy runtime: effective managed configuration or organization policy source, assigned role or group, policy precedence layer, managed requirements or host policy identifier, constrained approval and sandbox posture, web search and network posture, MCP allowlist, plugin marketplace policy, feature pins, command-rule restrictions, audit posture, fleet-version compatibility, representative policy enforcement result, and known limitations.',
+        'Worktree include behavior: Codex app version, project Git state, selected branch, `.gitignore` and `.worktreeinclude` content, created managed worktree path, copied ignored file inventory, skipped symlink or overwrite behavior, automatic `AGENTS.override.md` copy posture, and known limitations.',
         'Review runtime: selected review surface, Git repository state, diff scope, PR branch and base, GitHub CLI or connector authentication, code-review setting state, review trigger, inline or PR comments loaded, posted findings or fixes, and known limitations.',
         'Remote connection runtime: connected host identity, controlling device identity, pairing and workspace authorization, host availability, SSH host configuration where applicable, remote project path, host-provided files/tools/plugins/MCP/browser/Computer Use posture, approval behavior, representative remote task, result, and known limitations.',
         'Chronicle runtime: Codex app and macOS host identity, ChatGPT plan eligibility, Memories setting state, Chronicle opt-in and consent state, Screen Recording and Accessibility permission posture, pause or resume state, temporary screen-capture storage posture, Chronicle memory artifact review, representative recall behavior, prompt-injection risk controls, and known limitations.',

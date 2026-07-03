@@ -46,7 +46,8 @@ Review these sections in the preview output:
 
 - Effective files: generated files such as `.agents/skills/**`,
   `AGENTS.md`, `.codex/config.toml`, `.codex/hooks.json`, and
-  `.codex/agents/*.toml`.
+  `.codex/agents/*.toml`, plus `.worktreeinclude` when a capability owns the
+  Codex managed-worktree copy policy.
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
   automation runtime, authentication runtime, permission runtime, review runtime,
@@ -76,6 +77,7 @@ Typical managed Codex file surfaces are:
 | Repository skills | `.agents/skills/<skill-id>/SKILL.md` |
 | Project instructions | `AGENTS.md`, `AGENTS.override.md` |
 | Project config | `.codex/config.toml` |
+| Worktree include | `.worktreeinclude` |
 | Custom agents | `.codex/agents/*.toml` |
 | Hooks | `.codex/hooks.json` |
 | Plugin manifest | `.codex-plugin/plugin.json` |
@@ -88,8 +90,8 @@ decide that MetaFlow owns the destination.
 Guarded native conflicts use stronger review language than ordinary generated
 file conflicts because the destination is a host-owned or root-owned file such
 as `AGENTS.md`, `.codex/config.toml`, `.codex/hooks.json`,
-`.agents/skills/**`, or `.github/agents/*.agent.md`. Treat each guarded
-conflict as an ownership decision:
+`.worktreeinclude`, `.agents/skills/**`, or `.github/agents/*.agent.md`. Treat
+each guarded conflict as an ownership decision:
 
 1. Keep the existing native file and leave the MetaFlow output as candidate or
    skipped output.
@@ -115,6 +117,12 @@ accepting `.codex/config.toml` output:
 - `sandboxWorkspaceWrite.networkAccess=true`
 - `shellEnvironmentPolicy.inherit=all`
 - `shellEnvironmentPolicy.ignoreDefaultExcludes=true`
+
+Codex worktree include review is also authority-sensitive. A managed
+`.worktreeinclude` file can cause ignored setup files to be copied into local
+Codex app managed worktrees. Review the listed patterns for secrets,
+credentials, tokens, local endpoints, and machine-specific configuration before
+accepting `.worktreeinclude` output.
 
 ## Apply And Validate
 

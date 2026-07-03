@@ -3,6 +3,7 @@ import {
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
     isCodexRepositorySkillPath,
+    isCodexWorktreeIncludePath,
     normalizeArtifactPath,
 } from './codexPaths';
 import {
@@ -22,7 +23,8 @@ function inferFormat(relativePath: string): ProjectionTarget {
     if (
         isCodexRepositorySkillPath(normalized) ||
         isCodexProjectInstructionPath(normalized) ||
-        isCodexProjectConfigPath(normalized)
+        isCodexProjectConfigPath(normalized) ||
+        isCodexWorktreeIncludePath(normalized)
     ) {
         return 'codex';
     }
@@ -111,6 +113,10 @@ function inferTargetAdapterConcept(
 
     if (paths.some((path) => isCodexCommandRulesPath(path))) {
         return 'commandRules';
+    }
+
+    if (paths.some((path) => isCodexWorktreeIncludePath(path))) {
+        return 'worktreeInclude';
     }
 
     if (

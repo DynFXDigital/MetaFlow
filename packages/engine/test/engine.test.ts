@@ -174,6 +174,7 @@ describe('Engine package: public API', () => {
             'agents',
             'projectConfig',
             'commandRules',
+            'worktreeInclude',
             'mcpServers',
             'tools',
             'hooks',
@@ -335,6 +336,40 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexEnterprisePolicyRuntime?.evidence.includes('RUN-079'),
             'Codex enterprise policy runtime row should point to runtime-boundary evidence',
+        );
+        const codexWorktreeInclude = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'worktreeInclude',
+        );
+        assert.strictEqual(codexWorktreeInclude?.support, 'partial');
+        assert.ok(
+            codexWorktreeInclude?.nativeSurfaces.includes('.worktreeinclude'),
+            'Codex worktree include row should name the root .worktreeinclude surface',
+        );
+        assert.ok(
+            codexWorktreeInclude?.notes.some((note) =>
+                note.includes('cannot create Codex-managed worktrees'),
+            ),
+            'Codex worktree include row should document the managed-worktree runtime boundary',
+        );
+        assert.ok(
+            codexWorktreeInclude?.authorityImplications.some((note) =>
+                note.includes('Ignored setup files can include secrets'),
+            ),
+            'Codex worktree include row should document ignored-file authority implications',
+        );
+        assert.ok(
+            codexWorktreeInclude?.evidence.includes('RUN-080'),
+            'Codex worktree include row should point to worktree-boundary evidence',
+        );
+        const githubWorktreeInclude = matrix.find(
+            (entry) => entry.target === 'github-copilot' && entry.concept === 'worktreeInclude',
+        );
+        assert.strictEqual(githubWorktreeInclude?.support, 'unsupported');
+        assert.ok(
+            githubWorktreeInclude?.notes.some((note) =>
+                note.includes('specific to local Codex app managed worktrees'),
+            ),
+            'GitHub Copilot worktree include row should document the target-specific boundary',
         );
         const codexReviewRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'reviewRuntime',
@@ -5314,6 +5349,56 @@ describe('Engine: synchronizer advanced', () => {
         );
     });
 
+    it('discovers and synchronizes Codex worktree include files to root without inline provenance', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', '.worktreeinclude'), '.env.local\n', 'utf-8');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const file = fileMap.get('.worktreeinclude');
+        assert.ok(file, 'Codex worktree include file should be retained');
+        assert.strictEqual(file?.classification, 'synchronized');
+        assert.strictEqual(
+            toSynchronizedRelativePath(file as EffectiveFile),
+            '.worktreeinclude',
+        );
+
+        const pending = preview(tmpDir, files);
+        const change = pending.find((entry) => entry.relativePath === '.worktreeinclude');
+        assert.strictEqual(change?.action, 'add');
+        assert.strictEqual(change?.projection.target, 'codex');
+        assert.strictEqual(change?.projection.targetAdapterConcept, 'worktreeInclude');
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.written.includes('.worktreeinclude'));
+        assert.ok(fs.existsSync(path.join(tmpDir, '.worktreeinclude')));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.github', '.worktreeinclude')));
+
+        const written = fs.readFileSync(path.join(tmpDir, '.worktreeinclude'), 'utf-8');
+        assert.strictEqual(written, '.env.local\n');
+        assert.ok(!written.includes('metaflow:provenance'));
+
+        const state = loadManagedState(tmpDir);
+        assert.ok(state.files['.worktreeinclude'], 'state should track .worktreeinclude');
+        assert.strictEqual(state.files['.worktreeinclude'].projectionTarget, 'codex');
+
+        fs.writeFileSync(path.join(tmpDir, '.worktreeinclude'), 'local edit', 'utf-8');
+        const drift = checkAllDrift(tmpDir, '.github', loadManagedState(tmpDir));
+        assert.strictEqual(
+            drift.find((entry) => entry.relativePath === '.worktreeinclude')?.status,
+            'drifted',
+        );
+    });
+
     it('planSynchronization fails when Codex project instructions would overwrite unmanaged root files', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core'), { recursive: true });
@@ -5424,6 +5509,54 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(result.skipped.includes('AGENTS.md'));
         assert.ok(!result.written.includes('AGENTS.md'));
         assert.strictEqual(fs.readFileSync(path.join(tmpDir, 'AGENTS.md'), 'utf-8'), '# User Guidance');
+    });
+
+    it('target adapter candidate mode reports Codex worktree include without writing', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', '.worktreeinclude'), '.env.local\n', 'utf-8');
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                adapterVersion: 'codex-v0.1',
+                materializationMode: 'candidate',
+                concepts: { worktreeInclude: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-080'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const change = pending.find((entry) => entry.relativePath === '.worktreeinclude');
+        assert.strictEqual(change?.action, 'skip');
+        assert.strictEqual(change?.reason, 'target-adapter-candidate');
+        assert.strictEqual(change?.projection.targetAdapterConcept, 'worktreeInclude');
+        assert.strictEqual(change?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            change?.projection.notes.includes(
+                'target adapter concept worktreeInclude requires requiredPolicyGrants before managed materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.worktreeinclude'));
+        assert.ok(!result.written.includes('.worktreeinclude'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.worktreeinclude')));
     });
 
     it('managed target adapter projects canonical agent profiles to Codex custom agents', () => {
