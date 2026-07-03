@@ -52,12 +52,18 @@ type CanonicalCapabilityFields = {
     previousIds?: string[];
     previousPaths?: string[];
     name?: string;
+    domain?: string;
+    kind?: string;
+    lifecycle?: string;
+    owners?: string[];
+    components?: Record<string, string[]>;
+    targets?: Record<string, { enabled?: boolean }>;
+    packages?: string[];
     description?: string;
     summary?: string;
     license?: string;
     experimental?: boolean;
     agentPlugin?: boolean;
-    kind?: string;
 };
 
 function parseBooleanField(value: string | undefined): boolean | undefined {
@@ -346,6 +352,49 @@ function normalizeStringArray(value: unknown): string[] | undefined {
 function normalizeNonEmptyStringArray(value: unknown): string[] | undefined {
     const normalized = normalizeStringArray(value);
     return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function normalizeStringArrayRecord(value: unknown): Record<string, string[]> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return undefined;
+    }
+
+    const normalized: Record<string, string[]> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        const normalizedKey = key.trim();
+        const normalizedEntry = normalizeNonEmptyStringArray(entry);
+        if (!normalizedKey || !normalizedEntry) {
+            return undefined;
+        }
+        normalized[normalizedKey] = normalizedEntry;
+    }
+
+    return normalized;
+}
+
+function normalizeTargetDeclarationRecord(
+    value: unknown,
+): Record<string, { enabled?: boolean }> | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return undefined;
+    }
+
+    const normalized: Record<string, { enabled?: boolean }> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        const normalizedKey = key.trim();
+        if (!normalizedKey || !entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            return undefined;
+        }
+        const entryObject = entry as Record<string, unknown>;
+        if (entryObject.enabled !== undefined && typeof entryObject.enabled !== 'boolean') {
+            return undefined;
+        }
+        normalized[normalizedKey] = {
+            ...(typeof entryObject.enabled === 'boolean' ? { enabled: entryObject.enabled } : {}),
+        };
+    }
+
+    return normalized;
 }
 
 function getTrimmedString(value: unknown): string | undefined {
@@ -784,6 +833,66 @@ function validateCanonicalCapabilityFields(
         );
     }
 
+    if (original.domain !== undefined && !fields.domain) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_DOMAIN_INVALID',
+                '.metaflow/capability.json "domain" must be a non-empty string when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.lifecycle !== undefined && !fields.lifecycle) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_LIFECYCLE_INVALID',
+                '.metaflow/capability.json "lifecycle" must be a non-empty string when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.owners !== undefined && !fields.owners) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_OWNERS_INVALID',
+                '.metaflow/capability.json "owners" must be an array of non-empty strings when present.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.components !== undefined && !fields.components) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_COMPONENTS_INVALID',
+                '.metaflow/capability.json "components" must be an object whose values are arrays of non-empty strings.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.targets !== undefined && !fields.targets) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_TARGETS_INVALID',
+                '.metaflow/capability.json "targets" must be an object whose values are target declaration objects.',
+                filePath,
+            ),
+        );
+    }
+
+    if (original.packages !== undefined && !fields.packages) {
+        warnings.push(
+            toWarning(
+                'CANONICAL_CAPABILITY_PACKAGES_INVALID',
+                '.metaflow/capability.json "packages" must be an array of non-empty strings when present.',
+                filePath,
+            ),
+        );
+    }
+
     return warnings;
 }
 
@@ -844,6 +953,7 @@ export function parseCanonicalCapabilityManifestContent(
         'owners',
         'components',
         'targets',
+        'packages',
         'license',
         'experimental',
         'agentPlugin',
@@ -869,6 +979,13 @@ export function parseCanonicalCapabilityManifestContent(
         previousIds: normalizeNonEmptyStringArray(manifestObject.previousIds),
         previousPaths: normalizeNonEmptyStringArray(manifestObject.previousPaths),
         name: getTrimmedString(manifestObject.name),
+        domain: getTrimmedString(manifestObject.domain),
+        kind: getTrimmedString(manifestObject.kind),
+        lifecycle: getTrimmedString(manifestObject.lifecycle),
+        owners: normalizeNonEmptyStringArray(manifestObject.owners),
+        components: normalizeStringArrayRecord(manifestObject.components),
+        targets: normalizeTargetDeclarationRecord(manifestObject.targets),
+        packages: normalizeNonEmptyStringArray(manifestObject.packages),
         description: getTrimmedString(manifestObject.description),
         summary: getTrimmedString(manifestObject.summary),
         license: getTrimmedString(manifestObject.license),
@@ -880,7 +997,6 @@ export function parseCanonicalCapabilityManifestContent(
             typeof manifestObject.agentPlugin === 'boolean'
                 ? manifestObject.agentPlugin
                 : undefined,
-        kind: getTrimmedString(manifestObject.kind),
     };
 
     warnings.push(...validateCanonicalCapabilityFields(fields, manifestObject, manifestPath));
@@ -892,6 +1008,14 @@ export function parseCanonicalCapabilityManifestContent(
         previousPaths: fields.previousPaths,
         manifestPath,
         name: fields.name,
+        schemaVersion: fields.schemaVersion,
+        domain: fields.domain,
+        kind: fields.kind,
+        lifecycle: fields.lifecycle,
+        owners: fields.owners,
+        components: fields.components,
+        targets: fields.targets,
+        packages: fields.packages,
         description: fields.description ?? fields.summary,
         license: fields.license,
         experimental: fields.experimental,

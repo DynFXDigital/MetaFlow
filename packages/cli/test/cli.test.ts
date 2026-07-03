@@ -175,6 +175,71 @@ describe('CLI: status', () => {
         assert.ok(result.stdout.includes('license: MIT'));
     });
 
+    it('should include canonical capability manifest details in status output', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/capability.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.capability/v1',
+                            id: 'metadata-authoring.codex',
+                            name: 'Codex Metadata Authoring',
+                            summary: 'Helps agents author Codex-compatible metadata.',
+                            domain: 'metadata-authoring',
+                            kind: 'agent-plugin',
+                            lifecycle: 'draft',
+                            owners: ['metaflow'],
+                            components: {
+                                agents: ['codex-steward'],
+                                skills: ['codex-metadata'],
+                                packages: ['codex-metadata-authoring'],
+                            },
+                            targets: {
+                                codex: { enabled: true },
+                                'github-copilot': { enabled: false },
+                            },
+                            packages: ['codex-metadata-authoring'],
+                        }),
+                    },
+                    {
+                        relativePath: 'instructions/coding.md',
+                        content: '# Coding Instructions',
+                    },
+                ],
+            },
+        });
+
+        const textResult = await runCli(['status', '-w', ws.root]);
+        assert.strictEqual(textResult.exitCode, 0);
+        assert.ok(textResult.stdout.includes('Codex Metadata Authoring'));
+        assert.ok(
+            textResult.stdout.includes(
+                'Metadata: domain=metadata-authoring; kind=agent-plugin; lifecycle=draft',
+            ),
+        );
+        assert.ok(textResult.stdout.includes('Owners: metaflow'));
+        assert.ok(textResult.stdout.includes('Components: agents=codex-steward'));
+        assert.ok(textResult.stdout.includes('skills=codex-metadata'));
+        assert.ok(textResult.stdout.includes('Targets: codex=enabled'));
+        assert.ok(textResult.stdout.includes('github-copilot=disabled'));
+        assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
+
+        const jsonResult = await runCli(['status', '--json', '-w', ws.root]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(jsonResult.stdout);
+        const capability = data.resolvedCapabilities.find(
+            (entry: { id?: string }) => entry.id === 'metadata-authoring.codex',
+        );
+        assert.ok(capability, 'expected canonical capability in JSON status output');
+        assert.strictEqual(capability.lifecycle, 'draft');
+        assert.deepStrictEqual(capability.owners, ['metaflow']);
+        assert.deepStrictEqual(capability.components.skills, ['codex-metadata']);
+        assert.strictEqual(capability.targets.codex.enabled, true);
+        assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
+    });
+
     it('should include warning file path for malformed capability manifest', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),

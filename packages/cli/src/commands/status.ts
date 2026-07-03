@@ -63,6 +63,31 @@ function summarizeSettingsEntries(
         .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
 }
 
+function summarizeStringArrayRecord(record: Record<string, string[]> | undefined): string[] {
+    if (!record) {
+        return [];
+    }
+    return Object.entries(record)
+        .map(([key, values]) => `${key}=${values.join(',')}`)
+        .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
+}
+
+function summarizeTargetDeclarations(
+    targets: Record<string, { enabled?: boolean }> | undefined,
+): string[] {
+    if (!targets) {
+        return [];
+    }
+    return Object.entries(targets)
+        .map(([targetId, declaration]) => {
+            if (declaration.enabled === undefined) {
+                return targetId;
+            }
+            return `${targetId}=${declaration.enabled ? 'enabled' : 'disabled'}`;
+        })
+        .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
+}
+
 export function registerStatusCommand(program: Command): void {
     program
         .command('status')
@@ -102,6 +127,14 @@ export function registerStatusCommand(program: Command): void {
                     layerId: entry.layerId,
                     id: entry.capability!.id,
                     name: entry.capability!.name,
+                    schemaVersion: entry.capability!.schemaVersion,
+                    domain: entry.capability!.domain,
+                    kind: entry.capability!.kind,
+                    lifecycle: entry.capability!.lifecycle,
+                    owners: entry.capability!.owners,
+                    components: entry.capability!.components,
+                    targets: entry.capability!.targets,
+                    packages: entry.capability!.packages,
                     description: entry.capability!.description,
                     license: entry.capability!.license,
                     warnings: entry.capability!.warnings,
@@ -168,6 +201,28 @@ export function registerStatusCommand(program: Command): void {
                     console.log(
                         `  - ${title}: ${description}${license} (layer: ${capability.layerId})`,
                     );
+                    const metadataSummary = [
+                        capability.domain ? `domain=${capability.domain}` : undefined,
+                        capability.kind ? `kind=${capability.kind}` : undefined,
+                        capability.lifecycle ? `lifecycle=${capability.lifecycle}` : undefined,
+                    ].filter((entry): entry is string => entry !== undefined);
+                    if (metadataSummary.length > 0) {
+                        console.log(`    Metadata: ${metadataSummary.join('; ')}`);
+                    }
+                    if (capability.owners && capability.owners.length > 0) {
+                        console.log(`    Owners: ${capability.owners.join(', ')}`);
+                    }
+                    const componentSummary = summarizeStringArrayRecord(capability.components);
+                    if (componentSummary.length > 0) {
+                        console.log(`    Components: ${componentSummary.join('; ')}`);
+                    }
+                    const targetSummary = summarizeTargetDeclarations(capability.targets);
+                    if (targetSummary.length > 0) {
+                        console.log(`    Targets: ${targetSummary.join('; ')}`);
+                    }
+                    if (capability.packages && capability.packages.length > 0) {
+                        console.log(`    Packages: ${capability.packages.join(', ')}`);
+                    }
                     for (const warning of capability.warnings) {
                         const location = warning.filePath ? ` [${warning.filePath}]` : '';
                         console.log(`    ! ${warning.code}: ${warning.message}${location}`);

@@ -630,6 +630,20 @@ describe('capabilityManifest parser', () => {
                 previousPaths: ['capabilities/old-codex'],
                 name: 'Codex Metadata Authoring',
                 summary: 'Helps agents author Codex-compatible metadata.',
+                domain: 'metadata-authoring',
+                kind: 'agent-plugin',
+                lifecycle: 'draft',
+                owners: ['metaflow'],
+                components: {
+                    agents: ['codex-metadata-authoring-steward'],
+                    skills: ['codex-metadata'],
+                    packages: ['codex-metadata-authoring'],
+                },
+                targets: {
+                    codex: { enabled: true },
+                    'github-copilot': { enabled: false },
+                },
+                packages: ['codex-metadata-authoring'],
                 license: 'MIT',
                 experimental: false,
             }),
@@ -642,6 +656,21 @@ describe('capabilityManifest parser', () => {
         assert.deepStrictEqual(parsed.previousIds, ['codex-metadata-authoring']);
         assert.deepStrictEqual(parsed.previousPaths, ['capabilities/old-codex']);
         assert.strictEqual(parsed.name, 'Codex Metadata Authoring');
+        assert.strictEqual(parsed.schemaVersion, 'metaflow.capability/v1');
+        assert.strictEqual(parsed.domain, 'metadata-authoring');
+        assert.strictEqual(parsed.kind, 'agent-plugin');
+        assert.strictEqual(parsed.lifecycle, 'draft');
+        assert.deepStrictEqual(parsed.owners, ['metaflow']);
+        assert.deepStrictEqual(parsed.components, {
+            agents: ['codex-metadata-authoring-steward'],
+            skills: ['codex-metadata'],
+            packages: ['codex-metadata-authoring'],
+        });
+        assert.deepStrictEqual(parsed.targets, {
+            codex: { enabled: true },
+            'github-copilot': { enabled: false },
+        });
+        assert.deepStrictEqual(parsed.packages, ['codex-metadata-authoring']);
         assert.strictEqual(parsed.description, 'Helps agents author Codex-compatible metadata.');
         assert.strictEqual(parsed.license, 'MIT');
         assert.strictEqual(parsed.experimental, false);
@@ -657,6 +686,12 @@ describe('capabilityManifest parser', () => {
                 previousIds: 'old-id',
                 previousPaths: [],
                 name: '',
+                domain: '',
+                lifecycle: '',
+                owners: [''],
+                components: { skills: [] },
+                targets: { codex: { enabled: 'yes' } },
+                packages: [],
                 experimental: 'false',
                 agentPlugin: 'true',
                 kind: '',
@@ -674,6 +709,12 @@ describe('capabilityManifest parser', () => {
         assert.ok(codes.includes('CANONICAL_CAPABILITY_PREVIOUS_PATHS_INVALID'));
         assert.ok(codes.includes('CAPABILITY_NAME_REQUIRED'));
         assert.ok(codes.includes('CAPABILITY_DESCRIPTION_REQUIRED'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_DOMAIN_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_LIFECYCLE_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_OWNERS_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_COMPONENTS_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_TARGETS_INVALID'));
+        assert.ok(codes.includes('CANONICAL_CAPABILITY_PACKAGES_INVALID'));
         assert.ok(codes.includes('CAPABILITY_EXPERIMENTAL_INVALID'));
         assert.ok(codes.includes('CAPABILITY_AGENT_PLUGIN_INVALID'));
         assert.ok(codes.includes('CANONICAL_CAPABILITY_KIND_INVALID'));

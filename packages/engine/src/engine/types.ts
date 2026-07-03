@@ -81,6 +81,18 @@ export interface CapabilityAgentPluginManifest {
     minimumMetaflowVersion?: string;
 }
 
+/** Canonical component references declared by .metaflow/capability.json. */
+export type CapabilityComponentReferences = Record<string, string[]>;
+
+/** Canonical target support declaration from .metaflow/capability.json. */
+export interface CapabilityTargetDeclaration {
+    /** Whether this target is enabled for the capability. */
+    enabled?: boolean;
+}
+
+/** Canonical target declarations keyed by target id. */
+export type CapabilityTargetDeclarations = Record<string, CapabilityTargetDeclaration>;
+
 /** A normalized agent-plugin catalog entry derived from a capability layer. */
 export interface CapabilityPluginCatalogEntry {
     /** Stable plugin identity used by agent-plugin consumers. */
@@ -113,6 +125,8 @@ export interface CapabilityPluginCatalogEntry {
 
 /** Parsed capability metadata associated with a layer. */
 export interface CapabilityMetadata {
+    /** Canonical capability schema version when supplied by .metaflow/capability.json. */
+    schemaVersion?: string;
     /** Internal capability identifier (currently derived from folder name). */
     id: string;
     /** Immutable generated capability identity used to survive path/id reorganizations. */
@@ -125,6 +139,20 @@ export interface CapabilityMetadata {
     manifestPath: string;
     /** User-facing capability name. */
     name?: string;
+    /** Optional canonical capability domain. */
+    domain?: string;
+    /** Optional canonical capability kind. */
+    kind?: string;
+    /** Optional canonical lifecycle status. */
+    lifecycle?: string;
+    /** Optional canonical owner identifiers. */
+    owners?: string[];
+    /** Optional canonical component references by component kind. */
+    components?: CapabilityComponentReferences;
+    /** Optional canonical target support declarations by target id. */
+    targets?: CapabilityTargetDeclarations;
+    /** Optional canonical package declarations by package id. */
+    packages?: string[];
     /** User-facing capability description. */
     description?: string;
     /** Optional SPDX identifier/expression or fallback token. */
