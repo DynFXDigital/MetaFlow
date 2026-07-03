@@ -353,5 +353,10 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 limitations: ['Cloud package installation is runtime-only.'],
             },
         ]);
+        assert.ok(
+            content.warnings.some((warning: string) =>
+                warning.includes('PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING'),
+            ),
+        );
     });
 });

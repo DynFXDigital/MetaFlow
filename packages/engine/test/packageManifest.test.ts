@@ -245,6 +245,23 @@ describe('packageManifest parser', () => {
                 'packages',
                 'release-operations.json',
             );
+            fs.mkdirSync(
+                path.join(workspaceRoot, '.ai', 'ai-metadata', 'company', 'core', '.codex-plugin'),
+                { recursive: true },
+            );
+            fs.writeFileSync(
+                path.join(
+                    workspaceRoot,
+                    '.ai',
+                    'ai-metadata',
+                    'company',
+                    'core',
+                    '.codex-plugin',
+                    'plugin.json',
+                ),
+                JSON.stringify({ name: 'release-operations', version: '1.0.0' }),
+                'utf-8',
+            );
             const manifest = {
                 ...parsePackageManifestContent(
                     JSON.stringify({
@@ -356,6 +373,72 @@ describe('packageManifest parser', () => {
             assert.ok(
                 report.warnings.some((warning) =>
                     warning.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),
+                ),
+            );
+            assert.ok(
+                !report.warnings.some((warning) =>
+                    warning.includes('PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING'),
+                ),
+            );
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    it('warns when a Codex package marketplace candidate lacks a plugin manifest', () => {
+        const workspaceRoot = fs.mkdtempSync(
+            path.join(os.tmpdir(), 'package-marketplace-codex-manifest-'),
+        );
+        try {
+            const manifestPath = path.join(
+                workspaceRoot,
+                '.ai',
+                'ai-metadata',
+                'company',
+                'core',
+                '.metaflow',
+                'packages',
+                'release-operations.json',
+            );
+            const manifest = {
+                ...parsePackageManifestContent(
+                    JSON.stringify({
+                        schemaVersion: 'metaflow.package/v1',
+                        id: 'release-operations',
+                        name: 'Release Operations',
+                        kind: 'agent-plugin',
+                        targets: {
+                            codex: { pluginName: 'release-operations', enabled: true },
+                        },
+                        marketplaceEntries: [
+                            {
+                                target: 'codex',
+                                packageName: 'release-operations',
+                                title: 'Release Operations',
+                            },
+                        ],
+                    }),
+                    manifestPath,
+                ),
+                sourceLayer: 'primary/company/core',
+                sourceRepo: 'primary',
+            };
+
+            const report = buildPackageMarketplaceReport({
+                workspaceRoot,
+                manifests: [manifest],
+                generatedBy: 'test package marketplace report',
+            });
+
+            assert.ok(
+                report.warnings.some((warning) =>
+                    warning.includes('PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING'),
+                ),
+            );
+            assert.ok(
+                report.entries[0].warnings.some(
+                    (warning) =>
+                        warning.code === 'PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING',
                 ),
             );
         } finally {

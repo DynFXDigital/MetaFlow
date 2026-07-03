@@ -132,6 +132,13 @@ In VS Code, `MetaFlow: Open Package Marketplace Report` opens the same canonical
 package entries plus Codex and GitHub Copilot payload candidates as one
 review-only JSON document.
 
+For Codex, the marketplace `source.path` points at the capability directory
+that contains the package. MetaFlow does not create a separate
+`plugins/<name>` bundle for this workflow. A Codex-ready package source root
+contains `.codex-plugin/plugin.json` alongside the capability metadata and any
+Codex-native assets such as `.agents/skills/**`. Marketplace reports warn when
+a Codex entry points at a source root that lacks `.codex-plugin/plugin.json`.
+
 ## Runtime Validation Records
 
 Use `runtimeValidation` for claims that depend on a harness run.

@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { CapabilityWarning, PackageManifestMetadata } from './types';
 
@@ -102,6 +103,24 @@ function filterWarningsForEntry(warnings: CapabilityWarning[], target: string): 
     });
 }
 
+function codexPluginManifestWarning(
+    manifest: ResolvedPackageMarketplaceManifest,
+    sourceRootPath: string,
+): CapabilityWarning | undefined {
+    const codexPluginManifestPath = path.join(sourceRootPath, '.codex-plugin', 'plugin.json');
+    if (fs.existsSync(codexPluginManifestPath)) {
+        return undefined;
+    }
+    return {
+        code: 'PACKAGE_MARKETPLACE_CODEX_PLUGIN_MANIFEST_MISSING',
+        message:
+            `Package marketplace entry targets Codex, but "${codexPluginManifestPath}" does not exist. ` +
+            'The Codex marketplace payload remains reviewable, but Codex installation requires a plugin manifest at the package source root.',
+        filePath: manifest.manifestPath,
+        severity: 'warning',
+    };
+}
+
 export function buildPackageMarketplaceEntries(
     manifests: ResolvedPackageMarketplaceManifest[],
     target?: string,
@@ -111,6 +130,15 @@ export function buildPackageMarketplaceEntries(
         for (const entry of manifest.marketplaceEntries) {
             if (target && entry.target !== target) {
                 continue;
+            }
+            const sourceRootPath = findSourceRootFromManifest(manifest.manifestPath);
+            const warnings = filterWarningsForEntry(manifest.warnings, entry.target);
+            const codexWarning =
+                entry.target === 'codex'
+                    ? codexPluginManifestWarning(manifest, sourceRootPath)
+                    : undefined;
+            if (codexWarning) {
+                warnings.push(codexWarning);
             }
             entries.push({
                 packageId: manifest.id,
@@ -125,8 +153,8 @@ export function buildPackageMarketplaceEntries(
                 sourceLayer: manifest.sourceLayer,
                 ...(manifest.sourceRepo ? { sourceRepo: manifest.sourceRepo } : {}),
                 manifestPath: manifest.manifestPath,
-                sourceRootPath: findSourceRootFromManifest(manifest.manifestPath),
-                warnings: filterWarningsForEntry(manifest.warnings, entry.target),
+                sourceRootPath,
+                warnings,
                 runtimeValidation: manifest.runtimeValidation.filter(
                     (record) => record.target === entry.target,
                 ),
