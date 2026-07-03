@@ -3031,6 +3031,67 @@ describe('CLI: apply', () => {
         const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
         assert.ok(state.files['.codex/config.toml'], 'state should track Codex project config');
     });
+
+    it('should keep managed Codex command rules candidate-only without policy grants', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.codex/rules/release.rules',
+                        content:
+                            'prefix_rule(\n  pattern = ["gh", "pr", "view"],\n  decision = "prompt",\n)\n',
+                    },
+                    {
+                        relativePath: '.metaflow/targets/codex.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.targetAdapter/v1',
+                            id: 'codex-default',
+                            target: 'codex',
+                            enabled: true,
+                            adapterVersion: 'codex-v0.1',
+                            materializationMode: 'candidate',
+                            concepts: { commandRules: 'managed' },
+                            validationStatus: 'staticVerified',
+                            validationEvidence: ['RUN-065'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const previewResult = await runCli(['preview', '-w', ws.root]);
+        assert.strictEqual(previewResult.exitCode, 0);
+        assert.ok(
+            previewResult.stdout.includes(
+                'skip [codex] .codex/rules/release.rules (target-adapter-candidate)',
+            ),
+        );
+        const jsonPreviewResult = await runCli(['preview', '-w', ws.root, '--json']);
+        assert.strictEqual(jsonPreviewResult.exitCode, 0);
+        const previewData = JSON.parse(jsonPreviewResult.stdout);
+        const commandRuleChange = previewData.pendingChanges.find(
+            (change: { relativePath: string }) =>
+                change.relativePath === '.codex/rules/release.rules',
+        );
+        assert.strictEqual(commandRuleChange?.projection.targetAdapterConcept, 'commandRules');
+        assert.strictEqual(
+            commandRuleChange?.projection.targetAdapterMaterializationMode,
+            'candidate',
+        );
+
+        const applyResult = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(applyResult.exitCode, 0);
+        assert.ok(
+            applyResult.stdout.includes('skip   [codex] .codex/rules/release.rules'),
+        );
+        assert.ok(
+            applyResult.stderr.includes(
+                'Skipped .codex/rules/release.rules: target adapter materialization mode candidate',
+            ),
+        );
+        assert.ok(!fs.existsSync(path.join(ws.root, '.codex', 'rules', 'release.rules')));
+    });
 });
 
 // ── Drift detection + promote ──────────────────────────────────────
