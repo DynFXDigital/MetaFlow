@@ -1941,6 +1941,53 @@ describe('CLI: export-package-marketplace', () => {
     });
 });
 
+describe('CLI: target-support', () => {
+    it('prints filtered target support rows without requiring workspace config', async () => {
+        const result = await runCli([
+            'target-support',
+            '--target',
+            'codex',
+            '--support',
+            'runtime-only',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Target Support Matrix: 2'));
+        assert.ok(result.stdout.includes('codex/localCloudHandoff: runtime-only'));
+        assert.ok(result.stdout.includes('codex/issuePrOperation: runtime-only'));
+    });
+
+    it('prints target support rows as JSON', async () => {
+        const result = await runCli([
+            'target-support',
+            '--json',
+            '--target',
+            'codex',
+            '--concept',
+            'mcpServers',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.generatedBy, 'metaflow target-support');
+        assert.strictEqual(data.filters.target, 'codex');
+        assert.strictEqual(data.filters.concept, 'mcpServers');
+        assert.strictEqual(data.summary.entries, 1);
+        assert.strictEqual(data.summary.targets.codex, 1);
+        assert.strictEqual(data.entries[0].target, 'codex');
+        assert.strictEqual(data.entries[0].concept, 'mcpServers');
+        assert.strictEqual(data.entries[0].support, 'partial');
+        assert.ok(data.entries[0].notes.some((note: string) => note.includes('Side-effecting MCP')));
+    });
+
+    it('rejects unknown support filters', async () => {
+        const result = await runCli(['target-support', '--support', 'complete']);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('--support must be one of'));
+    });
+});
+
 // ── Apply command ──────────────────────────────────────────────────
 
 describe('CLI: apply', () => {

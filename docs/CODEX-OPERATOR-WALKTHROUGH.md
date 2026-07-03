@@ -17,6 +17,18 @@ Use status output to confirm the configured metadata repositories, enabled
 capabilities, active profile, capability warnings, and resolved canonical
 metadata before any files are written.
 
+Inspect Codex support boundaries directly when reviewing a target adapter,
+package, or marketplace candidate.
+
+```bash
+metaflow target-support --target codex
+metaflow target-support --target codex --support runtime-only
+metaflow target-support --json --target codex --concept mcpServers
+```
+
+Use this output to distinguish file-backed Codex projections from partial and
+runtime-only behavior before relying on generated repository files.
+
 ## Preview Codex Adapter Output
 
 Run preview before apply.

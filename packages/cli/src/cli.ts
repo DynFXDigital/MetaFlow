@@ -9,6 +9,7 @@ import { registerPreviewCommand } from './commands/preview';
 import { registerProfileCommand } from './commands/profile';
 import { registerPromoteCommand } from './commands/promote';
 import { registerStatusCommand } from './commands/status';
+import { registerTargetSupportCommand } from './commands/targetSupport';
 import { registerValidateCommand } from './commands/validate';
 import { registerWatchCommand } from './commands/watch';
 
@@ -31,6 +32,7 @@ export function createProgram(): Command {
     registerCleanCommand(program);
     registerExportCopilotMcpCommand(program);
     registerExportPackageMarketplaceCommand(program);
+    registerTargetSupportCommand(program);
     registerProfileCommand(program);
     registerPromoteCommand(program);
     registerValidateCommand(program);

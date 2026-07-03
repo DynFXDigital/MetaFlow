@@ -98,6 +98,19 @@ metaflow export-package-marketplace --out exports/package-marketplace.json --for
 
 The default output is a compact target-grouped review object. `--json` includes source provenance, package warnings, and runtime validation records. Host-shaped formats emit Codex `.agents/plugins/marketplace.json` or GitHub Copilot `.github/plugin/marketplace.json` candidate payloads from canonical package metadata, but the command does not mutate host marketplace files unless an explicit `--out` path is provided.
 
+#### `target-support`
+
+Inspect the target capability matrix without requiring a configured workspace.
+
+```bash
+metaflow target-support
+metaflow target-support --target codex
+metaflow target-support --target codex --support runtime-only
+metaflow target-support --json --target codex --concept mcpServers
+```
+
+The command reports whether each canonical MetaFlow concept is supported, partial, runtime-only, unsupported, or represented by a generated substitute for each target adapter. Use it to review file-backed Codex projections separately from runtime-only Codex Cloud, channel, review, and MCP behaviors.
+
 #### `clean`
 
 Remove all managed files (preserves drifted files).
@@ -201,6 +214,7 @@ packages/cli/
       apply.ts          # Synchronize to .github/
       clean.ts          # Remove managed files
       exportPackageMarketplace.ts # Export package marketplace candidates
+      targetSupport.ts  # Inspect target capability support
       promote.ts        # Detect drift
       validate.ts       # CI validation
       watch.ts          # File-system watcher
