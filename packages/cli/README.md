@@ -50,6 +50,8 @@ metaflow status --json         # machine-readable output
 
 The CLI accepts preview-era configs that still use `metadataRepo`, `layers`, or flat `layerSources`, but on successful load it rewrites them to the canonical repo-grouped `metadataRepos[*].capabilities` shape and prints a migration notice.
 
+Human-readable `status` output also includes a `Target Capability Support` summary with per-target adapter versions, support-state counts, and runtime-only documentation references for configured capability metadata.
+
 #### `preview`
 
 List effective files and pending changes without writing anything.
@@ -63,12 +65,14 @@ If enabled capabilities surface the same effective path, `preview` reports warni
 
 #### `apply`
 
-Synchronize overlay outputs to `.github/` with provenance headers.
+Synchronize overlay outputs to their target paths with provenance headers.
 
 ```bash
 metaflow apply                 # skip drifted files
 metaflow apply --force         # overwrite drifted files
 ```
+
+Human-readable `apply` output labels target-owned write, skip, and remove rows, such as `write  [codex] .agents/skills/release-readiness/SKILL.md`, so operators can distinguish Codex, GitHub Copilot, and neutral file changes during review.
 
 #### `export-copilot-mcp`
 
@@ -119,6 +123,8 @@ Remove all managed files (preserves drifted files).
 metaflow clean
 ```
 
+Human-readable `clean` output labels target-owned removals and skips with the managed state's `projectionTarget` value. Managed files written before target labels existed remain cleanable; those older records simply omit the target label in clean output.
+
 #### `promote`
 
 Detect locally modified (drifted) synchronized files.
@@ -152,6 +158,8 @@ metaflow validate --json       # machine-readable output
 # Exit code 0: valid
 # Exit code 1: validation failed (drifted, missing, unmanaged, or stale files)
 ```
+
+Human-readable `validate` output preserves drift and stale-file validation semantics and includes the same `Target Capability Support` summary as `status`, so CI logs expose file-backed, partial, runtime-only, and unsupported target surfaces without running a separate command.
 
 #### `watch`
 
