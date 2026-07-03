@@ -1,5 +1,11 @@
 import { Command } from 'commander';
-import { computeSettingsEntries, resolveLayers } from '@metaflow/engine';
+import {
+    buildTargetCapabilitySupportReference,
+    computeSettingsEntries,
+    getTargetCapabilityMatrix,
+    resolveLayers,
+    TargetCapabilityMatrixEntry,
+} from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
@@ -88,6 +94,44 @@ function summarizeTargetDeclarations(
         .sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' }));
 }
 
+function summarizeTargetCapabilityMatrix(
+    entries: TargetCapabilityMatrixEntry[],
+): Array<{
+    target: string;
+    adapterVersion: string;
+    counts: Record<string, number>;
+    total: number;
+}> {
+    const byTarget = new Map<
+        string,
+        { adapterVersion: string; counts: Record<string, number>; total: number }
+    >();
+    for (const entry of entries) {
+        const summary = byTarget.get(entry.target) ?? {
+            adapterVersion: entry.adapterVersion,
+            counts: {},
+            total: 0,
+        };
+        summary.total += 1;
+        summary.counts[entry.support] = (summary.counts[entry.support] ?? 0) + 1;
+        byTarget.set(entry.target, summary);
+    }
+    return Array.from(byTarget.entries())
+        .sort((left, right) =>
+            left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
+        )
+        .map(([target, summary]) => ({
+            target,
+            adapterVersion: summary.adapterVersion,
+            counts: Object.fromEntries(
+                Object.entries(summary.counts).sort((left, right) =>
+                    left[0].localeCompare(right[0], undefined, { sensitivity: 'base' }),
+                ),
+            ),
+            total: summary.total,
+        }));
+}
+
 export function registerStatusCommand(program: Command): void {
     program
         .command('status')
@@ -116,6 +160,11 @@ export function registerStatusCommand(program: Command): void {
             const injectionModes = resolveInjectionModes(config);
             const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
             const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
+            const targetCapabilityMatrix = getTargetCapabilityMatrix();
+            const targetCapabilitySummary =
+                summarizeTargetCapabilityMatrix(targetCapabilityMatrix);
+            const targetCapabilitySupportReference =
+                buildTargetCapabilitySupportReference(targetCapabilityMatrix);
             const sources = summarizeSources(files);
             const resolvedCapabilities = layers
                 .map((layer) => ({
@@ -153,6 +202,11 @@ export function registerStatusCommand(program: Command): void {
                     injection: {
                         modes: injectionModes,
                         settingsEntries,
+                    },
+                    targetCapabilitySupport: {
+                        entries: targetCapabilityMatrix.length,
+                        targets: targetCapabilitySummary,
+                        supportReference: targetCapabilitySupportReference ?? null,
                     },
                     sources,
                     files: { total: files.length, settings, synchronized },
@@ -245,6 +299,28 @@ export function registerStatusCommand(program: Command): void {
                 console.log(`Settings Entries: ${settingsEntrySummary.length}`);
                 for (const summary of settingsEntrySummary) {
                     console.log(`  - ${summary}`);
+                }
+            }
+            if (targetCapabilitySummary.length > 0) {
+                console.log(`Target Capability Support: ${targetCapabilityMatrix.length}`);
+                for (const summary of targetCapabilitySummary) {
+                    const counts = Object.entries(summary.counts)
+                        .map(([support, count]) => `${support}=${count}`)
+                        .join(', ');
+                    console.log(
+                        `  - ${summary.target} (${summary.adapterVersion}): ${counts}`,
+                    );
+                }
+                if (targetCapabilitySupportReference) {
+                    const references = targetCapabilitySupportReference.targets
+                        .map(
+                            (entry) =>
+                                `${entry.target}=${entry.runtimeOnlyCount} see ${entry.documentation}`,
+                        )
+                        .join('; ');
+                    console.log(
+                        `  Runtime-only support boundaries: ${targetCapabilitySupportReference.runtimeOnlyCount} rows require operator or harness evidence; ${references}.`,
+                    );
                 }
             }
             if (sources.length > 0) {

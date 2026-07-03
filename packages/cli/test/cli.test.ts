@@ -290,6 +290,17 @@ describe('CLI: status', () => {
         assert.ok(textResult.stdout.includes('Targets: codex=enabled'));
         assert.ok(textResult.stdout.includes('github-copilot=disabled'));
         assert.ok(textResult.stdout.includes('Packages: codex-metadata-authoring'));
+        assert.ok(textResult.stdout.includes('Target Capability Support: 30'));
+        assert.ok(
+            textResult.stdout.includes(
+                'codex (codex-v0.1): partial=10, runtime-only=2, supported=3',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
+                'Runtime-only support boundaries: 4 rows require operator or harness evidence; codex=2 see docs/CODEX-SUPPORT.md; github-copilot=2 see README.md.',
+            ),
+        );
 
         const jsonResult = await runCli(['status', '--json', '-w', ws.root]);
         assert.strictEqual(jsonResult.exitCode, 0);
@@ -303,6 +314,29 @@ describe('CLI: status', () => {
         assert.deepStrictEqual(capability.components.skills, ['codex-metadata']);
         assert.strictEqual(capability.targets.codex.enabled, true);
         assert.deepStrictEqual(capability.packages, ['codex-metadata-authoring']);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 30);
+        const codexTargetSupport = data.targetCapabilitySupport.targets.find(
+            (entry: { target: string }) => entry.target === 'codex',
+        );
+        assert.strictEqual(codexTargetSupport.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(codexTargetSupport.counts.partial, 10);
+        assert.strictEqual(codexTargetSupport.counts['runtime-only'], 2);
+        assert.strictEqual(codexTargetSupport.counts.supported, 3);
+        assert.deepStrictEqual(data.targetCapabilitySupport.supportReference, {
+            runtimeOnlyCount: 4,
+            targets: [
+                {
+                    target: 'codex',
+                    runtimeOnlyCount: 2,
+                    documentation: 'docs/CODEX-SUPPORT.md',
+                },
+                {
+                    target: 'github-copilot',
+                    runtimeOnlyCount: 2,
+                    documentation: 'README.md',
+                },
+            ],
+        });
     });
 
     it('should include warning file path for malformed capability manifest', async () => {
