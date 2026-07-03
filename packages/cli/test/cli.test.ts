@@ -3009,6 +3009,9 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Gate Summary'));
+        assert.ok(result.stdout.includes('| missing-evidence | yes | 34 |'));
+        assert.ok(result.stdout.includes('| diagnostics | no | 0 | none |'));
         assert.ok(result.stdout.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(result.stdout.includes('Creating Codex Cloud environments'));
         assert.ok(result.stdout.includes('Enabling Codex Memories'));
@@ -3066,6 +3069,43 @@ describe('CLI: codex-support-boundaries', () => {
             conceptsWithWarningRecords: [],
             conceptsWithEvidenceWithoutDiagnosticRecords: [],
             conceptsWithEvidenceWithDiagnosticRecords: [],
+        });
+        assert.deepStrictEqual(data.runtimeEvidenceGateSummary, {
+            'missing-evidence': {
+                condition: 'missing-evidence',
+                triggered: true,
+                count: 34,
+                concepts: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
+                message: '34 runtime-only concept(s) have no matching evidence',
+            },
+            diagnostics: {
+                condition: 'diagnostics',
+                triggered: false,
+                count: 0,
+                concepts: [],
+                message: '0 runtime evidence record(s) have diagnostics',
+            },
+            'error-diagnostics': {
+                condition: 'error-diagnostics',
+                triggered: false,
+                count: 0,
+                concepts: [],
+                message: '0 runtime evidence record(s) have error diagnostics',
+            },
+            failed: {
+                condition: 'failed',
+                triggered: false,
+                count: 0,
+                concepts: [],
+                message: '0 runtime-only concept(s) are covered by failed evidence',
+            },
+            'not-run': {
+                condition: 'not-run',
+                triggered: false,
+                count: 0,
+                concepts: [],
+                message: '0 runtime-only concept(s) are covered by not-run evidence',
+            },
         });
         assert.ok(
             data.fileBackedRows.some(
@@ -3339,6 +3379,7 @@ describe('CLI: codex-support-boundaries', () => {
         ]);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
         assert.ok(data.content.includes('## Runtime Evidence Review Queues'));
+        assert.ok(data.content.includes('## Runtime Evidence Gate Summary'));
         assert.ok(data.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });
@@ -3361,6 +3402,13 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 1);
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence, 34);
+        assert.deepStrictEqual(data.runtimeEvidenceGateSummary['missing-evidence'], {
+            condition: 'missing-evidence',
+            triggered: true,
+            count: 34,
+            concepts: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
+            message: '34 runtime-only concept(s) have no matching evidence',
+        });
         assert.ok(
             result.stderr.includes(
                 'Codex support boundary gate failed: missing-evidence: 34 runtime-only concept(s) have no matching evidence',
@@ -3406,6 +3454,13 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 1);
         const data = JSON.parse(result.stdout);
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
+        assert.deepStrictEqual(data.runtimeEvidenceGateSummary.diagnostics, {
+            condition: 'diagnostics',
+            triggered: true,
+            count: 1,
+            concepts: ['issuePrOperation'],
+            message: '1 runtime evidence record(s) have diagnostics',
+        });
         assert.ok(
             result.stderr.includes(
                 'Codex support boundary gate failed: diagnostics: 1 runtime evidence record(s) have diagnostics',

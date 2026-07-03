@@ -24,6 +24,7 @@ export interface CodexSupportBoundariesDocument {
     fileBackedRows: TargetCapabilityMatrixEntry[];
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
+    runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
@@ -51,6 +52,26 @@ export interface CodexRuntimeEvidenceCoverageSummary {
     conceptsWithEvidenceWithoutDiagnosticRecords: TargetCapabilityConcept[];
     conceptsWithEvidenceWithDiagnosticRecords: TargetCapabilityConcept[];
 }
+
+export type CodexRuntimeEvidenceGateCondition =
+    | 'missing-evidence'
+    | 'diagnostics'
+    | 'error-diagnostics'
+    | 'failed'
+    | 'not-run';
+
+export interface CodexRuntimeEvidenceGateResult {
+    condition: CodexRuntimeEvidenceGateCondition;
+    triggered: boolean;
+    count: number;
+    concepts: TargetCapabilityConcept[];
+    message: string;
+}
+
+export type CodexRuntimeEvidenceGateSummary = Record<
+    CodexRuntimeEvidenceGateCondition,
+    CodexRuntimeEvidenceGateResult
+>;
 
 export interface CodexRuntimeEvidenceChecklistItem {
     concept: TargetCapabilityMatrixEntry['concept'];
@@ -1671,6 +1692,58 @@ function formatRuntimeEvidenceConceptQueue(concepts: TargetCapabilityConcept[]):
     return concepts.length > 0 ? concepts.join(', ') : 'none';
 }
 
+function buildRuntimeEvidenceGateResult(
+    condition: CodexRuntimeEvidenceGateCondition,
+    count: number,
+    concepts: TargetCapabilityConcept[],
+    message: string,
+): CodexRuntimeEvidenceGateResult {
+    return {
+        condition,
+        triggered: count > 0,
+        count,
+        concepts,
+        message,
+    };
+}
+
+function buildRuntimeEvidenceGateSummary(
+    summary: CodexRuntimeEvidenceCoverageSummary,
+): CodexRuntimeEvidenceGateSummary {
+    return {
+        'missing-evidence': buildRuntimeEvidenceGateResult(
+            'missing-evidence',
+            summary.conceptsWithoutEvidence,
+            summary.conceptsByStatus.missing,
+            `${summary.conceptsWithoutEvidence} runtime-only concept(s) have no matching evidence`,
+        ),
+        diagnostics: buildRuntimeEvidenceGateResult(
+            'diagnostics',
+            summary.recordsWithWarnings,
+            summary.conceptsWithWarningRecords,
+            `${summary.recordsWithWarnings} runtime evidence record(s) have diagnostics`,
+        ),
+        'error-diagnostics': buildRuntimeEvidenceGateResult(
+            'error-diagnostics',
+            summary.diagnosticRecordsBySeverity.error,
+            summary.conceptsWithErrorRecords,
+            `${summary.diagnosticRecordsBySeverity.error} runtime evidence record(s) have error diagnostics`,
+        ),
+        failed: buildRuntimeEvidenceGateResult(
+            'failed',
+            summary.byStatus.failed,
+            summary.conceptsByStatus.failed,
+            `${summary.byStatus.failed} runtime-only concept(s) are covered by failed evidence`,
+        ),
+        'not-run': buildRuntimeEvidenceGateResult(
+            'not-run',
+            summary.byStatus['not-run'],
+            summary.conceptsByStatus['not-run'],
+            `${summary.byStatus['not-run']} runtime-only concept(s) are covered by not-run evidence`,
+        ),
+    };
+}
+
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
     generatedAt?: string;
@@ -1759,6 +1832,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
     }
     runtimeEvidenceCoverageSummary.conceptsWithoutEvidence =
         runtimeEvidenceCoverageSummary.byStatus.missing;
+    const runtimeEvidenceGateSummary = buildRuntimeEvidenceGateSummary(
+        runtimeEvidenceCoverageSummary,
+    );
 
     const relatedGuides = [
         'docs/CODEX-SUPPORT.md',
@@ -1884,6 +1960,15 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
         '',
+        '## Runtime Evidence Gate Summary',
+        '',
+        '| Gate | Triggered | Count | Concepts |',
+        '| --- | --- | --- | --- |',
+        ...Object.values(runtimeEvidenceGateSummary).map(
+            (gate) =>
+                `| ${gate.condition} | ${gate.triggered ? 'yes' : 'no'} | ${gate.count} | ${formatRuntimeEvidenceConceptQueue(gate.concepts)} |`,
+        ),
+        '',
         '## Runtime Evidence Checklist By Concept',
         '',
         '| Concept | Coverage | Runtime evidence expected | Authority implications | Evidence records |',
@@ -1926,6 +2011,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         fileBackedRows: supportedRows,
         runtimeOnlyRows,
         runtimeEvidenceCoverageSummary,
+        runtimeEvidenceGateSummary,
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,

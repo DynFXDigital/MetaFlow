@@ -264,7 +264,12 @@ export {
     buildTargetCapabilitySupportReference,
     getTargetCapabilityMatrix,
 } from './targetCapabilityMatrix';
-export type { CodexSupportBoundariesDocument } from './targetCapabilityMatrix';
+export type {
+    CodexRuntimeEvidenceGateCondition,
+    CodexRuntimeEvidenceGateResult,
+    CodexRuntimeEvidenceGateSummary,
+    CodexSupportBoundariesDocument,
+} from './targetCapabilityMatrix';
 export {
     buildMigrationSuggestionsReport,
     formatMigrationSuggestionsReport,

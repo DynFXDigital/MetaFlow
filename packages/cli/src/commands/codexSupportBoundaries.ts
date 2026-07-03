@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
 import { buildCodexSupportBoundariesDocument, loadConfig } from '@metaflow/engine';
+import type { CodexRuntimeEvidenceGateCondition } from '@metaflow/engine';
 import {
     getWorkspaceRoot,
     resolveRuntimeEvidenceRecords,
@@ -23,7 +24,7 @@ const FAIL_ON_CONDITIONS = [
     'not-run',
 ] as const;
 
-type FailOnCondition = (typeof FAIL_ON_CONDITIONS)[number];
+type FailOnCondition = CodexRuntimeEvidenceGateCondition;
 
 function parseFailOnConditions(raw: string | undefined): FailOnCondition[] | undefined {
     if (!raw) {
@@ -46,45 +47,11 @@ function evaluateFailOnConditions(
     document: ReturnType<typeof buildCodexSupportBoundariesDocument>,
     conditions: FailOnCondition[],
 ): string[] {
-    const summary = document.runtimeEvidenceCoverageSummary;
     const failures: string[] = [];
     for (const condition of conditions) {
-        switch (condition) {
-            case 'missing-evidence':
-                if (summary.conceptsWithoutEvidence > 0) {
-                    failures.push(
-                        `missing-evidence: ${summary.conceptsWithoutEvidence} runtime-only concept(s) have no matching evidence`,
-                    );
-                }
-                break;
-            case 'diagnostics':
-                if (summary.recordsWithWarnings > 0) {
-                    failures.push(
-                        `diagnostics: ${summary.recordsWithWarnings} runtime evidence record(s) have diagnostics`,
-                    );
-                }
-                break;
-            case 'error-diagnostics':
-                if (summary.diagnosticRecordsBySeverity.error > 0) {
-                    failures.push(
-                        `error-diagnostics: ${summary.diagnosticRecordsBySeverity.error} runtime evidence record(s) have error diagnostics`,
-                    );
-                }
-                break;
-            case 'failed':
-                if (summary.byStatus.failed > 0) {
-                    failures.push(
-                        `failed: ${summary.byStatus.failed} runtime-only concept(s) are covered by failed evidence`,
-                    );
-                }
-                break;
-            case 'not-run':
-                if (summary.byStatus['not-run'] > 0) {
-                    failures.push(
-                        `not-run: ${summary.byStatus['not-run']} runtime-only concept(s) are covered by not-run evidence`,
-                    );
-                }
-                break;
+        const result = document.runtimeEvidenceGateSummary[condition];
+        if (result.triggered) {
+            failures.push(`${condition}: ${result.message}`);
         }
     }
     return failures;

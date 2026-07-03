@@ -47,6 +47,9 @@ It separately counts concepts with evidence and no diagnostics from concepts
 with evidence that still needs diagnostic review.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
+The runtime evidence gate summary then records the `--fail-on` checks as
+triggered or untriggered rows with counts, concept lists, and the exact
+messages used by the CLI gate.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

@@ -1366,6 +1366,20 @@ describe('Engine package: public API', () => {
             document.runtimeEvidenceCoverageSummary.byStatus.missing,
             document.runtimeOnlyCount,
         );
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary['missing-evidence'], {
+            condition: 'missing-evidence',
+            triggered: true,
+            count: document.runtimeOnlyCount,
+            concepts: document.runtimeEvidenceCoverageSummary.conceptsByStatus.missing,
+            message: `${document.runtimeOnlyCount} runtime-only concept(s) have no matching evidence`,
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
+            condition: 'diagnostics',
+            triggered: false,
+            count: 0,
+            concepts: [],
+            message: '0 runtime evidence record(s) have diagnostics',
+        });
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item) =>
@@ -1381,6 +1395,9 @@ describe('Engine package: public API', () => {
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
+        assert.ok(document.content.includes('## Runtime Evidence Gate Summary'));
+        assert.ok(document.content.includes('| missing-evidence | yes |'));
+        assert.ok(document.content.includes('| diagnostics | no | 0 | none |'));
         assert.ok(document.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(
             document.content.includes(
@@ -1509,6 +1526,20 @@ describe('Engine package: public API', () => {
             document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords,
             ['modelProviderRuntime'],
         );
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
+            condition: 'diagnostics',
+            triggered: true,
+            count: 2,
+            concepts: ['issuePrOperation', 'reviewRuntime', 'modelProviderRuntime'].sort(),
+            message: '2 runtime evidence record(s) have diagnostics',
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary['error-diagnostics'], {
+            condition: 'error-diagnostics',
+            triggered: true,
+            count: 1,
+            concepts: ['modelProviderRuntime'],
+            message: '1 runtime evidence record(s) have error diagnostics',
+        });
         const reviewChecklist = document.runtimeEvidenceChecklist.find(
             (item) => item.concept === 'reviewRuntime',
         );
