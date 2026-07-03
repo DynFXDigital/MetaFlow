@@ -2479,6 +2479,89 @@ describe('CLI: migration-suggestions', () => {
         assert.ok(result.stdout.includes('Suggestions: 0'));
         assert.ok(result.stdout.includes('No legacy or host-native metadata migration suggestions found.'));
     });
+
+    it('writes migration suggestion reports to explicit output paths', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'AGENTS.md',
+                        content: '# Agent Instructions\nUse repository guidance.',
+                    },
+                ],
+            },
+        });
+        const markdownPath = path.join(ws.root, 'reports', 'migration-suggestions.md');
+        const jsonPath = path.join(ws.root, 'reports', 'migration-suggestions.json');
+
+        const markdownResult = await runCli([
+            'migration-suggestions',
+            '--out',
+            'reports/migration-suggestions.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(markdownResult.exitCode, 0);
+        assert.ok(
+            markdownResult.stdout.includes(
+                'Wrote migration suggestions report: reports',
+            ),
+        );
+        assert.ok(
+            fs
+                .readFileSync(markdownPath, 'utf-8')
+                .includes('AGENTS.md -> .metaflow/instructions/agents.md'),
+        );
+
+        const blockedResult = await runCli([
+            'migration-suggestions',
+            '--out',
+            'reports/migration-suggestions.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blockedResult.exitCode, 1);
+        assert.ok(blockedResult.stderr.includes('Output file already exists'));
+
+        const forceResult = await runCli([
+            'migration-suggestions',
+            '--out',
+            'reports/migration-suggestions.md',
+            '--force',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(forceResult.exitCode, 0);
+
+        const jsonResult = await runCli([
+            'migration-suggestions',
+            '--json',
+            '--out',
+            'reports/migration-suggestions.json',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(jsonResult.exitCode, 0);
+        const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        assert.strictEqual(data.generatedBy, 'metaflow migration-suggestions');
+        assert.strictEqual(data.suggestions[0].canonicalPath, '.metaflow/instructions/agents.md');
+    });
+
+    it('rejects migration suggestion output paths outside the workspace', async () => {
+        ws = createTestWorkspace({ config: standardConfig(), layers: STANDARD_LAYERS });
+
+        const result = await runCli([
+            'migration-suggestions',
+            '--out',
+            '../migration-suggestions.md',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Output path must stay within the workspace'));
+    });
 });
 
 // ── Apply command ──────────────────────────────────────────────────

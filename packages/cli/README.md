@@ -135,9 +135,11 @@ Suggest canonical `.metaflow/` migration candidates for legacy or host-native me
 ```bash
 metaflow migration-suggestions
 metaflow migration-suggestions --json
+metaflow migration-suggestions --out reports/migration-suggestions.md
+metaflow migration-suggestions --json --out reports/migration-suggestions.json
 ```
 
-The command is review-only. It reports candidate canonical paths, duplicate native/canonical copies, and manual-review notes, but it does not write files, translate policy-sensitive Codex configuration automatically, or remove host-native metadata.
+The command is review-only. It reports candidate canonical paths, duplicate native/canonical copies, and manual-review notes. `--out` writes the report artifact only; the command does not write canonical metadata files, translate policy-sensitive Codex configuration automatically, or remove host-native metadata.
 
 #### `clean`
 

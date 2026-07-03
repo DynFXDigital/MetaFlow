@@ -161,6 +161,8 @@ inventory:
 ```bash
 metaflow migration-suggestions
 metaflow migration-suggestions --json
+metaflow migration-suggestions --out reports/migration-suggestions.md
+metaflow migration-suggestions --json --out reports/migration-suggestions.json
 ```
 
 The command is review-only. It suggests canonical paths for files such as
@@ -168,7 +170,8 @@ The command is review-only. It suggests canonical paths for files such as
 `.agents/skills/**`, `.github/skills/**`, `.codex/config.toml`, and
 `.codex/hooks.json`, and it flags duplicate native and canonical copies for
 operator review. It does not write canonical files, translate Codex TOML or
-hook JSON automatically, or remove the original host-native files.
+hook JSON automatically, or remove the original host-native files. `--out`
+writes the migration inventory report only.
 
 In VS Code, use `MetaFlow: Open Migration Suggestions Report` to open the same
 inventory as an unsaved JSON document.
