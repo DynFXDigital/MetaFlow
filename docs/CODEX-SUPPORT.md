@@ -37,8 +37,9 @@ the service connection or prove the behavior.
 | Linear delegation | Linear tasks depend on the Codex Linear integration, account linking, workspace settings, GitHub connection, and environment selection. | Record as runtime-only issue/task operation; do not generate Linear connector state. |
 | GitHub-triggered Codex review | GitHub review operation depends on Codex GitHub access and repository/PR context outside the metadata repository. | Record review intent and required policy grants; require GitHub/Codex runtime evidence. |
 | PR feedback handling in the Codex app | App PR context depends on the current branch, Git repository state, GitHub access, and authenticated `gh` behavior. | Document as an operator workflow; do not treat projection as proof that PR feedback appears in Codex. |
-| Remote or OAuth MCP operation | Codex supports Streamable HTTP and OAuth MCP configuration, but login, callback URLs, reachable endpoints, tool approvals, and remote executor behavior are runtime concerns. | Project supported config fields where managed, and keep login/reachability/tool-call proof as validation evidence. |
-| Side-effecting MCP tools | MCP tools can read or change external systems. Static metadata cannot grant authority safely. | Require policy grants, approval posture, and audit evidence before package or adapter claims are treated as operational. |
+| Remote MCP reachability | Codex supports Streamable HTTP MCP configuration, but reachable endpoints, TLS behavior, hosted-agent network policy, and remote executor behavior are runtime concerns. | Project supported config fields where managed, and keep reachability and tool-call proof as validation evidence. |
+| OAuth MCP login | Codex supports OAuth metadata for MCP servers, but login, callback URLs, token handling, and account authorization are runtime concerns. | Project supported OAuth fields where managed, and keep login and callback proof as validation evidence. |
+| Side-effecting MCP tools | MCP tools can read or change external systems, and approval behavior depends on runtime tool authority. Static metadata cannot grant authority safely. | Require policy grants, approval posture, bounded tool-call proof, and audit evidence before package or adapter claims are treated as operational. |
 
 ## Not Technically Achievable By Repository Projection Alone
 
@@ -51,8 +52,9 @@ MetaFlow does not claim the following outcomes from generated repository files:
   account, MCP OAuth session, or marketplace plugin install.
 - Granting shell, browser, network, credential, memory, or external-service
   authority merely because a package manifest references those capabilities.
-- Proving hosted Codex Cloud, Slack, Linear, GitHub review, or remote MCP
-  behavior without a harness-native run.
+- Proving hosted Codex Cloud, Slack, Linear, GitHub review, remote MCP
+  reachability, OAuth MCP login, or side-effecting MCP behavior without a
+  harness-native run.
 
 These are operator-owned or harness-owned runtime states. MetaFlow records the
 intent and validation requirements, then leaves the authority transition to the
@@ -68,7 +70,7 @@ Static projection support and runtime support use different evidence.
 | Codex can discover the generated file | Local Codex CLI, IDE extension, or app smoke evidence against the generated workspace. |
 | Codex custom-agent activation works | A Codex app or CLI subagent run that explicitly spawns the named agent and shows the generated `.codex/agents/*.toml` instructions in effect. Static TOML projection and `codex debug prompt-input` inspection are not sufficient by themselves. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
-| MCP runtime works | Codex MCP startup, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
+| MCP runtime works | Codex MCP startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and at least one target tool call in the intended environment. |
 | Package marketplace readiness | Reviewable marketplace candidate output from `metaflow export-package-marketplace` or `MetaFlow: Open Package Marketplace Report`, plus package policy grants, runtime validation records, and operator acceptance. |
 | Tool runtime works | Tool manifest review, policy grant approval, target runtime configuration, approval behavior, and at least one bounded tool call in the intended environment. |
 

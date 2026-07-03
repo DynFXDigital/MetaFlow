@@ -5,6 +5,7 @@
 ### Patch Changes
 
 - Add target capability matrix evidence and notes for the Codex custom-agent activation proof boundary.
+- Add explicit runtime-only target capability matrix rows for remote MCP reachability, OAuth MCP login, and side-effecting MCP behavior.
 - Codex support boundary report metadata now includes related operator, package maintainer, and tool authority guide references.
 - Warn when a capability declares multiple enabled target adapters for the same target, keeping Codex and Copilot projection policy unambiguous.
 - Parse and validate richer `.metaflow/capability.json` target declarations with support posture, required policy grants, validation evidence, and notes.

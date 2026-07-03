@@ -21,6 +21,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex package maintainer guide covering canonical package metadata, marketplace entries, policy grants, runtime validation records, and not-technically-projectable package claims.
 - Codex tool authority guide covering canonical `.metaflow/tools/*.json` metadata, policy grants, execution scope, runtime validation, and the limit between tool description and runtime authority.
 - Codex custom-agent activation proof boundary documentation for `.codex/agents/*.toml` projections and the installed CLI 0.142.3 non-interactive activation limit.
+- Explicit target capability matrix rows for remote MCP reachability, OAuth MCP login, and side-effecting MCP runtime evidence boundaries.
 - Target-aware CLI lifecycle output for `status`, `validate`, `apply`, and `clean`, including target support summaries and target-labeled mutation rows.
 - Target adapter validation now warns when a capability declares multiple enabled adapters for the same target, preventing ambiguous Codex or Copilot projection policy.
 - Canonical `.metaflow/capability.json` target declarations can now include support posture, required policy grants, validation evidence, and review notes for Codex and other target adapters.

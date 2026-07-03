@@ -850,6 +850,9 @@ export type TargetCapabilityConcept =
     | 'memoryScopes'
     | 'localCloudHandoff'
     | 'issuePrOperation'
+    | 'remoteMcpRuntime'
+    | 'oauthMcpRuntime'
+    | 'sideEffectMcpRuntime'
     | 'evaluationSupport';
 
 /** Support state for one canonical concept on one target adapter. */

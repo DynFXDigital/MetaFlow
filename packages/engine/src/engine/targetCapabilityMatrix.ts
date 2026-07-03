@@ -225,6 +225,39 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-052'],
     ),
     row(
+        'remoteMcpRuntime',
+        'runtime-only',
+        ['Codex Streamable HTTP MCP runtime', 'remote MCP endpoints', 'agent network policy'],
+        [
+            'Remote MCP reachability is a Codex runtime property rather than a repository metadata projection.',
+            'Repository metadata can describe Streamable HTTP MCP configuration, but endpoint reachability, TLS, network policy, and hosted-agent access require harness-native validation.',
+        ],
+        ['Remote MCP access can expose network, credential, data residency, and audit boundaries.'],
+        ['RUN-052'],
+    ),
+    row(
+        'oauthMcpRuntime',
+        'runtime-only',
+        ['Codex MCP OAuth login', 'OAuth callback handling', 'MCP resource authorization'],
+        [
+            'OAuth MCP login and callback handling are Codex runtime workflows and cannot be proven by static MCP configuration alone.',
+            'Repository metadata can describe OAuth scopes and resource metadata, but user login, callback routing, token handling, and account authorization require harness-native validation.',
+        ],
+        ['OAuth MCP access can grant external-service authority and requires explicit policy review.'],
+        ['RUN-052'],
+    ),
+    row(
+        'sideEffectMcpRuntime',
+        'runtime-only',
+        ['Codex MCP tool approval', 'side-effecting MCP tool calls', 'agent approval policy'],
+        [
+            'Side-effecting MCP tool behavior depends on Codex runtime approval, sandbox, and configured tool authority.',
+            'Repository metadata can describe tool approval policy, but destructive or externally mutating tool behavior requires harness-native runtime evidence before support claims are valid.',
+        ],
+        ['Side-effecting MCP tools can mutate files, repositories, services, tickets, messages, or external systems.'],
+        ['RUN-050', 'RUN-052'],
+    ),
+    row(
         'evaluationSupport',
         'partial',
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'Codex CLI smoke runs'],
@@ -398,6 +431,36 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['Repository write, review, and CI authority require explicit policy.'],
     ),
     row(
+        'remoteMcpRuntime',
+        'runtime-only',
+        ['GitHub Copilot MCP runtime', 'remote MCP endpoints', 'host network policy'],
+        [
+            'Remote MCP reachability is a GitHub Copilot runtime property rather than a repository metadata projection.',
+            'Repository metadata can describe candidate MCP configuration, but endpoint reachability, TLS, network policy, and host access require harness-native validation.',
+        ],
+        ['Remote MCP access can expose network, credential, data residency, and audit boundaries.'],
+    ),
+    row(
+        'oauthMcpRuntime',
+        'runtime-only',
+        ['GitHub Copilot MCP OAuth login', 'OAuth callback handling', 'MCP resource authorization'],
+        [
+            'OAuth MCP login and callback handling are GitHub Copilot runtime workflows and cannot be proven by static MCP metadata alone.',
+            'Repository metadata can describe OAuth intent, but user login, callback routing, token handling, and account authorization require harness-native validation.',
+        ],
+        ['OAuth MCP access can grant external-service authority and requires explicit policy review.'],
+    ),
+    row(
+        'sideEffectMcpRuntime',
+        'runtime-only',
+        ['GitHub Copilot MCP tool approval', 'side-effecting MCP tool calls', 'host approval policy'],
+        [
+            'Side-effecting MCP tool behavior depends on GitHub Copilot runtime approval and configured tool authority.',
+            'Repository metadata can describe tool intent, but destructive or externally mutating tool behavior requires harness-native runtime evidence before support claims are valid.',
+        ],
+        ['Side-effecting MCP tools can mutate files, repositories, services, tickets, messages, or external systems.'],
+    ),
+    row(
         'evaluationSupport',
         'partial',
         ['.metaflow/evaluation/*.json', 'MetaFlow FTR evidence', 'extension integration tests'],
@@ -500,12 +563,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
-        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, or remote MCP behavior without a harness-native run.',
+        'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, or side-effecting MCP behavior without a harness-native run.',
     ];
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
-        'MCP runtime: startup, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
+        'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
     ];
     const lines: string[] = [

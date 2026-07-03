@@ -182,6 +182,9 @@ describe('Engine package: public API', () => {
             'memoryScopes',
             'localCloudHandoff',
             'issuePrOperation',
+            'remoteMcpRuntime',
+            'oauthMcpRuntime',
+            'sideEffectMcpRuntime',
             'evaluationSupport',
         ];
         for (const target of ['codex', 'github-copilot']) {
@@ -336,6 +339,30 @@ describe('Engine package: public API', () => {
             codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
             'Codex issue/PR row should document connector authorization requirements',
         );
+        const codexRemoteMcp = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'remoteMcpRuntime',
+        );
+        assert.strictEqual(codexRemoteMcp?.support, 'runtime-only');
+        assert.ok(
+            codexRemoteMcp?.notes.some((note) => note.includes('endpoint reachability')),
+            'Codex remote MCP runtime row should document reachability requirements',
+        );
+        const codexOauthMcp = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'oauthMcpRuntime',
+        );
+        assert.strictEqual(codexOauthMcp?.support, 'runtime-only');
+        assert.ok(
+            codexOauthMcp?.notes.some((note) => note.includes('callback routing')),
+            'Codex OAuth MCP runtime row should document callback requirements',
+        );
+        const codexSideEffectMcp = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'sideEffectMcpRuntime',
+        );
+        assert.strictEqual(codexSideEffectMcp?.support, 'runtime-only');
+        assert.ok(
+            codexSideEffectMcp?.evidence.includes('RUN-050'),
+            'Codex side-effect MCP row should point to the read-only MCP tool-call smoke boundary',
+        );
         const copilotIssuePr = matrix.find(
             (entry) => entry.target === 'github-copilot' && entry.concept === 'issuePrOperation',
         );
@@ -346,16 +373,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 4,
+            runtimeOnlyCount: 10,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 2,
+                    runtimeOnlyCount: 5,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 2,
+                    runtimeOnlyCount: 5,
                     documentation: 'README.md',
                 },
             ],

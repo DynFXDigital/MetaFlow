@@ -191,12 +191,12 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(content.summary.entries, report.summary.entries);
         assert.ok(report.summary.targets.codex > 0);
         assert.ok(report.summary.targets['github-copilot'] > 0);
-        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 4);
+        assert.strictEqual(report.supportReference?.runtimeOnlyCount, 10);
         assert.ok(
             report.supportReference?.targets.some(
                 (target) =>
                     target.target === 'codex' &&
-                    target.runtimeOnlyCount === 2 &&
+                    target.runtimeOnlyCount === 5 &&
                     target.documentation === 'docs/CODEX-SUPPORT.md',
             ),
         );
@@ -234,7 +234,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             document.generatedBy,
             'metaflow extension codex-support-boundaries',
         );
-        assert.strictEqual(document.runtimeOnlyCount, 2);
+        assert.strictEqual(document.runtimeOnlyCount, 5);
         assert.ok(
             document.fileBackedRows.some(
                 (entry: { target: string; concept: string; support: string }) =>
@@ -245,7 +245,13 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.deepStrictEqual(
             document.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
-            ['issuePrOperation', 'localCloudHandoff'],
+            [
+                'issuePrOperation',
+                'localCloudHandoff',
+                'oauthMcpRuntime',
+                'remoteMcpRuntime',
+                'sideEffectMcpRuntime',
+            ],
         );
         assert.ok(
             document.notAchievableByRepositoryProjection.some((item: string) =>
@@ -261,6 +267,9 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
         assert.ok(document.content.includes('localCloudHandoff'));
         assert.ok(document.content.includes('issuePrOperation'));
+        assert.ok(document.content.includes('remoteMcpRuntime'));
+        assert.ok(document.content.includes('oauthMcpRuntime'));
+        assert.ok(document.content.includes('sideEffectMcpRuntime'));
         assert.ok(document.content.includes('## Not Achievable By Repository Projection Alone'));
         assert.ok(document.content.includes('Creating Codex Cloud environments'));
         assert.ok(document.content.includes('MCP OAuth'));

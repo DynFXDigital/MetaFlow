@@ -65,6 +65,9 @@ const CONCEPT_VALUES = new Set<TargetCapabilityConcept>([
     'memoryScopes',
     'localCloudHandoff',
     'issuePrOperation',
+    'remoteMcpRuntime',
+    'oauthMcpRuntime',
+    'sideEffectMcpRuntime',
     'evaluationSupport',
 ]);
 const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
@@ -77,6 +80,9 @@ const AUTHORITY_SENSITIVE_CONCEPTS = new Set<TargetCapabilityConcept>([
     'memoryScopes',
     'localCloudHandoff',
     'issuePrOperation',
+    'remoteMcpRuntime',
+    'oauthMcpRuntime',
+    'sideEffectMcpRuntime',
     'evaluationSupport',
 ]);
 const CURRENT_ADAPTER_VERSION_BY_TARGET = new Map<ProjectionTarget, string>(
