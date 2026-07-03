@@ -122,6 +122,11 @@ Records with `passed` or `partial` status need evidence references. A package
 can keep draft or planned validation as `not-run`, but a positive support
 claim stays review-warning material until it points to concrete run evidence.
 
+Runtime validation adapter versions must match the target capability matrix. When
+MetaFlow increments a target adapter version, older evidence remains historical
+but no longer proves current adapter readiness until it is rerun or explicitly
+accepted as a known limitation.
+
 Runtime validation is required for:
 
 - Codex Cloud task execution.

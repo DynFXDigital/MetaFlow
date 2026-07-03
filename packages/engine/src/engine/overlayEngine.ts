@@ -525,6 +525,11 @@ function packageWarning(
 }
 
 function validatePackageOperationalReadiness(packageManifests: PackageManifestMetadata[]): void {
+    const adapterVersionByTarget = new Map<string, string>();
+    for (const entry of getTargetCapabilityMatrix()) {
+        adapterVersionByTarget.set(entry.target, entry.adapterVersion);
+    }
+
     for (const manifest of packageManifests) {
         const hasAuthoritySensitiveComponents =
             manifest.tools.length > 0 ||
@@ -606,6 +611,16 @@ function validatePackageOperationalReadiness(packageManifests: PackageManifestMe
                     packageWarning(
                         'PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED',
                         `Package runtimeValidation target "${record.target}" is disabled in package targets.`,
+                        manifest.manifestPath,
+                    ),
+                );
+            }
+            const expectedAdapterVersion = adapterVersionByTarget.get(record.target);
+            if (expectedAdapterVersion && record.adapterVersion !== expectedAdapterVersion) {
+                manifest.warnings.push(
+                    packageWarning(
+                        'PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH',
+                        `Package runtimeValidation target "${record.target}" adapterVersion "${record.adapterVersion}" does not match current target adapterVersion "${expectedAdapterVersion}".`,
                         manifest.manifestPath,
                     ),
                 );

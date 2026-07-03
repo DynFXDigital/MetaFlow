@@ -5716,9 +5716,10 @@ describe('Engine: synchronizer advanced', () => {
                     {
                         target: 'codex',
                         harness: 'Codex CLI',
-                        adapterVersion: 'codex-v0.1',
+                        adapterVersion: 'codex-v0.0',
                         scenario: 'Local package smoke completed.',
                         status: 'passed',
+                        evidence: ['RUN-099'],
                     },
                     {
                         target: 'future-agent',
@@ -5744,6 +5745,7 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(codes.includes('PACKAGE_MARKETPLACE_TARGET_UNDECLARED'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_UNDECLARED'));
+        assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
         assert.ok(codes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
     });
 
