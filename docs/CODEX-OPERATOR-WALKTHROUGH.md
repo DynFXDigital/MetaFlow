@@ -49,7 +49,7 @@ Review these sections in the preview output:
   `.codex/agents/*.toml`.
 - Target capability matrix: support posture for Codex concepts such as skills,
   agents, MCP servers, hooks, execution surfaces, cloud environment runtime,
-  app connector runtime, local/cloud handoff, issue/PR operation, and
+  automation runtime, app connector runtime, local/cloud handoff, issue/PR operation, and
   evaluation support.
 - Adapter readiness reports: action items for policy review, runtime
   configuration, package validation, and target compatibility.
@@ -154,6 +154,12 @@ spawned agent threads at runtime, including `/agent` thread state, inherited
 sandbox and approval posture, live overrides, tool activity, token use, and
 consolidated results. Treat those as runtime evidence, not static projection
 evidence.
+
+Codex automations have the same runtime boundary. MetaFlow can record the
+intended scheduled workflow, skill usage, policy grants, and evidence
+expectations, but the Codex app or host runtime owns the schedule, local versus
+worktree execution mode, Triage run state, archive state, sandbox defaults,
+approval behavior, and proof that the scheduled run occurred.
 
 Target adapter manifests declare the adapter contract version they were reviewed
 against. The declared `adapterVersion` must match the target capability matrix
@@ -304,6 +310,8 @@ Runtime validation is required for:
 
 - Codex Cloud task execution.
 - Codex Cloud environment provisioning, setup, secrets, and internet access.
+- Scheduled automation creation, local or worktree execution, Triage state,
+  archive state, and run proof.
 - Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connector installation, approval, account linking, posting policy, and task routing.
 - Slack or Linear delegation.
 - GitHub-triggered Codex review.

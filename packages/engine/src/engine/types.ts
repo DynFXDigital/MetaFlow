@@ -872,6 +872,7 @@ export type TargetCapabilityConcept =
     | 'packageManifests'
     | 'pluginRuntime'
     | 'agentRuntime'
+    | 'automationRuntime'
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'

@@ -180,6 +180,7 @@ describe('Engine package: public API', () => {
             'packageManifests',
             'pluginRuntime',
             'agentRuntime',
+            'automationRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -258,6 +259,24 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexAgentRuntime?.evidence.includes('RUN-072'),
             'Codex agent runtime row should point to runtime-boundary evidence',
+        );
+        const codexAutomationRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'automationRuntime',
+        );
+        assert.strictEqual(codexAutomationRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexAutomationRuntime?.nativeSurfaces.includes('Codex app automations'),
+            'Codex automation runtime row should name app automations',
+        );
+        assert.ok(
+            codexAutomationRuntime?.notes.some((note) =>
+                note.includes('cannot create or update scheduled automations'),
+            ),
+            'Codex automation runtime row should document scheduling boundary',
+        );
+        assert.ok(
+            codexAutomationRuntime?.evidence.includes('RUN-073'),
+            'Codex automation runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -651,22 +670,33 @@ describe('Engine package: public API', () => {
             copilotAgentRuntime?.notes.some((note) => note.includes('proving agent execution')),
             'GitHub Copilot agent runtime row should document runtime proof boundary',
         );
+        const copilotAutomationRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' && entry.concept === 'automationRuntime',
+        );
+        assert.strictEqual(copilotAutomationRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotAutomationRuntime?.notes.some((note) =>
+                note.includes('cannot schedule hosted agent runs'),
+            ),
+            'GitHub Copilot automation runtime row should document scheduling boundary',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 26,
+            runtimeOnlyCount: 28,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 15,
+                    runtimeOnlyCount: 16,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 11,
+                    runtimeOnlyCount: 12,
                     documentation: 'README.md',
                 },
             ],

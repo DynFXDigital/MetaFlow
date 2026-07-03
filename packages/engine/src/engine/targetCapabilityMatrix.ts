@@ -122,6 +122,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-072'],
     ),
     row(
+        'automationRuntime',
+        'runtime-only',
+        [
+            'Codex app automations',
+            'thread automations',
+            'standalone automations',
+            'project automations',
+            'automation background worktrees',
+        ],
+        [
+            'Codex automations are scheduled runtime state in the Codex app and are not repository metadata projection.',
+            'Repository metadata can describe automation intent and reusable skills, but it cannot create or update scheduled automations, keep the local machine and Codex app running, select local versus worktree execution, manage Triage runs, archive runs, or prove scheduled execution.',
+            'Automation runs inherit Codex runtime sandbox settings, can use available skills and plugins, and can run unattended with approval behavior controlled by user or organization policy.',
+        ],
+        [
+            'Automations can run unattended, modify local files or worktrees, use plugins and skills, access connected sources, consume tokens, and run under sandbox or approval policy selected outside repository metadata.',
+        ],
+        ['RUN-073'],
+    ),
+    row(
         'projectConfig',
         'partial',
         ['.codex/config.toml', '.metaflow/project-config/*.json'],
@@ -511,6 +531,23 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-072'],
     ),
     row(
+        'automationRuntime',
+        'runtime-only',
+        [
+            'GitHub Copilot scheduled or recurring agent workflows',
+            'GitHub Agent HQ background routing',
+            'GitHub Actions scheduled agent jobs',
+        ],
+        [
+            'Recurring or scheduled Copilot and Agent HQ work is host runtime state rather than repository metadata projection.',
+            'Repository metadata can describe automation intent and evidence requirements, but it cannot schedule hosted agent runs, route recurring work, configure host approvals, or prove background execution.',
+        ],
+        [
+            'Scheduled host-agent workflows can access repositories, issues, pull requests, organization data, CI runners, connectors, and secrets under user or organization authority.',
+        ],
+        ['RUN-073'],
+    ),
+    row(
         'projectConfig',
         'unsupported',
         [],
@@ -884,6 +921,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
         'Installing, approving, connecting, or proving Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connectors from repository metadata alone.',
         'Spawning subagents, selecting custom agents at runtime, managing active agent threads, satisfying interactive approvals, or proving custom-agent execution from repository metadata alone.',
+        'Creating or updating scheduled automations, keeping the Codex app or host runtime available, selecting automation worktrees, managing automation inbox or archive state, or proving scheduled background execution from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -899,6 +937,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
         'App connector runtime: installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations.',
         'Agent runtime: selected subagent or custom agent, spawned thread identity, inherited sandbox and approval posture, runtime overrides, tool activity, result, token/cost posture, and known limitations.',
+        'Automation runtime: automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token/cost posture, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
