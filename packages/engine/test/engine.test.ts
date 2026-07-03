@@ -181,6 +181,7 @@ describe('Engine package: public API', () => {
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
+            'memoryRuntime',
             'localCloudHandoff',
             'issuePrOperation',
             'remoteMcpRuntime',
@@ -291,6 +292,26 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexMcp?.notes.some((note) => note.includes('OAuth login')),
             'Codex MCP row should document OAuth and remote runtime limits',
+        );
+        const codexMemoryRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'memoryRuntime',
+        );
+        assert.strictEqual(codexMemoryRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexMemoryRuntime?.nativeSurfaces.includes('Codex Memories'),
+            'Codex memory runtime row should name Codex Memories',
+        );
+        assert.ok(
+            codexMemoryRuntime?.notes.some((note) => note.includes('cannot enable Memories')),
+            'Codex memory runtime row should document the repository projection boundary',
+        );
+        assert.ok(
+            codexMemoryRuntime?.notes.some((note) => note.includes('per-thread controls')),
+            'Codex memory runtime row should document thread-level controls',
+        );
+        assert.ok(
+            codexMemoryRuntime?.evidence.includes('RUN-067'),
+            'Codex memory runtime row should cite memory boundary evidence',
         );
         const codexCommandRules = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'commandRules',
@@ -500,16 +521,16 @@ describe('Engine package: public API', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 14,
+            runtimeOnlyCount: 16,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 9,
+                    runtimeOnlyCount: 10,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 5,
+                    runtimeOnlyCount: 6,
                     documentation: 'README.md',
                 },
             ],

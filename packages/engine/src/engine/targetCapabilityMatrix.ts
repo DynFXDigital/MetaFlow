@@ -226,10 +226,25 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['.metaflow/memory/*.json'],
         [
             'Canonical memory scope metadata is parsed and reported for adapter review.',
-            'Codex memory behavior remains a runtime workflow until explicit projection adapters exist.',
+            'Canonical memory scope metadata records intended memory boundaries, retention, sharing, and policy posture.',
+            'Codex memory generation and injection remain runtime workflows governed by Codex settings and thread controls.',
         ],
         ['Persistent memory requires explicit authorization and retention policy.'],
         ['RUN-036'],
+    ),
+    row(
+        'memoryRuntime',
+        'runtime-only',
+        ['Codex Memories', 'Codex home memory files', 'Codex app and TUI /memories controls'],
+        [
+            'Codex Memories are opt-in runtime state stored under the Codex home directory and controlled by Codex settings or per-thread controls.',
+            'Repository metadata can describe intended memory boundaries, but it cannot enable Memories, generate or inject memory files, authorize thread memory use, or prove memory recall behavior.',
+            'Required team guidance belongs in checked-in instructions or documentation rather than generated memory state.',
+        ],
+        [
+            'Persistent memory can retain user, repository, organization, and task context and requires retention, sharing, consent, and secret-review controls.',
+        ],
+        ['RUN-067'],
     ),
     row(
         'localCloudHandoff',
@@ -500,10 +515,24 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['.metaflow/memory/*.json'],
         [
             'Canonical memory scope metadata is parsed and reported for adapter review.',
-            'Copilot memory behavior remains a runtime workflow until explicit projection adapters exist.',
+            'Canonical memory scope metadata records intended memory boundaries, retention, sharing, and policy posture.',
+            'Copilot and GitHub memory behavior remains a runtime workflow until explicit projection adapters exist.',
         ],
         ['Persistent memory requires explicit authorization and retention policy.'],
         ['RUN-036'],
+    ),
+    row(
+        'memoryRuntime',
+        'runtime-only',
+        ['GitHub Copilot personalization and host memory controls', 'GitHub Agent HQ context'],
+        [
+            'GitHub Copilot and GitHub-hosted memory behavior depends on target runtime settings and organization policy rather than repository metadata projection.',
+            'Repository metadata can describe intended memory boundaries, but it cannot enable host memory, authorize user or organization retention, or prove memory recall behavior.',
+        ],
+        [
+            'Persistent memory can retain user, repository, organization, and task context and requires retention, sharing, consent, and secret-review controls.',
+        ],
+        ['RUN-067'],
     ),
     row(
         'localCloudHandoff',
@@ -696,6 +725,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Installing Slack, Linear, GitHub, or other Codex-connected apps in a workspace.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
+        'Enabling Codex Memories, generating memory files, authorizing per-thread memory use, or proving memory recall behavior.',
         'Granting shell, browser, network, credential, memory, or external-service authority from package metadata alone.',
         'Installing or enabling Browser, Chrome, Computer Use, or Sites plugins and their app, website, OS, hosting, or workspace permissions.',
         'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, or Sites deployment without a harness-native run.',
@@ -705,6 +735,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',
+        'Memory runtime: enabled Codex memory setting, thread-level memory controls, generated memory artifact review, recall evidence, and known retention or sharing limits.',
         'Browser, Chrome, Computer Use, and Sites runtime: installed plugin or app state, approval scope, target site/app/project identity, representative operation, result, and known limitations.',
     ];
     const lines: string[] = [

@@ -167,6 +167,13 @@ Target adapters also compare managed concepts with the target capability matrix.
 Unsupported or runtime-only concepts remain review warnings; repository
 projection does not make those surfaces operational.
 
+Memory metadata follows the same split. Canonical `.metaflow/memory/*.json`
+records the intended memory boundary, retention, sharing, and policy posture.
+Codex Memories are opt-in runtime state controlled by Codex settings and
+per-thread controls, so a memory claim needs enabled settings, generated memory
+artifact review, recall evidence, and known retention or sharing limits before
+operators treat it as operational.
+
 ## Review Migration Candidates
 
 Use migration suggestions when a metadata repository still contains legacy or

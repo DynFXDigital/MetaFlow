@@ -878,6 +878,7 @@ export type TargetCapabilityConcept =
     | 'remoteMcpRuntime'
     | 'oauthMcpRuntime'
     | 'sideEffectMcpRuntime'
+    | 'memoryRuntime'
     | 'browserRuntime'
     | 'chromeRuntime'
     | 'computerUseRuntime'
