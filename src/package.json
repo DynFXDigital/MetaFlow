@@ -54,6 +54,11 @@
         "icon": "$(json)"
       },
       {
+        "command": "metaflow.openPackageMarketplaceReport",
+        "title": "MetaFlow: Open Package Marketplace Report",
+        "icon": "$(package)"
+      },
+      {
         "command": "metaflow.apply",
         "title": "MetaFlow: Apply Overlay",
         "icon": "$(check)"

@@ -209,4 +209,108 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             ),
         );
     });
+
+    test('builds package marketplace report content for extension review', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-package-marketplace-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const packagePath = path.join(metadataRepo, 'company', 'core', '.metaflow', 'packages');
+        fs.mkdirSync(packagePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(packagePath, 'release-operations.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.package/v1',
+                id: 'release-operations',
+                name: 'Release Operations',
+                kind: 'agent-plugin',
+                marketplaceEntries: [
+                    {
+                        target: 'codex',
+                        packageName: 'release-operations',
+                        title: 'Release Operations',
+                        summary: 'Release workflow package.',
+                        publisher: 'DynFX',
+                        categories: ['release'],
+                        keywords: ['codex', 'automation'],
+                    },
+                    {
+                        target: 'github-copilot',
+                        packageName: 'release-operations',
+                        title: 'Release Operations',
+                        summary: 'Release workflow package.',
+                        categories: ['release'],
+                        keywords: ['copilot'],
+                    },
+                ],
+                runtimeValidation: [
+                    {
+                        target: 'codex',
+                        harness: 'Codex CLI',
+                        adapterVersion: 'codex-v0.1',
+                        scenario: 'Generated package appears in local marketplace.',
+                        status: 'passed',
+                        evidence: ['RUN-056'],
+                        limitations: ['Cloud package installation is runtime-only.'],
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const { buildPackageMarketplaceReportForExtension } = loadCommandHandlers();
+        const report = buildPackageMarketplaceReportForExtension(
+            {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+                filters: { include: ['**'], exclude: [] },
+            } as never,
+            tmpDir,
+        );
+        const content = JSON.parse(report.content);
+
+        assert.strictEqual(report.generatedBy, 'metaflow extension package-marketplace');
+        assert.strictEqual(report.managed, false);
+        assert.strictEqual(report.requiresOperatorReview, true);
+        assert.deepStrictEqual(report.summary.targets, { codex: 1, 'github-copilot': 1 });
+        assert.strictEqual(content.summary.entries, 2);
+        assert.strictEqual(
+            content.marketplaces.codex[0].packageName,
+            'release-operations',
+        );
+        assert.deepStrictEqual(content.hostPayloads.codex.plugins, [
+            {
+                name: 'release-operations',
+                source: {
+                    source: 'local',
+                    path: './.ai/ai-metadata/company/core',
+                },
+                policy: {
+                    installation: 'AVAILABLE',
+                    authentication: 'ON_INSTALL',
+                },
+                category: 'release',
+                interface: {
+                    displayName: 'Release Operations',
+                    description: 'Release workflow package.',
+                },
+            },
+        ]);
+        assert.deepStrictEqual(content.hostPayloads.githubCopilot.plugins, [
+            {
+                name: 'release-operations',
+                source: './.ai/ai-metadata/company/core',
+                description: 'Release workflow package.',
+            },
+        ]);
+        assert.deepStrictEqual(content.entries[0].runtimeValidation, [
+            {
+                target: 'codex',
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Generated package appears in local marketplace.',
+                status: 'passed',
+                evidence: ['RUN-056'],
+                limitations: ['Cloud package installation is runtime-only.'],
+            },
+        ]);
+    });
 });

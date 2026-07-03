@@ -274,6 +274,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(command?.icon, '$(list-tree)');
     });
 
+    test('package marketplace report is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.openPackageMarketplaceReport',
+        );
+        assert.ok(command, 'Expected metaflow.openPackageMarketplaceReport command contribution');
+        assert.strictEqual(command?.icon, '$(package)');
+    });
+
     test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
