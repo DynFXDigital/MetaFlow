@@ -115,6 +115,13 @@ function createPackageMarketplaceWorkspace(): TestWorkspace {
                                 evidence: ['RUN-056'],
                                 limitations: ['Cloud package installation is runtime-only.'],
                             },
+                            {
+                                target: 'github-copilot',
+                                harness: 'GitHub Copilot',
+                                adapterVersion: 'github-copilot-v0.0',
+                                scenario: 'Marketplace listing reviewed.',
+                                status: 'partial',
+                            },
                         ],
                     }),
                 },
@@ -1153,6 +1160,13 @@ describe('CLI: preview', () => {
                                     evidence: ['RUN-056'],
                                     limitations: ['Cloud package installation is runtime-only.'],
                                 },
+                                {
+                                    target: 'github-copilot',
+                                    harness: 'GitHub Copilot',
+                                    adapterVersion: 'github-copilot-v0.0',
+                                    scenario: 'Marketplace listing reviewed.',
+                                    status: 'partial',
+                                },
                             ],
                             description: 'Release workflow package.',
                         }),
@@ -1174,6 +1188,8 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('categories=release'));
         assert.ok(textResult.stdout.includes('runtimeValidation: codex/Codex CLI passed'));
         assert.ok(textResult.stdout.includes('evidence=RUN-056'));
+        assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
+        assert.ok(textResult.stdout.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
         assert.ok(textResult.stdout.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'));
         assert.ok(textResult.stdout.includes('[packageManifests]'));
 
@@ -1190,10 +1206,13 @@ describe('CLI: preview', () => {
         );
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].target, 'codex');
         assert.strictEqual(data.packageManifests[0].runtimeValidation[0].evidence[0], 'RUN-056');
+        const packageWarningCodes = data.packageManifests[0].warnings.map(
+            (warning: { code: string }) => warning.code,
+        );
+        assert.ok(packageWarningCodes.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'));
+        assert.ok(packageWarningCodes.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'));
         assert.ok(
-            data.packageManifests[0].warnings.some(
-                (warning: { code: string }) => warning.code === 'PACKAGE_TARGET_CONCEPT_PARTIAL',
-            ),
+            packageWarningCodes.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'),
         );
         assert.ok(
             data.adapterReports.some(
@@ -1742,6 +1761,15 @@ describe('CLI: export-package-marketplace', () => {
                 'PACKAGE_MARKETPLACE_TARGET_DISABLED',
             ),
         );
+        assert.ok(
+            result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'),
+        );
+        assert.ok(
+            result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'),
+        );
+        assert.ok(
+            result.stderr.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
+        );
     });
 
     it('should print the full package marketplace review object with --json', async () => {
@@ -1755,10 +1783,18 @@ describe('CLI: export-package-marketplace', () => {
         assert.strictEqual(data.entries[0].target, 'codex');
         assert.strictEqual(data.entries[0].sourceLayer, 'primary/company/core');
         assert.strictEqual(data.entries[0].runtimeValidation[0].evidence[0], 'RUN-056');
+        const warningText = data.warnings.join('\n');
         assert.ok(
-            data.warnings.some((warning: string) =>
-                warning.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),
-            ),
+            warningText.includes('PACKAGE_MARKETPLACE_TARGET_DISABLED'),
+        );
+        assert.ok(
+            warningText.includes('PACKAGE_RUNTIME_VALIDATION_TARGET_DISABLED'),
+        );
+        assert.ok(
+            warningText.includes('PACKAGE_RUNTIME_VALIDATION_ADAPTER_VERSION_MISMATCH'),
+        );
+        assert.ok(
+            warningText.includes('PACKAGE_RUNTIME_VALIDATION_EVIDENCE_RECOMMENDED'),
         );
     });
 
