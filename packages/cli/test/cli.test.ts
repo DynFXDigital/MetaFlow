@@ -2645,6 +2645,12 @@ describe('CLI: validate', () => {
         const result = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('passed'));
+        assert.ok(result.stdout.includes('Target Capability Support: 30'));
+        assert.ok(
+            result.stdout.includes(
+                'Runtime-only support boundaries: 4 rows require operator or harness evidence',
+            ),
+        );
     });
 
     it('should fail validation when drifted', async () => {
@@ -2698,6 +2704,14 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
+        assert.strictEqual(data.targetCapabilitySupport.entries, 30);
+        assert.ok(
+            data.targetCapabilitySupport.targets.some(
+                (entry: { target: string; counts: Record<string, number> }) =>
+                    entry.target === 'codex' && entry.counts['runtime-only'] === 2,
+            ),
+        );
+        assert.strictEqual(data.targetCapabilitySupport.supportReference.runtimeOnlyCount, 4);
     });
 
     it('validate --json shows drift details', async () => {

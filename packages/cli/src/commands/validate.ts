@@ -1,6 +1,10 @@
 import { Command } from 'commander';
 import { checkAllDrift, loadManagedState, planSynchronization } from '@metaflow/engine';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+import {
+    buildTargetCapabilitySupportSummary,
+    formatTargetCapabilitySummaryLines,
+} from './targetCapabilitySupport';
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -51,6 +55,7 @@ export function registerValidateCommand(program: Command): void {
                     missing.length === 0 &&
                     unmanaged.length === 0 &&
                     stale.length === 0;
+                const targetCapabilitySupport = buildTargetCapabilitySupportSummary();
 
                 if (options.json) {
                     const data = {
@@ -67,6 +72,7 @@ export function registerValidateCommand(program: Command): void {
                         missing: missing.map((d) => d.relativePath),
                         unmanaged,
                         stale,
+                        targetCapabilitySupport,
                     };
                     console.log(JSON.stringify(data, null, 2));
                 } else {
@@ -100,6 +106,9 @@ export function registerValidateCommand(program: Command): void {
                                 console.log(`    - ${f}`);
                             }
                         }
+                    }
+                    for (const line of formatTargetCapabilitySummaryLines(targetCapabilitySupport)) {
+                        console.log(line);
                     }
                 }
 
