@@ -52,6 +52,7 @@ import {
     normalizeConfigShape,
     getTargetCapabilityMatrix,
     buildTargetCapabilitySupportReference,
+    buildCodexSupportBoundariesDocument,
     buildAdapterReadinessReports,
     buildGitHubCopilotMcpHandoff,
     describeProjectionWithTargetAdapters,
@@ -1301,6 +1302,31 @@ describe('Engine package: public API', () => {
                 ),
             ),
             undefined,
+        );
+    });
+
+    it('builds concept-keyed Codex runtime evidence checklist rows', () => {
+        const document = buildCodexSupportBoundariesDocument();
+        const runtimeOnlyConcepts = document.runtimeOnlyRows.map((row) => row.concept).sort();
+        const checklistConcepts = document.runtimeEvidenceChecklist
+            .map((item) => item.concept)
+            .sort();
+
+        assert.deepStrictEqual(checklistConcepts, runtimeOnlyConcepts);
+        assert.strictEqual(document.runtimeEvidenceChecklist.length, document.runtimeOnlyCount);
+        assert.ok(
+            document.runtimeEvidenceChecklist.some(
+                (item) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.runtimeEvidenceExpected.includes('representative operation') &&
+                    item.notAchievableByRepositoryProjection
+                        .toLowerCase()
+                        .includes('repository metadata'),
+            ),
+        );
+        assert.ok(document.content.includes('## Runtime Evidence Checklist By Concept'));
+        assert.ok(
+            document.content.includes('| issuePrOperation | Runtime evidence for issuePrOperation'),
         );
     });
 

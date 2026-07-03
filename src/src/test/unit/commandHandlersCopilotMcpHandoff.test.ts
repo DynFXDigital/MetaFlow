@@ -488,6 +488,26 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 item.includes('App connector runtime'),
             ),
         );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceChecklist
+                .map((item: { concept: string }) => item.concept)
+                .sort(),
+            document.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
+        );
+        assert.ok(
+            document.runtimeEvidenceChecklist.some(
+                (item: {
+                    concept: string;
+                    runtimeEvidenceExpected: string;
+                    notAchievableByRepositoryProjection: string;
+                }) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.runtimeEvidenceExpected.includes('representative operation') &&
+                    item.notAchievableByRepositoryProjection
+                        .toLowerCase()
+                        .includes('repository metadata'),
+            ),
+        );
         assert.ok(
             document.runtimeEvidenceExpected.some((item: string) =>
                 item.includes('Agent runtime'),
@@ -725,6 +745,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
                 scenario: 'Generated package appears in local marketplace.',
                 status: 'passed',
                 evidence: ['RUN-056'],
+                evidenceArtifacts: [],
                 limitations: ['Cloud package installation is runtime-only.'],
             },
         ]);

@@ -33,6 +33,11 @@ runtime-only and not-technically-projectable behavior before relying on
 generated repository files. Use `target-support` when a review needs filtered
 matrix rows or JSON inspection for a specific canonical concept.
 
+The boundary report includes a runtime evidence checklist keyed by target
+capability concept. Use that section when a package, target adapter, release
+gate, or manual review needs to prove that every runtime-only Codex concept has
+an explicit evidence expectation.
+
 ## Preview Codex Adapter Output
 
 Run preview before apply.

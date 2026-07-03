@@ -17,10 +17,20 @@ export interface CodexSupportBoundariesDocument {
     runtimeOnlyCount: number;
     fileBackedRows: TargetCapabilityMatrixEntry[];
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
+    runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
     relatedGuides: string[];
     content: string;
+}
+
+export interface CodexRuntimeEvidenceChecklistItem {
+    concept: TargetCapabilityMatrixEntry['concept'];
+    nativeSurfaces: string[];
+    notAchievableByRepositoryProjection: string;
+    runtimeEvidenceExpected: string;
+    authorityImplications: string[];
+    evidence: string[];
 }
 
 function row(
@@ -1541,6 +1551,17 @@ export function buildCodexSupportBoundariesDocument(options?: {
     );
     const runtimeOnlyRows = codexRows.filter((entry) => entry.support === 'runtime-only');
     const supportedRows = codexRows.filter((entry) => entry.support !== 'runtime-only');
+    const runtimeEvidenceChecklist = runtimeOnlyRows.map((row) => ({
+        concept: row.concept,
+        nativeSurfaces: row.nativeSurfaces,
+        notAchievableByRepositoryProjection: row.notes.join(' '),
+        runtimeEvidenceExpected: [
+            `Runtime evidence for ${row.concept} must name the active Codex surface, runtime configuration, authority posture, representative operation, result artifacts, and known limitations.`,
+            `Review native surfaces: ${row.nativeSurfaces.join(', ')}.`,
+        ].join(' '),
+        authorityImplications: row.authorityImplications,
+        evidence: row.evidence,
+    }));
     const relatedGuides = [
         'docs/CODEX-SUPPORT.md',
         'docs/CODEX-OPERATOR-WALKTHROUGH.md',
@@ -1642,9 +1663,23 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '| --- | --- | --- |',
     );
 
-    for (const row of runtimeOnlyRows) {
+        for (const row of runtimeOnlyRows) {
         lines.push(
             `| ${row.concept} | ${row.nativeSurfaces.join('<br>')} | ${row.notes.join(' ')} |`,
+        );
+    }
+
+    lines.push(
+        '',
+        '## Runtime Evidence Checklist By Concept',
+        '',
+        '| Concept | Runtime evidence expected | Authority implications |',
+        '| --- | --- | --- |',
+    );
+
+    for (const item of runtimeEvidenceChecklist) {
+        lines.push(
+            `| ${item.concept} | ${item.runtimeEvidenceExpected} | ${item.authorityImplications.join(' ')} |`,
         );
     }
 
@@ -1669,6 +1704,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeOnlyCount: runtimeOnlyRows.length,
         fileBackedRows: supportedRows,
         runtimeOnlyRows,
+        runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,
         relatedGuides,

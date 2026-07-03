@@ -3188,6 +3188,26 @@ describe('CLI: codex-support-boundaries', () => {
                 item.includes('Plugin runtime'),
             ),
         );
+        assert.deepStrictEqual(
+            data.runtimeEvidenceChecklist
+                .map((item: { concept: string }) => item.concept)
+                .sort(),
+            data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept).sort(),
+        );
+        assert.ok(
+            data.runtimeEvidenceChecklist.some(
+                (item: {
+                    concept: string;
+                    runtimeEvidenceExpected: string;
+                    notAchievableByRepositoryProjection: string;
+                }) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.runtimeEvidenceExpected.includes('representative operation') &&
+                    item.notAchievableByRepositoryProjection
+                        .toLowerCase()
+                        .includes('repository metadata'),
+            ),
+        );
         assert.deepStrictEqual(data.relatedGuides, [
             'docs/CODEX-SUPPORT.md',
             'docs/CODEX-OPERATOR-WALKTHROUGH.md',
@@ -3195,6 +3215,7 @@ describe('CLI: codex-support-boundaries', () => {
             'docs/CODEX-TOOL-AUTHORITY-GUIDE.md',
         ]);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
+        assert.ok(data.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });
 

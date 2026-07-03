@@ -3,7 +3,9 @@
 MetaFlow treats Codex as a first-class target adapter. It projects canonical
 MetaFlow metadata into Codex-native repository files when the Codex surface is
 file-backed, and it reports runtime-only Codex surfaces when repository
-metadata cannot create or prove the runtime behavior.
+metadata cannot create or prove the runtime behavior. The generated support
+boundary report also includes a concept-keyed runtime evidence checklist so
+each runtime-only matrix row has an explicit review expectation.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.
