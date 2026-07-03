@@ -358,6 +358,7 @@ function buildLayerContent(
         knownPolicyGrantIds,
         packageReferenceIndex,
     );
+    validatePackageOperationalReadiness(packageManifests);
     validatePackageTargetCompatibility(packageManifests);
     const capability = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
     validateCapabilityLayerDeclarations(capability, {
@@ -521,6 +522,37 @@ function packageWarning(
     severity: CapabilityDiagnosticSeverity = 'warning',
 ): CapabilityWarning {
     return { code, message, filePath, severity };
+}
+
+function validatePackageOperationalReadiness(packageManifests: PackageManifestMetadata[]): void {
+    for (const manifest of packageManifests) {
+        const hasAuthoritySensitiveComponents =
+            manifest.tools.length > 0 ||
+            manifest.mcpServers.length > 0 ||
+            manifest.hooks.length > 0;
+        if (hasAuthoritySensitiveComponents && manifest.policyGrants.length === 0) {
+            manifest.warnings.push(
+                packageWarning(
+                    'PACKAGE_POLICY_GRANTS_RECOMMENDED',
+                    'Package includes tools, MCP servers, or hooks but declares no policyGrants for authority review.',
+                    manifest.manifestPath,
+                ),
+            );
+        }
+
+        const hasEnabledTargets = Object.values(manifest.targets).some(
+            (declaration) => declaration.enabled !== false,
+        );
+        if (hasEnabledTargets && manifest.validationEvidence.length === 0) {
+            manifest.warnings.push(
+                packageWarning(
+                    'PACKAGE_TARGET_VALIDATION_EVIDENCE_RECOMMENDED',
+                    'Package has enabled target declarations but no validationEvidence for target package readiness.',
+                    manifest.manifestPath,
+                ),
+            );
+        }
+    }
 }
 
 function validatePackageTargetCompatibility(packageManifests: PackageManifestMetadata[]): void {
