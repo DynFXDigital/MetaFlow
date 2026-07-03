@@ -1251,6 +1251,14 @@ describe('Engine package: overlay pipeline', () => {
         );
         assert.strictEqual(promptProjection.targetAdapterConcept, 'prompts');
         assert.strictEqual(promptProjection.lossiness, 'none');
+
+        const commandRulesProjection = describeProjectionWithTargetAdapters(
+            '.codex/rules/release.rules',
+        );
+        assert.strictEqual(commandRulesProjection.sourceFormat, 'codex');
+        assert.strictEqual(commandRulesProjection.target, 'codex');
+        assert.strictEqual(commandRulesProjection.targetAdapterConcept, 'commandRules');
+        assert.strictEqual(commandRulesProjection.lossiness, 'none');
     });
 
     it('discovers CAPABILITY-only layer directories', () => {
@@ -5425,6 +5433,60 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(result.skipped.includes('.codex/config.toml'));
         assert.ok(!result.written.includes('.codex/config.toml'));
         assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'config.toml')));
+    });
+
+    it('managed Codex command rules stay candidate without policy grants', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.codex', 'rules'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'targets'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.codex', 'rules', 'release.rules'),
+            'prefix_rule(\n  pattern = ["gh", "pr", "view"],\n  decision = "prompt",\n)\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.metaflow', 'targets', 'codex.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.targetAdapter/v1',
+                id: 'codex-default',
+                target: 'codex',
+                enabled: true,
+                materializationMode: 'candidate',
+                concepts: { commandRules: 'managed' },
+                validationStatus: 'staticVerified',
+                validationEvidence: ['RUN-064'],
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        const fileMap = buildEffectiveFileMap(layers);
+        const files = Array.from(fileMap.values());
+        classifyFiles(files, config.injection);
+
+        const pending = preview(tmpDir, files);
+        const rulesChange = pending.find(
+            (change) => change.relativePath === '.codex/rules/release.rules',
+        );
+        assert.strictEqual(rulesChange?.action, 'skip');
+        assert.strictEqual(rulesChange?.reason, 'target-adapter-candidate');
+        assert.strictEqual(rulesChange?.projection.targetAdapterConcept, 'commandRules');
+        assert.strictEqual(rulesChange?.projection.targetAdapterMaterializationMode, 'candidate');
+        assert.ok(
+            rulesChange?.projection.notes.includes(
+                'target adapter concept commandRules requires requiredPolicyGrants before managed materialization',
+            ),
+        );
+
+        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
+        assert.ok(result.skipped.includes('.codex/rules/release.rules'));
+        assert.ok(!result.written.includes('.codex/rules/release.rules'));
+        assert.ok(!fs.existsSync(path.join(tmpDir, '.codex', 'rules', 'release.rules')));
     });
 
     it('managed target adapter projects canonical MCP servers to Codex config TOML', () => {

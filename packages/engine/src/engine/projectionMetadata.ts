@@ -1,4 +1,5 @@
 import {
+    isCodexCommandRulesPath,
     isCodexProjectConfigPath,
     isCodexProjectInstructionPath,
     isCodexRepositorySkillPath,
@@ -108,6 +109,10 @@ function inferTargetAdapterConcept(
         return 'agents';
     }
 
+    if (paths.some((path) => isCodexCommandRulesPath(path))) {
+        return 'commandRules';
+    }
+
     if (
         paths.some(
             (path) =>
@@ -182,6 +187,7 @@ function inferLossiness(
     const canonicalHooks =
         normalizedSource === '.metaflow/hooks' ||
         /^\.metaflow\/hooks\/[^/]+\.json$/.test(normalizedSource);
+    const codexCommandRules = isCodexCommandRulesPath(normalizedSource);
     if (
         canonicalInstruction &&
         target === 'github-copilot' &&
@@ -222,6 +228,9 @@ function inferLossiness(
     }
     if (canonicalHooks && target === 'codex' && normalizedDestination === '.codex/hooks.json') {
         return 'lossy';
+    }
+    if (codexCommandRules && target === 'codex' && isCodexCommandRulesPath(normalizedDestination)) {
+        return 'none';
     }
     if (sourceFormat === target) {
         return 'none';
