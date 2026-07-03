@@ -76,13 +76,16 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['.metaflow/mcp/*.json', 'Codex MCP configuration and runtime MCP server registry'],
         [
             'Canonical MCP server metadata is parsed and reported for adapter review.',
-            'Codex supports MCP at runtime through project config and user config.',
+            'Codex supports MCP at runtime through CLI and IDE shared project or user config.',
             'Canonical MetaFlow stdio and Streamable HTTP MCP server metadata projects to Codex project config according to target adapter materialization gates.',
             'Canonical project config and supported MCP sections share one Codex project config file when each concept is managed by the target adapter.',
             'Projected MCP options include command arguments, literal environment, forwarded environment variables, working directory, bearer-token environment mapping, HTTP headers, OAuth scopes and resource, timeouts, enablement, requirement flags, tool allow and deny lists, and tool approval modes.',
+            'Side-effecting MCP tools, OAuth login, remote stdio, Streamable HTTP reachability, and agent-phase network access remain runtime concerns that require harness-native evidence.',
         ],
-        ['MCP servers require explicit tool, secret, and network authority review.'],
-        ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047', 'RUN-048', 'RUN-050'],
+        [
+            'MCP servers require explicit tool, secret, approval, OAuth callback, and network authority review.',
+        ],
+        ['RUN-033', 'RUN-045', 'RUN-046', 'RUN-047', 'RUN-048', 'RUN-050', 'RUN-052'],
     ),
     row(
         'hooks',
@@ -125,11 +128,12 @@ const CODEX_MATRIX: MatrixSeed[] = [
         [
             'Canonical execution profile metadata is parsed and reported for adapter review.',
             'Codex execution surface selection remains a runtime workflow until explicit projection adapters exist.',
+            'Codex cloud environments use hosted containers, setup scripts, environment variables, secret handling, and agent internet-access controls outside repository metadata projection.',
         ],
         [
             'Execution surface selection changes filesystem, network, credential, and approval boundaries.',
         ],
-        ['RUN-035'],
+        ['RUN-035', 'RUN-052'],
     ),
     row(
         'memoryScopes',
@@ -145,20 +149,24 @@ const CODEX_MATRIX: MatrixSeed[] = [
     row(
         'localCloudHandoff',
         'runtime-only',
-        ['Codex CLI', 'Codex Cloud'],
+        ['Codex CLI', 'Codex IDE extension', 'Codex app', 'Codex Cloud'],
         [
             'Local to cloud handoff is a Codex runtime workflow and is not represented by generated MetaFlow files.',
+            'CLI, IDE extension, and Codex app share local configuration layers, but cloud delegation depends on configured cloud environments and account/workspace access.',
         ],
         ['Cloud delegation changes data residency, credential, and audit boundaries.'],
+        ['RUN-052'],
     ),
     row(
         'issuePrOperation',
         'runtime-only',
-        ['Codex review', 'Codex Cloud task workflows'],
+        ['Codex review', 'Codex GitHub integration', 'Codex Slack integration', 'Codex Linear integration', 'Codex Cloud task workflows'],
         [
             'Issue, PR, and review operation depends on Codex runtime integrations rather than static repository metadata.',
+            'GitHub review, Slack, and Linear flows require configured connectors, repository environments, and user or workspace authorization outside MetaFlow projection.',
         ],
         ['Repository write, review, and CI authority require explicit policy.'],
+        ['RUN-052'],
     ),
     row(
         'evaluationSupport',

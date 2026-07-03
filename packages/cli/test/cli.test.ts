@@ -724,6 +724,10 @@ describe('CLI: preview', () => {
         assert.strictEqual(codexMcpSupport.support, 'partial');
         assert.ok(codexMcpSupport.evidence.includes('RUN-033'));
         assert.ok(codexMcpSupport.evidence.includes('RUN-050'));
+        assert.ok(codexMcpSupport.evidence.includes('RUN-052'));
+        assert.ok(
+            codexMcpSupport.notes.some((note: string) => note.includes('OAuth login')),
+        );
         const codexHookSupport = data.targetCapabilityMatrix.find(
             (entry: { target: string; concept: string }) =>
                 entry.target === 'codex' && entry.concept === 'hooks',

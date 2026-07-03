@@ -215,6 +215,14 @@ describe('Engine package: public API', () => {
             codexMcp?.evidence.includes('RUN-050'),
             'Codex MCP row should point to the live MCP tool-call smoke',
         );
+        assert.ok(
+            codexMcp?.evidence.includes('RUN-052'),
+            'Codex MCP row should point to the runtime limit documentation evidence',
+        );
+        assert.ok(
+            codexMcp?.notes.some((note) => note.includes('OAuth login')),
+            'Codex MCP row should document OAuth and remote runtime limits',
+        );
         const codexHooks = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'hooks',
         );
@@ -222,6 +230,32 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexHooks?.evidence.includes('RUN-049'),
             'Codex hooks row should point to the live hook consumer smoke',
+        );
+
+        const codexHandoff = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'localCloudHandoff',
+        );
+        assert.strictEqual(codexHandoff?.support, 'runtime-only');
+        assert.ok(
+            codexHandoff?.nativeSurfaces.includes('Codex IDE extension'),
+            'Codex handoff row should name the IDE extension surface',
+        );
+        assert.ok(
+            codexHandoff?.evidence.includes('RUN-052'),
+            'Codex handoff row should point to surface-limit documentation evidence',
+        );
+
+        const codexIssuePr = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'issuePrOperation',
+        );
+        assert.strictEqual(codexIssuePr?.support, 'runtime-only');
+        assert.ok(
+            codexIssuePr?.nativeSurfaces.includes('Codex Slack integration'),
+            'Codex issue/PR row should name channel runtime surfaces',
+        );
+        assert.ok(
+            codexIssuePr?.notes.some((note) => note.includes('configured connectors')),
+            'Codex issue/PR row should document connector authorization requirements',
         );
     });
 
