@@ -70,6 +70,19 @@ metaflow apply                 # skip drifted files
 metaflow apply --force         # overwrite drifted files
 ```
 
+#### `export-copilot-mcp`
+
+Export canonical `.metaflow/mcp/*.json` metadata as a GitHub Copilot workspace MCP handoff.
+
+```bash
+metaflow export-copilot-mcp
+metaflow export-copilot-mcp --json
+metaflow export-copilot-mcp --out .vscode/mcp.json
+metaflow export-copilot-mcp --out .vscode/mcp.json --force
+```
+
+By default, the command writes `.vscode/mcp.json` content to stdout and review warnings to stderr. It does not mutate workspace MCP configuration unless an explicit `--out` path is provided, and existing output files require `--force`.
+
 #### `clean`
 
 Remove all managed files (preserves drifted files).

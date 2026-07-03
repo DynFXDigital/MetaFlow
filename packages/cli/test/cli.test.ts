@@ -41,6 +41,30 @@ function originalSynchronizedPath(relativePath: string): string {
     return relativePath.replace(/\\/g, '/');
 }
 
+function createMcpHandoffWorkspace(): TestWorkspace {
+    return createTestWorkspace({
+        config: standardConfig(),
+        layers: {
+            'company/core': [
+                {
+                    relativePath: '.metaflow/mcp/github.json',
+                    content: JSON.stringify({
+                        schemaVersion: 'metaflow.mcpServer/v1',
+                        id: 'github',
+                        transport: 'stdio',
+                        invocation: {
+                            command: 'github-mcp-server',
+                            args: ['stdio'],
+                        },
+                        requiredSecrets: ['GITHUB_TOKEN'],
+                        policyGrants: ['github-pr-read'],
+                    }),
+                },
+            ],
+        },
+    });
+}
+
 // ── Init command ───────────────────────────────────────────────────
 
 describe('CLI: init', () => {
@@ -1173,6 +1197,93 @@ describe('CLI: preview', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Warnings ('), result.stdout);
         assert.ok(result.stdout.includes('CAPABILITY_CONFLICT'), result.stdout);
+    });
+});
+
+// ── Export command ─────────────────────────────────────────────────
+
+describe('CLI: export-copilot-mcp', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    it('should print GitHub Copilot MCP JSON content to stdout', async () => {
+        ws = createMcpHandoffWorkspace();
+        const result = await runCli(['export-copilot-mcp', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.deepStrictEqual(JSON.parse(result.stdout), {
+            servers: {
+                github: {
+                    type: 'stdio',
+                    command: 'github-mcp-server',
+                    args: ['stdio'],
+                },
+            },
+        });
+        assert.ok(
+            result.stderr.includes(
+                'Warning: github: Requires operator-provided secrets: GITHUB_TOKEN.',
+            ),
+        );
+    });
+
+    it('should print the full handoff object with --json', async () => {
+        ws = createMcpHandoffWorkspace();
+        const result = await runCli(['export-copilot-mcp', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.target, 'github-copilot');
+        assert.strictEqual(data.destination, '.vscode/mcp.json');
+        assert.strictEqual(data.managed, false);
+        assert.strictEqual(data.requiresOperatorReview, true);
+        assert.strictEqual(data.servers[0].id, 'github');
+        assert.strictEqual(data.servers[0].supported, true);
+    });
+
+    it('should write to an explicit output path and protect existing files', async () => {
+        ws = createMcpHandoffWorkspace();
+        const outputPath = path.join(ws.root, 'exports', 'mcp.json');
+
+        const writeResult = await runCli([
+            'export-copilot-mcp',
+            '--out',
+            'exports/mcp.json',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(writeResult.exitCode, 0);
+        assert.ok(writeResult.stdout.includes('Wrote GitHub Copilot MCP handoff: exports'));
+        assert.deepStrictEqual(JSON.parse(fs.readFileSync(outputPath, 'utf-8')), {
+            servers: {
+                github: {
+                    type: 'stdio',
+                    command: 'github-mcp-server',
+                    args: ['stdio'],
+                },
+            },
+        });
+
+        const blockedResult = await runCli([
+            'export-copilot-mcp',
+            '--out',
+            'exports/mcp.json',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blockedResult.exitCode, 1);
+        assert.ok(blockedResult.stderr.includes('Output file already exists'));
+
+        const forceResult = await runCli([
+            'export-copilot-mcp',
+            '--out',
+            'exports/mcp.json',
+            '--force',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(forceResult.exitCode, 0);
     });
 });
 
