@@ -672,6 +672,11 @@ describe('CLI: preview', () => {
         assert.ok(textResult.stdout.includes('codex (codex-v0.1):'));
         assert.ok(
             textResult.stdout.includes(
+                'boundary: [localCloudHandoff] Codex localCloudHandoff is runtime-only; repository metadata projection cannot make it operational without operator or harness evidence. See docs/CODEX-SUPPORT.md.',
+            ),
+        );
+        assert.ok(
+            textResult.stdout.includes(
                 'Codex policy grant github-pr-read (github.pullRequest.read) requires runtime authority review',
             ),
         );
@@ -1001,6 +1006,14 @@ describe('CLI: preview', () => {
             packageManifests: 0,
             tools: 0,
         });
+        assert.ok(
+            codexAdapterReport.supportBoundaries.some(
+                (boundary: { concept: string; documentation: string; message: string }) =>
+                    boundary.concept === 'localCloudHandoff' &&
+                    boundary.documentation === 'docs/CODEX-SUPPORT.md' &&
+                    boundary.message.includes('runtime-only'),
+            ),
+        );
         assert.ok(
             codexAdapterReport.actionItems.some(
                 (item: { concept: string; metadataId: string; message: string }) =>

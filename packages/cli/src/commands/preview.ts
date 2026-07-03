@@ -715,6 +715,11 @@ export function registerPreviewCommand(program: Command): void {
                     console.log(`Adapter Readiness Reports: ${actionableAdapterReports.length}`);
                     for (const report of actionableAdapterReports) {
                         console.log(`  - ${formatAdapterReport(report)}`);
+                        for (const boundary of report.supportBoundaries) {
+                            console.log(
+                                `    boundary: [${boundary.concept}] ${boundary.message} See ${boundary.documentation}.`,
+                            );
+                        }
                         for (const item of report.actionItems) {
                             console.log(`    * [${item.concept}] ${item.message}`);
                         }

@@ -849,6 +849,18 @@ export interface AdapterReadinessAction {
     evidence: string[];
 }
 
+/** Runtime-only target support boundary associated with an adapter report. */
+export interface AdapterReadinessSupportBoundary {
+    /** Canonical concept that remains runtime-only for this target. */
+    concept: TargetCapabilityConcept;
+    /** Human-readable boundary explanation. */
+    message: string;
+    /** Documentation path describing support boundaries for operators. */
+    documentation: string;
+    /** Evidence identifiers supporting the boundary classification. */
+    evidence: string[];
+}
+
 /** Target-specific readiness report for canonical metadata adapter work. */
 export interface AdapterReadinessReport {
     /** Target adapter family. */
@@ -861,6 +873,8 @@ export interface AdapterReadinessReport {
     actionItems: AdapterReadinessAction[];
     /** Authority, runtime, or compatibility warnings that apply to the report. */
     warnings: string[];
+    /** Runtime-only target boundaries that require operator or harness evidence. */
+    supportBoundaries: AdapterReadinessSupportBoundary[];
     /** Evidence identifiers supporting the report. */
     evidence: string[];
 }

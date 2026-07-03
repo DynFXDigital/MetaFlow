@@ -82,6 +82,23 @@ function action(
     };
 }
 
+function supportBoundary(
+    row: TargetCapabilityMatrixEntry,
+    label: string,
+): {
+    concept: TargetCapabilityConcept;
+    message: string;
+    documentation: string;
+    evidence: string[];
+} {
+    return {
+        concept: row.concept,
+        message: `${label} ${row.concept} is runtime-only; repository metadata projection cannot make it operational without operator or harness evidence.`,
+        documentation: row.target === 'codex' ? 'docs/CODEX-SUPPORT.md' : 'README.md',
+        evidence: row.evidence,
+    };
+}
+
 function targetLabel(target: ProjectionTarget): string {
     switch (target) {
         case 'codex':
@@ -161,6 +178,9 @@ export function buildAdapterReadinessReports(
         const toolRow = rowByConcept(rows, 'tools');
         const actionItems: AdapterReadinessAction[] = [];
         const warnings: string[] = [];
+        const supportBoundaries = rows
+            .filter((row) => row.support === 'runtime-only')
+            .map((row) => supportBoundary(row, label));
 
         for (const grant of policyGrants) {
             actionItems.push(
@@ -340,7 +360,11 @@ export function buildAdapterReadinessReports(
             managedMetadata: counts,
             actionItems,
             warnings: uniqueSorted(warnings),
-            evidence: uniqueSorted(actionItems.flatMap((item) => item.evidence)),
+            supportBoundaries,
+            evidence: uniqueSorted([
+                ...actionItems.flatMap((item) => item.evidence),
+                ...supportBoundaries.flatMap((boundary) => boundary.evidence),
+            ]),
         };
     });
 }

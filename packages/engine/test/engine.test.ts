@@ -518,11 +518,39 @@ describe('Engine package: public API', () => {
                     item.message.includes('PACKAGE_TARGET_CONCEPT_PARTIAL'),
             ),
         );
+        assert.ok(
+            codexReport?.supportBoundaries.some(
+                (boundary) =>
+                    boundary.concept === 'localCloudHandoff' &&
+                    boundary.documentation === 'docs/CODEX-SUPPORT.md' &&
+                    boundary.message.includes('runtime-only') &&
+                    boundary.evidence.includes('RUN-052'),
+            ),
+        );
+        assert.ok(
+            codexReport?.supportBoundaries.some(
+                (boundary) =>
+                    boundary.concept === 'issuePrOperation' &&
+                    boundary.documentation === 'docs/CODEX-SUPPORT.md' &&
+                    boundary.evidence.includes('RUN-052'),
+            ),
+        );
+        assert.ok(
+            codexReport?.evidence.includes('RUN-052'),
+            'runtime-only support boundary evidence should contribute to report evidence',
+        );
 
         const copilotReport = reports.find((report) => report.target === 'github-copilot');
         assert.strictEqual(copilotReport?.managedMetadata.hooks, 0);
         assert.strictEqual(copilotReport?.managedMetadata.tools, 0);
         assert.strictEqual(copilotReport?.managedMetadata.policyGrants, 1);
+        assert.ok(
+            copilotReport?.supportBoundaries.some(
+                (boundary) =>
+                    boundary.concept === 'localCloudHandoff' &&
+                    boundary.documentation === 'README.md',
+            ),
+        );
         assert.ok(
             copilotReport?.actionItems.some((item) => item.concept === 'mcpServers'),
             'shared MCP metadata should contribute to GitHub Copilot readiness',
