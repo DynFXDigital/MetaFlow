@@ -181,6 +181,7 @@ describe('Engine package: public API', () => {
             'pluginRuntime',
             'agentRuntime',
             'automationRuntime',
+            'authenticationRuntime',
             'policyGrants',
             'executionSurfaces',
             'memoryScopes',
@@ -277,6 +278,22 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexAutomationRuntime?.evidence.includes('RUN-073'),
             'Codex automation runtime row should point to runtime-boundary evidence',
+        );
+        const codexAuthenticationRuntime = matrix.find(
+            (entry) => entry.target === 'codex' && entry.concept === 'authenticationRuntime',
+        );
+        assert.strictEqual(codexAuthenticationRuntime?.support, 'runtime-only');
+        assert.ok(
+            codexAuthenticationRuntime?.nativeSurfaces.includes('Codex sign-in session'),
+            'Codex authentication runtime row should name sign-in sessions',
+        );
+        assert.ok(
+            codexAuthenticationRuntime?.notes.some((note) => note.includes('cannot sign in users')),
+            'Codex authentication runtime row should document sign-in boundary',
+        );
+        assert.ok(
+            codexAuthenticationRuntime?.evidence.includes('RUN-074'),
+            'Codex authentication runtime row should point to runtime-boundary evidence',
         );
 
         const copilotPrompts = matrix.find(
@@ -681,22 +698,34 @@ describe('Engine package: public API', () => {
             ),
             'GitHub Copilot automation runtime row should document scheduling boundary',
         );
+        const copilotAuthenticationRuntime = matrix.find(
+            (entry) =>
+                entry.target === 'github-copilot' &&
+                entry.concept === 'authenticationRuntime',
+        );
+        assert.strictEqual(copilotAuthenticationRuntime?.support, 'runtime-only');
+        assert.ok(
+            copilotAuthenticationRuntime?.notes.some((note) =>
+                note.includes('grant Copilot entitlements'),
+            ),
+            'GitHub Copilot authentication runtime row should document entitlement boundary',
+        );
     });
 
     it('builds runtime-only target capability support references', () => {
         const supportReference = buildTargetCapabilitySupportReference(getTargetCapabilityMatrix());
 
         assert.deepStrictEqual(supportReference, {
-            runtimeOnlyCount: 28,
+            runtimeOnlyCount: 30,
             targets: [
                 {
                     target: 'codex',
-                    runtimeOnlyCount: 16,
+                    runtimeOnlyCount: 17,
                     documentation: 'docs/CODEX-SUPPORT.md',
                 },
                 {
                     target: 'github-copilot',
-                    runtimeOnlyCount: 12,
+                    runtimeOnlyCount: 13,
                     documentation: 'README.md',
                 },
             ],

@@ -142,6 +142,26 @@ const CODEX_MATRIX: MatrixSeed[] = [
         ['RUN-073'],
     ),
     row(
+        'authenticationRuntime',
+        'runtime-only',
+        [
+            'Codex sign-in session',
+            'ChatGPT workspace identity',
+            'OpenAI API key authentication',
+            'Codex access tokens',
+            'connected GitHub account',
+        ],
+        [
+            'Codex authentication is host runtime state across ChatGPT sign-in, API key sign-in, access-token automation, local credential storage, workspace policy, and connected account state.',
+            'Repository metadata can describe required authentication posture and validation evidence, but it cannot sign in users, create or store API keys or Codex access tokens, connect GitHub accounts, select a ChatGPT workspace identity, satisfy admin policy, or prove authenticated runtime behavior.',
+            'Authentication method determines whether ChatGPT workspace permissions, enterprise retention and residency, API organization settings, Codex Local permissions, access-token permissions, MFA, SSO, RBAC, and GitHub connector authority apply.',
+        ],
+        [
+            'Authenticated sessions and tokens can expose workspace identity, repositories, cloud tasks, connectors, billing posture, audit records, and organization policy obligations.',
+        ],
+        ['RUN-074'],
+    ),
+    row(
         'projectConfig',
         'partial',
         ['.codex/config.toml', '.metaflow/project-config/*.json'],
@@ -548,6 +568,26 @@ const GITHUB_COPILOT_MATRIX: MatrixSeed[] = [
         ['RUN-073'],
     ),
     row(
+        'authenticationRuntime',
+        'runtime-only',
+        [
+            'GitHub account session',
+            'GitHub Copilot license or entitlement',
+            'organization SSO and policy',
+            'GitHub App or token credentials',
+            'Agent HQ identity context',
+        ],
+        [
+            'GitHub Copilot and Agent HQ authentication is host runtime state across GitHub account sessions, Copilot entitlement, organization policy, SSO, GitHub App installations, and token-backed operations.',
+            'Repository metadata can describe required authentication posture and validation evidence, but it cannot sign in users, grant Copilot entitlements, complete SSO, create PATs or GitHub App credentials, connect organization accounts, or prove authenticated hosted-agent behavior.',
+            'Authenticated GitHub and Copilot sessions determine repository, issue, pull request, organization, connector, billing, audit, and hosted-agent authority.',
+        ],
+        [
+            'Authenticated host sessions can access repositories, issues, pull requests, organization resources, connectors, secrets, audit trails, and hosted agent operations under user or organization authority.',
+        ],
+        ['RUN-074'],
+    ),
+    row(
         'projectConfig',
         'unsupported',
         [],
@@ -922,6 +962,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Installing, approving, connecting, or proving Slack, Linear, GitHub, ChatGPT workspace, GitHub Copilot, or Agent HQ app connectors from repository metadata alone.',
         'Spawning subagents, selecting custom agents at runtime, managing active agent threads, satisfying interactive approvals, or proving custom-agent execution from repository metadata alone.',
         'Creating or updating scheduled automations, keeping the Codex app or host runtime available, selecting automation worktrees, managing automation inbox or archive state, or proving scheduled background execution from repository metadata alone.',
+        'Signing in users, creating or storing API keys or access tokens, connecting GitHub or workspace accounts, satisfying organization SSO or admin policy, or proving authenticated runtime behavior from repository metadata alone.',
         'Creating Codex Cloud environments or setting cloud task secrets.',
         'Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted agent environments from repository metadata alone.',
         'Authenticating GitHub CLI, Codex, Slack, Linear, MCP OAuth, or marketplace plugin installs.',
@@ -938,6 +979,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'App connector runtime: installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations.',
         'Agent runtime: selected subagent or custom agent, spawned thread identity, inherited sandbox and approval posture, runtime overrides, tool activity, result, token/cost posture, and known limitations.',
         'Automation runtime: automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token/cost posture, and known limitations.',
+        'Authentication runtime: authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations.',
         'Cloud environment runtime: selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, representative hosted task, result, cost/audit limits, and known limitations.',
         'MCP runtime: startup, remote endpoint reachability, login where applicable, tool listing, tool approval behavior, and one target tool call in the intended environment.',
         'Package marketplace readiness: reviewable candidate output, policy grants, runtime validation records, and operator acceptance.',

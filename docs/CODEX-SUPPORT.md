@@ -37,6 +37,7 @@ the service connection or prove the behavior.
 | Codex Cloud environments | Cloud environments are hosted runtime configuration and execution state. They include repository checkout, setup scripts, dependency/cache state, environment variables, secrets available to setup, sandbox policy, and agent internet-access settings. | Represent execution intent and expected evidence in `.metaflow/execution/*.json` or `.metaflow/evaluation/*.json`; require harness-native environment evidence before treating hosted execution as operational. |
 | Agent runtime | Subagent workflows, custom-agent selection, `/agent` thread state, inherited sandbox and approval posture, live overrides, tool activity, token usage, and consolidated results are Codex runtime behavior. | Project and review custom-agent configuration, but require a Codex app or CLI subagent run before treating a custom agent as operational. |
 | Automations | Scheduled standalone, project, and thread automations are Codex app runtime state. They depend on the local app or host runtime, target project availability, schedule, local versus worktree execution mode, sandbox defaults, approval policy, skills, plugins, and Triage run state. | Record automation intent, policy grants, reusable skills, and evidence expectations; do not create, update, archive, or prove scheduled automation runs from repository metadata. |
+| Authentication runtime | Codex authentication depends on ChatGPT sign-in, API key sign-in, access-token automation, credential storage, workspace policy, MFA, SSO, RBAC, Codex Local permission, access-token permission, and connected GitHub account state. | Record authentication intent, policy grants, and required evidence; do not sign in users, create or store credentials, connect accounts, satisfy organization policy, or prove authenticated runtime behavior from repository metadata. |
 | App connectors | Slack, Linear, GitHub, ChatGPT workspace, and other app connectors depend on workspace or organization approval, connector installation, account linking, connected repositories or channels, posting policy, and data-sharing controls. | Record connector intent, policy grants, and required evidence; do not generate or claim installed connector state. |
 | Codex Cloud tasks | Cloud tasks depend on ChatGPT/Codex environments, GitHub connection, branch or SHA checkout, setup scripts, cloud secrets, and agent internet-access settings. | Represent execution intent in `.metaflow/execution/*.json`; require harness-native runtime evidence for support claims. |
 | Slack delegation | Slack tasks depend on the Codex Slack app, workspace install or admin approval, channel membership, connected GitHub account, and a Codex environment. | Record as runtime-only issue/task operation; do not generate Slack app state. |
@@ -73,6 +74,9 @@ MetaFlow does not claim the following outcomes from generated repository files:
   runtime available, selecting automation worktrees, managing automation inbox
   or archive state, or proving scheduled background execution from repository
   metadata alone.
+- Signing in users, creating or storing API keys or access tokens, connecting
+  GitHub or workspace accounts, satisfying organization SSO or admin policy, or
+  proving authenticated runtime behavior from repository metadata alone.
 - Creating Codex Cloud environments or setting cloud task secrets.
 - Creating, selecting, configuring, or proving Codex Cloud or GitHub-hosted
   agent environments from repository metadata alone.
@@ -108,6 +112,7 @@ Static projection support and runtime support use different evidence.
 | Codex custom-agent activation works | A Codex app or CLI subagent run that explicitly spawns the named agent and shows the generated `.codex/agents/*.toml` instructions in effect. Static TOML projection and `codex debug prompt-input` inspection are not sufficient by themselves. |
 | Agent runtime works | Selected subagent or custom agent, spawned thread identity, inherited sandbox and approval posture, runtime overrides, tool activity, result, token or cost posture, and known limitations. |
 | Automation runtime works | Automation identity, schedule, target project or thread, local versus worktree execution mode, sandbox and approval posture, plugins or skills used, run status, findings or archive result, token or cost posture, and known limitations. |
+| Authentication runtime works | Authenticated user or service identity, workspace or organization context, auth method, token or credential storage posture, connected account state, entitlement or policy posture, representative authenticated operation, audit or billing posture, and known limitations. |
 | Codex Cloud environment works | A Codex-hosted task showing the selected hosted environment, repository checkout, setup script result, dependency/cache state, secret and environment-variable posture, internet-access setting, sandbox policy, task result, cost or audit limits, and known limitations. |
 | App connector works | Installed connector or app identity, workspace or organization approval, linked user account, connected repository or channel, posting and data-sharing policy, representative connector task, result, and known limitations. |
 | Codex Cloud or channel delegation works | A Codex-hosted task or connector run showing the selected environment, repository, task result, and known limitations. |
@@ -128,6 +133,8 @@ For command, MCP, HTTP, and manual tool authority, see
 
 - Codex skills: <https://developers.openai.com/codex/skills>
 - Codex project instructions: <https://developers.openai.com/codex/guides/agents-md>
+- Codex authentication: <https://developers.openai.com/codex/auth>
+- Codex access tokens: <https://developers.openai.com/codex/enterprise/access-tokens>
 - Codex MCP: <https://developers.openai.com/codex/mcp>
 - Codex cloud environments: <https://developers.openai.com/codex/cloud/environments>
 - Codex GitHub review: <https://developers.openai.com/codex/integrations/github>

@@ -873,6 +873,7 @@ export type TargetCapabilityConcept =
     | 'pluginRuntime'
     | 'agentRuntime'
     | 'automationRuntime'
+    | 'authenticationRuntime'
     | 'policyGrants'
     | 'executionSurfaces'
     | 'memoryScopes'
