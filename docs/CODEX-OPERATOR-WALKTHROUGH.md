@@ -152,6 +152,24 @@ Target adapters also compare managed concepts with the target capability matrix.
 Unsupported or runtime-only concepts remain review warnings; repository
 projection does not make those surfaces operational.
 
+## Review Migration Candidates
+
+Use migration suggestions when a metadata repository still contains legacy or
+host-native files and the operator wants a canonical `.metaflow/` migration
+inventory:
+
+```bash
+metaflow migration-suggestions
+metaflow migration-suggestions --json
+```
+
+The command is review-only. It suggests canonical paths for files such as
+`CAPABILITY.md`, `AGENTS.md`, `.github/instructions/**`,
+`.agents/skills/**`, `.github/skills/**`, `.codex/config.toml`, and
+`.codex/hooks.json`, and it flags duplicate native and canonical copies for
+operator review. It does not write canonical files, translate Codex TOML or
+hook JSON automatically, or remove the original host-native files.
+
 ## Export Review Candidates
 
 Some target surfaces intentionally remain operator-reviewed candidates.

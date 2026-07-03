@@ -2363,6 +2363,124 @@ describe('CLI: codex-support-boundaries', () => {
     });
 });
 
+describe('CLI: migration-suggestions', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    it('prints review-only canonical migration suggestions for legacy and host-native metadata', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'CAPABILITY.md',
+                        content: '# Release Operations\nRelease workflows.',
+                    },
+                    {
+                        relativePath: 'instructions/release.instructions.md',
+                        content: '# Release Instructions\nRun release checks.',
+                    },
+                    {
+                        relativePath: '.github/prompts/review.prompt.md',
+                        content: '# Review Prompt\nReview this change.',
+                    },
+                    {
+                        relativePath: '.agents/skills/release-readiness/SKILL.md',
+                        content: '# Release Readiness\nCheck release readiness.',
+                    },
+                    {
+                        relativePath: '.codex/config.toml',
+                        content: 'model = "gpt-5-codex"\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['migration-suggestions', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('MetaFlow Migration Suggestions'));
+        assert.ok(result.stdout.includes('Writes files: no'));
+        assert.ok(result.stdout.includes('CAPABILITY.md -> .metaflow/README.md'));
+        assert.ok(
+            result.stdout.includes(
+                'instructions/release.instructions.md -> .metaflow/instructions/release.md',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes(
+                '.github/prompts/review.prompt.md -> .metaflow/prompts/review.md',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes(
+                '.agents/skills/release-readiness/SKILL.md -> .metaflow/skills/release-readiness/SKILL.md',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes('.codex/config.toml -> .metaflow/project-config/default.json'),
+        );
+    });
+
+    it('prints migration suggestions as JSON and flags duplicate canonical copies', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.agents/skills/release-readiness/SKILL.md',
+                        content: '# Release Readiness\nCheck release readiness.',
+                    },
+                    {
+                        relativePath: '.metaflow/skills/release-readiness/SKILL.md',
+                        content: '# Release Readiness\nCheck release readiness.',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['migration-suggestions', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.generatedBy, 'metaflow migration-suggestions');
+        assert.strictEqual(data.managed, false);
+        assert.strictEqual(data.writesFiles, false);
+        assert.strictEqual(data.summary.suggestions, 1);
+        assert.strictEqual(data.summary.duplicates, 1);
+        assert.strictEqual(data.summary.byCanonicalKind.skill, 1);
+        assert.strictEqual(data.suggestions[0].action, 'review-duplicate');
+        assert.strictEqual(data.suggestions[0].sourceFormat, 'codex');
+        assert.strictEqual(data.suggestions[0].lossiness, 'none');
+        assert.ok(
+            data.warnings[0].includes(
+                '.agents/skills/release-readiness/SKILL.md maps to .metaflow/skills/release-readiness/SKILL.md',
+            ),
+        );
+    });
+
+    it('reports no migration suggestions for canonical-only metadata', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig(),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/skills/release-readiness/SKILL.md',
+                        content: '# Release Readiness\nCheck release readiness.',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['migration-suggestions', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Suggestions: 0'));
+        assert.ok(result.stdout.includes('No legacy or host-native metadata migration suggestions found.'));
+    });
+});
+
 // ── Apply command ──────────────────────────────────────────────────
 
 describe('CLI: apply', () => {

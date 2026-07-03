@@ -6,6 +6,7 @@ import { registerCodexSupportBoundariesCommand } from './commands/codexSupportBo
 import { registerExportCopilotMcpCommand } from './commands/exportCopilotMcp';
 import { registerExportPackageMarketplaceCommand } from './commands/exportPackageMarketplace';
 import { registerInitCommand } from './commands/init';
+import { registerMigrationSuggestionsCommand } from './commands/migrationSuggestions';
 import { registerPreviewCommand } from './commands/preview';
 import { registerProfileCommand } from './commands/profile';
 import { registerPromoteCommand } from './commands/promote';
@@ -35,6 +36,7 @@ export function createProgram(): Command {
     registerExportPackageMarketplaceCommand(program);
     registerTargetSupportCommand(program);
     registerCodexSupportBoundariesCommand(program);
+    registerMigrationSuggestionsCommand(program);
     registerProfileCommand(program);
     registerPromoteCommand(program);
     registerValidateCommand(program);

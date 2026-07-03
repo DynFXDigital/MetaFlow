@@ -128,6 +128,17 @@ metaflow codex-support-boundaries --json --out reports/codex-support-boundaries.
 
 The command prints the same Markdown boundary report exposed by the VS Code `MetaFlow: Open Codex Support Boundaries` command. It separates file-backed and reviewable Codex surfaces from runtime-only and not-technically-projectable surfaces so terminal and CI reviews can use the same operator-facing boundary text.
 
+#### `migration-suggestions`
+
+Suggest canonical `.metaflow/` migration candidates for legacy or host-native metadata in configured layers.
+
+```bash
+metaflow migration-suggestions
+metaflow migration-suggestions --json
+```
+
+The command is review-only. It reports candidate canonical paths, duplicate native/canonical copies, and manual-review notes, but it does not write files, translate policy-sensitive Codex configuration automatically, or remove host-native metadata.
+
 #### `clean`
 
 Remove all managed files (preserves drifted files).
