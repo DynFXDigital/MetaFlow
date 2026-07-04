@@ -18,9 +18,9 @@ equally ready. A `waived` concept is reviewed evidence that the native Codex
 surface is unavailable, unauthorized, or intentionally out of scope for the
 current release posture; it is not a runtime pass. The Markdown report includes
 runtime evidence review queues for missing evidence, clean evidence,
-diagnostic-bearing evidence, error-diagnostic evidence, expired evidence, and waived evidence so
-operators can triage runtime validation posture without scanning every
-checklist row. The report includes structured
+diagnostic-bearing evidence, error-diagnostic evidence, expired evidence,
+stale adapter version evidence, and waived evidence so operators can triage
+runtime validation posture without scanning every checklist row. The report includes structured
 generator metadata: the emitting MetaFlow command or extension surface, the
 generation timestamp, and the Codex target adapter version used to classify
 file-backed and runtime-only support.
@@ -30,8 +30,8 @@ a MetaFlow config is loaded in the extension.
 `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused Markdown
 triage documents from the same report data for all runtime-only concepts,
 release-ready blockers, missing evidence, diagnostic-bearing evidence,
-error-diagnostic evidence, expired evidence, failed evidence, not-run evidence, or waived
-evidence.
+error-diagnostic evidence, expired evidence, stale adapter version evidence,
+failed evidence, not-run evidence, or waived evidence.
 
 The CLI report can also act as a release or CI gate. Use
 `metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics` to
@@ -58,8 +58,8 @@ evidence record IDs so operators can work from the persisted report artifact.
 `metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
-`error-diagnostics`, `expired-evidence`, `failed`, `not-run`, or `waived`
-triage.
+`error-diagnostics`, `expired-evidence`, `stale-adapter-version`, `failed`,
+`not-run`, or `waived` triage.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,
