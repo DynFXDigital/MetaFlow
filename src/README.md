@@ -114,8 +114,8 @@ Codex support is separate from VS Code and GitHub Copilot plugin mode.
 - Codex plugin packaging uses `.codex-plugin/plugin.json`; MetaFlow's capability plugin maintenance commands generate that manifest separately from the GitHub Copilot `plugin.json`.
 - Codex marketplace manifests use `.agents/plugins/marketplace.json`; MetaFlow generates that marketplace separately from `.github/plugin/marketplace.json` so Codex and GitHub Copilot discovery stay host-native.
 - `MetaFlow: Open Target Support Report` opens the target capability matrix as an unsaved JSON document so operators can review supported, partial, runtime-only, unsupported, and generated-substitute behavior before relying on a target projection.
-- `MetaFlow: Open Codex Support Boundaries` opens a generated Markdown report that separates file-backed Codex projections from runtime-only and not-technically-projectable surfaces.
-- `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance for a selected runtime-only Codex concept without creating proof or writing canonical evidence records.
+- `MetaFlow: Open Codex Support Boundaries` opens a generated Markdown report that separates file-backed Codex projections from runtime-only and not-technically-projectable surfaces, including workspace runtime evidence records when a MetaFlow config is loaded.
+- `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance for a selected runtime-only Codex concept, including matching workspace runtime evidence record IDs when a MetaFlow config is loaded, without creating proof or writing canonical evidence records.
 - `MetaFlow: Export GitHub Copilot MCP Handoff` opens a reviewable `.vscode/mcp.json` candidate from canonical `.metaflow/mcp/*.json` metadata, or saves it after explicit confirmation and overwrite review.
 - `MetaFlow: Open Package Marketplace Report` opens a reviewable JSON report from canonical `.metaflow/packages/*.json` marketplace entries, including neutral entries plus Codex and GitHub Copilot host-shaped payload candidates.
 - For the operator review loop around Codex preview, adapter readiness, apply, export, and runtime validation, see [Codex Operator Walkthrough](../docs/CODEX-OPERATOR-WALKTHROUGH.md).
@@ -193,8 +193,8 @@ description: Shared repository-level metadata for this workspace.
 | `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                  | `Ctrl+Shift+R` |
 | `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                |                |
 | `MetaFlow: Open Target Support Report`     | Open the target capability matrix as a reviewable JSON document                                                       |                |
-| `MetaFlow: Open Codex Support Boundaries`  | Open a generated Markdown report for file-backed, runtime-only, and not-technically-projectable Codex surfaces       |                |
-| `MetaFlow: Open Codex Runtime Evidence Guide` | Open focused runtime evidence collection guidance for a selected runtime-only Codex concept                       |                |
+| `MetaFlow: Open Codex Support Boundaries`  | Open a generated Markdown report for file-backed, runtime-only, and not-technically-projectable Codex surfaces, including workspace runtime evidence records when loaded |                |
+| `MetaFlow: Open Codex Runtime Evidence Guide` | Open focused runtime evidence collection guidance for a selected runtime-only Codex concept, including matching workspace evidence IDs when loaded |                |
 | `MetaFlow: Export GitHub Copilot MCP Handoff` | Open or confirmation-save a reviewable `.vscode/mcp.json` candidate from canonical MCP metadata                  |                |
 | `MetaFlow: Open Package Marketplace Report` | Open a reviewable package marketplace report from canonical package metadata, with Codex and GitHub Copilot payload candidates |                |
 | `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                       |                |

@@ -21,6 +21,9 @@ work without scanning every checklist row. The report includes structured
 generator metadata: the emitting MetaFlow command or extension surface, the
 generation timestamp, and the Codex target adapter version used to classify
 file-backed and runtime-only support.
+The VS Code command `MetaFlow: Open Codex Support Boundaries` uses the same
+support-boundary builder and includes workspace runtime evidence records when
+a MetaFlow config is loaded in the extension.
 
 The CLI report can also act as a release or CI gate. Use
 `metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics` to
@@ -50,7 +53,8 @@ suggested scaffold paths, and collection checklist items; it does not create
 runtime proof or write canonical evidence records automatically.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Guide` opens the same
 collection guidance for a selected runtime-only Codex concept as a reviewable
-Markdown document.
+Markdown document and includes matching workspace runtime evidence record IDs
+when a MetaFlow config is loaded in the extension.
 `metaflow codex-support-boundaries --runtime-evidence-template` emits a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records derived from that action plan. The bundle contains suggested paths and

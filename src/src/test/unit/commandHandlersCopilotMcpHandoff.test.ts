@@ -679,6 +679,83 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('## Related Operator Guides'));
     });
 
+    test('builds Codex support boundaries with workspace runtime evidence records', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-runtime-evidence-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-pr-review.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review',
+                target: 'codex',
+                concepts: ['issuePrOperation', 'reviewRuntime'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                command: '@codex review',
+                validatedAt: '2026-07-04T12:00:00Z',
+                evidence: ['RUN-118'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-118',
+                        description: 'Runtime evidence guide extension command run.',
+                    },
+                ],
+                limitations: ['Slack delegation is not covered.'],
+                policyGrants: ['github-pr-read'],
+            }),
+            'utf-8',
+        );
+
+        const {
+            buildCodexRuntimeEvidenceGuideDocumentForWorkspace,
+            buildCodexSupportBoundariesDocumentForWorkspace,
+        } = loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexSupportBoundariesDocumentForWorkspace(
+            config,
+            tmpDir,
+        );
+
+        const issueChecklist = document.runtimeEvidenceChecklist.find(
+            (item) => item.concept === 'issuePrOperation',
+        );
+        assert.ok(issueChecklist, 'Expected issuePrOperation checklist row');
+        assert.strictEqual(issueChecklist.coverageStatus, 'partial');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords.length, 1);
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].id, 'codex-pr-review');
+        assert.strictEqual(issueChecklist.runtimeEvidenceRecords[0].status, 'partial');
+        assert.strictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithEvidence,
+            2,
+        );
+        assert.ok(document.content.includes('codex-pr-review'));
+
+        const guide = buildCodexRuntimeEvidenceGuideDocumentForWorkspace(
+            config,
+            tmpDir,
+            ['issuePrOperation'],
+        );
+        assert.deepStrictEqual(guide.concepts[0].runtimeEvidenceRecordIds, [
+            'codex-pr-review',
+        ]);
+        assert.ok(guide.content.includes('codex-pr-review'));
+    });
+
     test('builds Codex runtime evidence guide document for extension review', () => {
         const { buildCodexRuntimeEvidenceGuideDocumentForExtension } = loadCommandHandlers();
         const document = buildCodexRuntimeEvidenceGuideDocumentForExtension([

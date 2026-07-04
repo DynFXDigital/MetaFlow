@@ -25,6 +25,7 @@ import type {
     McpServerMetadata,
     PackageMarketplaceReport,
     ResolvedPackageMarketplaceManifest,
+    RuntimeEvidenceMetadata,
     SurfacedFileConflict,
     SynchronizationPlanningConflict,
     TargetCapabilityConcept,
@@ -837,11 +838,44 @@ export function buildCodexSupportBoundariesDocumentForExtension(): CodexSupportB
     });
 }
 
+function resolveRuntimeEvidenceRecordsForExtension(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): RuntimeEvidenceMetadata[] {
+    return resolveLayers(config, workspaceRoot).flatMap(
+        (layer) => layer.runtimeEvidenceRecords ?? [],
+    );
+}
+
+export function buildCodexSupportBoundariesDocumentForWorkspace(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): CodexSupportBoundariesDocument {
+    return buildCodexSupportBoundariesDocument({
+        generatedBy: 'metaflow extension codex-support-boundaries',
+        runtimeEvidenceRecords: resolveRuntimeEvidenceRecordsForExtension(config, workspaceRoot),
+    });
+}
+
 export function buildCodexRuntimeEvidenceGuideDocumentForExtension(
     concepts: string[],
 ): CodexRuntimeEvidenceGuideDocument {
     return buildCodexRuntimeEvidenceGuideDocument(
         buildCodexSupportBoundariesDocumentForExtension(),
+        concepts as TargetCapabilityConcept[],
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-guide',
+        },
+    );
+}
+
+export function buildCodexRuntimeEvidenceGuideDocumentForWorkspace(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    concepts: string[],
+): CodexRuntimeEvidenceGuideDocument {
+    return buildCodexRuntimeEvidenceGuideDocument(
+        buildCodexSupportBoundariesDocumentForWorkspace(config, workspaceRoot),
         concepts as TargetCapabilityConcept[],
         {
             generatedBy: 'metaflow extension codex-runtime-evidence-guide',
@@ -6160,7 +6194,14 @@ export function registerCommands(
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.openCodexSupportBoundaries', async () => {
             try {
-                const document = buildCodexSupportBoundariesDocumentForExtension();
+                const ws = getWorkspace();
+                const document =
+                    ws && state.config
+                        ? buildCodexSupportBoundariesDocumentForWorkspace(
+                              state.config,
+                              ws.uri.fsPath,
+                          )
+                        : buildCodexSupportBoundariesDocumentForExtension();
                 showOutputChannel();
                 logInfo('=== Codex Support Boundaries ===');
                 logInfo(
@@ -6190,7 +6231,14 @@ export function registerCommands(
             'metaflow.openCodexRuntimeEvidenceGuide',
             async (arg?: unknown) => {
                 try {
-                    const supportDocument = buildCodexSupportBoundariesDocumentForExtension();
+                    const ws = getWorkspace();
+                    const supportDocument =
+                        ws && state.config
+                            ? buildCodexSupportBoundariesDocumentForWorkspace(
+                                  state.config,
+                                  ws.uri.fsPath,
+                              )
+                            : buildCodexSupportBoundariesDocumentForExtension();
                     let concept =
                         typeof arg === 'string' && arg.trim().length > 0
                             ? arg.trim()
