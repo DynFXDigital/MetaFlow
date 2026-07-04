@@ -1421,6 +1421,7 @@ describe('Engine package: public API', () => {
                 },
             ],
         );
+        assert.deepStrictEqual(document.runtimeEvidenceCompletionActionPlan, []);
         assert.strictEqual(
             document.runtimeEvidenceActionPlan[0].conceptDetails.length,
             document.runtimeOnlyCount,
@@ -1467,6 +1468,12 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes(
                 '- collect-runtime-evidence (blocking): 34 runtime-only concept(s) have no matching evidence; concepts:',
+            ),
+        );
+        assert.ok(document.content.includes('## Runtime Evidence Completion Action Plan'));
+        assert.ok(
+            document.content.includes(
+                'Runtime-complete adds partial evidence to the release-ready gates.',
             ),
         );
         assert.ok(
@@ -1723,6 +1730,41 @@ describe('Engine package: public API', () => {
                 },
             ],
         );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCompletionActionPlan.map((action) => ({
+                kind: action.kind,
+                condition: action.condition,
+                blockingReadiness: action.blockingReadiness,
+                message: action.message,
+            })),
+            [
+                {
+                    kind: 'complete-partial-runtime-evidence',
+                    condition: 'partial',
+                    blockingReadiness: true,
+                    message: '2 runtime-only concept(s) are covered by partial evidence',
+                },
+            ],
+        );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCompletionActionPlan[0].conceptDetails.map((detail) => ({
+                concept: detail.concept,
+                coverageStatus: detail.coverageStatus,
+                runtimeEvidenceRecordIds: detail.runtimeEvidenceRecordIds,
+            })),
+            [
+                {
+                    concept: 'issuePrOperation',
+                    coverageStatus: 'partial',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                },
+                {
+                    concept: 'reviewRuntime',
+                    coverageStatus: 'partial',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                },
+            ],
+        );
         const missingEvidenceAction = document.runtimeEvidenceActionPlan.find(
             (action) => action.condition === 'missing-evidence',
         );
@@ -1779,6 +1821,12 @@ describe('Engine package: public API', () => {
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
         assert.ok(document.content.includes('- Partial evidence: issuePrOperation, reviewRuntime'));
+        assert.ok(document.content.includes('## Runtime Evidence Completion Action Plan'));
+        assert.ok(
+            document.content.includes(
+                '- complete-partial-runtime-evidence (blocking): 2 runtime-only concept(s) are covered by partial evidence; concepts: issuePrOperation, reviewRuntime',
+            ),
+        );
         assert.ok(document.content.includes('- Expired evidence: none'));
         assert.ok(document.content.includes('- Stale adapter version evidence: none'));
         assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));

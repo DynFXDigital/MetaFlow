@@ -27,6 +27,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
+    runtimeEvidenceCompletionActionPlan: CodexRuntimeEvidenceActionPlanItem[];
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
@@ -180,7 +181,10 @@ export interface CodexRuntimeEvidenceTemplateDocument {
     generatedAt: string;
     adapterVersion: string;
     target: 'codex';
-    source: 'runtimeEvidenceActionPlan' | 'runtimeEvidenceChecklist';
+    source:
+        | 'runtimeEvidenceActionPlan'
+        | 'runtimeEvidenceCompletionActionPlan'
+        | 'runtimeEvidenceChecklist';
     filters?: {
         concepts: TargetCapabilityConcept[];
     };
@@ -2022,6 +2026,44 @@ function buildRuntimeEvidenceActionPlan(
         });
 }
 
+function buildRuntimeEvidenceCompletionActionPlan(
+    gateSummary: CodexRuntimeEvidenceGateSummary,
+    runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[],
+): CodexRuntimeEvidenceActionPlanItem[] {
+    const gate = gateSummary.partial;
+    if (!gate.triggered) {
+        return [];
+    }
+    const conceptDetails = gate.concepts.flatMap((concept) => {
+        const item = runtimeEvidenceChecklist.find(
+            (checklistItem) => checklistItem.concept === concept,
+        );
+        if (!item) {
+            return [];
+        }
+        return [
+            {
+                concept: item.concept,
+                coverageStatus: item.coverageStatus,
+                nativeSurfaces: item.nativeSurfaces,
+                runtimeEvidenceExpected: item.runtimeEvidenceExpected,
+                authorityImplications: item.authorityImplications,
+                runtimeEvidenceRecordIds: item.runtimeEvidenceRecords.map((record) => record.id),
+            },
+        ];
+    });
+    return [
+        {
+            kind: actionKindForGateCondition(gate.condition),
+            condition: gate.condition,
+            blockingReadiness: true,
+            concepts: gate.concepts,
+            conceptDetails,
+            message: gate.message,
+        },
+    ];
+}
+
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
@@ -2173,7 +2215,11 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
             );
         }
     } else {
-        for (const action of supportBoundariesDocument.runtimeEvidenceActionPlan) {
+        const templateActions =
+            supportBoundariesDocument.runtimeEvidenceActionPlan.length > 0
+                ? supportBoundariesDocument.runtimeEvidenceActionPlan
+                : supportBoundariesDocument.runtimeEvidenceCompletionActionPlan;
+        for (const action of templateActions) {
             for (const detail of action.conceptDetails) {
                 if (seenConcepts.has(detail.concept)) {
                     continue;
@@ -2198,7 +2244,11 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
         adapterVersion: supportBoundariesDocument.adapterVersion,
         target: 'codex',
         source:
-            requestedConcepts.size > 0 ? 'runtimeEvidenceChecklist' : 'runtimeEvidenceActionPlan',
+            requestedConcepts.size > 0
+                ? 'runtimeEvidenceChecklist'
+                : supportBoundariesDocument.runtimeEvidenceActionPlan.length > 0
+                  ? 'runtimeEvidenceActionPlan'
+                  : 'runtimeEvidenceCompletionActionPlan',
         ...(concepts.length > 0 ? { filters: { concepts } } : {}),
         records,
     };
@@ -2599,6 +2649,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceChecklist,
     );
+    const runtimeEvidenceCompletionActionPlan = buildRuntimeEvidenceCompletionActionPlan(
+        runtimeEvidenceGateSummary,
+        runtimeEvidenceChecklist,
+    );
 
     const relatedGuides = [
         'docs/CODEX-SUPPORT.md',
@@ -2741,6 +2795,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         ...formatRuntimeEvidenceActionPlan(runtimeEvidenceActionPlan),
         '',
+        '## Runtime Evidence Completion Action Plan',
+        '',
+        'Runtime-complete adds partial evidence to the release-ready gates. These actions identify partial runtime-only concepts that need stronger harness-native proof before `--fail-on runtime-complete` can pass.',
+        '',
+        ...formatRuntimeEvidenceActionPlan(runtimeEvidenceCompletionActionPlan),
+        '',
         '## Runtime Evidence Gate Summary',
         '',
         '| Gate | Triggered | Count | Concepts |',
@@ -2795,6 +2855,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceActionPlan,
+        runtimeEvidenceCompletionActionPlan,
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,

@@ -48,9 +48,12 @@ so release jobs and reviewers can inspect one persisted artifact.
 They also include a runtime evidence readiness summary that applies the
 `release-ready` preset, reports whether the current evidence is ready or
 blocked, and lists the blocking gate conditions and messages. The report then
-renders a runtime evidence action plan that turns blocking gate results into
-operator actions such as collecting missing runtime evidence, reviewing
-diagnostics, rerunning failed evidence, or running evidence marked not-run.
+renders a release-ready runtime evidence action plan that turns blocking gate
+results into operator actions such as collecting missing runtime evidence,
+reviewing diagnostics, rerunning failed evidence, or running evidence marked
+not-run. It also renders a runtime-complete completion action plan for partial
+runtime-only concepts that need stronger harness-native proof before
+`--fail-on runtime-complete` can pass.
 Release-ready means the configured gates have no blockers; it can still include
 partial or waived evidence and therefore does not mean every native Codex
 runtime surface has been fully proven.

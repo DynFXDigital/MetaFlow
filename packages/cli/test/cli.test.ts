@@ -3131,6 +3131,7 @@ describe('CLI: codex-support-boundaries', () => {
                 },
             ],
         );
+        assert.deepStrictEqual(data.runtimeEvidenceCompletionActionPlan, []);
         assert.strictEqual(data.runtimeEvidenceActionPlan[0].conceptDetails.length, 34);
         const issuePrActionDetail = data.runtimeEvidenceActionPlan[0].conceptDetails.find(
             (detail: { concept: string }) => detail.concept === 'issuePrOperation',
@@ -4417,6 +4418,52 @@ describe('CLI: codex-support-boundaries', () => {
             concepts: ['issuePrOperation'],
             message: '1 runtime-only concept(s) are covered by partial evidence',
         });
+        assert.deepStrictEqual(
+            partialData.runtimeEvidenceCompletionActionPlan.map(
+                (action: {
+                    kind: string;
+                    condition: string;
+                    blockingReadiness: boolean;
+                    concepts: string[];
+                    message: string;
+                }) => ({
+                    kind: action.kind,
+                    condition: action.condition,
+                    blockingReadiness: action.blockingReadiness,
+                    concepts: action.concepts,
+                    message: action.message,
+                }),
+            ),
+            [
+                {
+                    kind: 'complete-partial-runtime-evidence',
+                    condition: 'partial',
+                    blockingReadiness: true,
+                    concepts: ['issuePrOperation'],
+                    message: '1 runtime-only concept(s) are covered by partial evidence',
+                },
+            ],
+        );
+        assert.deepStrictEqual(
+            partialData.runtimeEvidenceCompletionActionPlan[0].conceptDetails.map(
+                (detail: {
+                    concept: string;
+                    coverageStatus: string;
+                    runtimeEvidenceRecordIds: string[];
+                }) => ({
+                    concept: detail.concept,
+                    coverageStatus: detail.coverageStatus,
+                    runtimeEvidenceRecordIds: detail.runtimeEvidenceRecordIds,
+                }),
+            ),
+            [
+                {
+                    concept: 'issuePrOperation',
+                    coverageStatus: 'partial',
+                    runtimeEvidenceRecordIds: ['codex-pr-review-smoke'],
+                },
+            ],
+        );
         assert.ok(
             partialOnly.stderr.includes(
                 'Codex support boundary gate failed: partial: 1 runtime-only concept(s) are covered by partial evidence',

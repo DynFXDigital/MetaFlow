@@ -88,9 +88,12 @@ for release review.
 Release-ready means the configured gates have no blockers; it can still include
 partial or waived evidence and therefore does not mean every native Codex
 runtime surface has been fully proven.
-The action plan below the readiness summary turns blocking gate results into
-concrete operator work items, including missing evidence collection,
-diagnostic review, failed-evidence reruns, and not-run evidence execution.
+The action plan below the readiness summary turns release-ready blocking gate
+results into concrete operator work items, including missing evidence
+collection, diagnostic review, failed-evidence reruns, and not-run evidence
+execution.
+The completion action plan lists partial runtime-only concepts that need
+stronger harness-native proof before `--fail-on runtime-complete` can pass.
 Action items include concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs.
@@ -106,8 +109,10 @@ the extension has loaded a MetaFlow config, the support-boundary report and
 focused guide include matching workspace runtime evidence records.
 Use `metaflow codex-support-boundaries --runtime-evidence-template` to emit a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
-records from the current action plan. Review the suggested paths and fill-in
-record payloads before adding canonical evidence records to a metadata layer.
+records from the release-ready action plan, or from the completion action plan
+when release-ready has no blockers and partial evidence still prevents
+runtime-complete. Review the suggested paths and fill-in record payloads before
+adding canonical evidence records to a metadata layer.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
 review-only JSON bundle for selected runtime-only Codex concepts as an unsaved
 document and does not create runtime proof or write canonical evidence records.
