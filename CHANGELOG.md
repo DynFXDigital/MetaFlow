@@ -21,6 +21,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex support boundary reports now include a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
 - Codex support boundary reports now include a runtime evidence completeness summary that makes release-ready and runtime-complete status explicit in Markdown and JSON output.
 - Codex support boundary reports now include a runtime evidence completion blocker summary for partial concepts that keep runtime-complete from passing.
+- Codex support boundary reports now include a runtime evidence completion readiness summary that groups partial runtime-complete blockers by current-environment, external-authority, hosted/network, and app/platform proof needs.
 - Codex support boundary reports now include a runtime evidence action plan that turns blocking readiness gates into operator work items.
 - Codex support boundary reports now include a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
 - Codex support boundary action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.

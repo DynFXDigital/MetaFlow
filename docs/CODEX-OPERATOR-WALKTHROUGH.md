@@ -82,6 +82,12 @@ The runtime evidence completion blocker summary is the compact handoff for
 runtime-complete work: it lists partial concepts, matching record IDs,
 limitations, native surfaces, authority implications, and expected proof before
 the full completion action plan.
+
+The runtime evidence completion readiness summary groups the same partial
+concepts into current-environment candidates, external-authority blockers,
+hosted or network blockers, and app or platform blockers. A concept can appear
+in more than one category because runtime-complete proof often requires both a
+local rerun and account, hosted, connector, or app authority.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.

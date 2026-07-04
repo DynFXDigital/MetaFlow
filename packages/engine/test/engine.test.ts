@@ -1798,6 +1798,38 @@ describe('Engine package: public API', () => {
                 },
             ],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletionReadinessSummary, {
+            partialConcepts: 2,
+            currentEnvironmentCandidates: 0,
+            externalAuthorityBoundConcepts: 2,
+            hostedOrNetworkBoundConcepts: 2,
+            appOrPlatformBoundConcepts: 1,
+            currentEnvironmentCandidateConcepts: [],
+            externalAuthorityBoundConceptsList: ['issuePrOperation', 'reviewRuntime'],
+            hostedOrNetworkBoundConceptsList: ['issuePrOperation', 'reviewRuntime'],
+            appOrPlatformBoundConceptsList: ['reviewRuntime'],
+            items: [
+                {
+                    concept: 'issuePrOperation',
+                    categories: [
+                        'requires-external-authority',
+                        'requires-hosted-or-network-surface',
+                    ],
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                    nextEvidenceRequired: issuePrChecklistItem?.runtimeEvidenceExpected,
+                },
+                {
+                    concept: 'reviewRuntime',
+                    categories: [
+                        'requires-external-authority',
+                        'requires-hosted-or-network-surface',
+                        'requires-app-or-platform-surface',
+                    ],
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                    nextEvidenceRequired: reviewChecklistItem?.runtimeEvidenceExpected,
+                },
+            ],
+        });
         assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
             condition: 'diagnostics',
             triggered: true,

@@ -27,6 +27,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeEvidenceWaiverSummary: CodexRuntimeEvidenceWaiverSummary;
     runtimeEvidenceCompletenessSummary: CodexRuntimeEvidenceCompletenessSummary;
     runtimeEvidenceCompletionBlockerSummary: CodexRuntimeEvidenceCompletionBlockerSummary;
+    runtimeEvidenceCompletionReadinessSummary: CodexRuntimeEvidenceCompletionReadinessSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
@@ -118,6 +119,32 @@ export interface CodexRuntimeEvidenceCompletionBlockerSummary {
     nativeSurfaceItems: number;
     concepts: TargetCapabilityConcept[];
     items: CodexRuntimeEvidenceCompletionBlockerSummaryItem[];
+}
+
+export type CodexRuntimeEvidenceCompletionReadinessCategory =
+    | 'current-environment-candidate'
+    | 'requires-external-authority'
+    | 'requires-hosted-or-network-surface'
+    | 'requires-app-or-platform-surface';
+
+export interface CodexRuntimeEvidenceCompletionReadinessItem {
+    concept: TargetCapabilityConcept;
+    categories: CodexRuntimeEvidenceCompletionReadinessCategory[];
+    runtimeEvidenceRecordIds: string[];
+    nextEvidenceRequired: string;
+}
+
+export interface CodexRuntimeEvidenceCompletionReadinessSummary {
+    partialConcepts: number;
+    currentEnvironmentCandidates: number;
+    externalAuthorityBoundConcepts: number;
+    hostedOrNetworkBoundConcepts: number;
+    appOrPlatformBoundConcepts: number;
+    currentEnvironmentCandidateConcepts: TargetCapabilityConcept[];
+    externalAuthorityBoundConceptsList: TargetCapabilityConcept[];
+    hostedOrNetworkBoundConceptsList: TargetCapabilityConcept[];
+    appOrPlatformBoundConceptsList: TargetCapabilityConcept[];
+    items: CodexRuntimeEvidenceCompletionReadinessItem[];
 }
 
 export type CodexRuntimeEvidenceGateCondition =
@@ -2224,6 +2251,147 @@ function buildRuntimeEvidenceCompletionBlockerSummary(
     };
 }
 
+const CURRENT_ENVIRONMENT_COMPLETION_PATTERNS = [
+    /\blocal\b/i,
+    /\binstalled\b/i,
+    /\bcli\b/i,
+    /\bcodex exec\b/i,
+    /\bnon-interactive\b/i,
+    /\bwindows\b/i,
+    /\bpowershell\b/i,
+    /\bworking directory\b/i,
+    /\bcommit-scoped review\b/i,
+    /\bschema generation\b/i,
+];
+
+const EXTERNAL_AUTHORITY_COMPLETION_PATTERNS = [
+    /\bauth/i,
+    /\bcredential/i,
+    /\bsecret/i,
+    /\btoken/i,
+    /\boauth\b/i,
+    /\baccount\b/i,
+    /\bworkspace\b/i,
+    /\borgani[sz]ation\b/i,
+    /\bpolicy\b/i,
+    /\bapproval\b/i,
+    /\bpermission\b/i,
+    /\baws\b/i,
+    /\bbedrock\b/i,
+    /\bbilling\b/i,
+    /\bcost\b/i,
+    /\bconnector\b/i,
+    /\bpost\b/i,
+    /\bcreate\b/i,
+    /\bmutat/i,
+    /\bwrite\b/i,
+];
+
+const HOSTED_OR_NETWORK_COMPLETION_PATTERNS = [
+    /\bcloud\b/i,
+    /\bhosted\b/i,
+    /\bremote\b/i,
+    /\bnetwork\b/i,
+    /\burl\b/i,
+    /\bhttp\b/i,
+    /\bmcp\b/i,
+    /\bgithub\b/i,
+    /\bslack\b/i,
+    /\blinear\b/i,
+    /\bissue\b/i,
+    /\bpull request\b/i,
+    /\bpr\b/i,
+];
+
+const APP_OR_PLATFORM_COMPLETION_PATTERNS = [
+    /\bapp\b/i,
+    /\bide\b/i,
+    /\bvs code\b/i,
+    /\bextension\b/i,
+    /\bbrowser\b/i,
+    /\bchrome\b/i,
+    /\bcomputer use\b/i,
+    /\bgui\b/i,
+    /\bwindow\b/i,
+    /\bscreenshot\b/i,
+    /\bdesktop\b/i,
+    /\bmacos\b/i,
+    /\blinux\b/i,
+    /\bwsl\b/i,
+];
+
+function matchesAnyRuntimeEvidenceCompletionPattern(value: string, patterns: RegExp[]): boolean {
+    return patterns.some((pattern) => pattern.test(value));
+}
+
+function classifyRuntimeEvidenceCompletionReadiness(
+    detail: CodexRuntimeEvidenceActionPlanConceptDetail,
+): CodexRuntimeEvidenceCompletionReadinessCategory[] {
+    const searchableText = [
+        detail.concept,
+        detail.runtimeEvidenceExpected,
+        ...detail.nativeSurfaces,
+        ...detail.authorityImplications,
+        ...detail.runtimeEvidenceLimitations,
+    ].join('\n');
+    const categories: CodexRuntimeEvidenceCompletionReadinessCategory[] = [];
+    if (matchesAnyRuntimeEvidenceCompletionPattern(searchableText, CURRENT_ENVIRONMENT_COMPLETION_PATTERNS)) {
+        categories.push('current-environment-candidate');
+    }
+    if (matchesAnyRuntimeEvidenceCompletionPattern(searchableText, EXTERNAL_AUTHORITY_COMPLETION_PATTERNS)) {
+        categories.push('requires-external-authority');
+    }
+    if (matchesAnyRuntimeEvidenceCompletionPattern(searchableText, HOSTED_OR_NETWORK_COMPLETION_PATTERNS)) {
+        categories.push('requires-hosted-or-network-surface');
+    }
+    if (matchesAnyRuntimeEvidenceCompletionPattern(searchableText, APP_OR_PLATFORM_COMPLETION_PATTERNS)) {
+        categories.push('requires-app-or-platform-surface');
+    }
+    return categories.length > 0 ? categories : ['requires-external-authority'];
+}
+
+function buildRuntimeEvidenceCompletionReadinessSummary(
+    completionActionPlan: CodexRuntimeEvidenceActionPlanItem[],
+): CodexRuntimeEvidenceCompletionReadinessSummary {
+    const items = completionActionPlan.flatMap((action) =>
+        action.conceptDetails.map((detail) => ({
+            concept: detail.concept,
+            categories: classifyRuntimeEvidenceCompletionReadiness(detail),
+            runtimeEvidenceRecordIds: detail.runtimeEvidenceRecordIds,
+            nextEvidenceRequired: detail.runtimeEvidenceExpected,
+        })),
+    );
+    const conceptsForCategory = (category: CodexRuntimeEvidenceCompletionReadinessCategory) =>
+        items
+            .filter((item) => item.categories.includes(category))
+            .map((item) => item.concept)
+            .sort();
+    const currentEnvironmentCandidateConcepts = conceptsForCategory(
+        'current-environment-candidate',
+    );
+    const externalAuthorityBoundConceptsList = conceptsForCategory(
+        'requires-external-authority',
+    );
+    const hostedOrNetworkBoundConceptsList = conceptsForCategory(
+        'requires-hosted-or-network-surface',
+    );
+    const appOrPlatformBoundConceptsList = conceptsForCategory(
+        'requires-app-or-platform-surface',
+    );
+    return {
+        partialConcepts: items.length,
+        currentEnvironmentCandidates: currentEnvironmentCandidateConcepts.length,
+        externalAuthorityBoundConcepts: externalAuthorityBoundConceptsList.length,
+        hostedOrNetworkBoundConcepts: hostedOrNetworkBoundConceptsList.length,
+        appOrPlatformBoundConcepts: appOrPlatformBoundConceptsList.length,
+        currentEnvironmentCandidateConcepts,
+        externalAuthorityBoundConceptsList,
+        hostedOrNetworkBoundConceptsList,
+        appOrPlatformBoundConceptsList,
+        items,
+    };
+}
+
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
@@ -2906,6 +3074,8 @@ export function buildCodexSupportBoundariesDocument(options?: {
     );
     const runtimeEvidenceCompletionBlockerSummary =
         buildRuntimeEvidenceCompletionBlockerSummary(runtimeEvidenceCompletionActionPlan);
+    const runtimeEvidenceCompletionReadinessSummary =
+        buildRuntimeEvidenceCompletionReadinessSummary(runtimeEvidenceCompletionActionPlan);
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
@@ -3011,6 +3181,18 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         'Completion blockers are partial runtime concepts that need stronger harness-native proof before runtime-complete can pass. Each blocker keeps the current record IDs, limitations, native surfaces, authority implications, and expected proof in JSON output.',
         '',
+        '## Runtime Evidence Completion Readiness Summary',
+        '',
+        '| Partial concepts | Current-environment candidates | External-authority bound | Hosted/network bound | App/platform bound |',
+        '| --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCompletionReadinessSummary.partialConcepts} | ${runtimeEvidenceCompletionReadinessSummary.currentEnvironmentCandidates} | ${runtimeEvidenceCompletionReadinessSummary.externalAuthorityBoundConcepts} | ${runtimeEvidenceCompletionReadinessSummary.hostedOrNetworkBoundConcepts} | ${runtimeEvidenceCompletionReadinessSummary.appOrPlatformBoundConcepts} |`,
+        '',
+        `Current-environment candidates: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletionReadinessSummary.currentEnvironmentCandidateConcepts)}.`,
+        `External-authority bound: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletionReadinessSummary.externalAuthorityBoundConceptsList)}.`,
+        `Hosted/network bound: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletionReadinessSummary.hostedOrNetworkBoundConceptsList)}.`,
+        `App/platform bound: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletionReadinessSummary.appOrPlatformBoundConceptsList)}.`,
+        'A concept can appear in more than one readiness category. Current-environment candidates still require reviewed runtime evidence before they can be promoted from partial to passed.',
+        '',
         '## Runtime Evidence Review Queues',
         '',
         `- Missing evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.missing)}`,
@@ -3093,6 +3275,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceWaiverSummary,
         runtimeEvidenceCompletenessSummary,
         runtimeEvidenceCompletionBlockerSummary,
+        runtimeEvidenceCompletionReadinessSummary,
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceActionPlan,

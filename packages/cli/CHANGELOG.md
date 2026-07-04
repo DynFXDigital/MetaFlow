@@ -10,6 +10,7 @@
 - `metaflow codex-support-boundaries` now reports a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
 - `metaflow codex-support-boundaries` now reports runtime evidence completeness so release-ready and runtime-complete status are visible in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now reports runtime evidence completion blockers for partial concepts that keep runtime-complete from passing.
+- `metaflow codex-support-boundaries` now reports runtime evidence completion readiness categories for current-environment candidates, external-authority blockers, hosted/network blockers, and app/platform blockers.
 - `metaflow codex-support-boundaries` now includes a runtime evidence action plan in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now includes a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
 - `metaflow codex-support-boundaries` action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.

@@ -4578,6 +4578,31 @@ describe('CLI: codex-support-boundaries', () => {
                 },
             ],
         );
+        assert.deepStrictEqual(partialData.runtimeEvidenceCompletionReadinessSummary, {
+            partialConcepts: 1,
+            currentEnvironmentCandidates: 0,
+            externalAuthorityBoundConcepts: 1,
+            hostedOrNetworkBoundConcepts: 1,
+            appOrPlatformBoundConcepts: 0,
+            currentEnvironmentCandidateConcepts: [],
+            externalAuthorityBoundConceptsList: ['issuePrOperation'],
+            hostedOrNetworkBoundConceptsList: ['issuePrOperation'],
+            appOrPlatformBoundConceptsList: [],
+            items: [
+                {
+                    concept: 'issuePrOperation',
+                    categories: [
+                        'requires-external-authority',
+                        'requires-hosted-or-network-surface',
+                    ],
+                    runtimeEvidenceRecordIds: ['codex-pr-review-smoke'],
+                    nextEvidenceRequired:
+                        partialData.runtimeEvidenceChecklist.find(
+                            (item: { concept: string }) => item.concept === 'issuePrOperation',
+                        )?.runtimeEvidenceExpected,
+                },
+            ],
+        });
         assert.ok(
             partialOnly.stderr.includes(
                 'Codex support boundary gate failed: partial: 1 runtime-only concept(s) are covered by partial evidence',
