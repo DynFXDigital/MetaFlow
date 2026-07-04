@@ -1817,7 +1817,11 @@ describe('Engine package: public API', () => {
         assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
         assert.ok(queue.content.includes('Queue `expired-evidence`.'));
         assert.ok(queue.content.includes('- Expired evidence: reviewRuntime'));
-        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '- review-expired-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-expired (partial).',
+            ),
+        );
         assert.ok(
             queue.content.includes(
                 '| reviewRuntime | partial | codex-review-expired (partial) |',
@@ -1881,7 +1885,11 @@ describe('Engine package: public API', () => {
         assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
         assert.ok(queue.content.includes('Queue `stale-adapter-version`.'));
         assert.ok(queue.content.includes('- Stale adapter version evidence: reviewRuntime'));
-        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '- review-stale-adapter-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-stale-adapter (partial).',
+            ),
+        );
         assert.ok(
             queue.content.includes(
                 '| reviewRuntime | partial | codex-review-stale-adapter (partial) |',
@@ -1925,7 +1933,11 @@ describe('Engine package: public API', () => {
         assert.deepStrictEqual(queue.concepts, ['modelProviderRuntime']);
         assert.ok(queue.content.includes('Queue `waived`.'));
         assert.ok(queue.content.includes('- Waived evidence: modelProviderRuntime'));
-        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '- review-waived-runtime-evidence (advisory): Review modelProviderRuntime waived evidence records: codex-provider-waiver (waived).',
+            ),
+        );
         assert.ok(
             queue.content.includes(
                 '| modelProviderRuntime | waived | codex-provider-waiver (waived) |',

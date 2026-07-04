@@ -59,7 +59,9 @@ evidence record IDs so operators can work from the persisted report artifact.
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
 `error-diagnostics`, `expired-evidence`, `stale-adapter-version`, `failed`,
-`not-run`, or `waived` triage.
+`not-run`, or `waived` triage. Waived, expired, and stale-adapter queue
+documents include advisory review items for matching concepts but do not add
+release gate blockers.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,

@@ -14,6 +14,7 @@
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts, including concepts that already have partial or waived evidence.
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only triage documents for all runtime-only concepts, release-ready blockers, individual runtime evidence gate queues, waived evidence, expired evidence, or stale adapter evidence queues.
+- Waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for matching concepts without changing release gate behavior.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
 - `metaflow codex-support-boundaries --fail-on` now supports `release-ready` and `all` presets for CI and release checks.
 - `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.

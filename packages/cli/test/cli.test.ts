@@ -3860,7 +3860,11 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Queue `waived`.'));
         assert.ok(result.stdout.includes('- Waived evidence: modelProviderRuntime'));
-        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '- review-waived-runtime-evidence (advisory): Review modelProviderRuntime waived evidence records: codex-provider-waiver (waived).',
+            ),
+        );
         assert.ok(
             result.stdout.includes(
                 '| modelProviderRuntime | waived | codex-provider-waiver (waived) |',
@@ -3917,7 +3921,11 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Queue `expired-evidence`.'));
         assert.ok(result.stdout.includes('- Expired evidence: reviewRuntime'));
-        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '- review-expired-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-expired (partial).',
+            ),
+        );
         assert.ok(
             result.stdout.includes(
                 '| reviewRuntime | partial | codex-review-expired (partial) |',
@@ -3974,7 +3982,11 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Queue `stale-adapter-version`.'));
         assert.ok(result.stdout.includes('- Stale adapter version evidence: reviewRuntime'));
-        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '- review-stale-adapter-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-stale-adapter (partial).',
+            ),
+        );
         assert.ok(
             result.stdout.includes(
                 '| reviewRuntime | partial | codex-review-stale-adapter (partial) |',

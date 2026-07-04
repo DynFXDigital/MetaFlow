@@ -2281,6 +2281,21 @@ function uniqueCodexRuntimeEvidenceReviewQueueConcepts(
     );
 }
 
+function getCodexRuntimeEvidenceReviewQueueAdvisoryKind(
+    queue: CodexRuntimeEvidenceReviewQueueId,
+): string | undefined {
+    if (queue === 'waived') {
+        return 'review-waived-runtime-evidence';
+    }
+    if (queue === 'expired-evidence') {
+        return 'review-expired-runtime-evidence';
+    }
+    if (queue === 'stale-adapter-version') {
+        return 'review-stale-adapter-runtime-evidence';
+    }
+    return undefined;
+}
+
 export function buildCodexRuntimeEvidenceReviewQueueDocument(
     supportBoundariesDocument: CodexSupportBoundariesDocument,
     queue: CodexRuntimeEvidenceReviewQueueId = 'all',
@@ -2377,7 +2392,22 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
     ];
 
     if (actionPlan.length === 0) {
-        lines.push('- No runtime evidence actions match this queue.');
+        const advisoryKind = getCodexRuntimeEvidenceReviewQueueAdvisoryKind(queue);
+        if (advisoryKind && checklist.length > 0) {
+            for (const item of checklist) {
+                const records =
+                    item.runtimeEvidenceRecords.length > 0
+                        ? item.runtimeEvidenceRecords
+                              .map((record) => `${record.id} (${record.status})`)
+                              .join(', ')
+                        : 'none recorded';
+                lines.push(
+                    `- ${advisoryKind} (advisory): Review ${item.concept} ${item.coverageStatus} evidence records: ${records}. Expected proof: ${item.runtimeEvidenceExpected}`,
+                );
+            }
+        } else {
+            lines.push('- No runtime evidence actions match this queue.');
+        }
     } else {
         for (const action of actionPlan) {
             lines.push(
