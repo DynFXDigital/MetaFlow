@@ -285,6 +285,8 @@ export interface CodexRuntimeEvidenceTemplateDocument {
         concepts: TargetCapabilityConcept[];
         queue?: CodexRuntimeEvidenceReviewQueueId;
     };
+    runtimeEvidenceCompletionReadinessSummary?: CodexRuntimeEvidenceCompletionReadinessSummary;
+    completionReadinessItems?: CodexRuntimeEvidenceCompletionReadinessItem[];
     records: CodexRuntimeEvidenceTemplateRecord[];
 }
 
@@ -2616,6 +2618,13 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
 
     const generatedBy =
         options?.generatedBy ?? 'metaflow codex-support-boundaries --runtime-evidence-template';
+    const conceptSet = new Set(concepts);
+    const completionReadinessItems =
+        options?.queue && isCodexCompletionReadinessReviewQueue(options.queue)
+            ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.items.filter(
+                  (item) => conceptSet.has(item.concept),
+              )
+            : undefined;
     return {
         schemaVersion: 'metaflow.runtimeEvidenceTemplate/v1',
         generatedBy,
@@ -2630,6 +2639,13 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
                   : 'runtimeEvidenceCompletionActionPlan',
         ...(concepts.length > 0 || options?.queue
             ? { filters: { concepts, ...(options?.queue ? { queue: options.queue } : {}) } }
+            : {}),
+        ...(completionReadinessItems
+            ? {
+                  runtimeEvidenceCompletionReadinessSummary:
+                      supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary,
+                  completionReadinessItems,
+              }
             : {}),
         records,
     };

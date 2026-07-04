@@ -3655,6 +3655,18 @@ describe('CLI: codex-support-boundaries', () => {
             concepts: ['modelProviderRuntime'],
             queue: 'completion-readiness-current-environment',
         });
+        assert.strictEqual(data.runtimeEvidenceCompletionReadinessSummary.partialConcepts, 2);
+        assert.deepStrictEqual(
+            data.completionReadinessItems.map(
+                (item: { concept: string }) => item.concept,
+            ),
+            ['modelProviderRuntime'],
+        );
+        assert.ok(
+            data.completionReadinessItems[0].categories.includes(
+                'current-environment-candidate',
+            ),
+        );
         assert.strictEqual(data.records.length, 1);
         assert.strictEqual(
             data.records[0].suggestedPath,

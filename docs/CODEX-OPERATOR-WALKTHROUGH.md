@@ -170,7 +170,10 @@ the output to one or more comma-separated runtime-only Codex concepts while a
 single evidence run is being prepared. Use
 `--runtime-evidence-template-queue <queue>` with either template mode to scope
 the output to the concepts in a runtime evidence review queue, including
-completion-readiness category queues.
+completion-readiness category queues. Completion-readiness queue-scoped
+template JSON preserves the completion-readiness summary and queue-filtered
+completion-readiness items so operators and automation can route scaffold work
+without running a second review-queue command.
 When concepts are supplied, MetaFlow scaffolds from the runtime evidence
 checklist rather than only the current action plan, so operators can refresh or
 replace records for concepts that already have partial or waived evidence.

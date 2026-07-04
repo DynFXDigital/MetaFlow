@@ -121,9 +121,11 @@ evidence checklist instead, so operators can refresh or replace records for
 concepts that already have partial or waived evidence. Use
 `--runtime-evidence-template-queue <queue>` with template output to derive the
 same scaffold records from the concepts in a runtime evidence review queue,
-including completion-readiness proof categories. The bundle contains
-suggested paths and fill-in record payloads; it does not create runtime proof
-or write canonical evidence records automatically.
+including completion-readiness proof categories. Completion-readiness
+queue-scoped template JSON also includes the completion-readiness summary and
+queue-filtered completion-readiness items for scaffold routing automation. The
+bundle contains suggested paths and fill-in record payloads; it does not create
+runtime proof or write canonical evidence records automatically.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
 review-only JSON bundle for selected runtime-only Codex concepts as an unsaved
 document and does not create runtime proof or write canonical evidence records.
@@ -136,8 +138,9 @@ with overwrite protection unless `--force` is supplied. Add
 `--runtime-evidence-concept <concepts>` to limit the template bundle or
 scaffold-file output to one or more comma-separated runtime-only Codex
 concepts, or add `--runtime-evidence-template-queue <queue>` to scope template
-output by runtime evidence review queue. Queue and concept filters are separate
-template scopes and are not combined.
+output by runtime evidence review queue. Completion-readiness queue filters
+preserve the readiness summary and filtered item list in the template JSON.
+Queue and concept filters are separate template scopes and are not combined.
 concepts, such as `issuePrOperation` or `reviewRuntime`, while collecting
 evidence incrementally.
 

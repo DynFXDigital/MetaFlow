@@ -37,6 +37,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now accepts `completion-readiness-current-environment`, `completion-readiness-external-authority`, `completion-readiness-hosted-network`, and `completion-readiness-app-platform` for category-specific runtime-complete evidence review.
 - Codex completion-readiness runtime evidence review queue JSON now includes the completion-readiness summary and queue-filtered completion-readiness items for automation.
 - `metaflow codex-support-boundaries --runtime-evidence-template-queue` now scopes runtime evidence template bundles and scaffold-file output to the concepts in a runtime evidence review queue.
+- Completion-readiness queue-scoped runtime evidence template JSON now includes the completion-readiness summary and queue-filtered completion-readiness items so scaffold automation can route proof work without a separate review-queue command.
 - Codex partial, waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for the matching concepts without adding release gate blockers.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
 - Codex projection-boundary review documents now include the technical impossibility summary for repository-projection-impossible surfaces.

@@ -2518,6 +2518,14 @@ describe('Engine package: public API', () => {
             concepts: ['modelProviderRuntime'],
             queue: 'completion-readiness-current-environment',
         });
+        assert.strictEqual(
+            template.runtimeEvidenceCompletionReadinessSummary?.partialConcepts,
+            0,
+        );
+        assert.deepStrictEqual(
+            template.completionReadinessItems?.map((item) => item.concept),
+            [],
+        );
         assert.strictEqual(template.records.length, 1);
         assert.strictEqual(
             template.records[0].suggestedPath,
