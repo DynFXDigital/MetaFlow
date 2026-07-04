@@ -21,6 +21,7 @@
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only triage documents for all runtime-only concepts, release-ready blockers, individual runtime evidence gate queues, partial evidence, waived evidence, expired evidence, or stale adapter evidence queues.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue runtime-complete` now emits the focused runtime-complete completion queue.
+- `metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness` now emits the focused completion-readiness queue for partial runtime-complete blockers grouped by proof-readiness category.
 - Partial, waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for matching concepts without changing release gate behavior.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
 - `metaflow codex-support-boundaries --fail-on` now supports a `partial` gate condition plus `release-ready`, `runtime-complete`, and `all` presets for CI and release checks.

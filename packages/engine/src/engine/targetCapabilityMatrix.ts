@@ -281,6 +281,7 @@ export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'all',
     'release-ready',
     'runtime-complete',
+    'completion-readiness',
     'missing-evidence',
     'diagnostics',
     'error-diagnostics',
@@ -2710,6 +2711,8 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                           .checkedConditions,
                       'partial',
                   ]
+              : queue === 'completion-readiness'
+                ? []
               : queue === 'partial'
                 ? []
               : queue === 'waived'
@@ -2738,6 +2741,10 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                           ),
                       ...supportBoundariesDocument.runtimeEvidenceGateSummary.partial.concepts,
                   ]
+              : queue === 'completion-readiness'
+                ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.items.map(
+                      (item) => item.concept,
+                  )
               : queue === 'partial'
                 ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.partial
               : queue === 'waived'
@@ -2766,11 +2773,12 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 queue !== 'waived' &&
                 queue !== 'expired-evidence' &&
                 queue !== 'stale-adapter-version' &&
+                queue !== 'completion-readiness' &&
                 queue !== 'runtime-complete' &&
                 item.condition === queue),
     );
     const queueActionPlan =
-        queue === 'runtime-complete'
+        queue === 'runtime-complete' || queue === 'completion-readiness'
             ? [
                   ...actionPlan,
                   ...supportBoundariesDocument.runtimeEvidenceCompletionActionPlan,
@@ -2816,6 +2824,13 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `- Expired evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords)}`,
         `- Stale adapter version evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords)}`,
         `- Waived evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
+        '',
+        '## Completion Readiness Queues',
+        '',
+        `- Current-environment candidates: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.currentEnvironmentCandidateConcepts)}`,
+        `- External-authority bound: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.externalAuthorityBoundConceptsList)}`,
+        `- Hosted/network bound: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.hostedOrNetworkBoundConceptsList)}`,
+        `- App/platform bound: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.appOrPlatformBoundConceptsList)}`,
         '',
         '## Action Items',
         '',

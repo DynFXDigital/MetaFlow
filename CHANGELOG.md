@@ -32,10 +32,12 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only runtime evidence triage documents for terminal and CI review, including partial, waived, expired, and stale adapter evidence queues.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue runtime-complete` now emits the focused runtime-complete completion queue.
+- `metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness` now emits the focused completion-readiness queue for partial runtime-complete blockers grouped by proof-readiness category.
 - Codex partial, waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for the matching concepts without adding release gate blockers.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused runtime evidence triage documents from the VS Code command palette for all runtime-only concepts, release-ready blockers, individual gate queues, partial evidence, waived evidence, expired evidence, and stale adapter evidence queues.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` also exposes the runtime-complete queue for partial runtime evidence completion work.
+- `MetaFlow: Open Codex Runtime Evidence Review Queue` also exposes the completion-readiness queue for proof-readiness category triage.
 - `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance from the VS Code command palette for selected runtime-only Codex concepts.
 - `MetaFlow: Open Codex Runtime Evidence Template` opens the same review-only runtime evidence template bundle from the VS Code command palette without writing canonical evidence records.
 - `MetaFlow: Save Codex Runtime Evidence Template Records` writes selected review-only runtime evidence scaffold files after explicit confirmation and preserves overwrite protection.

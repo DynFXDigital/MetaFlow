@@ -1040,6 +1040,62 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('| reviewRuntime | partial | codex-review-partial (partial) |'));
     });
 
+    test('builds Codex completion-readiness runtime evidence review queue document with workspace evidence', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-completion-readiness-queue-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-review-partial.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-review-partial',
+                target: 'codex',
+                concepts: ['reviewRuntime'],
+                harness: 'Codex review',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex review completed without proving hosted review posting.',
+                status: 'partial',
+                evidence: ['RUN-160'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-160',
+                        description: 'Partial runtime evidence proof.',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace } =
+            loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace(
+            config,
+            tmpDir,
+            'completion-readiness',
+        );
+
+        assert.strictEqual(document.queue, 'completion-readiness');
+        assert.deepStrictEqual(document.concepts, ['reviewRuntime']);
+        assert.ok(document.content.includes('## Completion Readiness Queues'));
+        assert.ok(document.content.includes('- External-authority bound: reviewRuntime'));
+        assert.ok(document.content.includes('- Hosted/network bound: reviewRuntime'));
+        assert.ok(document.content.includes('- App/platform bound: reviewRuntime'));
+        assert.ok(document.content.includes('| reviewRuntime | partial | codex-review-partial (partial) |'));
+    });
+
     test('builds Codex stale-adapter runtime evidence review queue document with workspace evidence', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-stale-adapter-queue-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
