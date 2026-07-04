@@ -4401,6 +4401,8 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('# Codex Repository Projection Boundary Review'));
         assert.ok(result.stdout.includes('| File-backed rows | Runtime-only rows | Unsupported rows |'));
+        assert.ok(result.stdout.includes('## Technical Impossibility Summary'));
+        assert.ok(result.stdout.includes('| Repository-projection impossible items | External-authority items | Hosted/network items | App/platform items | Runtime-native proof items |'));
         assert.ok(result.stdout.includes('| instructions | supported |'));
         assert.ok(result.stdout.includes('| issuePrOperation |'));
         assert.ok(result.stdout.includes('Creating or approving ChatGPT workspace connectors.'));
@@ -4425,6 +4427,14 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.summary.fileBackedRows > 0);
         assert.strictEqual(data.summary.runtimeOnlyRows, 34);
         assert.ok(data.summary.notAchievableItems > 0);
+        assert.strictEqual(
+            data.technicalImpossibilitySummary.repositoryProjectionImpossibleItems,
+            data.notAchievableByRepositoryProjection.length,
+        );
+        assert.ok(data.technicalImpossibilitySummary.externalAuthorityItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.hostedOrNetworkItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.appOrPlatformItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.runtimeNativeProofItems > 0);
         assert.ok(
             data.fileBackedSurfaces.some(
                 (item: { concept: string; support: string }) =>

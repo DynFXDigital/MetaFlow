@@ -288,6 +288,7 @@ export type {
     CodexProjectionBoundaryRuntimeItem,
     CodexProjectionBoundarySummary,
     CodexSupportBoundariesDocument,
+    CodexTechnicalImpossibilitySummary,
 } from './targetCapabilityMatrix';
 export {
     buildMigrationSuggestionsReport,

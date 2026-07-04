@@ -1583,6 +1583,10 @@ describe('Engine package: public API', () => {
             document.summary.notAchievableItems,
             supportBoundaries.notAchievableByRepositoryProjection.length,
         );
+        assert.deepStrictEqual(
+            document.technicalImpossibilitySummary,
+            supportBoundaries.technicalImpossibilitySummary,
+        );
         assert.strictEqual(
             document.summary.runtimeEvidenceExpectedItems,
             supportBoundaries.runtimeEvidenceExpected.length,
@@ -1606,6 +1610,12 @@ describe('Engine package: public API', () => {
         );
         assert.ok(document.content.includes('# Codex Repository Projection Boundary Review'));
         assert.ok(document.content.includes('## Summary'));
+        assert.ok(document.content.includes('## Technical Impossibility Summary'));
+        assert.ok(
+            document.content.includes(
+                '| Repository-projection impossible items | External-authority items | Hosted/network items | App/platform items | Runtime-native proof items |',
+            ),
+        );
         assert.ok(document.content.includes('## File-Backed and Reviewable Surfaces'));
         assert.ok(document.content.includes('## Runtime-Only Surfaces'));
         assert.ok(document.content.includes('## Unsupported Surfaces'));

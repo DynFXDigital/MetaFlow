@@ -55,7 +55,8 @@ Use `--projection-boundary-review` when an architecture review, package review,
 or release checkpoint needs a focused retained artifact for what repository
 projection can produce and what remains runtime-owned. The document includes
 file-backed surfaces, runtime-only surfaces, unsupported rows, not-achievable
-repository-projection items, expected runtime evidence, and related guides.
+repository-projection items, technical-impossibility category counts, expected
+runtime evidence, and related guides.
 In VS Code, `MetaFlow: Open Codex Projection Boundary Review` opens the same
 focused projection-boundary document from the command palette.
 

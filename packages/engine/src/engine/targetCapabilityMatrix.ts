@@ -356,6 +356,7 @@ export interface CodexProjectionBoundaryDocument {
     fileBackedSurfaces: CodexProjectionBoundaryFileBackedItem[];
     runtimeOnlySurfaces: CodexProjectionBoundaryRuntimeItem[];
     unsupportedSurfaces: CodexProjectionBoundaryFileBackedItem[];
+    technicalImpossibilitySummary: CodexTechnicalImpossibilitySummary;
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
     relatedGuides: string[];
@@ -3459,6 +3460,12 @@ export function buildCodexProjectionBoundaryDocument(
         '| --- | --- | --- | --- | --- | --- |',
         `| ${summary.fileBackedRows} | ${summary.runtimeOnlyRows} | ${summary.unsupportedRows} | ${summary.notAchievableItems} | ${summary.authoritySensitiveRuntimeOnlyRows} | ${summary.runtimeEvidenceExpectedItems} |`,
         '',
+        '## Technical Impossibility Summary',
+        '',
+        '| Repository-projection impossible items | External-authority items | Hosted/network items | App/platform items | Runtime-native proof items |',
+        '| --- | --- | --- | --- | --- |',
+        `| ${supportBoundariesDocument.technicalImpossibilitySummary.repositoryProjectionImpossibleItems} | ${supportBoundariesDocument.technicalImpossibilitySummary.externalAuthorityItems} | ${supportBoundariesDocument.technicalImpossibilitySummary.hostedOrNetworkItems} | ${supportBoundariesDocument.technicalImpossibilitySummary.appOrPlatformItems} | ${supportBoundariesDocument.technicalImpossibilitySummary.runtimeNativeProofItems} |`,
+        '',
         '## File-Backed and Reviewable Surfaces',
         '',
         '| Concept | Support | Native surfaces | Notes | Evidence |',
@@ -3521,6 +3528,7 @@ export function buildCodexProjectionBoundaryDocument(
         fileBackedSurfaces,
         runtimeOnlySurfaces,
         unsupportedSurfaces,
+        technicalImpossibilitySummary: supportBoundariesDocument.technicalImpossibilitySummary,
         notAchievableByRepositoryProjection:
             supportBoundariesDocument.notAchievableByRepositoryProjection,
         runtimeEvidenceExpected: supportBoundariesDocument.runtimeEvidenceExpected,

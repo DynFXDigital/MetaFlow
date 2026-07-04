@@ -37,6 +37,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now accepts `completion-readiness-current-environment`, `completion-readiness-external-authority`, `completion-readiness-hosted-network`, and `completion-readiness-app-platform` for category-specific runtime-complete evidence review.
 - Codex partial, waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for the matching concepts without adding release gate blockers.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
+- Codex projection-boundary review documents now include the technical impossibility summary for repository-projection-impossible surfaces.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused runtime evidence triage documents from the VS Code command palette for all runtime-only concepts, release-ready blockers, individual gate queues, partial evidence, waived evidence, expired evidence, and stale adapter evidence queues.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` also exposes the runtime-complete queue for partial runtime evidence completion work.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` also exposes the completion-readiness queue for proof-readiness category triage.

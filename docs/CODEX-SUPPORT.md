@@ -96,8 +96,8 @@ advisory review items for matching concepts but do not add release gate blockers
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,
-not-achievable, and expected-evidence boundaries without collecting runtime
-proof.
+not-achievable, technical-impossibility category counts, and expected-evidence
+boundaries without collecting runtime proof.
 In VS Code, `MetaFlow: Open Codex Projection Boundary Review` opens the same
 projection-boundary review as a focused Markdown document.
 `metaflow codex-support-boundaries --runtime-evidence-guide
