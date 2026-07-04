@@ -4213,6 +4213,111 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
     });
 
+    it('prints structured JSON for completion-readiness runtime evidence review queues', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-partial',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex review',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review completed without proving hosted review posting.',
+                            status: 'partial',
+                            evidence: ['RUN-160'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-160',
+                                    description: 'Partial runtime evidence proof.',
+                                },
+                            ],
+                            limitations: [
+                                'Does not prove review posting or PR feedback handling.',
+                            ],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-provider-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-provider-partial',
+                            target: 'codex',
+                            concepts: ['modelProviderRuntime'],
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex model provider selection was inspected locally.',
+                            status: 'partial',
+                            evidence: ['RUN-161'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-161',
+                                    description: 'Partial model provider runtime evidence proof.',
+                                },
+                            ],
+                            limitations: ['Does not prove cloud or billing provider behavior.'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const allResult = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'completion-readiness',
+            '--json',
+            '-w',
+            ws.root,
+        ]);
+        const currentEnvironmentResult = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'completion-readiness-current-environment',
+            '--json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(allResult.exitCode, 0);
+        assert.strictEqual(currentEnvironmentResult.exitCode, 0);
+        const allData = JSON.parse(allResult.stdout);
+        const currentEnvironmentData = JSON.parse(currentEnvironmentResult.stdout);
+        assert.strictEqual(allData.queue, 'completion-readiness');
+        assert.strictEqual(allData.runtimeEvidenceCompletionReadinessSummary.partialConcepts, 2);
+        assert.deepStrictEqual(
+            allData.completionReadinessItems.map(
+                (item: { concept: string }) => item.concept,
+            ),
+            ['modelProviderRuntime', 'reviewRuntime'],
+        );
+        assert.strictEqual(
+            currentEnvironmentData.queue,
+            'completion-readiness-current-environment',
+        );
+        assert.strictEqual(
+            currentEnvironmentData.runtimeEvidenceCompletionReadinessSummary.partialConcepts,
+            2,
+        );
+        assert.deepStrictEqual(
+            currentEnvironmentData.completionReadinessItems.map(
+                (item: { concept: string }) => item.concept,
+            ),
+            ['modelProviderRuntime'],
+        );
+        assert.ok(currentEnvironmentData.content.includes('| modelProviderRuntime | partial |'));
+        assert.ok(!currentEnvironmentData.content.includes('| reviewRuntime | partial |'));
+    });
+
     it('prints an expired runtime evidence review queue with workspace evidence', async () => {
         ws = createTestWorkspace({
             config: {

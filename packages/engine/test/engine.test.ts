@@ -2150,6 +2150,25 @@ describe('Engine package: public API', () => {
 
         assert.strictEqual(queue.queue, 'completion-readiness');
         assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
+        assert.strictEqual(
+            queue.runtimeEvidenceCompletionReadinessSummary?.partialConcepts,
+            1,
+        );
+        assert.strictEqual(queue.completionReadinessItems?.length, 1);
+        assert.strictEqual(queue.completionReadinessItems?.[0].concept, 'reviewRuntime');
+        assert.deepStrictEqual(queue.completionReadinessItems?.[0].categories, [
+            'requires-external-authority',
+            'requires-hosted-or-network-surface',
+            'requires-app-or-platform-surface',
+        ]);
+        assert.deepStrictEqual(queue.completionReadinessItems?.[0].runtimeEvidenceRecordIds, [
+            'codex-review-partial',
+        ]);
+        assert.ok(
+            queue.completionReadinessItems?.[0].nextEvidenceRequired.includes(
+                'Runtime evidence for reviewRuntime must name the active Codex surface',
+            ),
+        );
         assert.ok(queue.content.includes('Queue `completion-readiness`.'));
         assert.ok(queue.content.includes('## Completion Readiness Queues'));
         assert.ok(queue.content.includes('- Current-environment candidates: none'));
@@ -2230,6 +2249,13 @@ describe('Engine package: public API', () => {
             'completion-readiness-current-environment',
         );
         assert.deepStrictEqual(currentEnvironmentQueue.concepts, ['modelProviderRuntime']);
+        assert.strictEqual(
+            currentEnvironmentQueue.runtimeEvidenceCompletionReadinessSummary?.partialConcepts,
+            2,
+        );
+        assert.deepStrictEqual(currentEnvironmentQueue.completionReadinessItems?.map((item) => item.concept), [
+            'modelProviderRuntime',
+        ]);
         assert.ok(
             currentEnvironmentQueue.content.includes(
                 'Queue `completion-readiness-current-environment`.',
@@ -2259,6 +2285,14 @@ describe('Engine package: public API', () => {
             'modelProviderRuntime',
             'reviewRuntime',
         ]);
+        assert.strictEqual(
+            externalAuthorityQueue.runtimeEvidenceCompletionReadinessSummary?.partialConcepts,
+            2,
+        );
+        assert.deepStrictEqual(
+            externalAuthorityQueue.completionReadinessItems?.map((item) => item.concept),
+            ['modelProviderRuntime', 'reviewRuntime'],
+        );
         assert.ok(
             externalAuthorityQueue.content.includes(
                 'Queue `completion-readiness-external-authority`.',

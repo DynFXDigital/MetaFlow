@@ -91,7 +91,9 @@ completion actions. The `completion-readiness` queue focuses partial
 runtime-complete blockers and their current-environment, external-authority,
 hosted/network, and app/platform proof categories. The category-specific
 completion-readiness queues filter those completion actions to the selected
-category. Partial, waived, expired, and stale-adapter queue documents include
+category. JSON completion-readiness queue documents include the
+completion-readiness summary and the queue-filtered completion-readiness items
+for automation. Partial, waived, expired, and stale-adapter queue documents include
 advisory review items for matching concepts but do not add release gate blockers.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is

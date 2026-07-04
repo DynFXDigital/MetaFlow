@@ -112,7 +112,9 @@ a focused queue artifact for `all`, `release-ready`, `runtime-complete`,
 `failed`, `not-run`, or `waived` instead of the full support-boundary report.
 The completion-readiness queue focuses partial runtime-complete blockers through
 the readiness categories, and the category-specific completion-readiness queues
-filter the action items and checklist to one proof category.
+filter the action items and checklist to one proof category. JSON
+completion-readiness queue documents include the completion-readiness summary
+and the queue-filtered completion-readiness items for automation.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
 evidence, not-run evidence, partial evidence, runtime-complete completion work,

@@ -318,6 +318,8 @@ export interface CodexRuntimeEvidenceReviewQueueDocument {
     target: 'codex';
     queue: CodexRuntimeEvidenceReviewQueueId;
     concepts: TargetCapabilityConcept[];
+    runtimeEvidenceCompletionReadinessSummary?: CodexRuntimeEvidenceCompletionReadinessSummary;
+    completionReadinessItems?: CodexRuntimeEvidenceCompletionReadinessItem[];
     content: string;
 }
 
@@ -2846,6 +2848,11 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 : supportBoundariesDocument.runtimeEvidenceGateSummary[queue]?.concepts ?? [];
     const concepts = uniqueCodexRuntimeEvidenceReviewQueueConcepts(queueConcepts);
     const conceptSet = new Set(concepts);
+    const completionReadinessItems = isCodexCompletionReadinessReviewQueue(queue)
+        ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.items.filter(
+              (item) => conceptSet.has(item.concept),
+          )
+        : undefined;
     const actionPlan = supportBoundariesDocument.runtimeEvidenceActionPlan.filter(
         (item) =>
             queue === 'all' ||
@@ -2989,7 +2996,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
     }
     lines.push('');
 
-    return {
+    const document: CodexRuntimeEvidenceReviewQueueDocument = {
         schemaVersion: 'metaflow.runtimeEvidenceReviewQueue/v1',
         generatedBy,
         generatedAt: supportBoundariesDocument.generatedAt,
@@ -2999,6 +3006,12 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         concepts,
         content: `${lines.join('\n')}\n`,
     };
+    if (isCodexCompletionReadinessReviewQueue(queue)) {
+        document.runtimeEvidenceCompletionReadinessSummary =
+            supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary;
+        document.completionReadinessItems = completionReadinessItems;
+    }
+    return document;
 }
 
 export function buildCodexSupportBoundariesDocument(options?: {
