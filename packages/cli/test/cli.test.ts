@@ -3439,6 +3439,78 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
     });
 
+    it('prints review-only runtime evidence templates from the action plan', async () => {
+        const result = await runCli(['codex-support-boundaries', '--runtime-evidence-template']);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.schemaVersion, 'metaflow.runtimeEvidenceTemplate/v1');
+        assert.strictEqual(
+            data.generatedBy,
+            'metaflow codex-support-boundaries --runtime-evidence-template',
+        );
+        assert.strictEqual(data.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(data.target, 'codex');
+        assert.strictEqual(data.source, 'runtimeEvidenceActionPlan');
+        assert.strictEqual(data.records.length, 34);
+        const issuePrTemplate = data.records.find(
+            (record: { content: { concepts: string[] } }) =>
+                record.content.concepts.includes('issuePrOperation'),
+        );
+        assert.strictEqual(
+            issuePrTemplate.suggestedPath,
+            '.metaflow/runtime-evidence/codex-issue-pr-operation.json',
+        );
+        assert.deepStrictEqual(issuePrTemplate.content, {
+            schemaVersion: 'metaflow.runtimeEvidence/v1',
+            id: 'codex-issue-pr-operation',
+            target: 'codex',
+            concepts: ['issuePrOperation'],
+            harness:
+                'TODO: Codex runtime surface (Codex review, Codex GitHub integration, Codex Slack integration, Codex Linear integration, Codex Cloud task workflows)',
+            adapterVersion: 'codex-v0.1',
+            scenario:
+                'Runtime evidence for issuePrOperation must name the active Codex surface, runtime configuration, authority posture, representative operation, result artifacts, and known limitations. Review native surfaces: Codex review, Codex GitHub integration, Codex Slack integration, Codex Linear integration, Codex Cloud task workflows.',
+            status: 'not-run',
+            command:
+                'TODO: command, hosted workflow, UI procedure, or review procedure used for validation',
+            evidence: [],
+            evidenceArtifacts: [
+                {
+                    kind: 'report',
+                    ref: 'doc/ftr/TODO-codex-issue-pr-operation.md',
+                    description: 'TODO: replace with the reviewed runtime evidence artifact.',
+                },
+            ],
+            limitations: [
+                'TODO: document uncovered Codex surfaces, connectors, permissions, environments, or platform limits.',
+            ],
+            policyGrants: [],
+            description:
+                'Runtime evidence template for issuePrOperation. Coverage status at template generation: missing. Authority implications: Repository write, review, and CI authority require explicit policy.',
+        });
+    });
+
+    it('writes review-only runtime evidence templates to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-template.json');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--out',
+            'reports/codex-runtime-evidence-template.json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Wrote Codex runtime evidence template: reports'));
+        const data = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+        assert.strictEqual(data.schemaVersion, 'metaflow.runtimeEvidenceTemplate/v1');
+        assert.strictEqual(data.records.length, 34);
+    });
+
     it('rejects unknown Codex support boundary gate checks', async () => {
         const result = await runCli(['codex-support-boundaries', '--fail-on', 'complete']);
 

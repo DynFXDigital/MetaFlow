@@ -20,6 +20,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex support boundary reports now include a runtime evidence readiness summary for the release-ready gate preset.
 - Codex support boundary reports now include a runtime evidence action plan that turns blocking readiness gates into operator work items.
 - Codex support boundary action plans now include per-concept runtime evidence details for native surfaces, expected proof, authority implications, and matching evidence records.
+- `metaflow codex-support-boundaries --runtime-evidence-template` now emits review-only JSON templates for suggested Codex runtime evidence records derived from the current action plan.
 - Codex support boundary gate checks now include `release-ready` and `all` CLI presets while preserving explicit gate conditions.
 - Codex command-rules target support reports for `.codex/rules/*.rules` policy files.
 - Codex command-rules files now report the `commandRules` projection concept and honor target-adapter materialization gates separately from `.codex/config.toml`.

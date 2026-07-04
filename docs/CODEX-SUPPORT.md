@@ -41,6 +41,11 @@ diagnostics, rerunning failed evidence, or running evidence marked not-run.
 Each action item includes concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs so operators can work from the persisted report artifact.
+`metaflow codex-support-boundaries --runtime-evidence-template` emits a
+review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
+records derived from that action plan. The bundle contains suggested paths and
+fill-in record payloads; it does not create runtime proof or write canonical
+evidence records automatically.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

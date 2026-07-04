@@ -126,11 +126,14 @@ metaflow codex-support-boundaries --fail-on release-ready
 metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --json --out reports/codex-support-boundaries.json
+metaflow codex-support-boundaries --runtime-evidence-template --out reports/codex-runtime-evidence-template.json
 ```
 
 The command prints the same Markdown boundary report exposed by the VS Code `MetaFlow: Open Codex Support Boundaries` command. It separates file-backed and reviewable Codex surfaces from runtime-only and not-technically-projectable surfaces so terminal and CI reviews can use the same operator-facing boundary text. The report includes a runtime evidence readiness summary for the `release-ready` preset and a runtime evidence action plan before the detailed gate rows. Action plan items include concept-level native surfaces, expected proof, authority implications, and matching runtime evidence record IDs.
 
 Use `--fail-on` for release and CI checks while still emitting the report. Supported checks are `missing-evidence`, `diagnostics`, `error-diagnostics`, `failed`, and `not-run`; presets are `release-ready` and `all`. The `release-ready` preset expands to missing evidence, diagnostics, failed evidence, and not-run evidence.
+
+Use `--runtime-evidence-template` to emit a review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json` records derived from the current action plan. The template contains suggested paths and fill-in record payloads; it does not create runtime proof or write canonical evidence records automatically.
 
 #### `migration-suggestions`
 
