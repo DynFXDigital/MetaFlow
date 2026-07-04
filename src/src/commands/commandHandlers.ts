@@ -17,6 +17,7 @@ import type {
     ConfigError,
     CodexRuntimeEvidenceGuideDocument,
     CodexRuntimeEvidenceTemplateDocument,
+    CodexRuntimeEvidenceTemplateRecord,
     CodexSupportBoundariesDocument,
     GovernanceComplianceResult,
     GovernanceContract,
@@ -786,6 +787,62 @@ export async function writeGitHubCopilotMcpHandoff(
     await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
     await fsp.writeFile(destinationPath, handoff.content, 'utf-8');
     return { destinationPath, written: true, existed };
+}
+
+export function resolveCodexRuntimeEvidenceTemplateDestination(
+    workspaceRoot: string,
+    record: CodexRuntimeEvidenceTemplateRecord,
+): string {
+    const destinationPath = path.resolve(workspaceRoot, record.suggestedPath);
+    if (!isPathWithin(destinationPath, workspaceRoot)) {
+        throw new Error(`${record.suggestedPath} is outside the workspace.`);
+    }
+    return destinationPath;
+}
+
+export interface CodexRuntimeEvidenceTemplateWriteResult {
+    destinationPath: string;
+    suggestedPath: string;
+    written: boolean;
+    existed: boolean;
+}
+
+export async function writeCodexRuntimeEvidenceTemplateRecords(
+    workspaceRoot: string,
+    template: CodexRuntimeEvidenceTemplateDocument,
+    options?: { overwrite?: boolean },
+): Promise<CodexRuntimeEvidenceTemplateWriteResult[]> {
+    const plannedWrites = template.records.map((record) => ({
+        record,
+        destinationPath: resolveCodexRuntimeEvidenceTemplateDestination(workspaceRoot, record),
+    }));
+    const existing = plannedWrites.filter((write) => fs.existsSync(write.destinationPath));
+    if (existing.length > 0 && !options?.overwrite) {
+        return plannedWrites.map((write) => ({
+            destinationPath: write.destinationPath,
+            suggestedPath: write.record.suggestedPath,
+            written: false,
+            existed: fs.existsSync(write.destinationPath),
+        }));
+    }
+
+    const results: CodexRuntimeEvidenceTemplateWriteResult[] = [];
+    for (const write of plannedWrites) {
+        const existed = fs.existsSync(write.destinationPath);
+        await fsp.mkdir(path.dirname(write.destinationPath), { recursive: true });
+        await fsp.writeFile(
+            write.destinationPath,
+            `${JSON.stringify(write.record.content, null, 2)}\n`,
+            'utf-8',
+        );
+        results.push({
+            destinationPath: write.destinationPath,
+            suggestedPath: write.record.suggestedPath,
+            written: true,
+            existed,
+        });
+    }
+    return results;
 }
 
 export function buildTargetSupportReportForExtension(): {
@@ -6395,6 +6452,138 @@ export function registerCommands(
                     await vscode.window.showTextDocument(doc, { preview: false });
                     vscode.window.showInformationMessage(
                         'MetaFlow: Opened Codex runtime evidence template. Review before adding canonical evidence records.',
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    showOutputChannel();
+                    logError(message);
+                    vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                }
+            },
+        ),
+    );
+
+    // ── metaflow.saveCodexRuntimeEvidenceTemplateRecords ──────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.saveCodexRuntimeEvidenceTemplateRecords',
+            async (arg?: unknown) => {
+                const ws = getWorkspace();
+                if (!ws) {
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: No workspace folder is open. Open a workspace before saving runtime evidence templates.',
+                    );
+                    return;
+                }
+
+                try {
+                    const supportDocument =
+                        state.config
+                            ? buildCodexSupportBoundariesDocumentForWorkspace(
+                                  state.config,
+                                  ws.uri.fsPath,
+                              )
+                            : buildCodexSupportBoundariesDocumentForExtension();
+                    const validConcepts = [
+                        ...new Set(
+                            supportDocument.runtimeEvidenceActionPlan.flatMap((item) =>
+                                item.conceptDetails.map((detail) => detail.concept),
+                            ),
+                        ),
+                    ];
+                    if (validConcepts.length === 0) {
+                        vscode.window.showInformationMessage(
+                            'MetaFlow: No blocking Codex runtime evidence template records are suggested.',
+                        );
+                        return;
+                    }
+                    let concepts =
+                        Array.isArray(arg) && arg.every((item) => typeof item === 'string')
+                            ? arg.map((item) => item.trim()).filter(Boolean)
+                            : typeof arg === 'string' && arg.trim().length > 0
+                              ? arg
+                                    .split(',')
+                                    .map((item) => item.trim())
+                                    .filter(Boolean)
+                              : [];
+                    if (concepts.length === 0) {
+                        concepts =
+                            (await vscode.window.showQuickPick(validConcepts, {
+                                canPickMany: true,
+                                title: 'Save Codex Runtime Evidence Template Records',
+                                placeHolder: 'Select runtime-only Codex concepts to scaffold',
+                            })) ?? [];
+                    }
+                    concepts = [...new Set(concepts)];
+                    if (concepts.length === 0) {
+                        return;
+                    }
+                    const invalidConcepts = concepts.filter(
+                        (concept) => !validConcepts.includes(concept as TargetCapabilityConcept),
+                    );
+                    if (invalidConcepts.length > 0) {
+                        vscode.window.showErrorMessage(
+                            `MetaFlow: Unknown Codex runtime evidence concept(s): ${invalidConcepts.join(', ')}.`,
+                        );
+                        return;
+                    }
+                    const template = buildCodexRuntimeEvidenceTemplateDocument(
+                        supportDocument,
+                        concepts as TargetCapabilityConcept[],
+                        {
+                            generatedBy:
+                                'metaflow extension codex-runtime-evidence-template-save',
+                        },
+                    );
+                    if (template.records.length === 0) {
+                        vscode.window.showInformationMessage(
+                            'MetaFlow: No Codex runtime evidence template records matched the selected concepts.',
+                        );
+                        return;
+                    }
+
+                    const existingRecords = template.records.filter((record) =>
+                        fs.existsSync(
+                            resolveCodexRuntimeEvidenceTemplateDestination(
+                                ws.uri.fsPath,
+                                record,
+                            ),
+                        ),
+                    );
+                    const confirmLabel = existingRecords.length > 0 ? 'Overwrite' : 'Save';
+                    const confirmation = await vscode.window.showWarningMessage(
+                        existingRecords.length > 0
+                            ? `MetaFlow: ${existingRecords.length} Codex runtime evidence template record(s) already exist. Overwrite selected scaffold files?`
+                            : `MetaFlow: Save ${template.records.length} Codex runtime evidence template record(s) under .metaflow/runtime-evidence?`,
+                        { modal: true },
+                        confirmLabel,
+                        'Cancel',
+                    );
+                    if (confirmation !== confirmLabel) {
+                        return;
+                    }
+
+                    const writeResults = await writeCodexRuntimeEvidenceTemplateRecords(
+                        ws.uri.fsPath,
+                        template,
+                        { overwrite: existingRecords.length > 0 },
+                    );
+                    const written = writeResults.filter((result) => result.written);
+                    showOutputChannel();
+                    logInfo('=== Codex Runtime Evidence Template Records ===');
+                    for (const result of written) {
+                        logInfo(`Saved ${path.relative(ws.uri.fsPath, result.destinationPath)}`);
+                    }
+
+                    const firstWritten = written[0];
+                    if (firstWritten) {
+                        const doc = await vscode.workspace.openTextDocument(
+                            firstWritten.destinationPath,
+                        );
+                        await vscode.window.showTextDocument(doc, { preview: false });
+                    }
+                    vscode.window.showInformationMessage(
+                        `MetaFlow: Saved ${written.length} Codex runtime evidence template record(s). Review and fill them before claiming runtime support.`,
                     );
                 } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : String(err);

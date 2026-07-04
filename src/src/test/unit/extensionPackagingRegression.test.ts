@@ -313,6 +313,22 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(command?.icon, '$(json)');
     });
 
+    test('Codex runtime evidence template save command is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.saveCodexRuntimeEvidenceTemplateRecords',
+        );
+        assert.ok(
+            command,
+            'Expected metaflow.saveCodexRuntimeEvidenceTemplateRecords command contribution',
+        );
+        assert.strictEqual(command?.icon, '$(save)');
+    });
+
     test('package marketplace report is contributed for the command palette', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

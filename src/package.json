@@ -64,6 +64,11 @@
         "icon": "$(json)"
       },
       {
+        "command": "metaflow.saveCodexRuntimeEvidenceTemplateRecords",
+        "title": "MetaFlow: Save Codex Runtime Evidence Template Records",
+        "icon": "$(save)"
+      },
+      {
         "command": "metaflow.exportCopilotMcpHandoff",
         "title": "MetaFlow: Export GitHub Copilot MCP Handoff",
         "icon": "$(json)"

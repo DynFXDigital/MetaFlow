@@ -808,6 +808,90 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.records[0].content.harness.includes('Codex GitHub integration'));
     });
 
+    test('writes Codex runtime evidence template records with overwrite protection', async () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-codex-evidence-'));
+        const {
+            buildCodexRuntimeEvidenceTemplateDocumentForExtension,
+            resolveCodexRuntimeEvidenceTemplateDestination,
+            writeCodexRuntimeEvidenceTemplateRecords,
+        } = loadCommandHandlers();
+        const document = buildCodexRuntimeEvidenceTemplateDocumentForExtension([
+            'issuePrOperation',
+        ]);
+        const destinationPath = resolveCodexRuntimeEvidenceTemplateDestination(
+            tmpDir,
+            document.records[0],
+        );
+
+        const firstWrite = await writeCodexRuntimeEvidenceTemplateRecords(tmpDir, document);
+        assert.deepStrictEqual(
+            {
+                written: firstWrite[0].written,
+                existed: firstWrite[0].existed,
+                suggestedPath: firstWrite[0].suggestedPath,
+            },
+            {
+                written: true,
+                existed: false,
+                suggestedPath: '.metaflow/runtime-evidence/codex-issue-pr-operation.json',
+            },
+        );
+        assert.deepStrictEqual(JSON.parse(fs.readFileSync(destinationPath, 'utf-8')), {
+            ...document.records[0].content,
+        });
+
+        fs.writeFileSync(destinationPath, 'local edits\n', 'utf-8');
+        const blockedWrite = await writeCodexRuntimeEvidenceTemplateRecords(tmpDir, document);
+        assert.deepStrictEqual(
+            { written: blockedWrite[0].written, existed: blockedWrite[0].existed },
+            { written: false, existed: true },
+        );
+        assert.strictEqual(fs.readFileSync(destinationPath, 'utf-8'), 'local edits\n');
+
+        const overwriteWrite = await writeCodexRuntimeEvidenceTemplateRecords(
+            tmpDir,
+            document,
+            { overwrite: true },
+        );
+        assert.deepStrictEqual(
+            { written: overwriteWrite[0].written, existed: overwriteWrite[0].existed },
+            { written: true, existed: true },
+        );
+        assert.deepStrictEqual(
+            JSON.parse(fs.readFileSync(destinationPath, 'utf-8')),
+            document.records[0].content,
+        );
+    });
+
+    test('rejects Codex runtime evidence template destinations outside the workspace', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-codex-evidence-boundary-'));
+        const { resolveCodexRuntimeEvidenceTemplateDestination } = loadCommandHandlers();
+        const record = {
+            suggestedPath: '../codex-evidence.json',
+            content: {
+                schemaVersion: 'metaflow.runtimeEvidence/v1' as const,
+                id: 'codex-evidence',
+                target: 'codex' as const,
+                concepts: ['issuePrOperation' as const],
+                harness: 'Codex',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Boundary check.',
+                status: 'not-run' as const,
+                command: 'none',
+                evidence: [],
+                evidenceArtifacts: [],
+                limitations: [],
+                policyGrants: [],
+                description: 'Boundary check.',
+            },
+        };
+
+        assert.throws(
+            () => resolveCodexRuntimeEvidenceTemplateDestination(tmpDir!, record),
+            /outside the workspace/,
+        );
+    });
+
     test('builds package marketplace report content for extension review', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-package-marketplace-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');

@@ -63,6 +63,9 @@ evidence records automatically.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
 review-only JSON bundle for selected runtime-only Codex concepts as an unsaved
 document and does not create runtime proof or write canonical evidence records.
+`MetaFlow: Save Codex Runtime Evidence Template Records` writes selected
+scaffold files under `.metaflow/runtime-evidence` after explicit confirmation
+and requires overwrite confirmation for existing records.
 `--runtime-evidence-template-dir <path>` writes those fill-in records as
 individual JSON scaffold files under an explicit workspace-relative directory,
 with overwrite protection unless `--force` is supplied. Add
