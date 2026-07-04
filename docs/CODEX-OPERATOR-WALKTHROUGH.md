@@ -97,8 +97,8 @@ execution.
 The completion action plan lists partial runtime-only concepts that need
 stronger harness-native proof before `--fail-on runtime-complete` can pass.
 Action items include concept-level details for coverage status, native
-surfaces, expected runtime proof, authority implications, and matching runtime
-evidence record IDs.
+surfaces, expected runtime proof, authority implications, matching runtime
+evidence record IDs, and current runtime evidence limitations.
 Use `metaflow codex-support-boundaries --runtime-evidence-guide
 --runtime-evidence-concept <concepts>` before filling evidence records when a
 single runtime-only concept needs focused collection instructions. The guide

@@ -20,6 +20,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex support boundary reports now include a runtime evidence readiness summary for the release-ready gate preset.
 - Codex support boundary reports now include a runtime evidence action plan that turns blocking readiness gates into operator work items.
 - Codex support boundary reports now include a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
+- Codex support boundary action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.
 - Codex support boundary action plans now include per-concept runtime evidence details for native surfaces, expected proof, authority implications, and matching evidence records.
 - `metaflow codex-support-boundaries --runtime-evidence-template` now emits review-only JSON templates for suggested Codex runtime evidence records derived from the current action plan.
 - `metaflow codex-support-boundaries --runtime-evidence-template-dir` now writes review-only runtime evidence scaffold records as individual JSON files with overwrite protection.

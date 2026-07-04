@@ -1431,6 +1431,7 @@ describe('Engine package: public API', () => {
         );
         assert.strictEqual(issuePrActionDetail?.coverageStatus, 'missing');
         assert.deepStrictEqual(issuePrActionDetail?.runtimeEvidenceRecordIds, []);
+        assert.deepStrictEqual(issuePrActionDetail?.runtimeEvidenceLimitations, []);
         assert.ok(issuePrActionDetail?.nativeSurfaces.includes('Codex review'));
         assert.ok(
             issuePrActionDetail?.runtimeEvidenceExpected.includes('representative operation'),
@@ -1925,6 +1926,11 @@ describe('Engine package: public API', () => {
         assert.ok(
             queue.content.includes(
                 '  - reviewRuntime: partial; native surfaces:',
+            ),
+        );
+        assert.ok(
+            queue.content.includes(
+                '    - limitation: Does not prove review posting or PR feedback handling.',
             ),
         );
     });

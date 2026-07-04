@@ -105,6 +105,7 @@ export interface CodexRuntimeEvidenceActionPlanConceptDetail {
     runtimeEvidenceExpected: string;
     authorityImplications: string[];
     runtimeEvidenceRecordIds: string[];
+    runtimeEvidenceLimitations: string[];
 }
 
 export interface CodexRuntimeEvidenceActionPlanItem {
@@ -2013,6 +2014,9 @@ function buildRuntimeEvidenceActionPlan(
                         runtimeEvidenceRecordIds: item.runtimeEvidenceRecords.map(
                             (record) => record.id,
                         ),
+                        runtimeEvidenceLimitations: item.runtimeEvidenceRecords.flatMap(
+                            (record) => record.limitations,
+                        ),
                     },
                 ];
             });
@@ -2050,6 +2054,9 @@ function buildRuntimeEvidenceCompletionActionPlan(
                 runtimeEvidenceExpected: item.runtimeEvidenceExpected,
                 authorityImplications: item.authorityImplications,
                 runtimeEvidenceRecordIds: item.runtimeEvidenceRecords.map((record) => record.id),
+                runtimeEvidenceLimitations: item.runtimeEvidenceRecords.flatMap(
+                    (record) => record.limitations,
+                ),
             },
         ];
     });
@@ -2080,7 +2087,11 @@ function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionP
                 detail.authorityImplications.length > 0
                     ? detail.authorityImplications.join(' ')
                     : 'none';
-            return `  - ${detail.concept}: coverage=${detail.coverageStatus}; records=${records}; surfaces=${detail.nativeSurfaces.join(', ')}; authority=${authority}; expected=${detail.runtimeEvidenceExpected}`;
+            const limitations =
+                detail.runtimeEvidenceLimitations.length > 0
+                    ? detail.runtimeEvidenceLimitations.join(' ')
+                    : 'none recorded';
+            return `  - ${detail.concept}: coverage=${detail.coverageStatus}; records=${records}; surfaces=${detail.nativeSurfaces.join(', ')}; authority=${authority}; limitations=${limitations}; expected=${detail.runtimeEvidenceExpected}`;
         }),
     ]);
 }
@@ -2517,6 +2528,13 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 lines.push(
                     `  - ${detail.concept}: ${detail.coverageStatus}; native surfaces: ${detail.nativeSurfaces.join(', ')}; expected proof: ${detail.runtimeEvidenceExpected}; evidence records: ${detail.runtimeEvidenceRecordIds.length > 0 ? detail.runtimeEvidenceRecordIds.join(', ') : 'none'}`,
                 );
+                if (detail.runtimeEvidenceLimitations.length > 0) {
+                    lines.push(
+                        ...detail.runtimeEvidenceLimitations.map(
+                            (limitation) => `    - limitation: ${limitation}`,
+                        ),
+                    );
+                }
             }
         }
     }

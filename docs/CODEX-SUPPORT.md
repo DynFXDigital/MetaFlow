@@ -58,8 +58,9 @@ Release-ready means the configured gates have no blockers; it can still include
 partial or waived evidence and therefore does not mean every native Codex
 runtime surface has been fully proven.
 Each action item includes concept-level details for coverage status, native
-surfaces, expected runtime proof, authority implications, and matching runtime
-evidence record IDs so operators can work from the persisted report artifact.
+surfaces, expected runtime proof, authority implications, matching runtime
+evidence record IDs, and current runtime evidence limitations so operators can
+work from the persisted report artifact.
 `metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `runtime-complete`, `missing-evidence`,

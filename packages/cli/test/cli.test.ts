@@ -3137,6 +3137,7 @@ describe('CLI: codex-support-boundaries', () => {
             (detail: { concept: string }) => detail.concept === 'issuePrOperation',
         );
         assert.deepStrictEqual(issuePrActionDetail.runtimeEvidenceRecordIds, []);
+        assert.deepStrictEqual(issuePrActionDetail.runtimeEvidenceLimitations, []);
         assert.strictEqual(issuePrActionDetail.coverageStatus, 'missing');
         assert.ok(issuePrActionDetail.nativeSurfaces.includes('Codex review'));
         assert.ok(
@@ -3992,6 +3993,11 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(
             result.stdout.includes(
                 '- complete-partial-runtime-evidence (partial, blocking): 1 runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes(
+                '    - limitation: Does not prove review posting or PR feedback handling.',
             ),
         );
         assert.ok(

@@ -9,6 +9,7 @@
 - `metaflow codex-support-boundaries` now reports release-ready runtime evidence readiness in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now includes a runtime evidence action plan in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now includes a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
+- `metaflow codex-support-boundaries` action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.
 - `metaflow codex-support-boundaries` action plans now include per-concept runtime evidence details for native surfaces, expected proof, authority implications, and matching evidence records.
 - `metaflow codex-support-boundaries --runtime-evidence-template` now emits review-only JSON templates for suggested Codex runtime evidence records derived from the current action plan.
 - `metaflow codex-support-boundaries --runtime-evidence-template-dir` now writes review-only runtime evidence scaffold records as individual JSON files with overwrite protection.
