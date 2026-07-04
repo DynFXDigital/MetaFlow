@@ -116,6 +116,9 @@ existing files are protected unless `--force` is supplied.
 Use `--runtime-evidence-concept <concepts>` with either template mode to scope
 the output to one or more comma-separated runtime-only Codex concepts while a
 single evidence run is being prepared.
+When concepts are supplied, MetaFlow scaffolds from the runtime evidence
+checklist rather than only the current action plan, so operators can refresh or
+replace records for concepts that already have partial or waived evidence.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

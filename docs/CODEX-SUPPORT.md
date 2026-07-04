@@ -79,9 +79,12 @@ Markdown document and includes matching workspace runtime evidence record IDs
 when a MetaFlow config is loaded in the extension.
 `metaflow codex-support-boundaries --runtime-evidence-template` emits a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
-records derived from that action plan. The bundle contains suggested paths and
-fill-in record payloads; it does not create runtime proof or write canonical
-evidence records automatically.
+records derived from that action plan. When `--runtime-evidence-concept` is
+supplied, the template bundle is derived from the concept-keyed runtime
+evidence checklist instead, so operators can refresh or replace records for
+concepts that already have partial or waived evidence. The bundle contains
+suggested paths and fill-in record payloads; it does not create runtime proof
+or write canonical evidence records automatically.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
 review-only JSON bundle for selected runtime-only Codex concepts as an unsaved
 document and does not create runtime proof or write canonical evidence records.

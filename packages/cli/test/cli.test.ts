@@ -3524,6 +3524,63 @@ describe('CLI: codex-support-boundaries', () => {
         );
     });
 
+    it('prints selected runtime evidence templates from checklist coverage', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-provider-waiver.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-provider-waiver',
+                            target: 'codex',
+                            concepts: ['modelProviderRuntime'],
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Provider routing is unavailable in this environment.',
+                            status: 'waived',
+                            evidence: ['RUN-163'],
+                            limitations: [
+                                'No model-provider routing authority in the validation environment.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-concept',
+            'modelProviderRuntime',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.source, 'runtimeEvidenceChecklist');
+        assert.deepStrictEqual(data.filters, {
+            concepts: ['modelProviderRuntime'],
+        });
+        assert.strictEqual(data.records.length, 1);
+        assert.strictEqual(
+            data.records[0].suggestedPath,
+            '.metaflow/runtime-evidence/codex-model-provider-runtime.json',
+        );
+        assert.deepStrictEqual(data.records[0].content.concepts, ['modelProviderRuntime']);
+        assert.ok(
+            data.records[0].content.description.includes(
+                'Coverage status at template generation: waived.',
+            ),
+        );
+    });
+
     it('writes review-only runtime evidence templates to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-template.json');

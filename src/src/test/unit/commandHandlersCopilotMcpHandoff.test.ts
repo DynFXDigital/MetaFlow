@@ -926,7 +926,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.strictEqual(document.schemaVersion, 'metaflow.runtimeEvidenceTemplate/v1');
         assert.strictEqual(document.adapterVersion, 'codex-v0.1');
         assert.strictEqual(document.target, 'codex');
-        assert.strictEqual(document.source, 'runtimeEvidenceActionPlan');
+        assert.strictEqual(document.source, 'runtimeEvidenceChecklist');
         assert.deepStrictEqual(document.filters?.concepts, ['issuePrOperation']);
         assert.strictEqual(document.records.length, 1);
         assert.strictEqual(

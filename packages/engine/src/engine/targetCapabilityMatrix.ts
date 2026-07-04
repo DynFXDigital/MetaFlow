@@ -172,7 +172,7 @@ export interface CodexRuntimeEvidenceTemplateDocument {
     generatedAt: string;
     adapterVersion: string;
     target: 'codex';
-    source: 'runtimeEvidenceActionPlan';
+    source: 'runtimeEvidenceActionPlan' | 'runtimeEvidenceChecklist';
     filters?: {
         concepts: TargetCapabilityConcept[];
     };
@@ -2119,51 +2119,36 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
     const seenConcepts = new Set<TargetCapabilityConcept>();
     const requestedConcepts = new Set(concepts);
     const records: CodexRuntimeEvidenceTemplateRecord[] = [];
-    for (const action of supportBoundariesDocument.runtimeEvidenceActionPlan) {
-        for (const detail of action.conceptDetails) {
-            if (requestedConcepts.size > 0 && !requestedConcepts.has(detail.concept)) {
+    if (requestedConcepts.size > 0) {
+        for (const item of supportBoundariesDocument.runtimeEvidenceChecklist) {
+            if (!requestedConcepts.has(item.concept)) {
                 continue;
             }
-            if (seenConcepts.has(detail.concept)) {
+            if (seenConcepts.has(item.concept)) {
                 continue;
             }
-            seenConcepts.add(detail.concept);
-            const conceptSlug = toRuntimeEvidenceSlug(detail.concept);
-            const authority =
-                detail.authorityImplications.length > 0
-                    ? detail.authorityImplications.join(' ')
-                    : 'No explicit authority implication is recorded for this concept.';
-            records.push({
-                suggestedPath: `.metaflow/runtime-evidence/codex-${conceptSlug}.json`,
-                content: {
-                    schemaVersion: 'metaflow.runtimeEvidence/v1',
-                    id: `codex-${conceptSlug}`,
-                    target: 'codex',
-                    concepts: [detail.concept],
-                    harness: `TODO: Codex runtime surface (${detail.nativeSurfaces.join(', ')})`,
-                    adapterVersion: supportBoundariesDocument.adapterVersion,
-                    scenario: detail.runtimeEvidenceExpected,
-                    status: 'not-run',
-                    command: 'TODO: command, hosted workflow, UI procedure, or review procedure used for validation',
-                    evidence: [],
-                    evidenceArtifacts: [
-                        {
-                            kind: 'report',
-                            ref: `doc/ftr/TODO-codex-${conceptSlug}.md`,
-                            description: 'TODO: replace with the reviewed runtime evidence artifact.',
-                        },
-                    ],
-                    limitations: [
-                        'TODO: document uncovered Codex surfaces, connectors, permissions, environments, or platform limits.',
-                    ],
-                    policyGrants: [],
-                    description: [
-                        `Runtime evidence template for ${detail.concept}.`,
-                        `Coverage status at template generation: ${detail.coverageStatus}.`,
-                        `Authority implications: ${authority}`,
-                    ].join(' '),
-                },
-            });
+            seenConcepts.add(item.concept);
+            records.push(
+                buildCodexRuntimeEvidenceTemplateRecordFromChecklistItem(
+                    item,
+                    supportBoundariesDocument.adapterVersion,
+                ),
+            );
+        }
+    } else {
+        for (const action of supportBoundariesDocument.runtimeEvidenceActionPlan) {
+            for (const detail of action.conceptDetails) {
+                if (seenConcepts.has(detail.concept)) {
+                    continue;
+                }
+                seenConcepts.add(detail.concept);
+                records.push(
+                    buildCodexRuntimeEvidenceTemplateRecordFromActionDetail(
+                        detail,
+                        supportBoundariesDocument.adapterVersion,
+                    ),
+                );
+            }
         }
     }
 
@@ -2175,9 +2160,84 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
         generatedAt: supportBoundariesDocument.generatedAt,
         adapterVersion: supportBoundariesDocument.adapterVersion,
         target: 'codex',
-        source: 'runtimeEvidenceActionPlan',
+        source:
+            requestedConcepts.size > 0 ? 'runtimeEvidenceChecklist' : 'runtimeEvidenceActionPlan',
         ...(concepts.length > 0 ? { filters: { concepts } } : {}),
         records,
+    };
+}
+
+function buildCodexRuntimeEvidenceTemplateRecordFromActionDetail(
+    detail: CodexRuntimeEvidenceActionPlanConceptDetail,
+    adapterVersion: string,
+): CodexRuntimeEvidenceTemplateRecord {
+    return buildCodexRuntimeEvidenceTemplateRecord({
+        concept: detail.concept,
+        coverageStatus: detail.coverageStatus,
+        nativeSurfaces: detail.nativeSurfaces,
+        runtimeEvidenceExpected: detail.runtimeEvidenceExpected,
+        authorityImplications: detail.authorityImplications,
+        adapterVersion,
+    });
+}
+
+function buildCodexRuntimeEvidenceTemplateRecordFromChecklistItem(
+    item: CodexRuntimeEvidenceChecklistItem,
+    adapterVersion: string,
+): CodexRuntimeEvidenceTemplateRecord {
+    return buildCodexRuntimeEvidenceTemplateRecord({
+        concept: item.concept,
+        coverageStatus: item.coverageStatus,
+        nativeSurfaces: item.nativeSurfaces,
+        runtimeEvidenceExpected: item.runtimeEvidenceExpected,
+        authorityImplications: item.authorityImplications,
+        adapterVersion,
+    });
+}
+
+function buildCodexRuntimeEvidenceTemplateRecord(options: {
+    concept: TargetCapabilityConcept;
+    coverageStatus: CodexRuntimeEvidenceCoverageStatus;
+    nativeSurfaces: string[];
+    runtimeEvidenceExpected: string;
+    authorityImplications: string[];
+    adapterVersion: string;
+}): CodexRuntimeEvidenceTemplateRecord {
+    const conceptSlug = toRuntimeEvidenceSlug(options.concept);
+    const authority =
+        options.authorityImplications.length > 0
+            ? options.authorityImplications.join(' ')
+            : 'No explicit authority implication is recorded for this concept.';
+    return {
+        suggestedPath: `.metaflow/runtime-evidence/codex-${conceptSlug}.json`,
+        content: {
+            schemaVersion: 'metaflow.runtimeEvidence/v1',
+            id: `codex-${conceptSlug}`,
+            target: 'codex',
+            concepts: [options.concept],
+            harness: `TODO: Codex runtime surface (${options.nativeSurfaces.join(', ')})`,
+            adapterVersion: options.adapterVersion,
+            scenario: options.runtimeEvidenceExpected,
+            status: 'not-run',
+            command: 'TODO: command, hosted workflow, UI procedure, or review procedure used for validation',
+            evidence: [],
+            evidenceArtifacts: [
+                {
+                    kind: 'report',
+                    ref: `doc/ftr/TODO-codex-${conceptSlug}.md`,
+                    description: 'TODO: replace with the reviewed runtime evidence artifact.',
+                },
+            ],
+            limitations: [
+                'TODO: document uncovered Codex surfaces, connectors, permissions, environments, or platform limits.',
+            ],
+            policyGrants: [],
+            description: [
+                `Runtime evidence template for ${options.concept}.`,
+                `Coverage status at template generation: ${options.coverageStatus}.`,
+                `Authority implications: ${authority}`,
+            ].join(' '),
+        },
     };
 }
 

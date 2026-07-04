@@ -56,6 +56,7 @@ import {
     buildCodexProjectionBoundaryDocument,
     buildCodexSupportBoundariesDocument,
     buildCodexRuntimeEvidenceReviewQueueDocument,
+    buildCodexRuntimeEvidenceTemplateDocument,
     buildAdapterReadinessReports,
     buildGitHubCopilotMcpHandoff,
     describeProjectionWithTargetAdapters,
@@ -1798,6 +1799,50 @@ describe('Engine package: public API', () => {
             ),
         );
         assert.ok(!queue.content.includes('| missing-evidence |'));
+    });
+
+    it('builds selected Codex runtime evidence templates from checklist coverage', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-provider-waiver',
+                    manifestPath: 'runtime-evidence/codex-provider-waiver.json',
+                    target: 'codex',
+                    concepts: ['modelProviderRuntime'],
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Provider routing is unavailable in this environment.',
+                    status: 'waived',
+                    evidence: ['RUN-163'],
+                    evidenceArtifacts: [],
+                    limitations: ['No model-provider routing authority in the validation environment.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+        const template = buildCodexRuntimeEvidenceTemplateDocument(
+            supportBoundaries,
+            ['modelProviderRuntime'],
+        );
+
+        assert.strictEqual(template.source, 'runtimeEvidenceChecklist');
+        assert.deepStrictEqual(template.filters?.concepts, ['modelProviderRuntime']);
+        assert.strictEqual(template.records.length, 1);
+        assert.strictEqual(
+            template.records[0].suggestedPath,
+            '.metaflow/runtime-evidence/codex-model-provider-runtime.json',
+        );
+        assert.deepStrictEqual(template.records[0].content.concepts, ['modelProviderRuntime']);
+        assert.strictEqual(template.records[0].content.status, 'not-run');
+        assert.ok(
+            template.records[0].content.description.includes(
+                'Coverage status at template generation: waived.',
+            ),
+        );
+        assert.ok(
+            template.records[0].content.scenario.includes('Runtime evidence for modelProviderRuntime'),
+        );
     });
 
     it('reports Codex runtime evidence as release-ready when required gates are clear', () => {
