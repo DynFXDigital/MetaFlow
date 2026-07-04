@@ -49,8 +49,11 @@ export interface CodexRuntimeEvidenceCoverageSummary {
     diagnosticConceptsBySeverity: Record<CapabilityDiagnosticSeverity, number>;
     recordsWithExpiredEvidence: number;
     conceptsWithExpiredEvidence: number;
+    recordsWithStaleAdapterVersion: number;
+    conceptsWithStaleAdapterVersion: number;
     conceptsWithErrorRecords: TargetCapabilityConcept[];
     conceptsWithExpiredEvidenceRecords: TargetCapabilityConcept[];
+    conceptsWithStaleAdapterVersionRecords: TargetCapabilityConcept[];
     byStatus: Record<CodexRuntimeEvidenceCoverageStatus, number>;
     conceptsByStatus: Record<CodexRuntimeEvidenceCoverageStatus, TargetCapabilityConcept[]>;
     conceptsWithWarningRecords: TargetCapabilityConcept[];
@@ -191,6 +194,7 @@ export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'failed',
     'not-run',
     'expired-evidence',
+    'stale-adapter-version',
     'waived',
 ] as const;
 
@@ -1813,8 +1817,11 @@ function emptyRuntimeEvidenceCoverageSummary(
         diagnosticConceptsBySeverity,
         recordsWithExpiredEvidence: 0,
         conceptsWithExpiredEvidence: 0,
+        recordsWithStaleAdapterVersion: 0,
+        conceptsWithStaleAdapterVersion: 0,
         conceptsWithErrorRecords: [],
         conceptsWithExpiredEvidenceRecords: [],
+        conceptsWithStaleAdapterVersionRecords: [],
         byStatus,
         conceptsByStatus,
         conceptsWithWarningRecords: [],
@@ -1858,6 +1865,14 @@ function hasRuntimeEvidenceDiagnosticSeverity(
 
 function hasExpiredRuntimeEvidenceDiagnostic(record: RuntimeEvidenceMetadata): boolean {
     return record.warnings.some((warning) => warning.code === 'RUNTIME_EVIDENCE_EXPIRED');
+}
+
+function hasStaleAdapterVersionRuntimeEvidenceDiagnostic(
+    record: RuntimeEvidenceMetadata,
+): boolean {
+    return record.warnings.some(
+        (warning) => warning.code === 'RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH',
+    );
 }
 
 function formatRuntimeEvidenceConceptQueue(concepts: TargetCapabilityConcept[]): string {
@@ -2282,6 +2297,8 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 ? []
                 : queue === 'expired-evidence'
                   ? []
+                  : queue === 'stale-adapter-version'
+                    ? []
                 : [queue];
     const queueConcepts =
         queue === 'all'
@@ -2297,6 +2314,9 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 : queue === 'expired-evidence'
                   ? supportBoundariesDocument.runtimeEvidenceCoverageSummary
                         .conceptsWithExpiredEvidenceRecords
+                  : queue === 'stale-adapter-version'
+                    ? supportBoundariesDocument.runtimeEvidenceCoverageSummary
+                          .conceptsWithStaleAdapterVersionRecords
                 : supportBoundariesDocument.runtimeEvidenceGateSummary[queue]?.concepts ?? [];
     const concepts = uniqueCodexRuntimeEvidenceReviewQueueConcepts(queueConcepts);
     const conceptSet = new Set(concepts);
@@ -2307,7 +2327,10 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 supportBoundariesDocument.runtimeEvidenceReadinessSummary.blockingConditions.includes(
                     item.condition,
                 )) ||
-            (queue !== 'waived' && queue !== 'expired-evidence' && item.condition === queue),
+            (queue !== 'waived' &&
+                queue !== 'expired-evidence' &&
+                queue !== 'stale-adapter-version' &&
+                item.condition === queue),
     );
     const checklist =
         queue === 'all'
@@ -2346,6 +2369,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `- Evidence with diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
         `- Expired evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords)}`,
+        `- Stale adapter version evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords)}`,
         `- Waived evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
         '',
         '## Action Items',
@@ -2454,6 +2478,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
     }
     runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence =
         codexRuntimeEvidenceRecords.filter(hasExpiredRuntimeEvidenceDiagnostic).length;
+    runtimeEvidenceCoverageSummary.recordsWithStaleAdapterVersion =
+        codexRuntimeEvidenceRecords.filter(
+            hasStaleAdapterVersionRuntimeEvidenceDiagnostic,
+        ).length;
     for (const item of runtimeEvidenceChecklist) {
         runtimeEvidenceCoverageSummary.byStatus[item.coverageStatus] += 1;
         runtimeEvidenceCoverageSummary.conceptsByStatus[item.coverageStatus].push(item.concept);
@@ -2463,6 +2491,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
         const hasExpiredEvidence = item.runtimeEvidenceRecords.some(
             hasExpiredRuntimeEvidenceDiagnostic,
         );
+        const hasStaleAdapterVersionEvidence = item.runtimeEvidenceRecords.some(
+            hasStaleAdapterVersionRuntimeEvidenceDiagnostic,
+        );
         if (hasDiagnostics) {
             runtimeEvidenceCoverageSummary.conceptsWithWarnings += 1;
             runtimeEvidenceCoverageSummary.conceptsWithWarningRecords.push(item.concept);
@@ -2470,6 +2501,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
         if (hasExpiredEvidence) {
             runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence += 1;
             runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords.push(item.concept);
+        }
+        if (hasStaleAdapterVersionEvidence) {
+            runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersion += 1;
+            runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords.push(
+                item.concept,
+            );
         }
         for (const severity of ['error', 'warning', 'info'] as const) {
             if (
@@ -2626,9 +2663,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         '## Runtime Evidence Coverage Summary',
         '',
-        '| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records | Records with diagnostics | Records with error diagnostics | Records with expired evidence | Concepts with diagnostics | Concepts with error diagnostics | Concepts with expired evidence | Passed | Partial | Failed | Not run | Waived |',
-        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-        `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
+        '| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records | Records with diagnostics | Records with error diagnostics | Records with expired evidence | Records with stale adapter version | Concepts with diagnostics | Concepts with error diagnostics | Concepts with expired evidence | Concepts with stale adapter version | Passed | Partial | Failed | Not run | Waived |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.recordsWithStaleAdapterVersion} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersion} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
         '',
         'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable, unauthorized, or intentionally out of scope for the current release posture; it does not claim the surface passed runtime validation.',
         '',
@@ -2639,6 +2676,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
         `- Expired evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords)}`,
+        `- Stale adapter version evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords)}`,
         `- Waived evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
         '',
         '## Runtime Evidence Readiness Summary',

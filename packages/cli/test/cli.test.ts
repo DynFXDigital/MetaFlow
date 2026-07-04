@@ -3071,8 +3071,11 @@ describe('CLI: codex-support-boundaries', () => {
             },
             recordsWithExpiredEvidence: 0,
             conceptsWithExpiredEvidence: 0,
+            recordsWithStaleAdapterVersion: 0,
+            conceptsWithStaleAdapterVersion: 0,
             conceptsWithErrorRecords: [],
             conceptsWithExpiredEvidenceRecords: [],
+            conceptsWithStaleAdapterVersionRecords: [],
             byStatus: {
                 passed: 0,
                 partial: 0,
@@ -3923,6 +3926,63 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(!result.stdout.includes('| diagnostics | yes |'));
     });
 
+    it('prints a stale-adapter-version runtime evidence review queue with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-stale-adapter.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-stale-adapter',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.0',
+                            scenario:
+                                'Codex review evidence was captured against an older adapter.',
+                            status: 'partial',
+                            evidence: ['RUN-098'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-098',
+                                    description: 'Stale adapter runtime evidence proof.',
+                                },
+                            ],
+                            limitations: [
+                                'Evidence must be reviewed against the current adapter.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'stale-adapter-version',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Queue `stale-adapter-version`.'));
+        assert.ok(result.stdout.includes('- Stale adapter version evidence: reviewRuntime'));
+        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '| reviewRuntime | partial | codex-review-stale-adapter (partial) |',
+            ),
+        );
+        assert.ok(!result.stdout.includes('| diagnostics | yes |'));
+    });
+
     it('writes a runtime evidence review queue to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-queue.md');
@@ -3965,7 +4025,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(unknown.exitCode, 1);
         assert.ok(
             unknown.stderr.includes(
-                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, expired-evidence, waived',
+                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, expired-evidence, stale-adapter-version, waived',
             ),
         );
 
@@ -4373,7 +4433,7 @@ describe('CLI: codex-support-boundaries', () => {
             [],
         );
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
-        assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
+        assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
         assert.ok(data.content.includes('- Evidence without diagnostics: issuePrOperation'));
         assert.ok(data.content.includes('- Evidence with diagnostics: none'));
     });
@@ -4498,12 +4558,27 @@ describe('CLI: codex-support-boundaries', () => {
             ['RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH'],
         );
         assert.strictEqual(data.runtimeEvidenceCoverageSummary.recordsWithWarnings, 1);
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.recordsWithStaleAdapterVersion,
+            1,
+        );
+        assert.strictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersion,
+            1,
+        );
+        assert.deepStrictEqual(
+            data.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords,
+            ['issuePrOperation'],
+        );
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity, {
             error: 0,
             warning: 1,
             info: 0,
         });
         assert.ok(data.content.includes('- Evidence with diagnostics: issuePrOperation'));
+        assert.ok(
+            data.content.includes('- Stale adapter version evidence: issuePrOperation'),
+        );
     });
 
     it('surfaces stale local runtime evidence artifact hashes in Codex support boundaries', async () => {

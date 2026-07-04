@@ -117,7 +117,9 @@ digest. `url`, `run`, `other`, and explicit URI refs remain external review
 references. Runtime evidence records also declare the adapter version used
 when the evidence was reviewed; records whose adapter version differs from the
 current target capability matrix remain visible but produce diagnostics in
-support-boundary reports.
+support-boundary reports. The `stale-adapter-version` review queue lists those
+records directly for adapter refresh review without adding a separate release
+gate.
 
 This document records the public support boundary for MetaFlow's Codex adapter.
 The source baseline is the OpenAI Codex manual fetched on 2026-07-03.

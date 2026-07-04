@@ -30,6 +30,7 @@ metaflow codex-support-boundaries --projection-boundary-review --json --out repo
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue expired-evidence
+metaflow codex-support-boundaries --runtime-evidence-review-queue stale-adapter-version
 metaflow codex-support-boundaries --runtime-evidence-review-queue waived
 metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
 metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
@@ -69,8 +70,9 @@ evidence, diagnostic-bearing evidence, error-diagnostic evidence, expired
 evidence, and waived evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
 a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
-`diagnostics`, `error-diagnostics`, `expired-evidence`, `failed`, `not-run`, or
-`waived` instead of the full support-boundary report.
+`diagnostics`, `error-diagnostics`, `expired-evidence`,
+`stale-adapter-version`, `failed`, `not-run`, or `waived` instead of the full
+support-boundary report.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
 evidence, not-run evidence, expired evidence, or waived evidence using the same
@@ -134,7 +136,9 @@ For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
 preview and support-boundary JSON output. The `expired-evidence` review queue
 lists stale proof records directly for refresh review without adding a separate
-release gate. Local structured artifact refs for
+release gate. Runtime evidence records also declare the adapter version used
+during review, and the `stale-adapter-version` review queue lists evidence that
+needs adapter refresh review without adding a separate release gate. Local structured artifact refs for
 reports, logs, screenshots, traces, recordings, and files are resolved relative
 to the metadata layer; stale local paths and escaped local paths also appear as
 diagnostics. When a local artifact declares a `sha256` digest, changed file

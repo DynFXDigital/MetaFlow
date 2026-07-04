@@ -1751,7 +1751,7 @@ describe('Engine package: public API', () => {
             (item) => item.concept === 'reviewRuntime',
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
-        assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 0 | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 0 | 0 | 3 | 1 | 0 | 0 | 0 | 2 | 0 | 0 | 1 |'));
         assert.ok(
             document.content.includes(
                 '- Evidence with diagnostics: issuePrOperation, modelProviderRuntime, reviewRuntime',
@@ -1761,6 +1761,7 @@ describe('Engine package: public API', () => {
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
         assert.ok(document.content.includes('- Expired evidence: none'));
+        assert.ok(document.content.includes('- Stale adapter version evidence: none'));
         assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));
     });
 
@@ -1816,6 +1817,70 @@ describe('Engine package: public API', () => {
         assert.ok(
             queue.content.includes(
                 '| reviewRuntime | partial | codex-review-expired (partial) |',
+            ),
+        );
+        assert.ok(!queue.content.includes('| diagnostics | yes |'));
+    });
+
+    it('builds a focused Codex stale-adapter-version runtime evidence review queue', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-stale-adapter',
+                    manifestPath: 'runtime-evidence/codex-review-stale-adapter.json',
+                    target: 'codex',
+                    concepts: ['reviewRuntime'],
+                    harness: 'Codex Cloud',
+                    adapterVersion: 'codex-v0.0',
+                    scenario: 'Codex review evidence was captured against an older adapter.',
+                    status: 'partial',
+                    evidence: ['RUN-098'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-098',
+                            description: 'Stale adapter runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Evidence must be reviewed against the current adapter.'],
+                    policyGrants: [],
+                    warnings: [
+                        {
+                            code: 'RUNTIME_EVIDENCE_ADAPTER_VERSION_MISMATCH',
+                            message:
+                                'Runtime evidence target "codex" adapterVersion "codex-v0.0" does not match current target adapterVersion "codex-v0.1".',
+                            severity: 'warning',
+                        },
+                    ],
+                },
+            ],
+        });
+        const queue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'stale-adapter-version',
+        );
+
+        assert.strictEqual(
+            supportBoundaries.runtimeEvidenceCoverageSummary.recordsWithStaleAdapterVersion,
+            1,
+        );
+        assert.strictEqual(
+            supportBoundaries.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersion,
+            1,
+        );
+        assert.deepStrictEqual(
+            supportBoundaries.runtimeEvidenceCoverageSummary
+                .conceptsWithStaleAdapterVersionRecords,
+            ['reviewRuntime'],
+        );
+        assert.strictEqual(queue.queue, 'stale-adapter-version');
+        assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
+        assert.ok(queue.content.includes('Queue `stale-adapter-version`.'));
+        assert.ok(queue.content.includes('- Stale adapter version evidence: reviewRuntime'));
+        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '| reviewRuntime | partial | codex-review-stale-adapter (partial) |',
             ),
         );
         assert.ok(!queue.content.includes('| diagnostics | yes |'));

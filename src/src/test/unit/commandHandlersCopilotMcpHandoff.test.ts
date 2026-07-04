@@ -941,6 +941,59 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('| reviewRuntime | partial | codex-review-expired (partial) |'));
     });
 
+    test('builds Codex stale-adapter runtime evidence review queue document with workspace evidence', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-stale-adapter-queue-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-review-stale-adapter.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-review-stale-adapter',
+                target: 'codex',
+                concepts: ['reviewRuntime'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.0',
+                scenario: 'Codex review evidence was captured against an older adapter.',
+                status: 'partial',
+                evidence: ['RUN-098'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-098',
+                        description: 'Stale adapter runtime evidence proof.',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace } =
+            loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace(
+            config,
+            tmpDir,
+            'stale-adapter-version',
+        );
+
+        assert.strictEqual(document.queue, 'stale-adapter-version');
+        assert.deepStrictEqual(document.concepts, ['reviewRuntime']);
+        assert.ok(document.content.includes('- Stale adapter version evidence: reviewRuntime'));
+        assert.ok(document.content.includes('| reviewRuntime | partial | codex-review-stale-adapter (partial) |'));
+    });
+
     test('builds Codex runtime evidence guide document for extension review', () => {
         const { buildCodexRuntimeEvidenceGuideDocumentForExtension } = loadCommandHandlers();
         const document = buildCodexRuntimeEvidenceGuideDocumentForExtension([
