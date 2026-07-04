@@ -3012,6 +3012,12 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('## Runtime Evidence Readiness Summary'));
         assert.ok(result.stdout.includes('Release-ready preset: blocked.'));
         assert.ok(result.stdout.includes('Blocking gates: missing-evidence.'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Action Plan'));
+        assert.ok(
+            result.stdout.includes(
+                '- collect-runtime-evidence (blocking): 34 runtime-only concept(s) have no matching evidence; concepts:',
+            ),
+        );
         assert.ok(result.stdout.includes('## Runtime Evidence Gate Summary'));
         assert.ok(result.stdout.includes('| missing-evidence | yes | 34 |'));
         assert.ok(result.stdout.includes('| diagnostics | no | 0 | none |'));
@@ -3080,6 +3086,15 @@ describe('CLI: codex-support-boundaries', () => {
             blockingMessages: ['missing-evidence: 34 runtime-only concept(s) have no matching evidence'],
             checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
+        assert.deepStrictEqual(data.runtimeEvidenceActionPlan, [
+            {
+                kind: 'collect-runtime-evidence',
+                condition: 'missing-evidence',
+                blockingReadiness: true,
+                concepts: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
+                message: '34 runtime-only concept(s) have no matching evidence',
+            },
+        ]);
         assert.deepStrictEqual(data.runtimeEvidenceGateSummary, {
             'missing-evidence': {
                 condition: 'missing-evidence',

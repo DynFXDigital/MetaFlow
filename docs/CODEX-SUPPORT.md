@@ -34,7 +34,10 @@ same triggered state, counts, concept lists, and messages used by `--fail-on`,
 so release jobs and reviewers can inspect one persisted artifact.
 They also include a runtime evidence readiness summary that applies the
 `release-ready` preset, reports whether the current evidence is ready or
-blocked, and lists the blocking gate conditions and messages.
+blocked, and lists the blocking gate conditions and messages. The report then
+renders a runtime evidence action plan that turns blocking gate results into
+operator actions such as collecting missing runtime evidence, reviewing
+diagnostics, rerunning failed evidence, or running evidence marked not-run.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

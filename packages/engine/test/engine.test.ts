@@ -1389,6 +1389,15 @@ describe('Engine package: public API', () => {
             ].map((message) => `missing-evidence: ${message}`),
             checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceActionPlan, [
+            {
+                kind: 'collect-runtime-evidence',
+                condition: 'missing-evidence',
+                blockingReadiness: true,
+                concepts: document.runtimeEvidenceCoverageSummary.conceptsByStatus.missing,
+                message: `${document.runtimeOnlyCount} runtime-only concept(s) have no matching evidence`,
+            },
+        ]);
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item) =>
@@ -1407,6 +1416,12 @@ describe('Engine package: public API', () => {
         assert.ok(document.content.includes('## Runtime Evidence Readiness Summary'));
         assert.ok(document.content.includes('Release-ready preset: blocked.'));
         assert.ok(document.content.includes('Blocking gates: missing-evidence.'));
+        assert.ok(document.content.includes('## Runtime Evidence Action Plan'));
+        assert.ok(
+            document.content.includes(
+                '- collect-runtime-evidence (blocking): 34 runtime-only concept(s) have no matching evidence; concepts:',
+            ),
+        );
         assert.ok(document.content.includes('## Runtime Evidence Gate Summary'));
         assert.ok(document.content.includes('| missing-evidence | yes |'));
         assert.ok(document.content.includes('| diagnostics | no | 0 | none |'));
@@ -1564,6 +1579,28 @@ describe('Engine package: public API', () => {
             ),
             checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
+        assert.deepStrictEqual(
+            document.runtimeEvidenceActionPlan.map((action) => ({
+                kind: action.kind,
+                condition: action.condition,
+                blockingReadiness: action.blockingReadiness,
+                message: action.message,
+            })),
+            [
+                {
+                    kind: 'collect-runtime-evidence',
+                    condition: 'missing-evidence',
+                    blockingReadiness: true,
+                    message: `${document.runtimeOnlyCount - 3} runtime-only concept(s) have no matching evidence`,
+                },
+                {
+                    kind: 'review-runtime-diagnostics',
+                    condition: 'diagnostics',
+                    blockingReadiness: true,
+                    message: '2 runtime evidence record(s) have diagnostics',
+                },
+            ],
+        );
         const reviewChecklist = document.runtimeEvidenceChecklist.find(
             (item) => item.concept === 'reviewRuntime',
         );
@@ -1604,8 +1641,10 @@ describe('Engine package: public API', () => {
         assert.strictEqual(document.runtimeEvidenceReadinessSummary.ready, true);
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingConditions, []);
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingMessages, []);
+        assert.deepStrictEqual(document.runtimeEvidenceActionPlan, []);
         assert.ok(document.content.includes('Release-ready preset: ready.'));
         assert.ok(document.content.includes('Blocking gates: none.'));
+        assert.ok(document.content.includes('No blocking runtime evidence actions.'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

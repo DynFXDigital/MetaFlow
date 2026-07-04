@@ -26,6 +26,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
+    runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
@@ -80,6 +81,20 @@ export interface CodexRuntimeEvidenceReadinessSummary {
     blockingConditions: CodexRuntimeEvidenceGateCondition[];
     blockingMessages: string[];
     checkedConditions: CodexRuntimeEvidenceGateCondition[];
+}
+
+export type CodexRuntimeEvidenceActionKind =
+    | 'collect-runtime-evidence'
+    | 'review-runtime-diagnostics'
+    | 'rerun-failed-evidence'
+    | 'run-not-run-evidence';
+
+export interface CodexRuntimeEvidenceActionPlanItem {
+    kind: CodexRuntimeEvidenceActionKind;
+    condition: CodexRuntimeEvidenceGateCondition;
+    blockingReadiness: boolean;
+    concepts: TargetCapabilityConcept[];
+    message: string;
 }
 
 export interface CodexRuntimeEvidenceChecklistItem {
@@ -1777,6 +1792,48 @@ function buildRuntimeEvidenceReadinessSummary(
     };
 }
 
+function actionKindForGateCondition(
+    condition: CodexRuntimeEvidenceGateCondition,
+): CodexRuntimeEvidenceActionKind {
+    switch (condition) {
+        case 'missing-evidence':
+            return 'collect-runtime-evidence';
+        case 'diagnostics':
+        case 'error-diagnostics':
+            return 'review-runtime-diagnostics';
+        case 'failed':
+            return 'rerun-failed-evidence';
+        case 'not-run':
+            return 'run-not-run-evidence';
+    }
+}
+
+function buildRuntimeEvidenceActionPlan(
+    gateSummary: CodexRuntimeEvidenceGateSummary,
+    readinessSummary: CodexRuntimeEvidenceReadinessSummary,
+): CodexRuntimeEvidenceActionPlanItem[] {
+    return readinessSummary.checkedConditions
+        .map((condition) => gateSummary[condition])
+        .filter((gate) => gate.triggered)
+        .map((gate) => ({
+            kind: actionKindForGateCondition(gate.condition),
+            condition: gate.condition,
+            blockingReadiness: readinessSummary.blockingConditions.includes(gate.condition),
+            concepts: gate.concepts,
+            message: gate.message,
+        }));
+}
+
+function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
+    if (actionPlan.length === 0) {
+        return ['No blocking runtime evidence actions.'];
+    }
+    return actionPlan.map(
+        (action) =>
+            `- ${action.kind} (${action.blockingReadiness ? 'blocking' : 'advisory'}): ${action.message}; concepts: ${formatRuntimeEvidenceConceptQueue(action.concepts)}`,
+    );
+}
+
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
     generatedAt?: string;
@@ -1870,6 +1927,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
     );
     const runtimeEvidenceReadinessSummary = buildRuntimeEvidenceReadinessSummary(
         runtimeEvidenceGateSummary,
+    );
+    const runtimeEvidenceActionPlan = buildRuntimeEvidenceActionPlan(
+        runtimeEvidenceGateSummary,
+        runtimeEvidenceReadinessSummary,
     );
 
     const relatedGuides = [
@@ -2002,6 +2063,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `Checked gates: ${runtimeEvidenceReadinessSummary.checkedConditions.join(', ')}.`,
         `Blocking gates: ${runtimeEvidenceReadinessSummary.blockingConditions.length > 0 ? runtimeEvidenceReadinessSummary.blockingConditions.join(', ') : 'none'}.`,
         '',
+        '## Runtime Evidence Action Plan',
+        '',
+        ...formatRuntimeEvidenceActionPlan(runtimeEvidenceActionPlan),
+        '',
         '## Runtime Evidence Gate Summary',
         '',
         '| Gate | Triggered | Count | Concepts |',
@@ -2055,6 +2120,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceCoverageSummary,
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
+        runtimeEvidenceActionPlan,
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,

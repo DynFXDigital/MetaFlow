@@ -265,6 +265,8 @@ export {
     getTargetCapabilityMatrix,
 } from './targetCapabilityMatrix';
 export type {
+    CodexRuntimeEvidenceActionKind,
+    CodexRuntimeEvidenceActionPlanItem,
     CodexRuntimeEvidenceGateCondition,
     CodexRuntimeEvidenceGateResult,
     CodexRuntimeEvidenceGateSummary,

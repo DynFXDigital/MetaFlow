@@ -11,6 +11,7 @@
 - Add explicit runtime-only target capability matrix rows for Codex Browser Use, Chrome extension, Computer Use, and Sites behavior.
 - Codex support boundary report metadata now includes related operator, package maintainer, and tool authority guide references.
 - Codex support boundary reports now include a runtime evidence readiness summary for the release-ready gate preset.
+- Codex support boundary reports now include a structured runtime evidence action plan for blocking release-ready gates.
 - Warn when a capability declares multiple enabled target adapters for the same target, keeping Codex and Copilot projection policy unambiguous.
 - Parse and validate richer `.metaflow/capability.json` target declarations with support posture, required policy grants, validation evidence, and notes.
 - Warn when managed authority-sensitive target adapter concepts omit adapter-level policy grant metadata.
