@@ -18,7 +18,7 @@ equally ready. A `waived` concept is reviewed evidence that the native Codex
 surface is unavailable, unauthorized, or intentionally out of scope for the
 current release posture; it is not a runtime pass. The Markdown report includes
 runtime evidence review queues for missing evidence, clean evidence,
-diagnostic-bearing evidence, error-diagnostic evidence, and waived evidence so
+diagnostic-bearing evidence, error-diagnostic evidence, expired evidence, and waived evidence so
 operators can triage runtime validation posture without scanning every
 checklist row. The report includes structured
 generator metadata: the emitting MetaFlow command or extension surface, the
@@ -30,7 +30,7 @@ a MetaFlow config is loaded in the extension.
 `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused Markdown
 triage documents from the same report data for all runtime-only concepts,
 release-ready blockers, missing evidence, diagnostic-bearing evidence,
-error-diagnostic evidence, failed evidence, not-run evidence, or waived
+error-diagnostic evidence, expired evidence, failed evidence, not-run evidence, or waived
 evidence.
 
 The CLI report can also act as a release or CI gate. Use
@@ -58,7 +58,8 @@ evidence record IDs so operators can work from the persisted report artifact.
 `metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
-`error-diagnostics`, `failed`, `not-run`, or `waived` triage.
+`error-diagnostics`, `expired-evidence`, `failed`, `not-run`, or `waived`
+triage.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,
@@ -102,7 +103,9 @@ evidence incrementally.
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence
 that requires refresh. Expired records remain visible, but report diagnostics
-before support claims rely on them. Records may also attach structured
+before support claims rely on them. The `expired-evidence` review queue lists
+those records directly for refresh review without adding a separate release
+gate. Records may also attach structured
 `evidenceArtifacts`. Local artifact refs for `log`, `report`, `screenshot`,
 `trace`, `recording`, and `artifact` kinds are resolved relative to the
 metadata layer and produce diagnostics when the referenced file is missing.

@@ -29,6 +29,7 @@ metaflow codex-support-boundaries --projection-boundary-review
 metaflow codex-support-boundaries --projection-boundary-review --json --out reports/codex-projection-boundaries.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
+metaflow codex-support-boundaries --runtime-evidence-review-queue expired-evidence
 metaflow codex-support-boundaries --runtime-evidence-review-queue waived
 metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
 metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
@@ -64,16 +65,16 @@ A `waived` concept is reviewed evidence that the native Codex surface is
 unavailable, unauthorized, or intentionally out of scope for the current
 release posture; it is not a runtime pass.
 The Markdown report also includes review queues for missing evidence, clean
-evidence, diagnostic-bearing evidence, error-diagnostic evidence, and waived
-evidence.
+evidence, diagnostic-bearing evidence, error-diagnostic evidence, expired
+evidence, and waived evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
 a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
-`diagnostics`, `error-diagnostics`, `failed`, `not-run`, or `waived` instead
-of the full support-boundary report.
+`diagnostics`, `error-diagnostics`, `expired-evidence`, `failed`, `not-run`, or
+`waived` instead of the full support-boundary report.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
-evidence, not-run evidence, or waived evidence using the same support-boundary
-data.
+evidence, not-run evidence, expired evidence, or waived evidence using the same
+support-boundary data.
 The runtime evidence gate summary then records the `--fail-on` checks as
 triggered or untriggered rows with counts, concept lists, and the exact
 messages used by the CLI gate.
@@ -131,7 +132,9 @@ coverage, and `not-run` fails on planned but unexecuted evidence. The
 evidence, and not-run evidence; `all` expands to every supported gate check.
 For `.metaflow/runtime-evidence/*.json` records, `validatedAt` and `expiresAt`
 make proof freshness explicit, and expired evidence appears as a diagnostic in
-preview and support-boundary JSON output. Local structured artifact refs for
+preview and support-boundary JSON output. The `expired-evidence` review queue
+lists stale proof records directly for refresh review without adding a separate
+release gate. Local structured artifact refs for
 reports, logs, screenshots, traces, recordings, and files are resolved relative
 to the metadata layer; stale local paths and escaped local paths also appear as
 diagnostics. When a local artifact declares a `sha256` digest, changed file

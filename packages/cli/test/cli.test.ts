@@ -3069,7 +3069,10 @@ describe('CLI: codex-support-boundaries', () => {
                 warning: 0,
                 info: 0,
             },
+            recordsWithExpiredEvidence: 0,
+            conceptsWithExpiredEvidence: 0,
             conceptsWithErrorRecords: [],
+            conceptsWithExpiredEvidenceRecords: [],
             byStatus: {
                 passed: 0,
                 partial: 0,
@@ -3863,6 +3866,63 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
     });
 
+    it('prints an expired runtime evidence review queue with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-expired.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-expired',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review evidence requires refresh.',
+                            status: 'partial',
+                            evidence: ['RUN-099'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-099',
+                                    description: 'Expired runtime evidence proof.',
+                                },
+                            ],
+                            expiresAt: '2000-01-01T00:00:00Z',
+                            limitations: [
+                                'Evidence expired before the current release review.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'expired-evidence',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Queue `expired-evidence`.'));
+        assert.ok(result.stdout.includes('- Expired evidence: reviewRuntime'));
+        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '| reviewRuntime | partial | codex-review-expired (partial) |',
+            ),
+        );
+        assert.ok(!result.stdout.includes('| diagnostics | yes |'));
+    });
+
     it('writes a runtime evidence review queue to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-queue.md');
@@ -3905,7 +3965,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(unknown.exitCode, 1);
         assert.ok(
             unknown.stderr.includes(
-                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, waived',
+                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, expired-evidence, waived',
             ),
         );
 
@@ -4313,7 +4373,7 @@ describe('CLI: codex-support-boundaries', () => {
             [],
         );
         assert.ok(data.content.includes('codex-pr-review-smoke (partial)'));
-        assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
+        assert.ok(data.content.includes('| 34 | 1 | 1 | 0 | 33 | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |'));
         assert.ok(data.content.includes('- Evidence without diagnostics: issuePrOperation'));
         assert.ok(data.content.includes('- Evidence with diagnostics: none'));
     });

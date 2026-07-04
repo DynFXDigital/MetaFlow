@@ -1606,8 +1606,10 @@ describe('Engine package: public API', () => {
             warning: 1,
             info: 0,
         });
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence, 0);
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithEvidence, 3);
         assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithWarnings, 3);
+        assert.strictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence, 0);
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics,
             0,
@@ -1650,6 +1652,10 @@ describe('Engine package: public API', () => {
         assert.deepStrictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords,
             ['modelProviderRuntime'],
+        );
+        assert.deepStrictEqual(
+            document.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords,
+            [],
         );
         assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
             condition: 'diagnostics',
@@ -1745,7 +1751,7 @@ describe('Engine package: public API', () => {
             (item) => item.concept === 'reviewRuntime',
         );
         assert.strictEqual(reviewChecklist?.coverageStatus, 'partial');
-        assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 3 | 1 | 0 | 2 | 0 | 0 | 1 |'));
+        assert.ok(document.content.includes('| 34 | 3 | 0 | 3 | 31 | 2 | 2 | 1 | 0 | 3 | 1 | 0 | 0 | 2 | 0 | 0 | 1 |'));
         assert.ok(
             document.content.includes(
                 '- Evidence with diagnostics: issuePrOperation, modelProviderRuntime, reviewRuntime',
@@ -1754,7 +1760,65 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
+        assert.ok(document.content.includes('- Expired evidence: none'));
         assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));
+    });
+
+    it('builds a focused Codex expired runtime evidence review queue', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-expired',
+                    manifestPath: 'runtime-evidence/codex-review-expired.json',
+                    target: 'codex',
+                    concepts: ['reviewRuntime'],
+                    harness: 'Codex Cloud',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex review evidence requires refresh.',
+                    status: 'partial',
+                    evidence: ['RUN-099'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-099',
+                            description: 'Expired runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Evidence expired before the current release review.'],
+                    policyGrants: [],
+                    expiresAt: '2000-01-01T00:00:00Z',
+                    warnings: [
+                        {
+                            code: 'RUNTIME_EVIDENCE_EXPIRED',
+                            message: 'Runtime evidence expired and requires review.',
+                            severity: 'warning',
+                        },
+                    ],
+                },
+            ],
+        });
+        const queue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'expired-evidence',
+        );
+
+        assert.strictEqual(supportBoundaries.runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence, 1);
+        assert.strictEqual(supportBoundaries.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence, 1);
+        assert.deepStrictEqual(
+            supportBoundaries.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords,
+            ['reviewRuntime'],
+        );
+        assert.strictEqual(queue.queue, 'expired-evidence');
+        assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
+        assert.ok(queue.content.includes('Queue `expired-evidence`.'));
+        assert.ok(queue.content.includes('- Expired evidence: reviewRuntime'));
+        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '| reviewRuntime | partial | codex-review-expired (partial) |',
+            ),
+        );
+        assert.ok(!queue.content.includes('| diagnostics | yes |'));
     });
 
     it('builds a focused Codex waived runtime evidence review queue', () => {
