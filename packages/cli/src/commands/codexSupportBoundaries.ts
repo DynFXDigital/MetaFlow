@@ -20,6 +20,7 @@ interface CodexSupportBoundariesOptions {
     failOn?: string;
     runtimeEvidenceTemplate?: boolean;
     runtimeEvidenceTemplateDir?: string;
+    runtimeEvidenceConcept?: string;
 }
 
 interface RuntimeEvidenceTemplateRecord {
@@ -53,6 +54,9 @@ interface RuntimeEvidenceTemplateReport {
     adapterVersion: string;
     target: 'codex';
     source: 'runtimeEvidenceActionPlan';
+    filters?: {
+        concepts: string[];
+    };
     records: RuntimeEvidenceTemplateRecord[];
 }
 
@@ -105,6 +109,33 @@ function evaluateFailOnConditions(
     return failures;
 }
 
+function parseRuntimeEvidenceConcepts(raw: string | undefined): string[] {
+    if (!raw) {
+        return [];
+    }
+    return [
+        ...new Set(
+            raw
+                .split(',')
+                .map((item) => item.trim())
+                .filter(Boolean),
+        ),
+    ];
+}
+
+function validateRuntimeEvidenceConcepts(
+    document: CodexSupportBoundariesDocument,
+    concepts: string[],
+): string[] {
+    if (concepts.length === 0) {
+        return [];
+    }
+    const supportedConcepts = new Set(
+        document.runtimeEvidenceChecklist.map((item) => item.concept),
+    );
+    return concepts.filter((concept) => !supportedConcepts.has(concept as never));
+}
+
 function toKebabCase(value: string): string {
     return value
         .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -115,11 +146,16 @@ function toKebabCase(value: string): string {
 
 function buildRuntimeEvidenceTemplateReport(
     document: CodexSupportBoundariesDocument,
+    concepts: string[] = [],
 ): RuntimeEvidenceTemplateReport {
     const seenConcepts = new Set<string>();
+    const requestedConcepts = new Set(concepts);
     const records: RuntimeEvidenceTemplateRecord[] = [];
     for (const action of document.runtimeEvidenceActionPlan) {
         for (const detail of action.conceptDetails) {
+            if (requestedConcepts.size > 0 && !requestedConcepts.has(detail.concept)) {
+                continue;
+            }
             if (seenConcepts.has(detail.concept)) {
                 continue;
             }
@@ -170,6 +206,7 @@ function buildRuntimeEvidenceTemplateReport(
         adapterVersion: document.adapterVersion,
         target: 'codex',
         source: 'runtimeEvidenceActionPlan',
+        ...(concepts.length > 0 ? { filters: { concepts } } : {}),
         records,
     };
 }
@@ -242,11 +279,26 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             '--runtime-evidence-template-dir <path>',
             'Write review-only runtime evidence template records as individual JSON files under a workspace-relative directory',
         )
+        .option(
+            '--runtime-evidence-concept <concepts>',
+            'Limit runtime evidence template output to comma-separated runtime-only Codex concepts',
+        )
         .action((options: CodexSupportBoundariesOptions) => {
             const workspaceRoot = getWorkspaceRoot(program);
             if (options.runtimeEvidenceTemplateDir && options.out) {
                 console.error(
                     'Error: --runtime-evidence-template-dir cannot be combined with --out.',
+                );
+                process.exitCode = 1;
+                return;
+            }
+            if (
+                options.runtimeEvidenceConcept &&
+                !options.runtimeEvidenceTemplate &&
+                !options.runtimeEvidenceTemplateDir
+            ) {
+                console.error(
+                    'Error: --runtime-evidence-concept requires --runtime-evidence-template or --runtime-evidence-template-dir.',
                 );
                 process.exitCode = 1;
                 return;
@@ -266,9 +318,26 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 process.exitCode = 1;
                 return;
             }
+            const runtimeEvidenceConcepts = parseRuntimeEvidenceConcepts(
+                options.runtimeEvidenceConcept,
+            );
+            const invalidRuntimeEvidenceConcepts = validateRuntimeEvidenceConcepts(
+                document,
+                runtimeEvidenceConcepts,
+            );
+            if (invalidRuntimeEvidenceConcepts.length > 0) {
+                console.error(
+                    `Error: Unknown Codex runtime evidence concept(s): ${invalidRuntimeEvidenceConcepts.join(', ')}`,
+                );
+                console.error(
+                    `Valid concepts: ${document.runtimeEvidenceChecklist.map((item) => item.concept).join(', ')}`,
+                );
+                process.exitCode = 1;
+                return;
+            }
             const failOnFailures = evaluateFailOnConditions(document, failOnConditions);
             const runtimeEvidenceTemplateReport = options.runtimeEvidenceTemplateDir
-                ? buildRuntimeEvidenceTemplateReport(document)
+                ? buildRuntimeEvidenceTemplateReport(document, runtimeEvidenceConcepts)
                 : undefined;
             if (options.runtimeEvidenceTemplateDir) {
                 const written = writeRuntimeEvidenceTemplateRecords(
@@ -293,7 +362,7 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             }
 
             const payload = options.runtimeEvidenceTemplate
-                ? `${JSON.stringify(buildRuntimeEvidenceTemplateReport(document), null, 2)}\n`
+                ? `${JSON.stringify(buildRuntimeEvidenceTemplateReport(document, runtimeEvidenceConcepts), null, 2)}\n`
                 : options.json
                   ? `${JSON.stringify(document, null, 2)}\n`
                   : document.content;

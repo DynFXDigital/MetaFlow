@@ -25,6 +25,7 @@ metaflow codex-support-boundaries
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --fail-on release-ready
 metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
+metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
 metaflow target-support --target codex
 metaflow target-support --target codex --support runtime-only
 metaflow target-support --json --target codex --concept mcpServers
@@ -67,6 +68,9 @@ record payloads before adding canonical evidence records to a metadata layer.
 Use `--runtime-evidence-template-dir <path>` to write the fill-in records as
 individual JSON scaffold files under an explicit workspace-relative directory;
 existing files are protected unless `--force` is supplied.
+Use `--runtime-evidence-concept <concepts>` with either template mode to scope
+the output to one or more comma-separated runtime-only Codex concepts while a
+single evidence run is being prepared.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

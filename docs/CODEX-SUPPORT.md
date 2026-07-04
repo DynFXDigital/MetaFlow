@@ -48,7 +48,11 @@ fill-in record payloads; it does not create runtime proof or write canonical
 evidence records automatically.
 `--runtime-evidence-template-dir <path>` writes those fill-in records as
 individual JSON scaffold files under an explicit workspace-relative directory,
-with overwrite protection unless `--force` is supplied.
+with overwrite protection unless `--force` is supplied. Add
+`--runtime-evidence-concept <concepts>` to limit the template bundle or
+scaffold-file output to one or more comma-separated runtime-only Codex
+concepts, such as `issuePrOperation` or `reviewRuntime`, while collecting
+evidence incrementally.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

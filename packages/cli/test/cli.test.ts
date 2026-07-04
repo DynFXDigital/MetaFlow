@@ -3491,6 +3491,28 @@ describe('CLI: codex-support-boundaries', () => {
         });
     });
 
+    it('filters review-only runtime evidence templates by concept', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-concept',
+            'issuePrOperation,reviewRuntime',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.schemaVersion, 'metaflow.runtimeEvidenceTemplate/v1');
+        assert.deepStrictEqual(data.filters, {
+            concepts: ['issuePrOperation', 'reviewRuntime'],
+        });
+        assert.deepStrictEqual(
+            data.records.map((record: { content: { concepts: string[] } }) =>
+                record.content.concepts[0],
+            ),
+            ['issuePrOperation', 'reviewRuntime'],
+        );
+    });
+
     it('writes review-only runtime evidence templates to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-template.json');
@@ -3537,6 +3559,34 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(issueTemplate.id, 'codex-issue-pr-operation');
         assert.deepStrictEqual(issueTemplate.concepts, ['issuePrOperation']);
         assert.strictEqual(issueTemplate.status, 'not-run');
+    });
+
+    it('writes filtered review-only runtime evidence templates as individual files', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const templateDir = path.join(ws.root, 'reports', 'runtime-evidence');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '--runtime-evidence-concept',
+            'issuePrOperation',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(
+            result.stdout.includes(
+                'Wrote 1 Codex runtime evidence template file(s) to reports/runtime-evidence.',
+            ),
+        );
+        const files = fs.readdirSync(templateDir).filter((entry) => entry.endsWith('.json'));
+        assert.deepStrictEqual(files, ['codex-issue-pr-operation.json']);
+        const issueTemplate = JSON.parse(
+            fs.readFileSync(path.join(templateDir, 'codex-issue-pr-operation.json'), 'utf-8'),
+        );
+        assert.deepStrictEqual(issueTemplate.concepts, ['issuePrOperation']);
     });
 
     it('protects review-only runtime evidence template files from overwrite', async () => {
@@ -3594,6 +3644,33 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 1);
         assert.ok(
             result.stderr.includes('--runtime-evidence-template-dir cannot be combined with --out'),
+        );
+    });
+
+    it('rejects invalid runtime evidence concept filters', async () => {
+        const unknown = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-concept',
+            'skills',
+        ]);
+
+        assert.strictEqual(unknown.exitCode, 1);
+        assert.ok(unknown.stderr.includes('Unknown Codex runtime evidence concept(s): skills'));
+        assert.ok(unknown.stderr.includes('Valid concepts:'));
+        assert.ok(unknown.stderr.includes('issuePrOperation'));
+
+        const misplaced = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-concept',
+            'issuePrOperation',
+        ]);
+
+        assert.strictEqual(misplaced.exitCode, 1);
+        assert.ok(
+            misplaced.stderr.includes(
+                '--runtime-evidence-concept requires --runtime-evidence-template or --runtime-evidence-template-dir',
+            ),
         );
     });
 
