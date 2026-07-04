@@ -288,9 +288,9 @@ describe('Engine package: public API', () => {
         );
         assert.ok(
             codexAgents?.notes.some((note) =>
-                note.includes('does not expose a non-interactive custom-agent activation flag'),
+                note.includes('multi_agent feature as stable and enabled'),
             ),
-            'Codex agents row should document the non-interactive activation proof boundary',
+            'Codex agents row should document the multi-agent discovery and activation proof boundary',
         );
         const codexAgentRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'agentRuntime',
@@ -307,6 +307,10 @@ describe('Engine package: public API', () => {
         assert.ok(
             codexAgentRuntime?.evidence.includes('RUN-072'),
             'Codex agent runtime row should point to runtime-boundary evidence',
+        );
+        assert.ok(
+            codexAgentRuntime?.evidence.includes('RUN-167'),
+            'Codex agent runtime row should point to partial runtime surface evidence',
         );
         const codexAutomationRuntime = matrix.find(
             (entry) => entry.target === 'codex' && entry.concept === 'automationRuntime',

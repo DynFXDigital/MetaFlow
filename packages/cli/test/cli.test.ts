@@ -2663,7 +2663,7 @@ describe('CLI: target-support', () => {
         assert.ok(result.stdout.includes('Codex subagent workflows'));
         assert.ok(result.stdout.includes('cannot spawn subagents'));
         assert.ok(result.stdout.includes('inherited runtime authority'));
-        assert.ok(result.stdout.includes('evidence: RUN-072'));
+        assert.ok(result.stdout.includes('evidence: RUN-072, RUN-167'));
     });
 
     it('prints automation runtime boundaries in target-support output', async () => {
