@@ -3020,6 +3020,8 @@ describe('CLI: codex-support-boundaries', () => {
                 'Runtime-complete is true only when the release-ready preset is ready',
             ),
         );
+        assert.ok(result.stdout.includes('## Runtime Evidence Completion Blocker Summary'));
+        assert.ok(result.stdout.includes('| 0 | 0 | 0 | 0 | 0 | none |'));
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
@@ -3132,6 +3134,15 @@ describe('CLI: codex-support-boundaries', () => {
             partialConceptList: [],
             waivedConceptList: [],
             blockingConditions: ['missing-evidence'],
+        });
+        assert.deepStrictEqual(data.runtimeEvidenceCompletionBlockerSummary, {
+            partialConcepts: 0,
+            partialRecords: 0,
+            limitationItems: 0,
+            authorityImplicationItems: 0,
+            nativeSurfaceItems: 0,
+            concepts: [],
+            items: [],
         });
         assert.deepStrictEqual(data.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',

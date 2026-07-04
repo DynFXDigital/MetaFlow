@@ -78,6 +78,10 @@ release-ready status, runtime-complete status, partial and waived concept
 counts, diagnostic and freshness counts, remaining completion actions, and
 repository-projection-impossible item counts. Use it as the first stop before
 deciding whether to inspect the detailed queues.
+The runtime evidence completion blocker summary is the compact handoff for
+runtime-complete work: it lists partial concepts, matching record IDs,
+limitations, native surfaces, authority implications, and expected proof before
+the full completion action plan.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.

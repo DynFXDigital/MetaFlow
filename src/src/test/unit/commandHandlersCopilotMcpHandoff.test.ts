@@ -548,6 +548,15 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             waivedConceptList: [],
             blockingConditions: ['missing-evidence'],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletionBlockerSummary, {
+            partialConcepts: 0,
+            partialRecords: 0,
+            limitationItems: 0,
+            authorityImplicationItems: 0,
+            nativeSurfaceItems: 0,
+            concepts: [],
+            items: [],
+        });
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
@@ -656,6 +665,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
         assert.ok(document.content.includes('## Runtime Evidence Completeness Summary'));
         assert.ok(document.content.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
+        assert.ok(document.content.includes('## Runtime Evidence Completion Blocker Summary'));
         assert.ok(document.content.includes('agentRuntime'));
         assert.ok(document.content.includes('automationRuntime'));
         assert.ok(document.content.includes('authenticationRuntime'));

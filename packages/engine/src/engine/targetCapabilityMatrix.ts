@@ -26,6 +26,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
     runtimeEvidenceWaiverSummary: CodexRuntimeEvidenceWaiverSummary;
     runtimeEvidenceCompletenessSummary: CodexRuntimeEvidenceCompletenessSummary;
+    runtimeEvidenceCompletionBlockerSummary: CodexRuntimeEvidenceCompletionBlockerSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
@@ -98,6 +99,25 @@ export interface CodexRuntimeEvidenceCompletenessSummary {
     partialConceptList: TargetCapabilityConcept[];
     waivedConceptList: TargetCapabilityConcept[];
     blockingConditions: CodexRuntimeEvidenceGateCondition[];
+}
+
+export interface CodexRuntimeEvidenceCompletionBlockerSummaryItem {
+    concept: TargetCapabilityConcept;
+    runtimeEvidenceRecordIds: string[];
+    runtimeEvidenceLimitations: string[];
+    nativeSurfaces: string[];
+    authorityImplications: string[];
+    runtimeEvidenceExpected: string;
+}
+
+export interface CodexRuntimeEvidenceCompletionBlockerSummary {
+    partialConcepts: number;
+    partialRecords: number;
+    limitationItems: number;
+    authorityImplicationItems: number;
+    nativeSurfaceItems: number;
+    concepts: TargetCapabilityConcept[];
+    items: CodexRuntimeEvidenceCompletionBlockerSummaryItem[];
 }
 
 export type CodexRuntimeEvidenceGateCondition =
@@ -2171,6 +2191,39 @@ function buildRuntimeEvidenceCompletenessSummary(
     };
 }
 
+function buildRuntimeEvidenceCompletionBlockerSummary(
+    completionActionPlan: CodexRuntimeEvidenceActionPlanItem[],
+): CodexRuntimeEvidenceCompletionBlockerSummary {
+    const items = completionActionPlan.flatMap((action) =>
+        action.conceptDetails.map((detail) => ({
+            concept: detail.concept,
+            runtimeEvidenceRecordIds: detail.runtimeEvidenceRecordIds,
+            runtimeEvidenceLimitations: detail.runtimeEvidenceLimitations,
+            nativeSurfaces: detail.nativeSurfaces,
+            authorityImplications: detail.authorityImplications,
+            runtimeEvidenceExpected: detail.runtimeEvidenceExpected,
+        })),
+    );
+    return {
+        partialConcepts: items.length,
+        partialRecords: items.reduce(
+            (count, item) => count + item.runtimeEvidenceRecordIds.length,
+            0,
+        ),
+        limitationItems: items.reduce(
+            (count, item) => count + item.runtimeEvidenceLimitations.length,
+            0,
+        ),
+        authorityImplicationItems: items.reduce(
+            (count, item) => count + item.authorityImplications.length,
+            0,
+        ),
+        nativeSurfaceItems: items.reduce((count, item) => count + item.nativeSurfaces.length, 0),
+        concepts: items.map((item) => item.concept),
+        items,
+    };
+}
+
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
@@ -2851,6 +2904,8 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceWaiverSummary,
         runtimeEvidenceCompletionActionPlan,
     );
+    const runtimeEvidenceCompletionBlockerSummary =
+        buildRuntimeEvidenceCompletionBlockerSummary(runtimeEvidenceCompletionActionPlan);
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
@@ -2948,6 +3003,14 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `Release-ready blocking conditions: ${runtimeEvidenceCompletenessSummary.blockingConditions.length > 0 ? runtimeEvidenceCompletenessSummary.blockingConditions.join(', ') : 'none'}.`,
         'Runtime-complete is true only when the release-ready preset is ready and no runtime-only concept remains partial.',
         '',
+        '## Runtime Evidence Completion Blocker Summary',
+        '',
+        '| Partial concepts | Partial records | Limitation items | Authority implication items | Native surface items | Concepts |',
+        '| --- | --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCompletionBlockerSummary.partialConcepts} | ${runtimeEvidenceCompletionBlockerSummary.partialRecords} | ${runtimeEvidenceCompletionBlockerSummary.limitationItems} | ${runtimeEvidenceCompletionBlockerSummary.authorityImplicationItems} | ${runtimeEvidenceCompletionBlockerSummary.nativeSurfaceItems} | ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletionBlockerSummary.concepts)} |`,
+        '',
+        'Completion blockers are partial runtime concepts that need stronger harness-native proof before runtime-complete can pass. Each blocker keeps the current record IDs, limitations, native surfaces, authority implications, and expected proof in JSON output.',
+        '',
         '## Runtime Evidence Review Queues',
         '',
         `- Missing evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.missing)}`,
@@ -3029,6 +3092,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceCoverageSummary,
         runtimeEvidenceWaiverSummary,
         runtimeEvidenceCompletenessSummary,
+        runtimeEvidenceCompletionBlockerSummary,
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceActionPlan,

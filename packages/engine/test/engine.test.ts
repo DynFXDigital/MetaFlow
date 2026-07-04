@@ -1422,6 +1422,15 @@ describe('Engine package: public API', () => {
             waivedConceptList: [],
             blockingConditions: ['missing-evidence'],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletionBlockerSummary, {
+            partialConcepts: 0,
+            partialRecords: 0,
+            limitationItems: 0,
+            authorityImplicationItems: 0,
+            nativeSurfaceItems: 0,
+            concepts: [],
+            items: [],
+        });
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
             ready: false,
@@ -1486,6 +1495,8 @@ describe('Engine package: public API', () => {
         assert.ok(document.content.includes('## Runtime Evidence Completeness Summary'));
         assert.ok(document.content.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
         assert.ok(document.content.includes('Runtime-complete is true only when'));
+        assert.ok(document.content.includes('## Runtime Evidence Completion Blocker Summary'));
+        assert.ok(document.content.includes('| 0 | 0 | 0 | 0 | 0 | none |'));
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
@@ -1750,6 +1761,42 @@ describe('Engine package: public API', () => {
             partialConceptList: ['issuePrOperation', 'reviewRuntime'].sort(),
             waivedConceptList: ['modelProviderRuntime'],
             blockingConditions: ['missing-evidence', 'diagnostics'],
+        });
+        const issuePrChecklistItem = document.runtimeEvidenceChecklist.find(
+            (item) => item.concept === 'issuePrOperation',
+        );
+        const reviewChecklistItem = document.runtimeEvidenceChecklist.find(
+            (item) => item.concept === 'reviewRuntime',
+        );
+        assert.deepStrictEqual(document.runtimeEvidenceCompletionBlockerSummary, {
+            partialConcepts: 2,
+            partialRecords: 2,
+            limitationItems: 0,
+            authorityImplicationItems:
+                (issuePrChecklistItem?.authorityImplications.length ?? 0) +
+                (reviewChecklistItem?.authorityImplications.length ?? 0),
+            nativeSurfaceItems:
+                (issuePrChecklistItem?.nativeSurfaces.length ?? 0) +
+                (reviewChecklistItem?.nativeSurfaces.length ?? 0),
+            concepts: ['issuePrOperation', 'reviewRuntime'],
+            items: [
+                {
+                    concept: 'issuePrOperation',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                    runtimeEvidenceLimitations: [],
+                    nativeSurfaces: issuePrChecklistItem?.nativeSurfaces,
+                    authorityImplications: issuePrChecklistItem?.authorityImplications,
+                    runtimeEvidenceExpected: issuePrChecklistItem?.runtimeEvidenceExpected,
+                },
+                {
+                    concept: 'reviewRuntime',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                    runtimeEvidenceLimitations: [],
+                    nativeSurfaces: reviewChecklistItem?.nativeSurfaces,
+                    authorityImplications: reviewChecklistItem?.authorityImplications,
+                    runtimeEvidenceExpected: reviewChecklistItem?.runtimeEvidenceExpected,
+                },
+            ],
         });
         assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
             condition: 'diagnostics',
