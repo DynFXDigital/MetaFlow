@@ -1764,9 +1764,58 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
+        assert.ok(document.content.includes('- Partial evidence: issuePrOperation, reviewRuntime'));
         assert.ok(document.content.includes('- Expired evidence: none'));
         assert.ok(document.content.includes('- Stale adapter version evidence: none'));
         assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));
+    });
+
+    it('builds a focused Codex partial runtime evidence review queue', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-partial',
+                    manifestPath: 'runtime-evidence/codex-review-partial.json',
+                    target: 'codex',
+                    concepts: ['reviewRuntime'],
+                    harness: 'Codex review',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex review completed without proving hosted review posting.',
+                    status: 'partial',
+                    evidence: ['RUN-160'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-160',
+                            description: 'Partial runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Does not prove review posting or PR feedback handling.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+        const queue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'partial',
+        );
+
+        assert.strictEqual(queue.queue, 'partial');
+        assert.deepStrictEqual(queue.concepts, ['reviewRuntime']);
+        assert.ok(queue.content.includes('Queue `partial`.'));
+        assert.ok(queue.content.includes('- Partial evidence: reviewRuntime'));
+        assert.ok(
+            queue.content.includes(
+                '- review-partial-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-partial (partial).',
+            ),
+        );
+        assert.ok(
+            queue.content.includes(
+                '| reviewRuntime | partial | codex-review-partial (partial) |',
+            ),
+        );
+        assert.ok(!queue.content.includes('| missing-evidence |'));
     });
 
     it('builds a focused Codex expired runtime evidence review queue', () => {

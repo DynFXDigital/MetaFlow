@@ -193,6 +193,7 @@ export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'error-diagnostics',
     'failed',
     'not-run',
+    'partial',
     'expired-evidence',
     'stale-adapter-version',
     'waived',
@@ -2284,6 +2285,9 @@ function uniqueCodexRuntimeEvidenceReviewQueueConcepts(
 function getCodexRuntimeEvidenceReviewQueueAdvisoryKind(
     queue: CodexRuntimeEvidenceReviewQueueId,
 ): string | undefined {
+    if (queue === 'partial') {
+        return 'review-partial-runtime-evidence';
+    }
     if (queue === 'waived') {
         return 'review-waived-runtime-evidence';
     }
@@ -2308,6 +2312,8 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
             ? ['missing-evidence', 'diagnostics', 'error-diagnostics', 'failed', 'not-run']
             : queue === 'release-ready'
               ? supportBoundariesDocument.runtimeEvidenceReadinessSummary.checkedConditions
+              : queue === 'partial'
+                ? []
               : queue === 'waived'
                 ? []
                 : queue === 'expired-evidence'
@@ -2324,6 +2330,8 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                         supportBoundariesDocument.runtimeEvidenceGateSummary[condition]
                             ?.concepts ?? [],
                 )
+              : queue === 'partial'
+                ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.partial
               : queue === 'waived'
                 ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived
                 : queue === 'expired-evidence'
@@ -2342,7 +2350,8 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 supportBoundariesDocument.runtimeEvidenceReadinessSummary.blockingConditions.includes(
                     item.condition,
                 )) ||
-            (queue !== 'waived' &&
+            (queue !== 'partial' &&
+                queue !== 'waived' &&
                 queue !== 'expired-evidence' &&
                 queue !== 'stale-adapter-version' &&
                 item.condition === queue),
@@ -2383,6 +2392,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `- Evidence without diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords)}`,
         `- Evidence with diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
+        `- Partial evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.partial)}`,
         `- Expired evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords)}`,
         `- Stale adapter version evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords)}`,
         `- Waived evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
@@ -2705,6 +2715,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `- Evidence without diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords)}`,
         `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
+        `- Partial evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.partial)}`,
         `- Expired evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords)}`,
         `- Stale adapter version evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersionRecords)}`,
         `- Waived evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,

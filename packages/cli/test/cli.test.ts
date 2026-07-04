@@ -3873,6 +3873,66 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
     });
 
+    it('prints a partial runtime evidence review queue with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-partial',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex review',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review completed without proving hosted review posting.',
+                            status: 'partial',
+                            evidence: ['RUN-160'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-160',
+                                    description: 'Partial runtime evidence proof.',
+                                },
+                            ],
+                            limitations: [
+                                'Does not prove review posting or PR feedback handling.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'partial',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Queue `partial`.'));
+        assert.ok(result.stdout.includes('- Partial evidence: reviewRuntime'));
+        assert.ok(
+            result.stdout.includes(
+                '- review-partial-runtime-evidence (advisory): Review reviewRuntime partial evidence records: codex-review-partial (partial).',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes(
+                '| reviewRuntime | partial | codex-review-partial (partial) |',
+            ),
+        );
+        assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
+    });
+
     it('prints an expired runtime evidence review queue with workspace evidence', async () => {
         ws = createTestWorkspace({
             config: {
@@ -4037,7 +4097,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(unknown.exitCode, 1);
         assert.ok(
             unknown.stderr.includes(
-                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, expired-evidence, stale-adapter-version, waived',
+                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, partial, expired-evidence, stale-adapter-version, waived',
             ),
         );
 
