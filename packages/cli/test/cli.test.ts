@@ -3794,7 +3794,117 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(ambiguous.exitCode, 1);
         assert.ok(
             ambiguous.stderr.includes(
-                '--runtime-evidence-review-queue cannot be combined with runtime evidence template output options',
+                '--runtime-evidence-review-queue cannot be combined with runtime evidence template or projection-boundary output options',
+            ),
+        );
+    });
+
+    it('prints a focused projection boundary review', async () => {
+        const result = await runCli(['codex-support-boundaries', '--projection-boundary-review']);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('# Codex Repository Projection Boundary Review'));
+        assert.ok(result.stdout.includes('| File-backed rows | Runtime-only rows | Unsupported rows |'));
+        assert.ok(result.stdout.includes('| instructions | supported |'));
+        assert.ok(result.stdout.includes('| issuePrOperation |'));
+        assert.ok(result.stdout.includes('Creating or approving ChatGPT workspace connectors.'));
+        assert.ok(result.stdout.includes('Runtime Evidence Expected'));
+    });
+
+    it('prints a projection boundary review as JSON', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--projection-boundary-review',
+            '--json',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.schemaVersion, 'metaflow.codexProjectionBoundary/v1');
+        assert.strictEqual(
+            data.generatedBy,
+            'metaflow codex-support-boundaries --projection-boundary-review',
+        );
+        assert.strictEqual(data.target, 'codex');
+        assert.ok(data.summary.fileBackedRows > 0);
+        assert.strictEqual(data.summary.runtimeOnlyRows, 34);
+        assert.ok(data.summary.notAchievableItems > 0);
+        assert.ok(
+            data.fileBackedSurfaces.some(
+                (item: { concept: string; support: string }) =>
+                    item.concept === 'instructions' && item.support === 'supported',
+            ),
+        );
+        assert.ok(
+            data.runtimeOnlySurfaces.some(
+                (item: { concept: string; boundary: string }) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.boundary.includes('Issue, PR, and review operation'),
+            ),
+        );
+        assert.ok(
+            data.notAchievableByRepositoryProjection.some((item: string) =>
+                item.includes('Selecting active Codex model providers'),
+            ),
+        );
+        assert.ok(data.content.includes('## Runtime-Only Surfaces'));
+    });
+
+    it('writes a projection boundary review to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-projection-boundary.md');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--projection-boundary-review',
+            '--out',
+            'reports/codex-projection-boundary.md',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Wrote Codex projection boundary review: reports'));
+        const content = fs.readFileSync(outputPath, 'utf-8');
+        assert.ok(content.includes('# Codex Repository Projection Boundary Review'));
+        assert.ok(content.includes('## Not Achievable By Repository Projection Alone'));
+
+        const blocked = await runCli([
+            'codex-support-boundaries',
+            '--projection-boundary-review',
+            '--out',
+            'reports/codex-projection-boundary.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blocked.exitCode, 1);
+        assert.ok(blocked.stderr.includes('Output file already exists'));
+    });
+
+    it('rejects ambiguous projection boundary review options', async () => {
+        const ambiguousTemplate = await runCli([
+            'codex-support-boundaries',
+            '--projection-boundary-review',
+            '--runtime-evidence-template',
+        ]);
+        assert.strictEqual(ambiguousTemplate.exitCode, 1);
+        assert.ok(
+            ambiguousTemplate.stderr.includes(
+                '--projection-boundary-review cannot be combined with runtime evidence template output options',
+            ),
+        );
+
+        const ambiguousGuide = await runCli([
+            'codex-support-boundaries',
+            '--projection-boundary-review',
+            '--runtime-evidence-guide',
+            '--runtime-evidence-concept',
+            'issuePrOperation',
+        ]);
+        assert.strictEqual(ambiguousGuide.exitCode, 1);
+        assert.ok(
+            ambiguousGuide.stderr.includes(
+                '--runtime-evidence-guide cannot be combined with runtime evidence template, review-queue, or projection-boundary output options',
             ),
         );
     });
@@ -3853,7 +3963,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(ambiguous.exitCode, 1);
         assert.ok(
             ambiguous.stderr.includes(
-                '--runtime-evidence-guide cannot be combined with runtime evidence template or review-queue output options',
+                '--runtime-evidence-guide cannot be combined with runtime evidence template, review-queue, or projection-boundary output options',
             ),
         );
     });

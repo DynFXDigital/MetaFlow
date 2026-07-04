@@ -25,6 +25,8 @@ metaflow codex-support-boundaries
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --fail-on release-ready
 metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
+metaflow codex-support-boundaries --projection-boundary-review
+metaflow codex-support-boundaries --projection-boundary-review --json --out reports/codex-projection-boundaries.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
 metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
@@ -38,6 +40,11 @@ Use the boundary report to distinguish file-backed Codex projections from
 runtime-only and not-technically-projectable behavior before relying on
 generated repository files. Use `target-support` when a review needs filtered
 matrix rows or JSON inspection for a specific canonical concept.
+Use `--projection-boundary-review` when an architecture review, package review,
+or release checkpoint needs a focused retained artifact for what repository
+projection can produce and what remains runtime-owned. The document includes
+file-backed surfaces, runtime-only surfaces, unsupported rows, not-achievable
+repository-projection items, expected runtime evidence, and related guides.
 
 The boundary report includes a runtime evidence checklist keyed by target
 capability concept. Use that section when a package, target adapter, release

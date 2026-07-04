@@ -25,6 +25,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only runtime evidence triage documents for terminal and CI review.
+- `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
 - `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused runtime evidence triage documents from the VS Code command palette for all runtime-only concepts, release-ready blockers, or individual gate queues.
 - `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance from the VS Code command palette for selected runtime-only Codex concepts.
 - `MetaFlow: Open Codex Runtime Evidence Template` opens the same review-only runtime evidence template bundle from the VS Code command palette without writing canonical evidence records.

@@ -53,6 +53,7 @@ import {
     normalizeConfigShape,
     getTargetCapabilityMatrix,
     buildTargetCapabilitySupportReference,
+    buildCodexProjectionBoundaryDocument,
     buildCodexSupportBoundariesDocument,
     buildAdapterReadinessReports,
     buildGitHubCopilotMcpHandoff,
@@ -1458,6 +1459,63 @@ describe('Engine package: public API', () => {
                 '| issuePrOperation | missing | Runtime evidence for issuePrOperation',
             ),
         );
+    });
+
+    it('builds a structured Codex projection boundary review document', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            generatedAt: '2026-07-04T00:00:00.000Z',
+        });
+        const document = buildCodexProjectionBoundaryDocument(supportBoundaries);
+
+        assert.strictEqual(document.schemaVersion, 'metaflow.codexProjectionBoundary/v1');
+        assert.strictEqual(
+            document.generatedBy,
+            'metaflow codex-support-boundaries --projection-boundary-review',
+        );
+        assert.strictEqual(document.generatedAt, '2026-07-04T00:00:00.000Z');
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(document.target, 'codex');
+        assert.strictEqual(
+            document.summary.fileBackedRows,
+            supportBoundaries.fileBackedRows.length,
+        );
+        assert.strictEqual(
+            document.summary.runtimeOnlyRows,
+            supportBoundaries.runtimeOnlyRows.length,
+        );
+        assert.strictEqual(document.summary.runtimeOnlyRows, 34);
+        assert.strictEqual(document.summary.unsupportedRows, document.unsupportedSurfaces.length);
+        assert.strictEqual(
+            document.summary.notAchievableItems,
+            supportBoundaries.notAchievableByRepositoryProjection.length,
+        );
+        assert.strictEqual(
+            document.summary.runtimeEvidenceExpectedItems,
+            supportBoundaries.runtimeEvidenceExpected.length,
+        );
+        assert.ok(
+            document.fileBackedSurfaces.some(
+                (item) => item.concept === 'instructions' && item.support === 'supported',
+            ),
+        );
+        assert.ok(
+            document.runtimeOnlySurfaces.some(
+                (item) =>
+                    item.concept === 'issuePrOperation' &&
+                    item.boundary.includes('Issue, PR, and review operation'),
+            ),
+        );
+        assert.ok(
+            document.notAchievableByRepositoryProjection.some((item) =>
+                item.includes('Selecting active Codex model providers'),
+            ),
+        );
+        assert.ok(document.content.includes('# Codex Repository Projection Boundary Review'));
+        assert.ok(document.content.includes('## Summary'));
+        assert.ok(document.content.includes('## File-Backed and Reviewable Surfaces'));
+        assert.ok(document.content.includes('## Runtime-Only Surfaces'));
+        assert.ok(document.content.includes('## Unsupported Surfaces'));
+        assert.ok(document.content.includes('## Not Achievable By Repository Projection Alone'));
     });
 
     it('summarizes Codex runtime evidence coverage by concept status', () => {

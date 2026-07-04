@@ -260,6 +260,7 @@ export type {
 export { TARGET_CAPABILITY_CONCEPTS } from './types';
 export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 export {
+    buildCodexProjectionBoundaryDocument,
     buildCodexRuntimeEvidenceReviewQueueDocument,
     buildCodexRuntimeEvidenceGuideDocument,
     buildCodexRuntimeEvidenceTemplateDocument,
@@ -282,6 +283,10 @@ export type {
     CodexRuntimeEvidenceReviewQueueId,
     CodexRuntimeEvidenceTemplateDocument,
     CodexRuntimeEvidenceTemplateRecord,
+    CodexProjectionBoundaryDocument,
+    CodexProjectionBoundaryFileBackedItem,
+    CodexProjectionBoundaryRuntimeItem,
+    CodexProjectionBoundarySummary,
     CodexSupportBoundariesDocument,
 } from './targetCapabilityMatrix';
 export {

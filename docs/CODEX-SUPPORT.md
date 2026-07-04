@@ -52,6 +52,11 @@ evidence record IDs so operators can work from the persisted report artifact.
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
 `error-diagnostics`, `failed`, or `not-run` triage.
+`metaflow codex-support-boundaries --projection-boundary-review` emits a
+focused Markdown projection-boundary document, or JSON when `--json` is
+supplied, for retaining Codex file-backed, runtime-only, unsupported,
+not-achievable, and expected-evidence boundaries without collecting runtime
+proof.
 `metaflow codex-support-boundaries --runtime-evidence-guide
 --runtime-evidence-concept <concepts>` emits a Markdown guide, or a JSON guide
 when `--json` is supplied, for collecting reviewable proof for selected

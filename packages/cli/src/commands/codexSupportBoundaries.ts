@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
 import {
+    buildCodexProjectionBoundaryDocument,
     buildCodexRuntimeEvidenceReviewQueueDocument,
     buildCodexRuntimeEvidenceGuideDocument,
     buildCodexRuntimeEvidenceTemplateDocument,
@@ -32,6 +33,7 @@ interface CodexSupportBoundariesOptions {
     runtimeEvidenceConcept?: string;
     runtimeEvidenceGuide?: boolean;
     runtimeEvidenceReviewQueue?: string;
+    projectionBoundaryReview?: boolean;
 }
 
 const FAIL_ON_CONDITIONS = [
@@ -204,6 +206,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             '--runtime-evidence-review-queue <queue>',
             `Output a focused runtime evidence review queue: ${CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.join(', ')}`,
         )
+        .option(
+            '--projection-boundary-review',
+            'Output a focused Codex repository projection boundary review document',
+        )
         .action((options: CodexSupportBoundariesOptions) => {
             const workspaceRoot = getWorkspaceRoot(program);
             if (options.runtimeEvidenceTemplateDir && options.out) {
@@ -217,20 +223,33 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 options.runtimeEvidenceGuide &&
                 (options.runtimeEvidenceTemplate ||
                     options.runtimeEvidenceTemplateDir ||
-                    options.runtimeEvidenceReviewQueue)
+                    options.runtimeEvidenceReviewQueue ||
+                    options.projectionBoundaryReview)
             ) {
                 console.error(
-                    'Error: --runtime-evidence-guide cannot be combined with runtime evidence template or review-queue output options.',
+                    'Error: --runtime-evidence-guide cannot be combined with runtime evidence template, review-queue, or projection-boundary output options.',
                 );
                 process.exitCode = 1;
                 return;
             }
             if (
                 options.runtimeEvidenceReviewQueue &&
+                (options.runtimeEvidenceTemplate ||
+                    options.runtimeEvidenceTemplateDir ||
+                    options.projectionBoundaryReview)
+            ) {
+                console.error(
+                    'Error: --runtime-evidence-review-queue cannot be combined with runtime evidence template or projection-boundary output options.',
+                );
+                process.exitCode = 1;
+                return;
+            }
+            if (
+                options.projectionBoundaryReview &&
                 (options.runtimeEvidenceTemplate || options.runtimeEvidenceTemplateDir)
             ) {
                 console.error(
-                    'Error: --runtime-evidence-review-queue cannot be combined with runtime evidence template output options.',
+                    'Error: --projection-boundary-review cannot be combined with runtime evidence template output options.',
                 );
                 process.exitCode = 1;
                 return;
@@ -287,6 +306,54 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 return;
             }
             const failOnFailures = evaluateFailOnConditions(document, failOnConditions);
+            if (options.projectionBoundaryReview) {
+                const projectionBoundaryReport = buildCodexProjectionBoundaryDocument(document);
+                const projectionBoundaryPayload = options.json
+                    ? `${JSON.stringify(projectionBoundaryReport, null, 2)}\n`
+                    : projectionBoundaryReport.content;
+                if (!options.out) {
+                    process.stdout.write(projectionBoundaryPayload);
+                    if (failOnFailures.length > 0) {
+                        console.error(
+                            `Codex support boundary gate failed: ${failOnFailures.join('; ')}`,
+                        );
+                        process.exitCode = 1;
+                    }
+                    return;
+                }
+                let projectionBoundaryOutputPath: string;
+                try {
+                    projectionBoundaryOutputPath = resolveWorkspaceOutputPath(
+                        workspaceRoot,
+                        options.out,
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error(`Error: ${message}`);
+                    process.exitCode = 1;
+                    return;
+                }
+                if (fs.existsSync(projectionBoundaryOutputPath) && !options.force) {
+                    console.error(
+                        `Error: Output file already exists: ${path.relative(workspaceRoot, projectionBoundaryOutputPath)}`,
+                    );
+                    console.error('Use --force to overwrite it.');
+                    process.exitCode = 1;
+                    return;
+                }
+                fs.mkdirSync(path.dirname(projectionBoundaryOutputPath), { recursive: true });
+                fs.writeFileSync(projectionBoundaryOutputPath, projectionBoundaryPayload, 'utf-8');
+                console.log(
+                    `Wrote Codex projection boundary review: ${path.relative(workspaceRoot, projectionBoundaryOutputPath)}`,
+                );
+                if (failOnFailures.length > 0) {
+                    console.error(
+                        `Codex support boundary gate failed: ${failOnFailures.join('; ')}`,
+                    );
+                    process.exitCode = 1;
+                }
+                return;
+            }
             if (options.runtimeEvidenceReviewQueue) {
                 const reviewQueue = parseRuntimeEvidenceReviewQueue(
                     options.runtimeEvidenceReviewQueue,
