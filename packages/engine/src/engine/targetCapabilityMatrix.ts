@@ -24,6 +24,7 @@ export interface CodexSupportBoundariesDocument {
     fileBackedRows: TargetCapabilityMatrixEntry[];
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
+    runtimeEvidenceWaiverSummary: CodexRuntimeEvidenceWaiverSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
@@ -60,6 +61,22 @@ export interface CodexRuntimeEvidenceCoverageSummary {
     conceptsWithWarningRecords: TargetCapabilityConcept[];
     conceptsWithEvidenceWithoutDiagnosticRecords: TargetCapabilityConcept[];
     conceptsWithEvidenceWithDiagnosticRecords: TargetCapabilityConcept[];
+}
+
+export interface CodexRuntimeEvidenceWaiverSummaryItem {
+    concept: TargetCapabilityConcept;
+    runtimeEvidenceRecordIds: string[];
+    limitations: string[];
+    notAchievableByRepositoryProjection: string;
+    authorityImplications: string[];
+}
+
+export interface CodexRuntimeEvidenceWaiverSummary {
+    waivedConcepts: number;
+    waivedRecords: number;
+    notAchievableByRepositoryProjectionItems: number;
+    concepts: TargetCapabilityConcept[];
+    items: CodexRuntimeEvidenceWaiverSummaryItem[];
 }
 
 export type CodexRuntimeEvidenceGateCondition =
@@ -2072,6 +2089,36 @@ function buildRuntimeEvidenceCompletionActionPlan(
     ];
 }
 
+function buildRuntimeEvidenceWaiverSummary(
+    runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[],
+    notAchievableByRepositoryProjection: string[],
+): CodexRuntimeEvidenceWaiverSummary {
+    const items = runtimeEvidenceChecklist
+        .filter((item) => item.coverageStatus === 'waived')
+        .map((item) => {
+            const waivedRecords = item.runtimeEvidenceRecords.filter(
+                (record) => record.status === 'waived',
+            );
+            return {
+                concept: item.concept,
+                runtimeEvidenceRecordIds: waivedRecords.map((record) => record.id),
+                limitations: waivedRecords.flatMap((record) => record.limitations),
+                notAchievableByRepositoryProjection: item.notAchievableByRepositoryProjection,
+                authorityImplications: item.authorityImplications,
+            };
+        });
+    return {
+        waivedConcepts: items.length,
+        waivedRecords: items.reduce(
+            (count, item) => count + item.runtimeEvidenceRecordIds.length,
+            0,
+        ),
+        notAchievableByRepositoryProjectionItems: notAchievableByRepositoryProjection.length,
+        concepts: items.map((item) => item.concept),
+        items,
+    };
+}
+
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
@@ -2742,6 +2789,10 @@ export function buildCodexSupportBoundariesDocument(options?: {
         'Executing harness-native evaluations, benchmark tasks, reviewer-agent scoring, hosted traces, or runtime scoring workflows.',
         'Proving hosted Codex Cloud, channel delegation, GitHub review, PR feedback, remote MCP reachability, OAuth MCP login, side-effecting MCP behavior, browser interaction, Chrome profile operation, desktop automation, Sites deployment, or harness-native evaluation execution without a harness-native run.',
     ];
+    const runtimeEvidenceWaiverSummary = buildRuntimeEvidenceWaiverSummary(
+        runtimeEvidenceChecklist,
+        notAchievableByRepositoryProjection,
+    );
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
@@ -2819,6 +2870,14 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.recordsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.recordsWithStaleAdapterVersion} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithStaleAdapterVersion} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
         '',
         'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable, unauthorized, or intentionally out of scope for the current release posture; it does not claim the surface passed runtime validation.',
+        '',
+        '## Runtime Evidence Waiver Summary',
+        '',
+        '| Waived concepts | Waived records | Repository-projection impossible items | Concepts |',
+        '| --- | --- | --- | --- |',
+        `| ${runtimeEvidenceWaiverSummary.waivedConcepts} | ${runtimeEvidenceWaiverSummary.waivedRecords} | ${runtimeEvidenceWaiverSummary.notAchievableByRepositoryProjectionItems} | ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceWaiverSummary.concepts)} |`,
+        '',
+        'Waived and impossible items require operator review. They document boundaries that repository metadata cannot satisfy by itself, such as external account authorization, hosted execution, OS permissions, app installation, connector approval, or side-effecting tool authority.',
         '',
         '## Runtime Evidence Review Queues',
         '',
@@ -2899,6 +2958,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         fileBackedRows: supportedRows,
         runtimeOnlyRows,
         runtimeEvidenceCoverageSummary,
+        runtimeEvidenceWaiverSummary,
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceActionPlan,

@@ -68,6 +68,11 @@ with evidence that still needs diagnostic review.
 A `waived` concept is reviewed evidence that the native Codex surface is
 unavailable, unauthorized, or intentionally out of scope for the current
 release posture; it is not a runtime pass.
+The runtime evidence waiver summary gives waived concept and record counts,
+lists waived concept IDs, and preserves per-concept record IDs, limitations,
+authority implications, and repository-projection boundaries. Use it when a
+review must distinguish technically impossible or authority-gated surfaces from
+runtime proof that still needs collection.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.

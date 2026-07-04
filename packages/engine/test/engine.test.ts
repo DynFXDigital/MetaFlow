@@ -1394,6 +1394,14 @@ describe('Engine package: public API', () => {
             concepts: [],
             message: '0 runtime-only concept(s) are covered by partial evidence',
         });
+        assert.deepStrictEqual(document.runtimeEvidenceWaiverSummary, {
+            waivedConcepts: 0,
+            waivedRecords: 0,
+            notAchievableByRepositoryProjectionItems:
+                document.notAchievableByRepositoryProjection.length,
+            concepts: [],
+            items: [],
+        });
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
             ready: false,
@@ -1453,6 +1461,8 @@ describe('Engine package: public API', () => {
                 'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable',
             ),
         );
+        assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
+        assert.ok(document.content.includes('| 0 | 0 |'));
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
@@ -1676,6 +1686,28 @@ describe('Engine package: public API', () => {
             document.runtimeEvidenceCoverageSummary.conceptsWithExpiredEvidenceRecords,
             [],
         );
+        assert.deepStrictEqual(document.runtimeEvidenceWaiverSummary, {
+            waivedConcepts: 1,
+            waivedRecords: 1,
+            notAchievableByRepositoryProjectionItems:
+                document.notAchievableByRepositoryProjection.length,
+            concepts: ['modelProviderRuntime'],
+            items: [
+                {
+                    concept: 'modelProviderRuntime',
+                    runtimeEvidenceRecordIds: ['codex-provider-waiver'],
+                    limitations: ['No AWS Bedrock access in the validation environment.'],
+                    notAchievableByRepositoryProjection:
+                        document.runtimeEvidenceChecklist.find(
+                            (item) => item.concept === 'modelProviderRuntime',
+                        )?.notAchievableByRepositoryProjection,
+                    authorityImplications:
+                        document.runtimeEvidenceChecklist.find(
+                            (item) => item.concept === 'modelProviderRuntime',
+                        )?.authorityImplications,
+                },
+            ],
+        });
         assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
             condition: 'diagnostics',
             triggered: true,

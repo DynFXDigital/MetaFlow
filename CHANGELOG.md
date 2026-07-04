@@ -18,6 +18,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex target support reports in both the CLI and VS Code extension for reviewing target capability support, runtime-only boundaries, unsupported surfaces, and the terminal `codex-support-boundaries` report.
 - Codex support boundary reports now link related operator, package maintainer, and tool authority guides in Markdown and JSON output.
 - Codex support boundary reports now include a runtime evidence readiness summary for the release-ready gate preset.
+- Codex support boundary reports now include a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
 - Codex support boundary reports now include a runtime evidence action plan that turns blocking readiness gates into operator work items.
 - Codex support boundary reports now include a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
 - Codex support boundary action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.

@@ -520,6 +520,14 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             info: 0,
         });
         assert.deepStrictEqual(document.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords, []);
+        assert.deepStrictEqual(document.runtimeEvidenceWaiverSummary, {
+            waivedConcepts: 0,
+            waivedRecords: 0,
+            notAchievableByRepositoryProjectionItems:
+                document.notAchievableByRepositoryProjection.length,
+            concepts: [],
+            items: [],
+        });
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
@@ -625,6 +633,7 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         );
         assert.ok(document.content.includes('# Codex Support Boundaries'));
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
+        assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
         assert.ok(document.content.includes('agentRuntime'));
         assert.ok(document.content.includes('automationRuntime'));
         assert.ok(document.content.includes('authenticationRuntime'));

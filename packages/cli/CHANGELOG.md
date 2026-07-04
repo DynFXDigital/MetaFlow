@@ -7,6 +7,7 @@
 - `metaflow codex-support-boundaries` command for printing or writing the Codex file-backed, runtime-only, and not-technically-projectable support boundary report from the terminal.
 - `metaflow codex-support-boundaries` now includes related operator, package maintainer, and tool authority guide references in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now reports release-ready runtime evidence readiness in Markdown and JSON output.
+- `metaflow codex-support-boundaries` now reports a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
 - `metaflow codex-support-boundaries` now includes a runtime evidence action plan in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now includes a runtime-complete completion action plan for partial runtime-only evidence, and runtime evidence templates fall back to those completion actions when release-ready has no blockers.
 - `metaflow codex-support-boundaries` action details now include matching runtime evidence limitations so partial evidence completion work shows why the current proof is incomplete.

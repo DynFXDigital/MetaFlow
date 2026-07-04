@@ -3011,6 +3011,8 @@ describe('CLI: codex-support-boundaries', () => {
                 'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable',
             ),
         );
+        assert.ok(result.stdout.includes('## Runtime Evidence Waiver Summary'));
+        assert.ok(result.stdout.includes('| 0 | 0 |'));
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
@@ -3095,6 +3097,14 @@ describe('CLI: codex-support-boundaries', () => {
             conceptsWithWarningRecords: [],
             conceptsWithEvidenceWithoutDiagnosticRecords: [],
             conceptsWithEvidenceWithDiagnosticRecords: [],
+        });
+        assert.deepStrictEqual(data.runtimeEvidenceWaiverSummary, {
+            waivedConcepts: 0,
+            waivedRecords: 0,
+            notAchievableByRepositoryProjectionItems:
+                data.notAchievableByRepositoryProjection.length,
+            concepts: [],
+            items: [],
         });
         assert.deepStrictEqual(data.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
