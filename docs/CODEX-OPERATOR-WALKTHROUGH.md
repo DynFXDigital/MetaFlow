@@ -57,6 +57,9 @@ for release review.
 The action plan below the readiness summary turns blocking gate results into
 concrete operator work items, including missing evidence collection,
 diagnostic review, failed-evidence reruns, and not-run evidence execution.
+Action items include concept-level details for coverage status, native
+surfaces, expected runtime proof, authority implications, and matching runtime
+evidence record IDs.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

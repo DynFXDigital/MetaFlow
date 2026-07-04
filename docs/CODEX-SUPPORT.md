@@ -38,6 +38,9 @@ blocked, and lists the blocking gate conditions and messages. The report then
 renders a runtime evidence action plan that turns blocking gate results into
 operator actions such as collecting missing runtime evidence, reviewing
 diagnostics, rerunning failed evidence, or running evidence marked not-run.
+Each action item includes concept-level details for coverage status, native
+surfaces, expected runtime proof, authority implications, and matching runtime
+evidence record IDs so operators can work from the persisted report artifact.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

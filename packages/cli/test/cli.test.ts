@@ -3086,15 +3086,44 @@ describe('CLI: codex-support-boundaries', () => {
             blockingMessages: ['missing-evidence: 34 runtime-only concept(s) have no matching evidence'],
             checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
-        assert.deepStrictEqual(data.runtimeEvidenceActionPlan, [
-            {
-                kind: 'collect-runtime-evidence',
-                condition: 'missing-evidence',
-                blockingReadiness: true,
-                concepts: data.runtimeOnlyRows.map((entry: { concept: string }) => entry.concept),
-                message: '34 runtime-only concept(s) have no matching evidence',
-            },
-        ]);
+        assert.deepStrictEqual(
+            data.runtimeEvidenceActionPlan.map(
+                (action: {
+                    kind: string;
+                    condition: string;
+                    blockingReadiness: boolean;
+                    concepts: string[];
+                    message: string;
+                }) => ({
+                    kind: action.kind,
+                    condition: action.condition,
+                    blockingReadiness: action.blockingReadiness,
+                    concepts: action.concepts,
+                    message: action.message,
+                }),
+            ),
+            [
+                {
+                    kind: 'collect-runtime-evidence',
+                    condition: 'missing-evidence',
+                    blockingReadiness: true,
+                    concepts: data.runtimeOnlyRows.map(
+                        (entry: { concept: string }) => entry.concept,
+                    ),
+                    message: '34 runtime-only concept(s) have no matching evidence',
+                },
+            ],
+        );
+        assert.strictEqual(data.runtimeEvidenceActionPlan[0].conceptDetails.length, 34);
+        const issuePrActionDetail = data.runtimeEvidenceActionPlan[0].conceptDetails.find(
+            (detail: { concept: string }) => detail.concept === 'issuePrOperation',
+        );
+        assert.deepStrictEqual(issuePrActionDetail.runtimeEvidenceRecordIds, []);
+        assert.strictEqual(issuePrActionDetail.coverageStatus, 'missing');
+        assert.ok(issuePrActionDetail.nativeSurfaces.includes('Codex review'));
+        assert.ok(
+            issuePrActionDetail.runtimeEvidenceExpected.includes('representative operation'),
+        );
         assert.deepStrictEqual(data.runtimeEvidenceGateSummary, {
             'missing-evidence': {
                 condition: 'missing-evidence',

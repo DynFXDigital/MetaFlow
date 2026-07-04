@@ -89,11 +89,21 @@ export type CodexRuntimeEvidenceActionKind =
     | 'rerun-failed-evidence'
     | 'run-not-run-evidence';
 
+export interface CodexRuntimeEvidenceActionPlanConceptDetail {
+    concept: TargetCapabilityConcept;
+    coverageStatus: CodexRuntimeEvidenceCoverageStatus;
+    nativeSurfaces: string[];
+    runtimeEvidenceExpected: string;
+    authorityImplications: string[];
+    runtimeEvidenceRecordIds: string[];
+}
+
 export interface CodexRuntimeEvidenceActionPlanItem {
     kind: CodexRuntimeEvidenceActionKind;
     condition: CodexRuntimeEvidenceGateCondition;
     blockingReadiness: boolean;
     concepts: TargetCapabilityConcept[];
+    conceptDetails: CodexRuntimeEvidenceActionPlanConceptDetail[];
     message: string;
 }
 
@@ -1811,27 +1821,61 @@ function actionKindForGateCondition(
 function buildRuntimeEvidenceActionPlan(
     gateSummary: CodexRuntimeEvidenceGateSummary,
     readinessSummary: CodexRuntimeEvidenceReadinessSummary,
+    runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[],
 ): CodexRuntimeEvidenceActionPlanItem[] {
     return readinessSummary.checkedConditions
         .map((condition) => gateSummary[condition])
         .filter((gate) => gate.triggered)
-        .map((gate) => ({
-            kind: actionKindForGateCondition(gate.condition),
-            condition: gate.condition,
-            blockingReadiness: readinessSummary.blockingConditions.includes(gate.condition),
-            concepts: gate.concepts,
-            message: gate.message,
-        }));
+        .map((gate) => {
+            const conceptDetails = gate.concepts.flatMap((concept) => {
+                const item = runtimeEvidenceChecklist.find(
+                    (checklistItem) => checklistItem.concept === concept,
+                );
+                if (!item) {
+                    return [];
+                }
+                return [
+                    {
+                        concept: item.concept,
+                        coverageStatus: item.coverageStatus,
+                        nativeSurfaces: item.nativeSurfaces,
+                        runtimeEvidenceExpected: item.runtimeEvidenceExpected,
+                        authorityImplications: item.authorityImplications,
+                        runtimeEvidenceRecordIds: item.runtimeEvidenceRecords.map(
+                            (record) => record.id,
+                        ),
+                    },
+                ];
+            });
+            return {
+                kind: actionKindForGateCondition(gate.condition),
+                condition: gate.condition,
+                blockingReadiness: readinessSummary.blockingConditions.includes(gate.condition),
+                concepts: gate.concepts,
+                conceptDetails,
+                message: gate.message,
+            };
+        });
 }
 
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
     }
-    return actionPlan.map(
-        (action) =>
-            `- ${action.kind} (${action.blockingReadiness ? 'blocking' : 'advisory'}): ${action.message}; concepts: ${formatRuntimeEvidenceConceptQueue(action.concepts)}`,
-    );
+    return actionPlan.flatMap((action) => [
+        `- ${action.kind} (${action.blockingReadiness ? 'blocking' : 'advisory'}): ${action.message}; concepts: ${formatRuntimeEvidenceConceptQueue(action.concepts)}`,
+        ...action.conceptDetails.map((detail) => {
+            const records =
+                detail.runtimeEvidenceRecordIds.length > 0
+                    ? detail.runtimeEvidenceRecordIds.join(', ')
+                    : 'none recorded';
+            const authority =
+                detail.authorityImplications.length > 0
+                    ? detail.authorityImplications.join(' ')
+                    : 'none';
+            return `  - ${detail.concept}: coverage=${detail.coverageStatus}; records=${records}; surfaces=${detail.nativeSurfaces.join(', ')}; authority=${authority}; expected=${detail.runtimeEvidenceExpected}`;
+        }),
+    ]);
 }
 
 export function buildCodexSupportBoundariesDocument(options?: {
@@ -1931,6 +1975,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
     const runtimeEvidenceActionPlan = buildRuntimeEvidenceActionPlan(
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
+        runtimeEvidenceChecklist,
     );
 
     const relatedGuides = [

@@ -1389,15 +1389,37 @@ describe('Engine package: public API', () => {
             ].map((message) => `missing-evidence: ${message}`),
             checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
-        assert.deepStrictEqual(document.runtimeEvidenceActionPlan, [
-            {
-                kind: 'collect-runtime-evidence',
-                condition: 'missing-evidence',
-                blockingReadiness: true,
-                concepts: document.runtimeEvidenceCoverageSummary.conceptsByStatus.missing,
-                message: `${document.runtimeOnlyCount} runtime-only concept(s) have no matching evidence`,
-            },
-        ]);
+        assert.deepStrictEqual(
+            document.runtimeEvidenceActionPlan.map((action) => ({
+                kind: action.kind,
+                condition: action.condition,
+                blockingReadiness: action.blockingReadiness,
+                concepts: action.concepts,
+                message: action.message,
+            })),
+            [
+                {
+                    kind: 'collect-runtime-evidence',
+                    condition: 'missing-evidence',
+                    blockingReadiness: true,
+                    concepts: document.runtimeEvidenceCoverageSummary.conceptsByStatus.missing,
+                    message: `${document.runtimeOnlyCount} runtime-only concept(s) have no matching evidence`,
+                },
+            ],
+        );
+        assert.strictEqual(
+            document.runtimeEvidenceActionPlan[0].conceptDetails.length,
+            document.runtimeOnlyCount,
+        );
+        const issuePrActionDetail = document.runtimeEvidenceActionPlan[0].conceptDetails.find(
+            (detail) => detail.concept === 'issuePrOperation',
+        );
+        assert.strictEqual(issuePrActionDetail?.coverageStatus, 'missing');
+        assert.deepStrictEqual(issuePrActionDetail?.runtimeEvidenceRecordIds, []);
+        assert.ok(issuePrActionDetail?.nativeSurfaces.includes('Codex review'));
+        assert.ok(
+            issuePrActionDetail?.runtimeEvidenceExpected.includes('representative operation'),
+        );
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item) =>
@@ -1420,6 +1442,11 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes(
                 '- collect-runtime-evidence (blocking): 34 runtime-only concept(s) have no matching evidence; concepts:',
+            ),
+        );
+        assert.ok(
+            document.content.includes(
+                '- issuePrOperation: coverage=missing; records=none recorded;',
             ),
         );
         assert.ok(document.content.includes('## Runtime Evidence Gate Summary'));
@@ -1598,6 +1625,48 @@ describe('Engine package: public API', () => {
                     condition: 'diagnostics',
                     blockingReadiness: true,
                     message: '2 runtime evidence record(s) have diagnostics',
+                },
+            ],
+        );
+        const missingEvidenceAction = document.runtimeEvidenceActionPlan.find(
+            (action) => action.condition === 'missing-evidence',
+        );
+        assert.strictEqual(
+            missingEvidenceAction?.conceptDetails.length,
+            document.runtimeOnlyCount - 3,
+        );
+        assert.ok(
+            !missingEvidenceAction?.conceptDetails.some(
+                (detail) =>
+                    detail.concept === 'issuePrOperation' ||
+                    detail.concept === 'reviewRuntime' ||
+                    detail.concept === 'modelProviderRuntime',
+            ),
+        );
+        const diagnosticAction = document.runtimeEvidenceActionPlan.find(
+            (action) => action.condition === 'diagnostics',
+        );
+        assert.deepStrictEqual(
+            diagnosticAction?.conceptDetails.map((detail) => ({
+                concept: detail.concept,
+                coverageStatus: detail.coverageStatus,
+                runtimeEvidenceRecordIds: detail.runtimeEvidenceRecordIds,
+            })),
+            [
+                {
+                    concept: 'issuePrOperation',
+                    coverageStatus: 'partial',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
+                },
+                {
+                    concept: 'modelProviderRuntime',
+                    coverageStatus: 'waived',
+                    runtimeEvidenceRecordIds: ['codex-provider-waiver'],
+                },
+                {
+                    concept: 'reviewRuntime',
+                    coverageStatus: 'partial',
+                    runtimeEvidenceRecordIds: ['codex-review-smoke'],
                 },
             ],
         );
