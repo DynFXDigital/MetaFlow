@@ -46,6 +46,9 @@ review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records derived from that action plan. The bundle contains suggested paths and
 fill-in record payloads; it does not create runtime proof or write canonical
 evidence records automatically.
+`--runtime-evidence-template-dir <path>` writes those fill-in records as
+individual JSON scaffold files under an explicit workspace-relative directory,
+with overwrite protection unless `--force` is supplied.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

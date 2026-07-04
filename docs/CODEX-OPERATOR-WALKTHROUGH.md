@@ -64,6 +64,9 @@ Use `metaflow codex-support-boundaries --runtime-evidence-template` to emit a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records from the current action plan. Review the suggested paths and fill-in
 record payloads before adding canonical evidence records to a metadata layer.
+Use `--runtime-evidence-template-dir <path>` to write the fill-in records as
+individual JSON scaffold files under an explicit workspace-relative directory;
+existing files are protected unless `--force` is supplied.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

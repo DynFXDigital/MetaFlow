@@ -3511,6 +3511,92 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(data.records.length, 34);
     });
 
+    it('writes review-only runtime evidence templates as individual files', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const templateDir = path.join(ws.root, 'reports', 'runtime-evidence');
+        const issueTemplatePath = path.join(templateDir, 'codex-issue-pr-operation.json');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(
+            result.stdout.includes(
+                'Wrote 34 Codex runtime evidence template file(s) to reports/runtime-evidence.',
+            ),
+        );
+        const files = fs.readdirSync(templateDir).filter((entry) => entry.endsWith('.json'));
+        assert.strictEqual(files.length, 34);
+        const issueTemplate = JSON.parse(fs.readFileSync(issueTemplatePath, 'utf-8'));
+        assert.strictEqual(issueTemplate.schemaVersion, 'metaflow.runtimeEvidence/v1');
+        assert.strictEqual(issueTemplate.id, 'codex-issue-pr-operation');
+        assert.deepStrictEqual(issueTemplate.concepts, ['issuePrOperation']);
+        assert.strictEqual(issueTemplate.status, 'not-run');
+    });
+
+    it('protects review-only runtime evidence template files from overwrite', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const existingTemplatePath = path.join(
+            ws.root,
+            'reports',
+            'runtime-evidence',
+            'codex-issue-pr-operation.json',
+        );
+        fs.mkdirSync(path.dirname(existingTemplatePath), { recursive: true });
+        fs.writeFileSync(existingTemplatePath, '{"existing":true}\n', 'utf-8');
+
+        const blocked = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blocked.exitCode, 1);
+        assert.ok(blocked.stderr.includes('Runtime evidence template file already exists'));
+
+        const forced = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '--force',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(forced.exitCode, 0);
+        const issueTemplate = JSON.parse(
+            fs.readFileSync(
+                path.join(ws.root, 'reports', 'runtime-evidence', 'codex-issue-pr-operation.json'),
+                'utf-8',
+            ),
+        );
+        assert.strictEqual(issueTemplate.id, 'codex-issue-pr-operation');
+    });
+
+    it('rejects ambiguous runtime evidence template output options', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '--out',
+            'reports/template.json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(
+            result.stderr.includes('--runtime-evidence-template-dir cannot be combined with --out'),
+        );
+    });
+
     it('rejects unknown Codex support boundary gate checks', async () => {
         const result = await runCli(['codex-support-boundaries', '--fail-on', 'complete']);
 

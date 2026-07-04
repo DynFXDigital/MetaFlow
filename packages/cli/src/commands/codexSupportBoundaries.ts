@@ -19,6 +19,7 @@ interface CodexSupportBoundariesOptions {
     force?: boolean;
     failOn?: string;
     runtimeEvidenceTemplate?: boolean;
+    runtimeEvidenceTemplateDir?: string;
 }
 
 interface RuntimeEvidenceTemplateRecord {
@@ -173,6 +174,55 @@ function buildRuntimeEvidenceTemplateReport(
     };
 }
 
+function writeRuntimeEvidenceTemplateRecords(
+    workspaceRoot: string,
+    directory: string,
+    report: RuntimeEvidenceTemplateReport,
+    force: boolean | undefined,
+): string[] | undefined {
+    let outputDirectory: string;
+    try {
+        outputDirectory = resolveWorkspaceOutputPath(workspaceRoot, directory);
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error: ${message}`);
+        process.exitCode = 1;
+        return undefined;
+    }
+
+    if (fs.existsSync(outputDirectory) && !fs.statSync(outputDirectory).isDirectory()) {
+        console.error(
+            `Error: Runtime evidence template output path is not a directory: ${path.relative(workspaceRoot, outputDirectory)}`,
+        );
+        process.exitCode = 1;
+        return undefined;
+    }
+
+    const writes = report.records.map((record) => ({
+        record,
+        outputPath: path.join(outputDirectory, path.basename(record.suggestedPath)),
+    }));
+    const existing = writes.filter((write) => fs.existsSync(write.outputPath));
+    if (existing.length > 0 && !force) {
+        console.error(
+            `Error: Runtime evidence template file already exists: ${path.relative(workspaceRoot, existing[0].outputPath)}`,
+        );
+        console.error('Use --force to overwrite existing template files.');
+        process.exitCode = 1;
+        return undefined;
+    }
+
+    fs.mkdirSync(outputDirectory, { recursive: true });
+    for (const write of writes) {
+        fs.writeFileSync(
+            write.outputPath,
+            `${JSON.stringify(write.record.content, null, 2)}\n`,
+            'utf-8',
+        );
+    }
+    return writes.map((write) => path.relative(workspaceRoot, write.outputPath));
+}
+
 export function registerCodexSupportBoundariesCommand(program: Command): void {
     program
         .command('codex-support-boundaries')
@@ -188,8 +238,19 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             '--runtime-evidence-template',
             'Output a review-only JSON template bundle for missing or blocked Codex runtime evidence',
         )
+        .option(
+            '--runtime-evidence-template-dir <path>',
+            'Write review-only runtime evidence template records as individual JSON files under a workspace-relative directory',
+        )
         .action((options: CodexSupportBoundariesOptions) => {
             const workspaceRoot = getWorkspaceRoot(program);
+            if (options.runtimeEvidenceTemplateDir && options.out) {
+                console.error(
+                    'Error: --runtime-evidence-template-dir cannot be combined with --out.',
+                );
+                process.exitCode = 1;
+                return;
+            }
             const loaded = loadConfig(workspaceRoot);
             const runtimeEvidenceRecords = loaded.ok
                 ? resolveRuntimeEvidenceRecords(loaded.config, workspaceRoot)
@@ -206,6 +267,31 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 return;
             }
             const failOnFailures = evaluateFailOnConditions(document, failOnConditions);
+            const runtimeEvidenceTemplateReport = options.runtimeEvidenceTemplateDir
+                ? buildRuntimeEvidenceTemplateReport(document)
+                : undefined;
+            if (options.runtimeEvidenceTemplateDir) {
+                const written = writeRuntimeEvidenceTemplateRecords(
+                    workspaceRoot,
+                    options.runtimeEvidenceTemplateDir,
+                    runtimeEvidenceTemplateReport!,
+                    options.force,
+                );
+                if (!written) {
+                    return;
+                }
+                console.log(
+                    `Wrote ${written.length} Codex runtime evidence template file(s) to ${options.runtimeEvidenceTemplateDir}.`,
+                );
+                if (failOnFailures.length > 0) {
+                    console.error(
+                        `Codex support boundary gate failed: ${failOnFailures.join('; ')}`,
+                    );
+                    process.exitCode = 1;
+                }
+                return;
+            }
+
             const payload = options.runtimeEvidenceTemplate
                 ? `${JSON.stringify(buildRuntimeEvidenceTemplateReport(document), null, 2)}\n`
                 : options.json
