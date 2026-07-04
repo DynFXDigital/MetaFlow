@@ -23,6 +23,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-template` now emits review-only JSON templates for suggested Codex runtime evidence records derived from the current action plan.
 - `metaflow codex-support-boundaries --runtime-evidence-template-dir` now writes review-only runtime evidence scaffold records as individual JSON files with overwrite protection.
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts.
+- `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - Codex support boundary gate checks now include `release-ready` and `all` CLI presets while preserving explicit gate conditions.
 - Codex command-rules target support reports for `.codex/rules/*.rules` policy files.
 - Codex command-rules files now report the `commandRules` projection concept and honor target-adapter materialization gates separately from `.codex/config.toml`.

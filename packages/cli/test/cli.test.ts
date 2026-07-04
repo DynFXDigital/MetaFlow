@@ -3647,6 +3647,82 @@ describe('CLI: codex-support-boundaries', () => {
         );
     });
 
+    it('prints a review-only runtime evidence guide for selected concepts', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-guide',
+            '--runtime-evidence-concept',
+            'issuePrOperation',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('# Codex Runtime Evidence Guide'));
+        assert.ok(result.stdout.includes('## issuePrOperation'));
+        assert.ok(result.stdout.includes('Suggested scaffold path: `.metaflow/runtime-evidence/codex-issue-pr-operation.json`.'));
+        assert.ok(result.stdout.includes('Codex GitHub integration'));
+        assert.ok(result.stdout.includes('Evidence collection checklist:'));
+        assert.ok(result.stdout.includes('This guide prepares reviewable runtime evidence records.'));
+    });
+
+    it('prints a runtime evidence guide as JSON and writes it to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-guide.json');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-guide',
+            '--runtime-evidence-concept',
+            'issuePrOperation,reviewRuntime',
+            '--json',
+            '--out',
+            'reports/codex-runtime-evidence-guide.json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Wrote Codex runtime evidence guide: reports'));
+        const data = JSON.parse(fs.readFileSync(outputPath, 'utf-8'));
+        assert.strictEqual(data.schemaVersion, 'metaflow.runtimeEvidenceGuide/v1');
+        assert.deepStrictEqual(
+            data.concepts.map((concept: { concept: string }) => concept.concept),
+            ['issuePrOperation', 'reviewRuntime'],
+        );
+        assert.strictEqual(
+            data.concepts[0].suggestedScaffoldPath,
+            '.metaflow/runtime-evidence/codex-issue-pr-operation.json',
+        );
+        assert.ok(data.concepts[0].collectionChecklist.length > 0);
+        assert.ok(data.content.includes('## reviewRuntime'));
+    });
+
+    it('rejects incomplete or ambiguous runtime evidence guide options', async () => {
+        const missingConcept = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-guide',
+        ]);
+        assert.strictEqual(missingConcept.exitCode, 1);
+        assert.ok(
+            missingConcept.stderr.includes(
+                '--runtime-evidence-guide requires --runtime-evidence-concept',
+            ),
+        );
+
+        const ambiguous = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-guide',
+            '--runtime-evidence-template',
+            '--runtime-evidence-concept',
+            'issuePrOperation',
+        ]);
+        assert.strictEqual(ambiguous.exitCode, 1);
+        assert.ok(
+            ambiguous.stderr.includes(
+                '--runtime-evidence-guide cannot be combined with runtime evidence template output options',
+            ),
+        );
+    });
+
     it('rejects invalid runtime evidence concept filters', async () => {
         const unknown = await runCli([
             'codex-support-boundaries',
@@ -3669,7 +3745,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(misplaced.exitCode, 1);
         assert.ok(
             misplaced.stderr.includes(
-                '--runtime-evidence-concept requires --runtime-evidence-template or --runtime-evidence-template-dir',
+                '--runtime-evidence-concept requires --runtime-evidence-template, --runtime-evidence-template-dir, or --runtime-evidence-guide',
             ),
         );
     });

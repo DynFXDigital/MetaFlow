@@ -25,6 +25,7 @@ metaflow codex-support-boundaries
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --fail-on release-ready
 metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
+metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
 metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
 metaflow target-support --target codex
 metaflow target-support --target codex --support runtime-only
@@ -61,6 +62,12 @@ diagnostic review, failed-evidence reruns, and not-run evidence execution.
 Action items include concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs.
+Use `metaflow codex-support-boundaries --runtime-evidence-guide
+--runtime-evidence-concept <concepts>` before filling evidence records when a
+single runtime-only concept needs focused collection instructions. The guide
+lists native surfaces, authority implications, repository projection
+boundaries, existing evidence records, suggested scaffold paths, and collection
+checklist items. It remains review-only and does not create runtime proof.
 Use `metaflow codex-support-boundaries --runtime-evidence-template` to emit a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records from the current action plan. Review the suggested paths and fill-in

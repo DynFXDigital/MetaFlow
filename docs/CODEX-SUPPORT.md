@@ -41,6 +41,13 @@ diagnostics, rerunning failed evidence, or running evidence marked not-run.
 Each action item includes concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs so operators can work from the persisted report artifact.
+`metaflow codex-support-boundaries --runtime-evidence-guide
+--runtime-evidence-concept <concepts>` emits a Markdown guide, or a JSON guide
+when `--json` is supplied, for collecting reviewable proof for selected
+runtime-only Codex concepts. The guide names native surfaces, authority
+implications, repository projection boundaries, existing evidence records,
+suggested scaffold paths, and collection checklist items; it does not create
+runtime proof or write canonical evidence records automatically.
 `metaflow codex-support-boundaries --runtime-evidence-template` emits a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records derived from that action plan. The bundle contains suggested paths and
