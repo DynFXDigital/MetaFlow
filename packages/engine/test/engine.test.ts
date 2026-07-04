@@ -55,6 +55,7 @@ import {
     buildTargetCapabilitySupportReference,
     buildCodexProjectionBoundaryDocument,
     buildCodexSupportBoundariesDocument,
+    buildCodexRuntimeEvidenceReviewQueueDocument,
     buildAdapterReadinessReports,
     buildGitHubCopilotMcpHandoff,
     describeProjectionWithTargetAdapters,
@@ -1753,6 +1754,50 @@ describe('Engine package: public API', () => {
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
         assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));
+    });
+
+    it('builds a focused Codex waived runtime evidence review queue', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-provider-waiver',
+                    manifestPath: 'runtime-evidence/codex-provider-waiver.json',
+                    target: 'codex',
+                    concepts: ['modelProviderRuntime'],
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Provider routing is unavailable in this environment.',
+                    status: 'waived',
+                    evidence: ['RUN-163'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-163',
+                            description: 'Waiver review queue proof.',
+                        },
+                    ],
+                    limitations: ['No model-provider routing authority in the validation environment.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+        const queue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'waived',
+        );
+
+        assert.strictEqual(queue.queue, 'waived');
+        assert.deepStrictEqual(queue.concepts, ['modelProviderRuntime']);
+        assert.ok(queue.content.includes('Queue `waived`.'));
+        assert.ok(queue.content.includes('- Waived evidence: modelProviderRuntime'));
+        assert.ok(queue.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            queue.content.includes(
+                '| modelProviderRuntime | waived | codex-provider-waiver (waived) |',
+            ),
+        );
+        assert.ok(!queue.content.includes('| missing-evidence |'));
     });
 
     it('reports Codex runtime evidence as release-ready when required gates are clear', () => {

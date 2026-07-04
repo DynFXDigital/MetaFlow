@@ -30,7 +30,8 @@ a MetaFlow config is loaded in the extension.
 `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused Markdown
 triage documents from the same report data for all runtime-only concepts,
 release-ready blockers, missing evidence, diagnostic-bearing evidence,
-error-diagnostic evidence, failed evidence, or not-run evidence.
+error-diagnostic evidence, failed evidence, not-run evidence, or waived
+evidence.
 
 The CLI report can also act as a release or CI gate. Use
 `metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics` to
@@ -57,7 +58,7 @@ evidence record IDs so operators can work from the persisted report artifact.
 `metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
 for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
-`error-diagnostics`, `failed`, or `not-run` triage.
+`error-diagnostics`, `failed`, `not-run`, or `waived` triage.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,

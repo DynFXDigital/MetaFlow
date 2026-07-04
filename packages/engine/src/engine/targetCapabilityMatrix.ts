@@ -187,6 +187,7 @@ export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'error-diagnostics',
     'failed',
     'not-run',
+    'waived',
 ] as const;
 
 export type CodexRuntimeEvidenceReviewQueueId =
@@ -2206,7 +2207,9 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
             ? ['missing-evidence', 'diagnostics', 'error-diagnostics', 'failed', 'not-run']
             : queue === 'release-ready'
               ? supportBoundariesDocument.runtimeEvidenceReadinessSummary.checkedConditions
-              : [queue];
+              : queue === 'waived'
+                ? []
+                : [queue];
     const queueConcepts =
         queue === 'all'
             ? supportBoundariesDocument.runtimeEvidenceChecklist.map((item) => item.concept)
@@ -2216,7 +2219,9 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                         supportBoundariesDocument.runtimeEvidenceGateSummary[condition]
                             ?.concepts ?? [],
                 )
-              : supportBoundariesDocument.runtimeEvidenceGateSummary[queue]?.concepts ?? [];
+              : queue === 'waived'
+                ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived
+                : supportBoundariesDocument.runtimeEvidenceGateSummary[queue]?.concepts ?? [];
     const concepts = uniqueCodexRuntimeEvidenceReviewQueueConcepts(queueConcepts);
     const conceptSet = new Set(concepts);
     const actionPlan = supportBoundariesDocument.runtimeEvidenceActionPlan.filter(
@@ -2226,7 +2231,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 supportBoundariesDocument.runtimeEvidenceReadinessSummary.blockingConditions.includes(
                     item.condition,
                 )) ||
-            item.condition === queue,
+            (queue !== 'waived' && item.condition === queue),
     );
     const checklist =
         queue === 'all'
@@ -2242,7 +2247,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `Codex adapter version \`${supportBoundariesDocument.adapterVersion}\`.`,
         `Queue \`${queue}\`.`,
         '',
-        'This review document is derived from the current Codex support-boundary report. It organizes runtime-only Codex concepts that need operator evidence, diagnostic review, reruns, or release-ready confirmation. It does not create runtime proof.',
+        'This review document is derived from the current Codex support-boundary report. It organizes runtime-only Codex concepts that need operator evidence, diagnostic review, reruns, waiver review, or release-ready confirmation. It does not create runtime proof.',
         '',
         '## Readiness',
         '',
@@ -2264,6 +2269,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `- Evidence without diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords)}`,
         `- Evidence with diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
+        `- Waived evidence: ${formatCodexRuntimeEvidenceReviewQueueConcepts(supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
         '',
         '## Action Items',
         '',

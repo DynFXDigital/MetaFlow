@@ -163,7 +163,7 @@ Each record includes:
 | `harness` | Human-readable tested surface, such as `Codex CLI`. |
 | `adapterVersion` | Target adapter contract used during validation. |
 | `scenario` | Behavior proven by the run. |
-| `status` | `passed`, `partial`, `failed`, or `not-run`. |
+| `status` | `passed`, `partial`, `failed`, `not-run`, or `waived`. |
 | `command` | Optional command or procedure used for validation. |
 | `concepts` | Target capability matrix concepts validated or bounded by the run. |
 | `evidence` | Run IDs, file paths, or external evidence references. |

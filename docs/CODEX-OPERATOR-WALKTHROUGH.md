@@ -29,6 +29,7 @@ metaflow codex-support-boundaries --projection-boundary-review
 metaflow codex-support-boundaries --projection-boundary-review --json --out reports/codex-projection-boundaries.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
+metaflow codex-support-boundaries --runtime-evidence-review-queue waived
 metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
 metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
 metaflow target-support --target codex
@@ -67,11 +68,12 @@ evidence, diagnostic-bearing evidence, error-diagnostic evidence, and waived
 evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
 a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
-`diagnostics`, `error-diagnostics`, `failed`, or `not-run` instead of the full
-support-boundary report.
+`diagnostics`, `error-diagnostics`, `failed`, `not-run`, or `waived` instead
+of the full support-boundary report.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
-evidence, or not-run evidence using the same support-boundary data.
+evidence, not-run evidence, or waived evidence using the same support-boundary
+data.
 The runtime evidence gate summary then records the `--fail-on` checks as
 triggered or untriggered rows with counts, concept lists, and the exact
 messages used by the CLI gate.

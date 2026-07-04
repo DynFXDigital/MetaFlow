@@ -782,6 +782,21 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('| issuePrOperation | missing | none recorded |'));
     });
 
+    test('builds Codex waived runtime evidence review queue document for extension review', () => {
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForExtension } =
+            loadCommandHandlers();
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForExtension(
+            'waived',
+        );
+
+        assert.strictEqual(document.queue, 'waived');
+        assert.strictEqual(document.concepts.length, 0);
+        assert.ok(document.content.includes('Queue `waived`.'));
+        assert.ok(document.content.includes('- Waived evidence: none'));
+        assert.ok(document.content.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(document.content.includes('| none | none | none | none |'));
+    });
+
     test('builds Codex projection boundary review document for extension review', () => {
         const { buildCodexProjectionBoundaryDocumentForExtension } = loadCommandHandlers();
         const document = buildCodexProjectionBoundaryDocumentForExtension();

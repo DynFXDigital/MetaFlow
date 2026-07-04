@@ -3750,6 +3750,62 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(data.content.includes('| missing-evidence | yes | 33 |'));
     });
 
+    it('prints a waived runtime evidence review queue with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-provider-waiver.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-provider-waiver',
+                            target: 'codex',
+                            concepts: ['modelProviderRuntime'],
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Provider routing is unavailable in this environment.',
+                            status: 'waived',
+                            evidence: ['RUN-163'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-163',
+                                    description: 'Waiver review queue proof.',
+                                },
+                            ],
+                            limitations: [
+                                'No model-provider routing authority in the validation environment.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'waived',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Queue `waived`.'));
+        assert.ok(result.stdout.includes('- Waived evidence: modelProviderRuntime'));
+        assert.ok(result.stdout.includes('- No runtime evidence actions match this queue.'));
+        assert.ok(
+            result.stdout.includes(
+                '| modelProviderRuntime | waived | codex-provider-waiver (waived) |',
+            ),
+        );
+        assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
+    });
+
     it('writes a runtime evidence review queue to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-queue.md');
@@ -3792,7 +3848,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(unknown.exitCode, 1);
         assert.ok(
             unknown.stderr.includes(
-                '--runtime-evidence-review-queue must be one of: all, release-ready',
+                '--runtime-evidence-review-queue must be one of: all, release-ready, missing-evidence, diagnostics, error-diagnostics, failed, not-run, waived',
             ),
         );
 
