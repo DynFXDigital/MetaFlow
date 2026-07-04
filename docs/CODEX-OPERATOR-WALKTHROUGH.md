@@ -78,6 +78,11 @@ lists waived concept IDs, and preserves per-concept record IDs, limitations,
 authority implications, and repository-projection boundaries. Use it when a
 review must distinguish technically impossible or authority-gated surfaces from
 runtime proof that still needs collection.
+The technical impossibility summary counts repository-projection-impossible
+items and groups them by external authority, hosted or network surfaces, app or
+platform surfaces, and harness-native runtime proof. Use it as the stable
+checklist of features MetaFlow can document but cannot make true by writing
+files into a repository.
 The runtime evidence completeness summary gives the compact release posture:
 release-ready status, runtime-complete status, partial and waived concept
 counts, diagnostic and freshness counts, remaining completion actions, and

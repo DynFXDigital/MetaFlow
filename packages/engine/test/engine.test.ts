@@ -1422,6 +1422,18 @@ describe('Engine package: public API', () => {
             waivedConceptList: [],
             blockingConditions: ['missing-evidence'],
         });
+        assert.strictEqual(
+            document.technicalImpossibilitySummary.repositoryProjectionImpossibleItems,
+            document.notAchievableByRepositoryProjection.length,
+        );
+        assert.ok(document.technicalImpossibilitySummary.externalAuthorityItems > 0);
+        assert.ok(document.technicalImpossibilitySummary.hostedOrNetworkItems > 0);
+        assert.ok(document.technicalImpossibilitySummary.appOrPlatformItems > 0);
+        assert.ok(document.technicalImpossibilitySummary.runtimeNativeProofItems > 0);
+        assert.deepStrictEqual(
+            document.technicalImpossibilitySummary.items,
+            document.notAchievableByRepositoryProjection,
+        );
         assert.deepStrictEqual(document.runtimeEvidenceCompletionBlockerSummary, {
             partialConcepts: 0,
             partialRecords: 0,
@@ -1492,6 +1504,12 @@ describe('Engine package: public API', () => {
         );
         assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
         assert.ok(document.content.includes('| 0 | 0 |'));
+        assert.ok(document.content.includes('## Technical Impossibility Summary'));
+        assert.ok(
+            document.content.includes(
+                'These items are not generated as repository files because they require harness-native state',
+            ),
+        );
         assert.ok(document.content.includes('## Runtime Evidence Completeness Summary'));
         assert.ok(document.content.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
         assert.ok(document.content.includes('Runtime-complete is true only when'));

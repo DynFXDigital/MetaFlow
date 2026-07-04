@@ -33,6 +33,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
     runtimeEvidenceCompletionActionPlan: CodexRuntimeEvidenceActionPlanItem[];
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
+    technicalImpossibilitySummary: CodexTechnicalImpossibilitySummary;
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
     relatedGuides: string[];
@@ -100,6 +101,15 @@ export interface CodexRuntimeEvidenceCompletenessSummary {
     partialConceptList: TargetCapabilityConcept[];
     waivedConceptList: TargetCapabilityConcept[];
     blockingConditions: CodexRuntimeEvidenceGateCondition[];
+}
+
+export interface CodexTechnicalImpossibilitySummary {
+    repositoryProjectionImpossibleItems: number;
+    externalAuthorityItems: number;
+    hostedOrNetworkItems: number;
+    appOrPlatformItems: number;
+    runtimeNativeProofItems: number;
+    items: string[];
 }
 
 export interface CodexRuntimeEvidenceCompletionBlockerSummaryItem {
@@ -2223,6 +2233,33 @@ function buildRuntimeEvidenceCompletenessSummary(
     };
 }
 
+function buildCodexTechnicalImpossibilitySummary(
+    notAchievableByRepositoryProjection: string[],
+): CodexTechnicalImpossibilitySummary {
+    return {
+        repositoryProjectionImpossibleItems: notAchievableByRepositoryProjection.length,
+        externalAuthorityItems: notAchievableByRepositoryProjection.filter((item) =>
+            matchesAnyRuntimeEvidenceCompletionPattern(
+                item,
+                EXTERNAL_AUTHORITY_COMPLETION_PATTERNS,
+            ),
+        ).length,
+        hostedOrNetworkItems: notAchievableByRepositoryProjection.filter((item) =>
+            matchesAnyRuntimeEvidenceCompletionPattern(
+                item,
+                HOSTED_OR_NETWORK_COMPLETION_PATTERNS,
+            ),
+        ).length,
+        appOrPlatformItems: notAchievableByRepositoryProjection.filter((item) =>
+            matchesAnyRuntimeEvidenceCompletionPattern(item, APP_OR_PLATFORM_COMPLETION_PATTERNS),
+        ).length,
+        runtimeNativeProofItems: notAchievableByRepositoryProjection.filter((item) =>
+            /\bproving?\b|\bwithout a harness-native run\b|\bruntime\b/i.test(item),
+        ).length,
+        items: [...notAchievableByRepositoryProjection],
+    };
+}
+
 function buildRuntimeEvidenceCompletionBlockerSummary(
     completionActionPlan: CodexRuntimeEvidenceActionPlanItem[],
 ): CodexRuntimeEvidenceCompletionBlockerSummary {
@@ -3134,6 +3171,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
     );
+    const technicalImpossibilitySummary = buildCodexTechnicalImpossibilitySummary(
+        notAchievableByRepositoryProjection,
+    );
     const runtimeEvidenceCompletenessSummary = buildRuntimeEvidenceCompletenessSummary(
         runtimeEvidenceCoverageSummary,
         runtimeEvidenceReadinessSummary,
@@ -3229,6 +3269,14 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `| ${runtimeEvidenceWaiverSummary.waivedConcepts} | ${runtimeEvidenceWaiverSummary.waivedRecords} | ${runtimeEvidenceWaiverSummary.notAchievableByRepositoryProjectionItems} | ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceWaiverSummary.concepts)} |`,
         '',
         'Waived and impossible items require operator review. They document boundaries that repository metadata cannot satisfy by itself, such as external account authorization, hosted execution, OS permissions, app installation, connector approval, or side-effecting tool authority.',
+        '',
+        '## Technical Impossibility Summary',
+        '',
+        '| Repository-projection impossible items | External-authority items | Hosted/network items | App/platform items | Runtime-native proof items |',
+        '| --- | --- | --- | --- | --- |',
+        `| ${technicalImpossibilitySummary.repositoryProjectionImpossibleItems} | ${technicalImpossibilitySummary.externalAuthorityItems} | ${technicalImpossibilitySummary.hostedOrNetworkItems} | ${technicalImpossibilitySummary.appOrPlatformItems} | ${technicalImpossibilitySummary.runtimeNativeProofItems} |`,
+        '',
+        'These items are not generated as repository files because they require harness-native state, account authority, hosted execution, app or OS permissions, side-effect approval, or runtime proof outside the repository metadata layer.',
         '',
         '## Runtime Evidence Completeness Summary',
         '',
@@ -3349,6 +3397,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceActionPlan,
         runtimeEvidenceCompletionActionPlan,
         runtimeEvidenceChecklist,
+        technicalImpossibilitySummary,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,
         relatedGuides,

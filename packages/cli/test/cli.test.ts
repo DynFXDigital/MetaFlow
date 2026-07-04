@@ -3061,6 +3061,14 @@ describe('CLI: codex-support-boundaries', () => {
         assert.match(data.generatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
         assert.strictEqual(data.adapterVersion, 'codex-v0.1');
         assert.strictEqual(data.runtimeOnlyCount, 34);
+        assert.strictEqual(
+            data.technicalImpossibilitySummary.repositoryProjectionImpossibleItems,
+            data.notAchievableByRepositoryProjection.length,
+        );
+        assert.ok(data.technicalImpossibilitySummary.externalAuthorityItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.hostedOrNetworkItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.appOrPlatformItems > 0);
+        assert.ok(data.technicalImpossibilitySummary.runtimeNativeProofItems > 0);
         assert.deepStrictEqual(data.runtimeEvidenceCoverageSummary, {
             totalRuntimeOnlyConcepts: 34,
             conceptsWithEvidence: 0,

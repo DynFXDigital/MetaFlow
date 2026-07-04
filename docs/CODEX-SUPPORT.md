@@ -51,7 +51,19 @@ same triggered state, counts, concept lists, and messages used by `--fail-on`,
 so release jobs and reviewers can inspect one persisted artifact.
 They also include a runtime evidence readiness summary that applies the
 `release-ready` preset, reports whether the current evidence is ready or
-blocked, and lists the blocking gate conditions and messages. A runtime evidence completeness summary then makes the release-ready and runtime-complete states explicit, including partial, waived, diagnostic, expired, stale-adapter, remaining completion-action, and repository-projection-impossible counts. A runtime evidence completion blocker summary then preserves the partial concepts, matching record IDs, limitations, native surfaces, authority implications, and expected proof that keep runtime-complete from passing. A runtime evidence completion readiness summary groups those partial concepts by current-environment, external-authority, hosted/network, and app/platform proof needs. The report then
+blocked, and lists the blocking gate conditions and messages. A technical
+impossibility summary counts repository-projection-impossible items and
+classifies whether they require external authority, hosted or network surfaces,
+app or platform surfaces, or harness-native runtime proof. A runtime evidence
+completeness summary then makes the release-ready and runtime-complete states
+explicit, including partial, waived, diagnostic, expired, stale-adapter,
+remaining completion-action, and repository-projection-impossible counts. A
+runtime evidence completion blocker summary then preserves the partial concepts,
+matching record IDs, limitations, native surfaces, authority implications, and
+expected proof that keep runtime-complete from passing. A runtime evidence
+completion readiness summary groups those partial concepts by
+current-environment, external-authority, hosted/network, and app/platform proof
+needs. The report then
 renders a release-ready runtime evidence action plan that turns blocking gate
 results into operator actions such as collecting missing runtime evidence,
 reviewing diagnostics, rerunning failed evidence, or running evidence marked

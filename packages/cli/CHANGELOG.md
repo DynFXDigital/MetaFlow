@@ -8,6 +8,7 @@
 - `metaflow codex-support-boundaries` now includes related operator, package maintainer, and tool authority guide references in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now reports release-ready runtime evidence readiness in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now reports a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
+- `metaflow codex-support-boundaries` now reports a technical impossibility summary for repository-projection-impossible surfaces that require external authority, hosted/network access, app/platform state, or harness-native runtime proof.
 - `metaflow codex-support-boundaries` now reports runtime evidence completeness so release-ready and runtime-complete status are visible in Markdown and JSON output.
 - `metaflow codex-support-boundaries` now reports runtime evidence completion blockers for partial concepts that keep runtime-complete from passing.
 - `metaflow codex-support-boundaries` now reports runtime evidence completion readiness categories for current-environment candidates, external-authority blockers, hosted/network blockers, and app/platform blockers.

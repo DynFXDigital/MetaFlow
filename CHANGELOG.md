@@ -19,6 +19,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Codex support boundary reports now link related operator, package maintainer, and tool authority guides in Markdown and JSON output.
 - Codex support boundary reports now include a runtime evidence readiness summary for the release-ready gate preset.
 - Codex support boundary reports now include a runtime evidence waiver summary for waived and repository-projection-impossible runtime surfaces.
+- Codex support boundary reports now include a technical impossibility summary that classifies repository-projection-impossible surfaces by external authority, hosted/network, app/platform, and harness-native runtime proof needs.
 - Codex support boundary reports now include a runtime evidence completeness summary that makes release-ready and runtime-complete status explicit in Markdown and JSON output.
 - Codex support boundary reports now include a runtime evidence completion blocker summary for partial concepts that keep runtime-complete from passing.
 - Codex support boundary reports now include a runtime evidence completion readiness summary that groups partial runtime-complete blockers by current-environment, external-authority, hosted/network, and app/platform proof needs.
