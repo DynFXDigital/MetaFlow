@@ -48,6 +48,10 @@ diagnostics, rerunning failed evidence, or running evidence marked not-run.
 Each action item includes concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs so operators can work from the persisted report artifact.
+`metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
+emits a focused Markdown queue document, or JSON when `--json` is supplied,
+for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
+`error-diagnostics`, `failed`, or `not-run` triage.
 `metaflow codex-support-boundaries --runtime-evidence-guide
 --runtime-evidence-concept <concepts>` emits a Markdown guide, or a JSON guide
 when `--json` is supplied, for collecting reviewable proof for selected

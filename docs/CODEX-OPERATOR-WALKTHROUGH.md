@@ -25,6 +25,8 @@ metaflow codex-support-boundaries
 metaflow codex-support-boundaries --out reports/codex-support-boundaries.md
 metaflow codex-support-boundaries --fail-on release-ready
 metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
+metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
+metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
 metaflow codex-support-boundaries --runtime-evidence-guide --runtime-evidence-concept issuePrOperation
 metaflow codex-support-boundaries --runtime-evidence-template-dir reports/runtime-evidence --runtime-evidence-concept issuePrOperation
 metaflow target-support --target codex
@@ -50,6 +52,10 @@ It separately counts concepts with evidence and no diagnostics from concepts
 with evidence that still needs diagnostic review.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
+Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
+a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
+`diagnostics`, `error-diagnostics`, `failed`, or `not-run` instead of the full
+support-boundary report.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
 evidence, or not-run evidence using the same support-boundary data.

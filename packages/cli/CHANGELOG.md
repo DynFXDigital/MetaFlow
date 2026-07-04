@@ -13,6 +13,7 @@
 - `metaflow codex-support-boundaries --runtime-evidence-template-dir` now writes review-only runtime evidence scaffold records as individual JSON files with overwrite protection.
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
+- `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only triage documents for all runtime-only concepts, release-ready blockers, or individual runtime evidence gate queues.
 - `metaflow codex-support-boundaries --fail-on` now supports `release-ready` and `all` presets for CI and release checks.
 - `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.
 - Target-aware lifecycle output for `metaflow status`, `metaflow validate`, `metaflow apply`, and `metaflow clean`, including target support summaries and `[codex]`-style mutation labels from managed projection metadata.

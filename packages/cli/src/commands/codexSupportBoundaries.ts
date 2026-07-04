@@ -2,13 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
 import {
+    buildCodexRuntimeEvidenceReviewQueueDocument,
     buildCodexRuntimeEvidenceGuideDocument,
     buildCodexRuntimeEvidenceTemplateDocument,
     buildCodexSupportBoundariesDocument,
+    CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS,
     loadConfig,
 } from '@metaflow/engine';
 import type {
     CodexRuntimeEvidenceGateCondition,
+    CodexRuntimeEvidenceReviewQueueId,
     CodexRuntimeEvidenceTemplateDocument,
     CodexSupportBoundariesDocument,
     TargetCapabilityConcept,
@@ -28,6 +31,7 @@ interface CodexSupportBoundariesOptions {
     runtimeEvidenceTemplateDir?: string;
     runtimeEvidenceConcept?: string;
     runtimeEvidenceGuide?: boolean;
+    runtimeEvidenceReviewQueue?: string;
 }
 
 const FAIL_ON_CONDITIONS = [
@@ -106,6 +110,20 @@ function validateRuntimeEvidenceConcepts(
     return concepts.filter((concept) => !supportedConcepts.has(concept as never));
 }
 
+function parseRuntimeEvidenceReviewQueue(
+    raw: string | undefined,
+): CodexRuntimeEvidenceReviewQueueId | undefined {
+    if (!raw) {
+        return undefined;
+    }
+    const normalized = raw.trim();
+    return CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.includes(
+        normalized as CodexRuntimeEvidenceReviewQueueId,
+    )
+        ? (normalized as CodexRuntimeEvidenceReviewQueueId)
+        : undefined;
+}
+
 function writeRuntimeEvidenceTemplateRecords(
     workspaceRoot: string,
     directory: string,
@@ -182,6 +200,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             '--runtime-evidence-guide',
             'Output a review-only runtime evidence collection guide for selected Codex concepts',
         )
+        .option(
+            '--runtime-evidence-review-queue <queue>',
+            `Output a focused runtime evidence review queue: ${CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.join(', ')}`,
+        )
         .action((options: CodexSupportBoundariesOptions) => {
             const workspaceRoot = getWorkspaceRoot(program);
             if (options.runtimeEvidenceTemplateDir && options.out) {
@@ -193,10 +215,22 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             }
             if (
                 options.runtimeEvidenceGuide &&
+                (options.runtimeEvidenceTemplate ||
+                    options.runtimeEvidenceTemplateDir ||
+                    options.runtimeEvidenceReviewQueue)
+            ) {
+                console.error(
+                    'Error: --runtime-evidence-guide cannot be combined with runtime evidence template or review-queue output options.',
+                );
+                process.exitCode = 1;
+                return;
+            }
+            if (
+                options.runtimeEvidenceReviewQueue &&
                 (options.runtimeEvidenceTemplate || options.runtimeEvidenceTemplateDir)
             ) {
                 console.error(
-                    'Error: --runtime-evidence-guide cannot be combined with runtime evidence template output options.',
+                    'Error: --runtime-evidence-review-queue cannot be combined with runtime evidence template output options.',
                 );
                 process.exitCode = 1;
                 return;
@@ -253,6 +287,64 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 return;
             }
             const failOnFailures = evaluateFailOnConditions(document, failOnConditions);
+            if (options.runtimeEvidenceReviewQueue) {
+                const reviewQueue = parseRuntimeEvidenceReviewQueue(
+                    options.runtimeEvidenceReviewQueue,
+                );
+                if (!reviewQueue) {
+                    console.error(
+                        `Error: --runtime-evidence-review-queue must be one of: ${CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.join(', ')}`,
+                    );
+                    process.exitCode = 1;
+                    return;
+                }
+                const queueReport = buildCodexRuntimeEvidenceReviewQueueDocument(
+                    document,
+                    reviewQueue,
+                );
+                const queuePayload = options.json
+                    ? `${JSON.stringify(queueReport, null, 2)}\n`
+                    : queueReport.content;
+                if (!options.out) {
+                    process.stdout.write(queuePayload);
+                    if (failOnFailures.length > 0) {
+                        console.error(
+                            `Codex support boundary gate failed: ${failOnFailures.join('; ')}`,
+                        );
+                        process.exitCode = 1;
+                    }
+                    return;
+                }
+                let queueOutputPath: string;
+                try {
+                    queueOutputPath = resolveWorkspaceOutputPath(workspaceRoot, options.out);
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    console.error(`Error: ${message}`);
+                    process.exitCode = 1;
+                    return;
+                }
+                if (fs.existsSync(queueOutputPath) && !options.force) {
+                    console.error(
+                        `Error: Output file already exists: ${path.relative(workspaceRoot, queueOutputPath)}`,
+                    );
+                    console.error('Use --force to overwrite it.');
+                    process.exitCode = 1;
+                    return;
+                }
+                fs.mkdirSync(path.dirname(queueOutputPath), { recursive: true });
+                fs.writeFileSync(queueOutputPath, queuePayload, 'utf-8');
+                console.log(
+                    `Wrote Codex runtime evidence review queue: ${path.relative(workspaceRoot, queueOutputPath)}`,
+                );
+                if (failOnFailures.length > 0) {
+                    console.error(
+                        `Codex support boundary gate failed: ${failOnFailures.join('; ')}`,
+                    );
+                    process.exitCode = 1;
+                }
+                return;
+            }
             if (options.runtimeEvidenceGuide) {
                 const guideReport = buildCodexRuntimeEvidenceGuideDocument(
                     document,

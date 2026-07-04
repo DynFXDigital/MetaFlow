@@ -3664,6 +3664,141 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('This guide prepares reviewable runtime evidence records.'));
     });
 
+    it('prints a focused runtime evidence review queue', async () => {
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'missing-evidence',
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('# Codex Runtime Evidence Review Queue'));
+        assert.ok(result.stdout.includes('Queue `missing-evidence`.'));
+        assert.ok(result.stdout.includes('## Queue Summary'));
+        assert.ok(result.stdout.includes('| missing-evidence | yes | 34 |'));
+        assert.ok(result.stdout.includes('collect-runtime-evidence'));
+        assert.ok(result.stdout.includes('| issuePrOperation | missing | none recorded |'));
+    });
+
+    it('prints a runtime evidence review queue as JSON with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'passed',
+                            evidence: ['RUN-123'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-123',
+                                    description: 'Representative Codex review queue run.',
+                                },
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'all',
+            '--json',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.schemaVersion, 'metaflow.runtimeEvidenceReviewQueue/v1');
+        assert.strictEqual(
+            data.generatedBy,
+            'metaflow codex-support-boundaries --runtime-evidence-review-queue',
+        );
+        assert.strictEqual(data.queue, 'all');
+        assert.strictEqual(data.target, 'codex');
+        assert.ok(data.concepts.includes('issuePrOperation'));
+        assert.ok(data.content.includes('Evidence without diagnostics: issuePrOperation'));
+        assert.ok(
+            data.content.includes('| issuePrOperation | passed | codex-pr-review-smoke (passed) |'),
+        );
+        assert.ok(data.content.includes('| missing-evidence | yes | 33 |'));
+    });
+
+    it('writes a runtime evidence review queue to an explicit output path', async () => {
+        ws = createTestWorkspace({ noRepo: true });
+        const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-queue.md');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'release-ready',
+            '--out',
+            'reports/codex-runtime-evidence-queue.md',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Wrote Codex runtime evidence review queue: reports'));
+        const content = fs.readFileSync(outputPath, 'utf-8');
+        assert.ok(content.includes('Queue `release-ready`.'));
+        assert.ok(content.includes('Blocking gates: missing-evidence.'));
+
+        const blocked = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'release-ready',
+            '--out',
+            'reports/codex-runtime-evidence-queue.md',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(blocked.exitCode, 1);
+        assert.ok(blocked.stderr.includes('Output file already exists'));
+    });
+
+    it('rejects invalid or ambiguous runtime evidence review queue options', async () => {
+        const unknown = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'clean',
+        ]);
+        assert.strictEqual(unknown.exitCode, 1);
+        assert.ok(
+            unknown.stderr.includes(
+                '--runtime-evidence-review-queue must be one of: all, release-ready',
+            ),
+        );
+
+        const ambiguous = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'missing-evidence',
+            '--runtime-evidence-template',
+        ]);
+        assert.strictEqual(ambiguous.exitCode, 1);
+        assert.ok(
+            ambiguous.stderr.includes(
+                '--runtime-evidence-review-queue cannot be combined with runtime evidence template output options',
+            ),
+        );
+    });
+
     it('prints a runtime evidence guide as JSON and writes it to an explicit output path', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const outputPath = path.join(ws.root, 'reports', 'codex-runtime-evidence-guide.json');
@@ -3718,7 +3853,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(ambiguous.exitCode, 1);
         assert.ok(
             ambiguous.stderr.includes(
-                '--runtime-evidence-guide cannot be combined with runtime evidence template output options',
+                '--runtime-evidence-guide cannot be combined with runtime evidence template or review-queue output options',
             ),
         );
     });
