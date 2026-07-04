@@ -3013,6 +3013,13 @@ describe('CLI: codex-support-boundaries', () => {
         );
         assert.ok(result.stdout.includes('## Runtime Evidence Waiver Summary'));
         assert.ok(result.stdout.includes('| 0 | 0 |'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Completeness Summary'));
+        assert.ok(result.stdout.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
+        assert.ok(
+            result.stdout.includes(
+                'Runtime-complete is true only when the release-ready preset is ready',
+            ),
+        );
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
@@ -3105,6 +3112,26 @@ describe('CLI: codex-support-boundaries', () => {
                 data.notAchievableByRepositoryProjection.length,
             concepts: [],
             items: [],
+        });
+        assert.deepStrictEqual(data.runtimeEvidenceCompletenessSummary, {
+            releaseReady: false,
+            runtimeComplete: false,
+            runtimeOnlyConcepts: 34,
+            passedConcepts: 0,
+            partialConcepts: 0,
+            waivedConcepts: 0,
+            missingConcepts: 34,
+            failedConcepts: 0,
+            notRunConcepts: 0,
+            diagnosticConcepts: 0,
+            expiredEvidenceConcepts: 0,
+            staleAdapterVersionConcepts: 0,
+            remainingCompletionActionItems: 0,
+            repositoryProjectionImpossibleItems:
+                data.notAchievableByRepositoryProjection.length,
+            partialConceptList: [],
+            waivedConceptList: [],
+            blockingConditions: ['missing-evidence'],
         });
         assert.deepStrictEqual(data.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',

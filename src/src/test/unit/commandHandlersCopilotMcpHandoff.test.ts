@@ -528,6 +528,26 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
             concepts: [],
             items: [],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletenessSummary, {
+            releaseReady: false,
+            runtimeComplete: false,
+            runtimeOnlyConcepts: document.runtimeOnlyCount,
+            passedConcepts: 0,
+            partialConcepts: 0,
+            waivedConcepts: 0,
+            missingConcepts: document.runtimeOnlyCount,
+            failedConcepts: 0,
+            notRunConcepts: 0,
+            diagnosticConcepts: 0,
+            expiredEvidenceConcepts: 0,
+            staleAdapterVersionConcepts: 0,
+            remainingCompletionActionItems: 0,
+            repositoryProjectionImpossibleItems:
+                document.notAchievableByRepositoryProjection.length,
+            partialConceptList: [],
+            waivedConceptList: [],
+            blockingConditions: ['missing-evidence'],
+        });
         assert.strictEqual(
             document.runtimeEvidenceCoverageSummary.conceptsWithoutEvidence,
             document.runtimeOnlyCount,
@@ -634,6 +654,8 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('# Codex Support Boundaries'));
         assert.ok(document.content.includes('## Runtime-Only Codex Surfaces'));
         assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
+        assert.ok(document.content.includes('## Runtime Evidence Completeness Summary'));
+        assert.ok(document.content.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
         assert.ok(document.content.includes('agentRuntime'));
         assert.ok(document.content.includes('automationRuntime'));
         assert.ok(document.content.includes('authenticationRuntime'));

@@ -25,6 +25,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
     runtimeEvidenceWaiverSummary: CodexRuntimeEvidenceWaiverSummary;
+    runtimeEvidenceCompletenessSummary: CodexRuntimeEvidenceCompletenessSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
     runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceActionPlan: CodexRuntimeEvidenceActionPlanItem[];
@@ -77,6 +78,26 @@ export interface CodexRuntimeEvidenceWaiverSummary {
     notAchievableByRepositoryProjectionItems: number;
     concepts: TargetCapabilityConcept[];
     items: CodexRuntimeEvidenceWaiverSummaryItem[];
+}
+
+export interface CodexRuntimeEvidenceCompletenessSummary {
+    releaseReady: boolean;
+    runtimeComplete: boolean;
+    runtimeOnlyConcepts: number;
+    passedConcepts: number;
+    partialConcepts: number;
+    waivedConcepts: number;
+    missingConcepts: number;
+    failedConcepts: number;
+    notRunConcepts: number;
+    diagnosticConcepts: number;
+    expiredEvidenceConcepts: number;
+    staleAdapterVersionConcepts: number;
+    remainingCompletionActionItems: number;
+    repositoryProjectionImpossibleItems: number;
+    partialConceptList: TargetCapabilityConcept[];
+    waivedConceptList: TargetCapabilityConcept[];
+    blockingConditions: CodexRuntimeEvidenceGateCondition[];
 }
 
 export type CodexRuntimeEvidenceGateCondition =
@@ -2119,6 +2140,37 @@ function buildRuntimeEvidenceWaiverSummary(
     };
 }
 
+function buildRuntimeEvidenceCompletenessSummary(
+    coverageSummary: CodexRuntimeEvidenceCoverageSummary,
+    readinessSummary: CodexRuntimeEvidenceReadinessSummary,
+    waiverSummary: CodexRuntimeEvidenceWaiverSummary,
+    completionActionPlan: CodexRuntimeEvidenceActionPlanItem[],
+): CodexRuntimeEvidenceCompletenessSummary {
+    return {
+        releaseReady: readinessSummary.ready,
+        runtimeComplete: readinessSummary.ready && coverageSummary.byStatus.partial === 0,
+        runtimeOnlyConcepts: coverageSummary.totalRuntimeOnlyConcepts,
+        passedConcepts: coverageSummary.byStatus.passed,
+        partialConcepts: coverageSummary.byStatus.partial,
+        waivedConcepts: coverageSummary.byStatus.waived,
+        missingConcepts: coverageSummary.byStatus.missing,
+        failedConcepts: coverageSummary.byStatus.failed,
+        notRunConcepts: coverageSummary.byStatus['not-run'],
+        diagnosticConcepts: coverageSummary.conceptsWithWarnings,
+        expiredEvidenceConcepts: coverageSummary.conceptsWithExpiredEvidence,
+        staleAdapterVersionConcepts: coverageSummary.conceptsWithStaleAdapterVersion,
+        remainingCompletionActionItems: completionActionPlan.reduce(
+            (count, item) => count + item.concepts.length,
+            0,
+        ),
+        repositoryProjectionImpossibleItems:
+            waiverSummary.notAchievableByRepositoryProjectionItems,
+        partialConceptList: coverageSummary.conceptsByStatus.partial,
+        waivedConceptList: coverageSummary.conceptsByStatus.waived,
+        blockingConditions: readinessSummary.blockingConditions,
+    };
+}
+
 function formatRuntimeEvidenceActionPlan(actionPlan: CodexRuntimeEvidenceActionPlanItem[]): string[] {
     if (actionPlan.length === 0) {
         return ['No blocking runtime evidence actions.'];
@@ -2793,6 +2845,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
     );
+    const runtimeEvidenceCompletenessSummary = buildRuntimeEvidenceCompletenessSummary(
+        runtimeEvidenceCoverageSummary,
+        runtimeEvidenceReadinessSummary,
+        runtimeEvidenceWaiverSummary,
+        runtimeEvidenceCompletionActionPlan,
+    );
     const runtimeEvidenceExpected = [
         'Local file discovery: Codex CLI, IDE extension, or app smoke evidence against the generated workspace.',
         'Cloud or channel delegation: hosted task or connector evidence showing environment, repository, result, and limitations.',
@@ -2879,6 +2937,17 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '',
         'Waived and impossible items require operator review. They document boundaries that repository metadata cannot satisfy by itself, such as external account authorization, hosted execution, OS permissions, app installation, connector approval, or side-effecting tool authority.',
         '',
+        '## Runtime Evidence Completeness Summary',
+        '',
+        '| Release-ready | Runtime-complete | Runtime-only concepts | Passed | Partial | Waived | Missing | Failed | Not run | Diagnostics | Expired evidence | Stale adapter evidence | Remaining completion actions | Repository-projection impossible items |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        `| ${runtimeEvidenceCompletenessSummary.releaseReady ? 'yes' : 'no'} | ${runtimeEvidenceCompletenessSummary.runtimeComplete ? 'yes' : 'no'} | ${runtimeEvidenceCompletenessSummary.runtimeOnlyConcepts} | ${runtimeEvidenceCompletenessSummary.passedConcepts} | ${runtimeEvidenceCompletenessSummary.partialConcepts} | ${runtimeEvidenceCompletenessSummary.waivedConcepts} | ${runtimeEvidenceCompletenessSummary.missingConcepts} | ${runtimeEvidenceCompletenessSummary.failedConcepts} | ${runtimeEvidenceCompletenessSummary.notRunConcepts} | ${runtimeEvidenceCompletenessSummary.diagnosticConcepts} | ${runtimeEvidenceCompletenessSummary.expiredEvidenceConcepts} | ${runtimeEvidenceCompletenessSummary.staleAdapterVersionConcepts} | ${runtimeEvidenceCompletenessSummary.remainingCompletionActionItems} | ${runtimeEvidenceCompletenessSummary.repositoryProjectionImpossibleItems} |`,
+        '',
+        `Partial concepts: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletenessSummary.partialConceptList)}.`,
+        `Waived concepts: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCompletenessSummary.waivedConceptList)}.`,
+        `Release-ready blocking conditions: ${runtimeEvidenceCompletenessSummary.blockingConditions.length > 0 ? runtimeEvidenceCompletenessSummary.blockingConditions.join(', ') : 'none'}.`,
+        'Runtime-complete is true only when the release-ready preset is ready and no runtime-only concept remains partial.',
+        '',
         '## Runtime Evidence Review Queues',
         '',
         `- Missing evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.missing)}`,
@@ -2959,6 +3028,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeOnlyRows,
         runtimeEvidenceCoverageSummary,
         runtimeEvidenceWaiverSummary,
+        runtimeEvidenceCompletenessSummary,
         runtimeEvidenceGateSummary,
         runtimeEvidenceReadinessSummary,
         runtimeEvidenceActionPlan,

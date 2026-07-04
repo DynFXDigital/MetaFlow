@@ -73,6 +73,11 @@ lists waived concept IDs, and preserves per-concept record IDs, limitations,
 authority implications, and repository-projection boundaries. Use it when a
 review must distinguish technically impossible or authority-gated surfaces from
 runtime proof that still needs collection.
+The runtime evidence completeness summary gives the compact release posture:
+release-ready status, runtime-complete status, partial and waived concept
+counts, diagnostic and freshness counts, remaining completion actions, and
+repository-projection-impossible item counts. Use it as the first stop before
+deciding whether to inspect the detailed queues.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.

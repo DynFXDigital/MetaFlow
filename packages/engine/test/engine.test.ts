@@ -1402,6 +1402,26 @@ describe('Engine package: public API', () => {
             concepts: [],
             items: [],
         });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletenessSummary, {
+            releaseReady: false,
+            runtimeComplete: false,
+            runtimeOnlyConcepts: document.runtimeOnlyCount,
+            passedConcepts: 0,
+            partialConcepts: 0,
+            waivedConcepts: 0,
+            missingConcepts: document.runtimeOnlyCount,
+            failedConcepts: 0,
+            notRunConcepts: 0,
+            diagnosticConcepts: 0,
+            expiredEvidenceConcepts: 0,
+            staleAdapterVersionConcepts: 0,
+            remainingCompletionActionItems: 0,
+            repositoryProjectionImpossibleItems:
+                document.notAchievableByRepositoryProjection.length,
+            partialConceptList: [],
+            waivedConceptList: [],
+            blockingConditions: ['missing-evidence'],
+        });
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
             ready: false,
@@ -1463,6 +1483,9 @@ describe('Engine package: public API', () => {
         );
         assert.ok(document.content.includes('## Runtime Evidence Waiver Summary'));
         assert.ok(document.content.includes('| 0 | 0 |'));
+        assert.ok(document.content.includes('## Runtime Evidence Completeness Summary'));
+        assert.ok(document.content.includes('| no | no | 34 | 0 | 0 | 0 | 34 |'));
+        assert.ok(document.content.includes('Runtime-complete is true only when'));
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
@@ -1707,6 +1730,26 @@ describe('Engine package: public API', () => {
                         )?.authorityImplications,
                 },
             ],
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceCompletenessSummary, {
+            releaseReady: false,
+            runtimeComplete: false,
+            runtimeOnlyConcepts: document.runtimeOnlyCount,
+            passedConcepts: 0,
+            partialConcepts: 2,
+            waivedConcepts: 1,
+            missingConcepts: document.runtimeOnlyCount - 3,
+            failedConcepts: 0,
+            notRunConcepts: 0,
+            diagnosticConcepts: 3,
+            expiredEvidenceConcepts: 0,
+            staleAdapterVersionConcepts: 0,
+            remainingCompletionActionItems: 2,
+            repositoryProjectionImpossibleItems:
+                document.notAchievableByRepositoryProjection.length,
+            partialConceptList: ['issuePrOperation', 'reviewRuntime'].sort(),
+            waivedConceptList: ['modelProviderRuntime'],
+            blockingConditions: ['missing-evidence', 'diagnostics'],
         });
         assert.deepStrictEqual(document.runtimeEvidenceGateSummary.diagnostics, {
             condition: 'diagnostics',
