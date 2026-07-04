@@ -24,6 +24,10 @@ file-backed and runtime-only support.
 The VS Code command `MetaFlow: Open Codex Support Boundaries` uses the same
 support-boundary builder and includes workspace runtime evidence records when
 a MetaFlow config is loaded in the extension.
+`MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused Markdown
+triage documents from the same report data for all runtime-only concepts,
+release-ready blockers, missing evidence, diagnostic-bearing evidence,
+error-diagnostic evidence, failed evidence, or not-run evidence.
 
 The CLI report can also act as a release or CI gate. Use
 `metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics` to

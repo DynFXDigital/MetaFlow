@@ -59,6 +59,11 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "metaflow.openCodexRuntimeEvidenceReviewQueue",
+        "title": "MetaFlow: Open Codex Runtime Evidence Review Queue",
+        "icon": "$(list-selection)"
+      },
+      {
         "command": "metaflow.openCodexRuntimeEvidenceTemplate",
         "title": "MetaFlow: Open Codex Runtime Evidence Template",
         "icon": "$(json)"

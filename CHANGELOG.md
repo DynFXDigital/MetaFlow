@@ -24,6 +24,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-template-dir` now writes review-only runtime evidence scaffold records as individual JSON files with overwrite protection.
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
+- `MetaFlow: Open Codex Runtime Evidence Review Queue` opens focused runtime evidence triage documents from the VS Code command palette for all runtime-only concepts, release-ready blockers, or individual gate queues.
 - `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance from the VS Code command palette for selected runtime-only Codex concepts.
 - `MetaFlow: Open Codex Runtime Evidence Template` opens the same review-only runtime evidence template bundle from the VS Code command palette without writing canonical evidence records.
 - `MetaFlow: Save Codex Runtime Evidence Template Records` writes selected review-only runtime evidence scaffold files after explicit confirmation and preserves overwrite protection.

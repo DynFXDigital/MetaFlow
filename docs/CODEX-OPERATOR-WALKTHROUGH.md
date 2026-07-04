@@ -50,6 +50,9 @@ It separately counts concepts with evidence and no diagnostics from concepts
 with evidence that still needs diagnostic review.
 The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
+In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
+focused triage document for those queues, release-ready blockers, failed
+evidence, or not-run evidence using the same support-boundary data.
 The runtime evidence gate summary then records the `--fail-on` checks as
 triggered or untriggered rows with counts, concept lists, and the exact
 messages used by the CLI gate.

@@ -756,6 +756,85 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(guide.content.includes('codex-pr-review'));
     });
 
+    test('builds Codex runtime evidence review queue document for extension review', () => {
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForExtension } =
+            loadCommandHandlers();
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForExtension(
+            'missing-evidence',
+        );
+
+        assert.strictEqual(
+            document.generatedBy,
+            'metaflow extension codex-runtime-evidence-review-queue',
+        );
+        assert.match(document.generatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(document.queue, 'missing-evidence');
+        assert.strictEqual(document.concepts.length, 34);
+        assert.ok(document.concepts.includes('issuePrOperation'));
+        assert.ok(document.content.includes('# Codex Runtime Evidence Review Queue'));
+        assert.ok(document.content.includes('Queue `missing-evidence`.'));
+        assert.ok(document.content.includes('## Queue Summary'));
+        assert.ok(document.content.includes('| missing-evidence | yes | 34 |'));
+        assert.ok(document.content.includes('## Action Items'));
+        assert.ok(document.content.includes('collect-runtime-evidence'));
+        assert.ok(document.content.includes('## Concept Checklist'));
+        assert.ok(document.content.includes('| issuePrOperation | missing | none recorded |'));
+    });
+
+    test('builds Codex runtime evidence review queue document with workspace evidence', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-runtime-queue-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-pr-review.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review',
+                target: 'codex',
+                concepts: ['issuePrOperation'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex reviews a pull request.',
+                status: 'passed',
+                evidence: ['RUN-122'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-122',
+                        description: 'Representative Codex review run.',
+                    },
+                ],
+            }),
+            'utf-8',
+        );
+
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace } =
+            loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace(
+            config,
+            tmpDir,
+            'all',
+        );
+
+        assert.strictEqual(document.queue, 'all');
+        assert.ok(document.content.includes('Evidence without diagnostics: issuePrOperation'));
+        assert.ok(document.content.includes('| issuePrOperation | passed | codex-pr-review (passed) |'));
+        assert.ok(document.content.includes('| missing-evidence | yes | 33 |'));
+    });
+
     test('builds Codex runtime evidence guide document for extension review', () => {
         const { buildCodexRuntimeEvidenceGuideDocumentForExtension } = loadCommandHandlers();
         const document = buildCodexRuntimeEvidenceGuideDocumentForExtension([
