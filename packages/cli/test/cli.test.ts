@@ -3006,12 +3006,23 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('Codex adapter version `codex-v0.1`.'));
         assert.ok(result.stdout.includes('## Runtime Evidence Coverage Summary'));
         assert.ok(result.stdout.includes('| Runtime-only concepts | With evidence | Evidence without diagnostics | Evidence with diagnostics | Missing evidence | Records |'));
+        assert.ok(
+            result.stdout.includes(
+                'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable',
+            ),
+        );
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
+        assert.ok(result.stdout.includes('- Waived evidence: none'));
         assert.ok(result.stdout.includes('## Runtime Evidence Readiness Summary'));
         assert.ok(result.stdout.includes('Release-ready preset: blocked.'));
         assert.ok(result.stdout.includes('Blocking gates: missing-evidence.'));
+        assert.ok(
+            result.stdout.includes(
+                'Release-ready means the configured gates have no blockers. It may still include partial or waived evidence',
+            ),
+        );
         assert.ok(result.stdout.includes('## Runtime Evidence Action Plan'));
         assert.ok(
             result.stdout.includes(

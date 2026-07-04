@@ -1433,12 +1433,23 @@ describe('Engine package: public API', () => {
             ),
         );
         assert.ok(document.content.includes('## Runtime Evidence Coverage Summary'));
+        assert.ok(
+            document.content.includes(
+                'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable',
+            ),
+        );
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
+        assert.ok(document.content.includes('- Waived evidence: none'));
         assert.ok(document.content.includes('## Runtime Evidence Readiness Summary'));
         assert.ok(document.content.includes('Release-ready preset: blocked.'));
         assert.ok(document.content.includes('Blocking gates: missing-evidence.'));
+        assert.ok(
+            document.content.includes(
+                'Release-ready means the configured gates have no blockers. It may still include partial or waived evidence',
+            ),
+        );
         assert.ok(document.content.includes('## Runtime Evidence Action Plan'));
         assert.ok(
             document.content.includes(
@@ -1741,6 +1752,7 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
+        assert.ok(document.content.includes('- Waived evidence: modelProviderRuntime'));
     });
 
     it('reports Codex runtime evidence as release-ready when required gates are clear', () => {
@@ -1771,6 +1783,11 @@ describe('Engine package: public API', () => {
         assert.deepStrictEqual(document.runtimeEvidenceActionPlan, []);
         assert.ok(document.content.includes('Release-ready preset: ready.'));
         assert.ok(document.content.includes('Blocking gates: none.'));
+        assert.ok(
+            document.content.includes(
+                'Release-ready means the configured gates have no blockers. It may still include partial or waived evidence',
+            ),
+        );
         assert.ok(document.content.includes('No blocking runtime evidence actions.'));
     });
 

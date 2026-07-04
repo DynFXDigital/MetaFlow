@@ -14,10 +14,13 @@ runtime evidence diagnostics by severity so warning-bearing or error-bearing
 proof does not appear as clean coverage. It also separates concepts that have
 evidence without diagnostics from concepts that have evidence with diagnostics,
 so runtime support can be reviewed without treating all recorded proof as
-equally ready. The Markdown report includes runtime evidence review queues for
-missing evidence, clean evidence, diagnostic-bearing evidence, and
-error-diagnostic evidence so operators can triage the next runtime validation
-work without scanning every checklist row. The report includes structured
+equally ready. A `waived` concept is reviewed evidence that the native Codex
+surface is unavailable, unauthorized, or intentionally out of scope for the
+current release posture; it is not a runtime pass. The Markdown report includes
+runtime evidence review queues for missing evidence, clean evidence,
+diagnostic-bearing evidence, error-diagnostic evidence, and waived evidence so
+operators can triage runtime validation posture without scanning every
+checklist row. The report includes structured
 generator metadata: the emitting MetaFlow command or extension surface, the
 generation timestamp, and the Codex target adapter version used to classify
 file-backed and runtime-only support.
@@ -45,6 +48,9 @@ blocked, and lists the blocking gate conditions and messages. The report then
 renders a runtime evidence action plan that turns blocking gate results into
 operator actions such as collecting missing runtime evidence, reviewing
 diagnostics, rerunning failed evidence, or running evidence marked not-run.
+Release-ready means the configured gates have no blockers; it can still include
+partial or waived evidence and therefore does not mean every native Codex
+runtime surface has been fully proven.
 Each action item includes concept-level details for coverage status, native
 surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs so operators can work from the persisted report artifact.

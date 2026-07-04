@@ -2524,7 +2524,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '| --- | --- | --- |',
     );
 
-        for (const row of runtimeOnlyRows) {
+    for (const row of runtimeOnlyRows) {
         lines.push(
             `| ${row.concept} | ${row.nativeSurfaces.join('<br>')} | ${row.notes.join(' ')} |`,
         );
@@ -2538,18 +2538,22 @@ export function buildCodexSupportBoundariesDocument(options?: {
         '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
         `| ${runtimeEvidenceCoverageSummary.totalRuntimeOnlyConcepts} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidence} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnostics} | ${runtimeEvidenceCoverageSummary.conceptsWithoutEvidence} | ${runtimeEvidenceCoverageSummary.records} | ${runtimeEvidenceCoverageSummary.recordsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticRecordsBySeverity.error} | ${runtimeEvidenceCoverageSummary.conceptsWithWarnings} | ${runtimeEvidenceCoverageSummary.diagnosticConceptsBySeverity.error} | ${runtimeEvidenceCoverageSummary.byStatus.passed} | ${runtimeEvidenceCoverageSummary.byStatus.partial} | ${runtimeEvidenceCoverageSummary.byStatus.failed} | ${runtimeEvidenceCoverageSummary.byStatus['not-run']} | ${runtimeEvidenceCoverageSummary.byStatus.waived} |`,
         '',
+        'Waived runtime evidence is explicit reviewed evidence that a native Codex surface is unavailable, unauthorized, or intentionally out of scope for the current release posture; it does not claim the surface passed runtime validation.',
+        '',
         '## Runtime Evidence Review Queues',
         '',
         `- Missing evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.missing)}`,
         `- Evidence without diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithoutDiagnosticRecords)}`,
         `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
+        `- Waived evidence: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsByStatus.waived)}`,
         '',
         '## Runtime Evidence Readiness Summary',
         '',
         `Release-ready preset: ${runtimeEvidenceReadinessSummary.ready ? 'ready' : 'blocked'}.`,
         `Checked gates: ${runtimeEvidenceReadinessSummary.checkedConditions.join(', ')}.`,
         `Blocking gates: ${runtimeEvidenceReadinessSummary.blockingConditions.length > 0 ? runtimeEvidenceReadinessSummary.blockingConditions.join(', ') : 'none'}.`,
+        'Release-ready means the configured gates have no blockers. It may still include partial or waived evidence, so reviewers must inspect the coverage summary before treating runtime support as fully proven.',
         '',
         '## Runtime Evidence Action Plan',
         '',

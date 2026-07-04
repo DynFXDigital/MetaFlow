@@ -59,8 +59,12 @@ The summary also counts records and concepts with runtime evidence diagnostics
 by severity so operators can separate coverage presence from evidence quality.
 It separately counts concepts with evidence and no diagnostics from concepts
 with evidence that still needs diagnostic review.
+A `waived` concept is reviewed evidence that the native Codex surface is
+unavailable, unauthorized, or intentionally out of scope for the current
+release posture; it is not a runtime pass.
 The Markdown report also includes review queues for missing evidence, clean
-evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
+evidence, diagnostic-bearing evidence, error-diagnostic evidence, and waived
+evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
 a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
 `diagnostics`, `error-diagnostics`, `failed`, or `not-run` instead of the full
@@ -74,6 +78,9 @@ messages used by the CLI gate.
 The readiness summary applies the `release-ready` preset and states whether
 the current runtime evidence is ready or blocked, with blocking gate messages
 for release review.
+Release-ready means the configured gates have no blockers; it can still include
+partial or waived evidence and therefore does not mean every native Codex
+runtime surface has been fully proven.
 The action plan below the readiness summary turns blocking gate results into
 concrete operator work items, including missing evidence collection,
 diagnostic review, failed-evidence reruns, and not-run evidence execution.
