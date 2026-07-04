@@ -1179,6 +1179,76 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(!document.content.includes('| reviewRuntime | partial | codex-review-partial (partial) |'));
     });
 
+    test('builds Codex queue-scoped runtime evidence template document with workspace evidence', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-template-queue-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-review-partial.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-review-partial',
+                target: 'codex',
+                concepts: ['reviewRuntime'],
+                harness: 'Codex review',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex review completed without proving hosted review posting.',
+                status: 'partial',
+                evidence: ['RUN-160'],
+                limitations: ['Does not prove review posting or PR feedback handling.'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-provider-partial.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-provider-partial',
+                target: 'codex',
+                concepts: ['modelProviderRuntime'],
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex model provider selection was inspected locally.',
+                status: 'partial',
+                evidence: ['RUN-161'],
+                limitations: ['Does not prove cloud or billing provider behavior.'],
+            }),
+            'utf-8',
+        );
+
+        const { buildCodexRuntimeEvidenceTemplateDocumentForWorkspaceQueue } =
+            loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexRuntimeEvidenceTemplateDocumentForWorkspaceQueue(
+            config,
+            tmpDir,
+            'completion-readiness-current-environment',
+        );
+
+        assert.deepStrictEqual(document.filters, {
+            concepts: ['modelProviderRuntime'],
+            queue: 'completion-readiness-current-environment',
+        });
+        assert.strictEqual(document.runtimeEvidenceCompletionReadinessSummary?.partialConcepts, 2);
+        assert.deepStrictEqual(
+            document.completionReadinessItems?.map((item) => item.concept),
+            ['modelProviderRuntime'],
+        );
+        assert.strictEqual(document.records.length, 1);
+        assert.deepStrictEqual(document.records[0].content.concepts, ['modelProviderRuntime']);
+    });
+
     test('builds Codex stale-adapter runtime evidence review queue document with workspace evidence', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-stale-adapter-queue-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');

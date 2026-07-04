@@ -948,6 +948,31 @@ function isCodexRuntimeEvidenceReviewQueueId(
     );
 }
 
+function getCodexRuntimeEvidenceTemplateActionConcepts(
+    supportDocument: CodexSupportBoundariesDocument,
+): TargetCapabilityConcept[] {
+    const templateActions =
+        supportDocument.runtimeEvidenceActionPlan.length > 0
+            ? supportDocument.runtimeEvidenceActionPlan
+            : supportDocument.runtimeEvidenceCompletionActionPlan;
+    return [
+        ...new Set(
+            templateActions.flatMap((item) =>
+                item.conceptDetails.map((detail) => detail.concept),
+            ),
+        ),
+    ];
+}
+
+function getCodexRuntimeEvidenceTemplateConceptsForQueue(
+    supportDocument: CodexSupportBoundariesDocument,
+    queue: CodexRuntimeEvidenceReviewQueueId,
+): TargetCapabilityConcept[] {
+    return buildCodexRuntimeEvidenceReviewQueueDocument(supportDocument, queue, {
+        generatedBy: 'metaflow extension codex-runtime-evidence-template-queue',
+    }).concepts;
+}
+
 export function buildCodexRuntimeEvidenceReviewQueueDocumentForExtension(
     queue: CodexRuntimeEvidenceReviewQueueId = 'all',
 ): CodexRuntimeEvidenceReviewQueueDocument {
@@ -1002,12 +1027,14 @@ export function buildCodexRuntimeEvidenceGuideDocumentForWorkspace(
 
 export function buildCodexRuntimeEvidenceTemplateDocumentForExtension(
     concepts: string[],
+    queue?: CodexRuntimeEvidenceReviewQueueId,
 ): CodexRuntimeEvidenceTemplateDocument {
     return buildCodexRuntimeEvidenceTemplateDocument(
         buildCodexSupportBoundariesDocumentForExtension(),
         concepts as TargetCapabilityConcept[],
         {
             generatedBy: 'metaflow extension codex-runtime-evidence-template',
+            ...(queue ? { queue } : {}),
         },
     );
 }
@@ -1016,12 +1043,44 @@ export function buildCodexRuntimeEvidenceTemplateDocumentForWorkspace(
     config: MetaFlowConfig,
     workspaceRoot: string,
     concepts: string[],
+    queue?: CodexRuntimeEvidenceReviewQueueId,
 ): CodexRuntimeEvidenceTemplateDocument {
     return buildCodexRuntimeEvidenceTemplateDocument(
         buildCodexSupportBoundariesDocumentForWorkspace(config, workspaceRoot),
         concepts as TargetCapabilityConcept[],
         {
             generatedBy: 'metaflow extension codex-runtime-evidence-template',
+            ...(queue ? { queue } : {}),
+        },
+    );
+}
+
+export function buildCodexRuntimeEvidenceTemplateDocumentForExtensionQueue(
+    queue: CodexRuntimeEvidenceReviewQueueId,
+): CodexRuntimeEvidenceTemplateDocument {
+    const supportDocument = buildCodexSupportBoundariesDocumentForExtension();
+    return buildCodexRuntimeEvidenceTemplateDocument(
+        supportDocument,
+        getCodexRuntimeEvidenceTemplateConceptsForQueue(supportDocument, queue),
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-template',
+            queue,
+        },
+    );
+}
+
+export function buildCodexRuntimeEvidenceTemplateDocumentForWorkspaceQueue(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    queue: CodexRuntimeEvidenceReviewQueueId,
+): CodexRuntimeEvidenceTemplateDocument {
+    const supportDocument = buildCodexSupportBoundariesDocumentForWorkspace(config, workspaceRoot);
+    return buildCodexRuntimeEvidenceTemplateDocument(
+        supportDocument,
+        getCodexRuntimeEvidenceTemplateConceptsForQueue(supportDocument, queue),
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-template',
+            queue,
         },
     );
 }
@@ -6552,28 +6611,44 @@ export function registerCommands(
                                   ws.uri.fsPath,
                               )
                             : buildCodexSupportBoundariesDocumentForExtension();
-                    const validConcepts = [
-                        ...new Set(
-                            supportDocument.runtimeEvidenceActionPlan.flatMap((item) =>
-                                item.conceptDetails.map((detail) => detail.concept),
-                            ),
-                        ),
-                    ];
-                    if (validConcepts.length === 0) {
+                    const rawQueue =
+                        typeof arg === 'object' &&
+                        arg !== null &&
+                        'queue' in arg &&
+                        typeof (arg as { queue?: unknown }).queue === 'string'
+                            ? (arg as { queue: string }).queue.trim()
+                            : undefined;
+                    if (rawQueue && !isCodexRuntimeEvidenceReviewQueueId(rawQueue)) {
+                        vscode.window.showErrorMessage(
+                            `MetaFlow: Unknown Codex runtime evidence review queue "${rawQueue}".`,
+                        );
+                        return;
+                    }
+                    const queue: CodexRuntimeEvidenceReviewQueueId | undefined = rawQueue
+                        ? (rawQueue as CodexRuntimeEvidenceReviewQueueId)
+                        : undefined;
+                    const validConcepts = getCodexRuntimeEvidenceTemplateActionConcepts(
+                        supportDocument,
+                    );
+                    if (validConcepts.length === 0 && !queue) {
                         vscode.window.showInformationMessage(
                             'MetaFlow: No blocking Codex runtime evidence template records are suggested.',
                         );
                         return;
                     }
-                    let concepts =
-                        Array.isArray(arg) && arg.every((item) => typeof item === 'string')
-                            ? arg.map((item) => item.trim()).filter(Boolean)
-                            : typeof arg === 'string' && arg.trim().length > 0
-                              ? arg
-                                    .split(',')
-                                    .map((item) => item.trim())
-                                    .filter(Boolean)
-                              : [];
+                    let concepts = queue
+                        ? getCodexRuntimeEvidenceTemplateConceptsForQueue(
+                              supportDocument,
+                              queue,
+                          )
+                        : Array.isArray(arg) && arg.every((item) => typeof item === 'string')
+                          ? arg.map((item) => item.trim()).filter(Boolean)
+                          : typeof arg === 'string' && arg.trim().length > 0
+                            ? arg
+                                  .split(',')
+                                  .map((item) => item.trim())
+                                  .filter(Boolean)
+                            : [];
                     if (concepts.length === 0) {
                         concepts =
                             (await vscode.window.showQuickPick(validConcepts, {
@@ -6584,12 +6659,17 @@ export function registerCommands(
                     }
                     concepts = [...new Set(concepts)];
                     if (concepts.length === 0) {
+                        if (queue) {
+                            vscode.window.showInformationMessage(
+                                `MetaFlow: No Codex runtime evidence template records matched queue "${queue}".`,
+                            );
+                        }
                         return;
                     }
                     const invalidConcepts = concepts.filter(
                         (concept) => !validConcepts.includes(concept as TargetCapabilityConcept),
                     );
-                    if (invalidConcepts.length > 0) {
+                    if (!queue && invalidConcepts.length > 0) {
                         vscode.window.showErrorMessage(
                             `MetaFlow: Unknown Codex runtime evidence concept(s): ${invalidConcepts.join(', ')}.`,
                         );
@@ -6600,6 +6680,7 @@ export function registerCommands(
                         concepts as TargetCapabilityConcept[],
                         {
                             generatedBy: 'metaflow extension codex-runtime-evidence-template',
+                            ...(queue ? { queue } : {}),
                         },
                     );
                     showOutputChannel();
@@ -6647,28 +6728,44 @@ export function registerCommands(
                                   ws.uri.fsPath,
                               )
                             : buildCodexSupportBoundariesDocumentForExtension();
-                    const validConcepts = [
-                        ...new Set(
-                            supportDocument.runtimeEvidenceActionPlan.flatMap((item) =>
-                                item.conceptDetails.map((detail) => detail.concept),
-                            ),
-                        ),
-                    ];
-                    if (validConcepts.length === 0) {
+                    const rawQueue =
+                        typeof arg === 'object' &&
+                        arg !== null &&
+                        'queue' in arg &&
+                        typeof (arg as { queue?: unknown }).queue === 'string'
+                            ? (arg as { queue: string }).queue.trim()
+                            : undefined;
+                    if (rawQueue && !isCodexRuntimeEvidenceReviewQueueId(rawQueue)) {
+                        vscode.window.showErrorMessage(
+                            `MetaFlow: Unknown Codex runtime evidence review queue "${rawQueue}".`,
+                        );
+                        return;
+                    }
+                    const queue: CodexRuntimeEvidenceReviewQueueId | undefined = rawQueue
+                        ? (rawQueue as CodexRuntimeEvidenceReviewQueueId)
+                        : undefined;
+                    const validConcepts = getCodexRuntimeEvidenceTemplateActionConcepts(
+                        supportDocument,
+                    );
+                    if (validConcepts.length === 0 && !queue) {
                         vscode.window.showInformationMessage(
                             'MetaFlow: No blocking Codex runtime evidence template records are suggested.',
                         );
                         return;
                     }
-                    let concepts =
-                        Array.isArray(arg) && arg.every((item) => typeof item === 'string')
-                            ? arg.map((item) => item.trim()).filter(Boolean)
-                            : typeof arg === 'string' && arg.trim().length > 0
-                              ? arg
-                                    .split(',')
-                                    .map((item) => item.trim())
-                                    .filter(Boolean)
-                              : [];
+                    let concepts = queue
+                        ? getCodexRuntimeEvidenceTemplateConceptsForQueue(
+                              supportDocument,
+                              queue,
+                          )
+                        : Array.isArray(arg) && arg.every((item) => typeof item === 'string')
+                          ? arg.map((item) => item.trim()).filter(Boolean)
+                          : typeof arg === 'string' && arg.trim().length > 0
+                            ? arg
+                                  .split(',')
+                                  .map((item) => item.trim())
+                                  .filter(Boolean)
+                            : [];
                     if (concepts.length === 0) {
                         concepts =
                             (await vscode.window.showQuickPick(validConcepts, {
@@ -6679,12 +6776,17 @@ export function registerCommands(
                     }
                     concepts = [...new Set(concepts)];
                     if (concepts.length === 0) {
+                        if (queue) {
+                            vscode.window.showInformationMessage(
+                                `MetaFlow: No Codex runtime evidence template records matched queue "${queue}".`,
+                            );
+                        }
                         return;
                     }
                     const invalidConcepts = concepts.filter(
                         (concept) => !validConcepts.includes(concept as TargetCapabilityConcept),
                     );
-                    if (invalidConcepts.length > 0) {
+                    if (!queue && invalidConcepts.length > 0) {
                         vscode.window.showErrorMessage(
                             `MetaFlow: Unknown Codex runtime evidence concept(s): ${invalidConcepts.join(', ')}.`,
                         );
@@ -6696,6 +6798,7 @@ export function registerCommands(
                         {
                             generatedBy:
                                 'metaflow extension codex-runtime-evidence-template-save',
+                            ...(queue ? { queue } : {}),
                         },
                     );
                     if (template.records.length === 0) {
