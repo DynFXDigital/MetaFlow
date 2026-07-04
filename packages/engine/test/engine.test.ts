@@ -1380,6 +1380,15 @@ describe('Engine package: public API', () => {
             concepts: [],
             message: '0 runtime evidence record(s) have diagnostics',
         });
+        assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
+            preset: 'release-ready',
+            ready: false,
+            blockingConditions: ['missing-evidence'],
+            blockingMessages: [
+                `${document.runtimeOnlyCount} runtime-only concept(s) have no matching evidence`,
+            ].map((message) => `missing-evidence: ${message}`),
+            checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
+        });
         assert.ok(
             document.runtimeEvidenceChecklist.some(
                 (item) =>
@@ -1395,6 +1404,9 @@ describe('Engine package: public API', () => {
         assert.ok(document.content.includes('## Runtime Evidence Review Queues'));
         assert.ok(document.content.includes('- Evidence without diagnostics: none'));
         assert.ok(document.content.includes('- Evidence with diagnostics: none'));
+        assert.ok(document.content.includes('## Runtime Evidence Readiness Summary'));
+        assert.ok(document.content.includes('Release-ready preset: blocked.'));
+        assert.ok(document.content.includes('Blocking gates: missing-evidence.'));
         assert.ok(document.content.includes('## Runtime Evidence Gate Summary'));
         assert.ok(document.content.includes('| missing-evidence | yes |'));
         assert.ok(document.content.includes('| diagnostics | no | 0 | none |'));
@@ -1540,6 +1552,18 @@ describe('Engine package: public API', () => {
             concepts: ['modelProviderRuntime'],
             message: '1 runtime evidence record(s) have error diagnostics',
         });
+        assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
+            preset: 'release-ready',
+            ready: false,
+            blockingConditions: ['missing-evidence', 'diagnostics'],
+            blockingMessages: [
+                `${document.runtimeOnlyCount - 3} runtime-only concept(s) have no matching evidence`,
+                '2 runtime evidence record(s) have diagnostics',
+            ].map((message, index) =>
+                index === 0 ? `missing-evidence: ${message}` : `diagnostics: ${message}`,
+            ),
+            checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
+        });
         const reviewChecklist = document.runtimeEvidenceChecklist.find(
             (item) => item.concept === 'reviewRuntime',
         );
@@ -1553,6 +1577,35 @@ describe('Engine package: public API', () => {
         assert.ok(
             document.content.includes('- Evidence with error diagnostics: modelProviderRuntime'),
         );
+    });
+
+    it('reports Codex runtime evidence as release-ready when required gates are clear', () => {
+        const runtimeOnlyConcepts = getTargetCapabilityMatrix(['codex'])
+            .filter((entry) => entry.support === 'runtime-only')
+            .map((entry) => entry.concept);
+        const document = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: runtimeOnlyConcepts.map((concept) => ({
+                id: `codex-${concept}-smoke`,
+                manifestPath: `.metaflow/runtime-evidence/codex-${concept}-smoke.json`,
+                target: 'codex',
+                concepts: [concept],
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: `Codex validates ${concept}.`,
+                status: 'passed',
+                evidence: [`RUN-${concept}`],
+                evidenceArtifacts: [],
+                limitations: [],
+                policyGrants: [],
+                warnings: [],
+            })),
+        });
+
+        assert.strictEqual(document.runtimeEvidenceReadinessSummary.ready, true);
+        assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingConditions, []);
+        assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingMessages, []);
+        assert.ok(document.content.includes('Release-ready preset: ready.'));
+        assert.ok(document.content.includes('Blocking gates: none.'));
     });
 
     it('builds adapter readiness reports from canonical metadata', () => {

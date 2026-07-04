@@ -32,6 +32,9 @@ missing evidence, diagnostics, failed evidence, and not-run evidence.
 The Markdown and JSON reports include a runtime evidence gate summary with the
 same triggered state, counts, concept lists, and messages used by `--fail-on`,
 so release jobs and reviewers can inspect one persisted artifact.
+They also include a runtime evidence readiness summary that applies the
+`release-ready` preset, reports whether the current evidence is ready or
+blocked, and lists the blocking gate conditions and messages.
 
 Runtime evidence records may declare optional `validatedAt` and `expiresAt`
 ISO-8601 timestamps so reviewers can distinguish current proof from evidence

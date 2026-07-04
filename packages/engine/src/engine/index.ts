@@ -268,6 +268,7 @@ export type {
     CodexRuntimeEvidenceGateCondition,
     CodexRuntimeEvidenceGateResult,
     CodexRuntimeEvidenceGateSummary,
+    CodexRuntimeEvidenceReadinessSummary,
     CodexSupportBoundariesDocument,
 } from './targetCapabilityMatrix';
 export {

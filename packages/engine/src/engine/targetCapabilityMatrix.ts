@@ -25,6 +25,7 @@ export interface CodexSupportBoundariesDocument {
     runtimeOnlyRows: TargetCapabilityMatrixEntry[];
     runtimeEvidenceCoverageSummary: CodexRuntimeEvidenceCoverageSummary;
     runtimeEvidenceGateSummary: CodexRuntimeEvidenceGateSummary;
+    runtimeEvidenceReadinessSummary: CodexRuntimeEvidenceReadinessSummary;
     runtimeEvidenceChecklist: CodexRuntimeEvidenceChecklistItem[];
     notAchievableByRepositoryProjection: string[];
     runtimeEvidenceExpected: string[];
@@ -72,6 +73,14 @@ export type CodexRuntimeEvidenceGateSummary = Record<
     CodexRuntimeEvidenceGateCondition,
     CodexRuntimeEvidenceGateResult
 >;
+
+export interface CodexRuntimeEvidenceReadinessSummary {
+    preset: 'release-ready';
+    ready: boolean;
+    blockingConditions: CodexRuntimeEvidenceGateCondition[];
+    blockingMessages: string[];
+    checkedConditions: CodexRuntimeEvidenceGateCondition[];
+}
 
 export interface CodexRuntimeEvidenceChecklistItem {
     concept: TargetCapabilityMatrixEntry['concept'];
@@ -1744,6 +1753,30 @@ function buildRuntimeEvidenceGateSummary(
     };
 }
 
+const RUNTIME_EVIDENCE_RELEASE_READY_CONDITIONS: CodexRuntimeEvidenceGateCondition[] = [
+    'missing-evidence',
+    'diagnostics',
+    'failed',
+    'not-run',
+];
+
+function buildRuntimeEvidenceReadinessSummary(
+    gateSummary: CodexRuntimeEvidenceGateSummary,
+): CodexRuntimeEvidenceReadinessSummary {
+    const blockingConditions = RUNTIME_EVIDENCE_RELEASE_READY_CONDITIONS.filter(
+        (condition) => gateSummary[condition].triggered,
+    );
+    return {
+        preset: 'release-ready',
+        ready: blockingConditions.length === 0,
+        blockingConditions,
+        blockingMessages: blockingConditions.map(
+            (condition) => `${condition}: ${gateSummary[condition].message}`,
+        ),
+        checkedConditions: RUNTIME_EVIDENCE_RELEASE_READY_CONDITIONS,
+    };
+}
+
 export function buildCodexSupportBoundariesDocument(options?: {
     generatedBy?: string;
     generatedAt?: string;
@@ -1834,6 +1867,9 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeEvidenceCoverageSummary.byStatus.missing;
     const runtimeEvidenceGateSummary = buildRuntimeEvidenceGateSummary(
         runtimeEvidenceCoverageSummary,
+    );
+    const runtimeEvidenceReadinessSummary = buildRuntimeEvidenceReadinessSummary(
+        runtimeEvidenceGateSummary,
     );
 
     const relatedGuides = [
@@ -1960,6 +1996,12 @@ export function buildCodexSupportBoundariesDocument(options?: {
         `- Evidence with diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithEvidenceWithDiagnosticRecords)}`,
         `- Evidence with error diagnostics: ${formatRuntimeEvidenceConceptQueue(runtimeEvidenceCoverageSummary.conceptsWithErrorRecords)}`,
         '',
+        '## Runtime Evidence Readiness Summary',
+        '',
+        `Release-ready preset: ${runtimeEvidenceReadinessSummary.ready ? 'ready' : 'blocked'}.`,
+        `Checked gates: ${runtimeEvidenceReadinessSummary.checkedConditions.join(', ')}.`,
+        `Blocking gates: ${runtimeEvidenceReadinessSummary.blockingConditions.length > 0 ? runtimeEvidenceReadinessSummary.blockingConditions.join(', ') : 'none'}.`,
+        '',
         '## Runtime Evidence Gate Summary',
         '',
         '| Gate | Triggered | Count | Concepts |',
@@ -2012,6 +2054,7 @@ export function buildCodexSupportBoundariesDocument(options?: {
         runtimeOnlyRows,
         runtimeEvidenceCoverageSummary,
         runtimeEvidenceGateSummary,
+        runtimeEvidenceReadinessSummary,
         runtimeEvidenceChecklist,
         notAchievableByRepositoryProjection,
         runtimeEvidenceExpected,

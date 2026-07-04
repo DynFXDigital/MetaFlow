@@ -51,6 +51,9 @@ evidence, diagnostic-bearing evidence, and error-diagnostic evidence.
 The runtime evidence gate summary then records the `--fail-on` checks as
 triggered or untriggered rows with counts, concept lists, and the exact
 messages used by the CLI gate.
+The readiness summary applies the `release-ready` preset and states whether
+the current runtime evidence is ready or blocked, with blocking gate messages
+for release review.
 The Markdown and JSON forms include the emitting MetaFlow surface, generated
 timestamp, and Codex target adapter version so retained reports identify the
 support matrix interpretation used at review time.

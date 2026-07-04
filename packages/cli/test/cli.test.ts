@@ -3009,6 +3009,9 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(result.stdout.includes('## Runtime Evidence Review Queues'));
         assert.ok(result.stdout.includes('- Evidence without diagnostics: none'));
         assert.ok(result.stdout.includes('- Evidence with diagnostics: none'));
+        assert.ok(result.stdout.includes('## Runtime Evidence Readiness Summary'));
+        assert.ok(result.stdout.includes('Release-ready preset: blocked.'));
+        assert.ok(result.stdout.includes('Blocking gates: missing-evidence.'));
         assert.ok(result.stdout.includes('## Runtime Evidence Gate Summary'));
         assert.ok(result.stdout.includes('| missing-evidence | yes | 34 |'));
         assert.ok(result.stdout.includes('| diagnostics | no | 0 | none |'));
@@ -3069,6 +3072,13 @@ describe('CLI: codex-support-boundaries', () => {
             conceptsWithWarningRecords: [],
             conceptsWithEvidenceWithoutDiagnosticRecords: [],
             conceptsWithEvidenceWithDiagnosticRecords: [],
+        });
+        assert.deepStrictEqual(data.runtimeEvidenceReadinessSummary, {
+            preset: 'release-ready',
+            ready: false,
+            blockingConditions: ['missing-evidence'],
+            blockingMessages: ['missing-evidence: 34 runtime-only concept(s) have no matching evidence'],
+            checkedConditions: ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
         });
         assert.deepStrictEqual(data.runtimeEvidenceGateSummary, {
             'missing-evidence': {
@@ -3379,6 +3389,7 @@ describe('CLI: codex-support-boundaries', () => {
         ]);
         assert.ok(data.content.includes('# Codex Support Boundaries'));
         assert.ok(data.content.includes('## Runtime Evidence Review Queues'));
+        assert.ok(data.content.includes('## Runtime Evidence Readiness Summary'));
         assert.ok(data.content.includes('## Runtime Evidence Gate Summary'));
         assert.ok(data.content.includes('## Runtime Evidence Checklist By Concept'));
         assert.ok(data.content.includes('## Runtime Evidence Expected'));
