@@ -1096,6 +1096,89 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('| reviewRuntime | partial | codex-review-partial (partial) |'));
     });
 
+    test('builds Codex completion-readiness category runtime evidence review queue document with workspace evidence', () => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-completion-readiness-category-queue-'));
+        const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');
+        const evidencePath = path.join(
+            metadataRepo,
+            'company',
+            'core',
+            '.metaflow',
+            'runtime-evidence',
+        );
+        fs.mkdirSync(evidencePath, { recursive: true });
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-review-partial.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-review-partial',
+                target: 'codex',
+                concepts: ['reviewRuntime'],
+                harness: 'Codex review',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex review completed without proving hosted review posting.',
+                status: 'partial',
+                evidence: ['RUN-160'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-160',
+                        description: 'Partial runtime evidence proof.',
+                    },
+                ],
+                limitations: ['Does not prove review posting or PR feedback handling.'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(evidencePath, 'codex-provider-partial.json'),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-provider-partial',
+                target: 'codex',
+                concepts: ['modelProviderRuntime'],
+                harness: 'Codex CLI',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex model provider selection was inspected locally.',
+                status: 'partial',
+                evidence: ['RUN-161'],
+                evidenceArtifacts: [
+                    {
+                        kind: 'run',
+                        ref: 'RUN-161',
+                        description: 'Partial model provider runtime evidence proof.',
+                    },
+                ],
+                limitations: ['Does not prove cloud or billing provider behavior.'],
+            }),
+            'utf-8',
+        );
+
+        const { buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace } =
+            loadCommandHandlers();
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['company/core'],
+            filters: { include: ['**'], exclude: [] },
+        } as never;
+        const document = buildCodexRuntimeEvidenceReviewQueueDocumentForWorkspace(
+            config,
+            tmpDir,
+            'completion-readiness-current-environment',
+        );
+
+        assert.strictEqual(document.queue, 'completion-readiness-current-environment');
+        assert.deepStrictEqual(document.concepts, ['modelProviderRuntime']);
+        assert.ok(document.content.includes('- Current-environment candidates: modelProviderRuntime'));
+        assert.ok(
+            document.content.includes(
+                '- complete-partial-runtime-evidence (partial, blocking): 1 selected runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(document.content.includes('| modelProviderRuntime | partial | codex-provider-partial (partial) |'));
+        assert.ok(!document.content.includes('| reviewRuntime | partial | codex-review-partial (partial) |'));
+    });
+
     test('builds Codex stale-adapter runtime evidence review queue document with workspace evidence', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-stale-adapter-queue-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');

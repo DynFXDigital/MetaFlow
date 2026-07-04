@@ -4118,6 +4118,93 @@ describe('CLI: codex-support-boundaries', () => {
         assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
     });
 
+    it('prints a completion-readiness category runtime evidence review queue with workspace evidence', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-partial',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex review',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review completed without proving hosted review posting.',
+                            status: 'partial',
+                            evidence: ['RUN-160'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-160',
+                                    description: 'Partial runtime evidence proof.',
+                                },
+                            ],
+                            limitations: [
+                                'Does not prove review posting or PR feedback handling.',
+                            ],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-provider-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-provider-partial',
+                            target: 'codex',
+                            concepts: ['modelProviderRuntime'],
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex model provider selection was inspected locally.',
+                            status: 'partial',
+                            evidence: ['RUN-161'],
+                            evidenceArtifacts: [
+                                {
+                                    kind: 'run',
+                                    ref: 'RUN-161',
+                                    description: 'Partial model provider runtime evidence proof.',
+                                },
+                            ],
+                            limitations: ['Does not prove cloud or billing provider behavior.'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-review-queue',
+            'completion-readiness-current-environment',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Queue `completion-readiness-current-environment`.'));
+        assert.ok(result.stdout.includes('- Current-environment candidates: modelProviderRuntime'));
+        assert.ok(
+            result.stdout.includes(
+                '- complete-partial-runtime-evidence (partial, blocking): 1 selected runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(
+            result.stdout.includes(
+                '| modelProviderRuntime | partial | codex-provider-partial (partial) |',
+            ),
+        );
+        assert.ok(
+            !result.stdout.includes(
+                '| reviewRuntime | partial | codex-review-partial (partial) |',
+            ),
+        );
+        assert.ok(!result.stdout.includes('| missing-evidence | yes |'));
+    });
+
     it('prints an expired runtime evidence review queue with workspace evidence', async () => {
         ws = createTestWorkspace({
             config: {
@@ -4282,7 +4369,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(unknown.exitCode, 1);
         assert.ok(
             unknown.stderr.includes(
-                '--runtime-evidence-review-queue must be one of: all, release-ready, runtime-complete, completion-readiness, missing-evidence, diagnostics, error-diagnostics, failed, not-run, partial, expired-evidence, stale-adapter-version, waived',
+                '--runtime-evidence-review-queue must be one of: all, release-ready, runtime-complete, completion-readiness, completion-readiness-current-environment, completion-readiness-external-authority, completion-readiness-hosted-network, completion-readiness-app-platform, missing-evidence, diagnostics, error-diagnostics, failed, not-run, partial, expired-evidence, stale-adapter-version, waived',
             ),
         );
 

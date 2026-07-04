@@ -31,6 +31,10 @@ metaflow codex-support-boundaries --projection-boundary-review --json --out repo
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
 metaflow codex-support-boundaries --runtime-evidence-review-queue runtime-complete
 metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness
+metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness-current-environment
+metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness-external-authority
+metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness-hosted-network
+metaflow codex-support-boundaries --runtime-evidence-review-queue completion-readiness-app-platform
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue partial
 metaflow codex-support-boundaries --runtime-evidence-review-queue expired-evidence
@@ -94,10 +98,15 @@ evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
 a focused queue artifact for `all`, `release-ready`, `runtime-complete`,
-`completion-readiness`, `missing-evidence`, `diagnostics`, `error-diagnostics`, `partial`,
-`expired-evidence`, `stale-adapter-version`, `failed`, `not-run`, or `waived`
-instead of the full support-boundary report. The completion-readiness queue
-focuses partial runtime-complete blockers through the readiness categories.
+`completion-readiness`, `completion-readiness-current-environment`,
+`completion-readiness-external-authority`,
+`completion-readiness-hosted-network`,
+`completion-readiness-app-platform`, `missing-evidence`, `diagnostics`,
+`error-diagnostics`, `partial`, `expired-evidence`, `stale-adapter-version`,
+`failed`, `not-run`, or `waived` instead of the full support-boundary report.
+The completion-readiness queue focuses partial runtime-complete blockers through
+the readiness categories, and the category-specific completion-readiness queues
+filter the action items and checklist to one proof category.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
 evidence, not-run evidence, partial evidence, runtime-complete completion work,

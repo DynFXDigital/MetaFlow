@@ -282,6 +282,10 @@ export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'release-ready',
     'runtime-complete',
     'completion-readiness',
+    'completion-readiness-current-environment',
+    'completion-readiness-external-authority',
+    'completion-readiness-hosted-network',
+    'completion-readiness-app-platform',
     'missing-evidence',
     'diagnostics',
     'error-diagnostics',
@@ -2675,6 +2679,40 @@ function uniqueCodexRuntimeEvidenceReviewQueueConcepts(
     );
 }
 
+function isCodexCompletionReadinessReviewQueue(
+    queue: CodexRuntimeEvidenceReviewQueueId,
+): boolean {
+    return (
+        queue === 'completion-readiness' ||
+        queue === 'completion-readiness-current-environment' ||
+        queue === 'completion-readiness-external-authority' ||
+        queue === 'completion-readiness-hosted-network' ||
+        queue === 'completion-readiness-app-platform'
+    );
+}
+
+function filterCodexRuntimeEvidenceActionPlanByConcepts(
+    actionPlan: CodexRuntimeEvidenceActionPlanItem[],
+    concepts: Set<TargetCapabilityConcept>,
+): CodexRuntimeEvidenceActionPlanItem[] {
+    return actionPlan
+        .map((item) => {
+            const filteredConcepts = item.concepts.filter((concept) => concepts.has(concept));
+            return {
+                ...item,
+                concepts: filteredConcepts,
+                conceptDetails: item.conceptDetails.filter((detail) =>
+                    concepts.has(detail.concept),
+                ),
+                message:
+                    filteredConcepts.length === item.concepts.length
+                        ? item.message
+                        : `${filteredConcepts.length} selected runtime-only concept(s) are covered by partial evidence but need stronger harness-native proof before the Codex target can be treated as runtime-complete.`,
+            };
+        })
+        .filter((item) => item.concepts.length > 0 || item.conceptDetails.length > 0);
+}
+
 function getCodexRuntimeEvidenceReviewQueueAdvisoryKind(
     queue: CodexRuntimeEvidenceReviewQueueId,
 ): string | undefined {
@@ -2711,7 +2749,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                           .checkedConditions,
                       'partial',
                   ]
-              : queue === 'completion-readiness'
+              : isCodexCompletionReadinessReviewQueue(queue)
                 ? []
               : queue === 'partial'
                 ? []
@@ -2721,7 +2759,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                   ? []
                   : queue === 'stale-adapter-version'
                     ? []
-                : [queue];
+                : [queue as CodexRuntimeEvidenceGateCondition];
     const queueConcepts =
         queue === 'all'
             ? supportBoundariesDocument.runtimeEvidenceChecklist.map((item) => item.concept)
@@ -2745,6 +2783,18 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary.items.map(
                       (item) => item.concept,
                   )
+              : queue === 'completion-readiness-current-environment'
+                ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary
+                      .currentEnvironmentCandidateConcepts
+              : queue === 'completion-readiness-external-authority'
+                ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary
+                      .externalAuthorityBoundConceptsList
+              : queue === 'completion-readiness-hosted-network'
+                ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary
+                      .hostedOrNetworkBoundConceptsList
+              : queue === 'completion-readiness-app-platform'
+                ? supportBoundariesDocument.runtimeEvidenceCompletionReadinessSummary
+                      .appOrPlatformBoundConceptsList
               : queue === 'partial'
                 ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.partial
               : queue === 'waived'
@@ -2773,16 +2823,19 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 queue !== 'waived' &&
                 queue !== 'expired-evidence' &&
                 queue !== 'stale-adapter-version' &&
-                queue !== 'completion-readiness' &&
+                !isCodexCompletionReadinessReviewQueue(queue) &&
                 queue !== 'runtime-complete' &&
                 item.condition === queue),
     );
+    const completionActionPlan = isCodexCompletionReadinessReviewQueue(queue)
+        ? filterCodexRuntimeEvidenceActionPlanByConcepts(
+              supportBoundariesDocument.runtimeEvidenceCompletionActionPlan,
+              conceptSet,
+          )
+        : supportBoundariesDocument.runtimeEvidenceCompletionActionPlan;
     const queueActionPlan =
-        queue === 'runtime-complete' || queue === 'completion-readiness'
-            ? [
-                  ...actionPlan,
-                  ...supportBoundariesDocument.runtimeEvidenceCompletionActionPlan,
-              ]
+        queue === 'runtime-complete' || isCodexCompletionReadinessReviewQueue(queue)
+            ? [...actionPlan, ...completionActionPlan]
             : actionPlan;
     const checklist =
         queue === 'all'

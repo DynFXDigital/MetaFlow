@@ -2141,6 +2141,113 @@ describe('Engine package: public API', () => {
         assert.ok(!queue.content.includes('| missing-evidence | yes |'));
     });
 
+    it('builds focused Codex completion-readiness category runtime evidence review queues', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-partial',
+                    manifestPath: 'runtime-evidence/codex-review-partial.json',
+                    target: 'codex',
+                    concepts: ['reviewRuntime'],
+                    harness: 'Codex review',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex review completed without proving hosted review posting.',
+                    status: 'partial',
+                    evidence: ['RUN-160'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-160',
+                            description: 'Partial runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Does not prove review posting or PR feedback handling.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+                {
+                    id: 'codex-provider-partial',
+                    manifestPath: 'runtime-evidence/codex-provider-partial.json',
+                    target: 'codex',
+                    concepts: ['modelProviderRuntime'],
+                    harness: 'Codex CLI',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex model provider selection was inspected locally.',
+                    status: 'partial',
+                    evidence: ['RUN-161'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-161',
+                            description: 'Partial model provider runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Does not prove cloud or billing provider behavior.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+        const currentEnvironmentQueue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'completion-readiness-current-environment',
+        );
+        const externalAuthorityQueue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'completion-readiness-external-authority',
+        );
+
+        assert.strictEqual(
+            currentEnvironmentQueue.queue,
+            'completion-readiness-current-environment',
+        );
+        assert.deepStrictEqual(currentEnvironmentQueue.concepts, ['modelProviderRuntime']);
+        assert.ok(
+            currentEnvironmentQueue.content.includes(
+                'Queue `completion-readiness-current-environment`.',
+            ),
+        );
+        assert.ok(
+            currentEnvironmentQueue.content.includes(
+                '- complete-partial-runtime-evidence (partial, blocking): 1 selected runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(
+            currentEnvironmentQueue.content.includes(
+                '| modelProviderRuntime | partial | codex-provider-partial (partial) |',
+            ),
+        );
+        assert.ok(
+            !currentEnvironmentQueue.content.includes(
+                '| reviewRuntime | partial | codex-review-partial (partial) |',
+            ),
+        );
+
+        assert.strictEqual(
+            externalAuthorityQueue.queue,
+            'completion-readiness-external-authority',
+        );
+        assert.deepStrictEqual(externalAuthorityQueue.concepts, [
+            'modelProviderRuntime',
+            'reviewRuntime',
+        ]);
+        assert.ok(
+            externalAuthorityQueue.content.includes(
+                'Queue `completion-readiness-external-authority`.',
+            ),
+        );
+        assert.ok(
+            externalAuthorityQueue.content.includes(
+                '| modelProviderRuntime | partial | codex-provider-partial (partial) |',
+            ),
+        );
+        assert.ok(
+            externalAuthorityQueue.content.includes(
+                '| reviewRuntime | partial | codex-review-partial (partial) |',
+            ),
+        );
+    });
+
     it('builds a focused Codex expired runtime evidence review queue', () => {
         const supportBoundaries = buildCodexSupportBoundariesDocument({
             runtimeEvidenceRecords: [
