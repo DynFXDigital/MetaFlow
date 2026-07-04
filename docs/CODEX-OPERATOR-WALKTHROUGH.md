@@ -68,6 +68,8 @@ single runtime-only concept needs focused collection instructions. The guide
 lists native surfaces, authority implications, repository projection
 boundaries, existing evidence records, suggested scaffold paths, and collection
 checklist items. It remains review-only and does not create runtime proof.
+In VS Code, `MetaFlow: Open Codex Runtime Evidence Guide` opens the same
+focused collection guidance after selecting a runtime-only Codex concept.
 Use `metaflow codex-support-boundaries --runtime-evidence-template` to emit a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records from the current action plan. Review the suggested paths and fill-in

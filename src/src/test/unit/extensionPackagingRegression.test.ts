@@ -287,6 +287,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(command?.icon, '$(book)');
     });
 
+    test('Codex runtime evidence guide is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.openCodexRuntimeEvidenceGuide',
+        );
+        assert.ok(command, 'Expected metaflow.openCodexRuntimeEvidenceGuide command contribution');
+        assert.strictEqual(command?.icon, '$(checklist)');
+    });
+
     test('package marketplace report is contributed for the command palette', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

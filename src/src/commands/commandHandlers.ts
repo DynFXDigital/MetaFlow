@@ -15,6 +15,7 @@ import type {
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
+    CodexRuntimeEvidenceGuideDocument,
     CodexSupportBoundariesDocument,
     GovernanceComplianceResult,
     GovernanceContract,
@@ -26,10 +27,12 @@ import type {
     ResolvedPackageMarketplaceManifest,
     SurfacedFileConflict,
     SynchronizationPlanningConflict,
+    TargetCapabilityConcept,
     TargetCapabilityMatrixEntry,
 } from '@metaflow/engine';
 import {
     buildGitHubCopilotMcpHandoff,
+    buildCodexRuntimeEvidenceGuideDocument,
     buildCodexSupportBoundariesDocument,
     buildMigrationSuggestionsReport,
     buildTargetCapabilitySupportReference,
@@ -832,6 +835,18 @@ export function buildCodexSupportBoundariesDocumentForExtension(): CodexSupportB
     return buildCodexSupportBoundariesDocument({
         generatedBy: 'metaflow extension codex-support-boundaries',
     });
+}
+
+export function buildCodexRuntimeEvidenceGuideDocumentForExtension(
+    concepts: string[],
+): CodexRuntimeEvidenceGuideDocument {
+    return buildCodexRuntimeEvidenceGuideDocument(
+        buildCodexSupportBoundariesDocumentForExtension(),
+        concepts as TargetCapabilityConcept[],
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-guide',
+        },
+    );
 }
 
 function resolvePackageManifestsForExtension(
@@ -6167,6 +6182,64 @@ export function registerCommands(
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }
         }),
+    );
+
+    // ── metaflow.openCodexRuntimeEvidenceGuide ────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.openCodexRuntimeEvidenceGuide',
+            async (arg?: unknown) => {
+                try {
+                    const supportDocument = buildCodexSupportBoundariesDocumentForExtension();
+                    let concept =
+                        typeof arg === 'string' && arg.trim().length > 0
+                            ? arg.trim()
+                            : undefined;
+                    const validConcepts = supportDocument.runtimeEvidenceChecklist.map(
+                        (item) => item.concept,
+                    );
+                    if (!concept) {
+                        concept = await vscode.window.showQuickPick(validConcepts, {
+                            title: 'Open Codex Runtime Evidence Guide',
+                            placeHolder: 'Select a runtime-only Codex concept',
+                        });
+                    }
+                    if (!concept) {
+                        return;
+                    }
+                    if (!validConcepts.includes(concept as TargetCapabilityConcept)) {
+                        vscode.window.showErrorMessage(
+                            `MetaFlow: Unknown Codex runtime evidence concept "${concept}".`,
+                        );
+                        return;
+                    }
+                    const guide = buildCodexRuntimeEvidenceGuideDocument(
+                        supportDocument,
+                        [concept as TargetCapabilityConcept],
+                        {
+                            generatedBy: 'metaflow extension codex-runtime-evidence-guide',
+                        },
+                    );
+                    showOutputChannel();
+                    logInfo('=== Codex Runtime Evidence Guide ===');
+                    logInfo(`Concept: ${concept}`);
+
+                    const doc = await vscode.workspace.openTextDocument({
+                        language: 'markdown',
+                        content: guide.content,
+                    });
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                    vscode.window.showInformationMessage(
+                        'MetaFlow: Opened Codex runtime evidence guide. Use it before filling runtime evidence records.',
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    showOutputChannel();
+                    logError(message);
+                    vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                }
+            },
+        ),
     );
 
     // ── metaflow.exportCopilotMcpHandoff ──────────────────────────

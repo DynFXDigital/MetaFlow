@@ -154,6 +154,7 @@ MetaFlow treats Codex as a host-native target, not as a GitHub Copilot plugin al
 - CLI `status` and `validate` output include a `Target Capability Support` summary, and CLI `apply` and `clean` label target-owned file changes with values such as `[codex]` using managed projection metadata.
 - The VS Code command `MetaFlow: Open Target Support Report` opens the same target capability matrix as an unsaved JSON document for operator review.
 - The VS Code command `MetaFlow: Open Codex Support Boundaries` opens a generated Markdown report that separates file-backed Codex projections from runtime-only and not-technically-projectable surfaces.
+- The VS Code command `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance for a selected runtime-only Codex concept without creating proof or writing canonical evidence records.
 - The VS Code command `MetaFlow: Open Package Marketplace Report` opens canonical package marketplace entries, Codex marketplace payload candidates, and GitHub Copilot marketplace payload candidates as one unsaved JSON review document without mutating host marketplace files.
 - The VS Code command `MetaFlow: Open Migration Suggestions Report` opens the same review-only canonical migration inventory as an unsaved JSON document without moving or rewriting host-native files.
 - The VS Code command `MetaFlow: Export GitHub Copilot MCP Handoff` opens the same candidate as an unsaved JSON document or saves it to `.vscode/mcp.json` after explicit confirmation and overwrite review.

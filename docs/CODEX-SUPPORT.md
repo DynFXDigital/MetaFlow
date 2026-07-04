@@ -48,6 +48,9 @@ runtime-only Codex concepts. The guide names native surfaces, authority
 implications, repository projection boundaries, existing evidence records,
 suggested scaffold paths, and collection checklist items; it does not create
 runtime proof or write canonical evidence records automatically.
+In VS Code, `MetaFlow: Open Codex Runtime Evidence Guide` opens the same
+collection guidance for a selected runtime-only Codex concept as a reviewable
+Markdown document.
 `metaflow codex-support-boundaries --runtime-evidence-template` emits a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records derived from that action plan. The bundle contains suggested paths and

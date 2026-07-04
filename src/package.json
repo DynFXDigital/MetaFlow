@@ -54,6 +54,11 @@
         "icon": "$(book)"
       },
       {
+        "command": "metaflow.openCodexRuntimeEvidenceGuide",
+        "title": "MetaFlow: Open Codex Runtime Evidence Guide",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "metaflow.exportCopilotMcpHandoff",
         "title": "MetaFlow: Export GitHub Copilot MCP Handoff",
         "icon": "$(json)"
