@@ -2510,10 +2510,14 @@ describe('Engine package: public API', () => {
         const template = buildCodexRuntimeEvidenceTemplateDocument(
             supportBoundaries,
             ['modelProviderRuntime'],
+            { queue: 'completion-readiness-current-environment' },
         );
 
         assert.strictEqual(template.source, 'runtimeEvidenceChecklist');
-        assert.deepStrictEqual(template.filters?.concepts, ['modelProviderRuntime']);
+        assert.deepStrictEqual(template.filters, {
+            concepts: ['modelProviderRuntime'],
+            queue: 'completion-readiness-current-environment',
+        });
         assert.strictEqual(template.records.length, 1);
         assert.strictEqual(
             template.records[0].suggestedPath,

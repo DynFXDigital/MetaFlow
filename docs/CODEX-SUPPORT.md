@@ -118,7 +118,10 @@ review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records derived from that action plan. When `--runtime-evidence-concept` is
 supplied, the template bundle is derived from the concept-keyed runtime
 evidence checklist instead, so operators can refresh or replace records for
-concepts that already have partial or waived evidence. The bundle contains
+concepts that already have partial or waived evidence. Use
+`--runtime-evidence-template-queue <queue>` with template output to derive the
+same scaffold records from the concepts in a runtime evidence review queue,
+including completion-readiness proof categories. The bundle contains
 suggested paths and fill-in record payloads; it does not create runtime proof
 or write canonical evidence records automatically.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
@@ -132,6 +135,9 @@ individual JSON scaffold files under an explicit workspace-relative directory,
 with overwrite protection unless `--force` is supplied. Add
 `--runtime-evidence-concept <concepts>` to limit the template bundle or
 scaffold-file output to one or more comma-separated runtime-only Codex
+concepts, or add `--runtime-evidence-template-queue <queue>` to scope template
+output by runtime evidence review queue. Queue and concept filters are separate
+template scopes and are not combined.
 concepts, such as `issuePrOperation` or `reviewRuntime`, while collecting
 evidence incrementally.
 

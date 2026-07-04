@@ -3595,6 +3595,74 @@ describe('CLI: codex-support-boundaries', () => {
         );
     });
 
+    it('filters review-only runtime evidence templates by completion-readiness queue', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-partial',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex review',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review completed without proving hosted review posting.',
+                            status: 'partial',
+                            evidence: ['RUN-160'],
+                            limitations: [
+                                'Does not prove review posting or PR feedback handling.',
+                            ],
+                        }),
+                    },
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-provider-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-provider-partial',
+                            target: 'codex',
+                            concepts: ['modelProviderRuntime'],
+                            harness: 'Codex CLI',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex model provider selection was inspected locally.',
+                            status: 'partial',
+                            evidence: ['RUN-161'],
+                            limitations: ['Does not prove cloud or billing provider behavior.'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-template-queue',
+            'completion-readiness-current-environment',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.source, 'runtimeEvidenceChecklist');
+        assert.deepStrictEqual(data.filters, {
+            concepts: ['modelProviderRuntime'],
+            queue: 'completion-readiness-current-environment',
+        });
+        assert.strictEqual(data.records.length, 1);
+        assert.strictEqual(
+            data.records[0].suggestedPath,
+            '.metaflow/runtime-evidence/codex-model-provider-runtime.json',
+        );
+        assert.deepStrictEqual(data.records[0].content.concepts, ['modelProviderRuntime']);
+    });
+
     it('prints selected runtime evidence templates from checklist coverage', async () => {
         ws = createTestWorkspace({
             config: {
@@ -3728,6 +3796,60 @@ describe('CLI: codex-support-boundaries', () => {
         assert.deepStrictEqual(issueTemplate.concepts, ['issuePrOperation']);
     });
 
+    it('writes queue-filtered review-only runtime evidence templates as individual files', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-review-partial.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-review-partial',
+                            target: 'codex',
+                            concepts: ['reviewRuntime'],
+                            harness: 'Codex review',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex review completed without proving hosted review posting.',
+                            status: 'partial',
+                            evidence: ['RUN-160'],
+                            limitations: [
+                                'Does not prove review posting or PR feedback handling.',
+                            ],
+                        }),
+                    },
+                ],
+            },
+        });
+        const templateDir = path.join(ws.root, 'reports', 'runtime-evidence');
+
+        const result = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-dir',
+            'reports/runtime-evidence',
+            '--runtime-evidence-template-queue',
+            'completion-readiness-hosted-network',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(
+            result.stdout.includes(
+                'Wrote 1 Codex runtime evidence template file(s) to reports/runtime-evidence.',
+            ),
+        );
+        const files = fs.readdirSync(templateDir).filter((entry) => entry.endsWith('.json'));
+        assert.deepStrictEqual(files, ['codex-review-runtime.json']);
+        const reviewTemplate = JSON.parse(
+            fs.readFileSync(path.join(templateDir, 'codex-review-runtime.json'), 'utf-8'),
+        );
+        assert.deepStrictEqual(reviewTemplate.concepts, ['reviewRuntime']);
+    });
+
     it('protects review-only runtime evidence template files from overwrite', async () => {
         ws = createTestWorkspace({ noRepo: true });
         const existingTemplatePath = path.join(
@@ -3783,6 +3905,50 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 1);
         assert.ok(
             result.stderr.includes('--runtime-evidence-template-dir cannot be combined with --out'),
+        );
+
+        const queueWithoutTemplate = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template-queue',
+            'completion-readiness',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(queueWithoutTemplate.exitCode, 1);
+        assert.ok(
+            queueWithoutTemplate.stderr.includes(
+                '--runtime-evidence-template-queue requires --runtime-evidence-template or --runtime-evidence-template-dir',
+            ),
+        );
+
+        const queueWithConcepts = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-template-queue',
+            'completion-readiness',
+            '--runtime-evidence-concept',
+            'reviewRuntime',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(queueWithConcepts.exitCode, 1);
+        assert.ok(
+            queueWithConcepts.stderr.includes(
+                '--runtime-evidence-template-queue cannot be combined with --runtime-evidence-concept',
+            ),
+        );
+
+        const invalidQueue = await runCli([
+            'codex-support-boundaries',
+            '--runtime-evidence-template',
+            '--runtime-evidence-template-queue',
+            'nope',
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(invalidQueue.exitCode, 1);
+        assert.ok(
+            invalidQueue.stderr.includes('--runtime-evidence-template-queue must be one of:'),
         );
     });
 

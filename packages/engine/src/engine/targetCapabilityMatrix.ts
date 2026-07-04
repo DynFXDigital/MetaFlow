@@ -283,6 +283,7 @@ export interface CodexRuntimeEvidenceTemplateDocument {
         | 'runtimeEvidenceChecklist';
     filters?: {
         concepts: TargetCapabilityConcept[];
+        queue?: CodexRuntimeEvidenceReviewQueueId;
     };
     records: CodexRuntimeEvidenceTemplateRecord[];
 }
@@ -2570,6 +2571,7 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
     concepts: TargetCapabilityConcept[] = [],
     options?: {
         generatedBy?: string;
+        queue?: CodexRuntimeEvidenceReviewQueueId;
     },
 ): CodexRuntimeEvidenceTemplateDocument {
     const seenConcepts = new Set<TargetCapabilityConcept>();
@@ -2626,7 +2628,9 @@ export function buildCodexRuntimeEvidenceTemplateDocument(
                 : supportBoundariesDocument.runtimeEvidenceActionPlan.length > 0
                   ? 'runtimeEvidenceActionPlan'
                   : 'runtimeEvidenceCompletionActionPlan',
-        ...(concepts.length > 0 ? { filters: { concepts } } : {}),
+        ...(concepts.length > 0 || options?.queue
+            ? { filters: { concepts, ...(options?.queue ? { queue: options.queue } : {}) } }
+            : {}),
         records,
     };
 }

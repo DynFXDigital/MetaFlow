@@ -30,6 +30,7 @@ interface CodexSupportBoundariesOptions {
     failOn?: string;
     runtimeEvidenceTemplate?: boolean;
     runtimeEvidenceTemplateDir?: string;
+    runtimeEvidenceTemplateQueue?: string;
     runtimeEvidenceConcept?: string;
     runtimeEvidenceGuide?: boolean;
     runtimeEvidenceReviewQueue?: string;
@@ -197,6 +198,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             'Write review-only runtime evidence template records as individual JSON files under a workspace-relative directory',
         )
         .option(
+            '--runtime-evidence-template-queue <queue>',
+            `Limit runtime evidence template output to concepts in a runtime evidence review queue: ${CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.join(', ')}`,
+        )
+        .option(
             '--runtime-evidence-concept <concepts>',
             'Limit runtime evidence template output to comma-separated runtime-only Codex concepts',
         )
@@ -225,6 +230,7 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 options.runtimeEvidenceGuide &&
                 (options.runtimeEvidenceTemplate ||
                     options.runtimeEvidenceTemplateDir ||
+                    options.runtimeEvidenceTemplateQueue ||
                     options.runtimeEvidenceReviewQueue ||
                     options.projectionBoundaryReview)
             ) {
@@ -238,6 +244,7 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 options.runtimeEvidenceReviewQueue &&
                 (options.runtimeEvidenceTemplate ||
                     options.runtimeEvidenceTemplateDir ||
+                    options.runtimeEvidenceTemplateQueue ||
                     options.projectionBoundaryReview)
             ) {
                 console.error(
@@ -248,7 +255,9 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             }
             if (
                 options.projectionBoundaryReview &&
-                (options.runtimeEvidenceTemplate || options.runtimeEvidenceTemplateDir)
+                (options.runtimeEvidenceTemplate ||
+                    options.runtimeEvidenceTemplateDir ||
+                    options.runtimeEvidenceTemplateQueue)
             ) {
                 console.error(
                     'Error: --projection-boundary-review cannot be combined with runtime evidence template output options.',
@@ -264,6 +273,24 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             ) {
                 console.error(
                     'Error: --runtime-evidence-concept requires --runtime-evidence-template, --runtime-evidence-template-dir, or --runtime-evidence-guide.',
+                );
+                process.exitCode = 1;
+                return;
+            }
+            if (
+                options.runtimeEvidenceTemplateQueue &&
+                !options.runtimeEvidenceTemplate &&
+                !options.runtimeEvidenceTemplateDir
+            ) {
+                console.error(
+                    'Error: --runtime-evidence-template-queue requires --runtime-evidence-template or --runtime-evidence-template-dir.',
+                );
+                process.exitCode = 1;
+                return;
+            }
+            if (options.runtimeEvidenceTemplateQueue && options.runtimeEvidenceConcept) {
+                console.error(
+                    'Error: --runtime-evidence-template-queue cannot be combined with --runtime-evidence-concept.',
                 );
                 process.exitCode = 1;
                 return;
@@ -307,6 +334,22 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 process.exitCode = 1;
                 return;
             }
+            const runtimeEvidenceTemplateQueue = parseRuntimeEvidenceReviewQueue(
+                options.runtimeEvidenceTemplateQueue,
+            );
+            if (options.runtimeEvidenceTemplateQueue && !runtimeEvidenceTemplateQueue) {
+                console.error(
+                    `Error: --runtime-evidence-template-queue must be one of: ${CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS.join(', ')}`,
+                );
+                process.exitCode = 1;
+                return;
+            }
+            const runtimeEvidenceTemplateConcepts = runtimeEvidenceTemplateQueue
+                ? buildCodexRuntimeEvidenceReviewQueueDocument(
+                      document,
+                      runtimeEvidenceTemplateQueue,
+                  ).concepts
+                : runtimeEvidenceConcepts;
             const failOnFailures = evaluateFailOnConditions(document, failOnConditions);
             if (options.projectionBoundaryReview) {
                 const projectionBoundaryReport = buildCodexProjectionBoundaryDocument(document);
@@ -465,7 +508,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             const runtimeEvidenceTemplateReport = options.runtimeEvidenceTemplateDir
                 ? buildCodexRuntimeEvidenceTemplateDocument(
                       document,
-                      runtimeEvidenceConcepts as TargetCapabilityConcept[],
+                      runtimeEvidenceTemplateConcepts as TargetCapabilityConcept[],
+                      runtimeEvidenceTemplateQueue
+                          ? { queue: runtimeEvidenceTemplateQueue }
+                          : undefined,
                   )
                 : undefined;
             if (options.runtimeEvidenceTemplateDir) {
@@ -494,7 +540,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 ? `${JSON.stringify(
                       buildCodexRuntimeEvidenceTemplateDocument(
                           document,
-                          runtimeEvidenceConcepts as TargetCapabilityConcept[],
+                          runtimeEvidenceTemplateConcepts as TargetCapabilityConcept[],
+                          runtimeEvidenceTemplateQueue
+                              ? { queue: runtimeEvidenceTemplateQueue }
+                              : undefined,
                       ),
                       null,
                       2,
