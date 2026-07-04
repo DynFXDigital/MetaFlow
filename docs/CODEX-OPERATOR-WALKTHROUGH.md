@@ -29,6 +29,7 @@ metaflow codex-support-boundaries --fail-on missing-evidence,diagnostics
 metaflow codex-support-boundaries --projection-boundary-review
 metaflow codex-support-boundaries --projection-boundary-review --json --out reports/codex-projection-boundaries.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue release-ready
+metaflow codex-support-boundaries --runtime-evidence-review-queue runtime-complete
 metaflow codex-support-boundaries --runtime-evidence-review-queue diagnostics --json --out reports/codex-runtime-evidence-diagnostics.json
 metaflow codex-support-boundaries --runtime-evidence-review-queue partial
 metaflow codex-support-boundaries --runtime-evidence-review-queue expired-evidence
@@ -71,14 +72,15 @@ The Markdown report also includes review queues for missing evidence, clean
 evidence, diagnostic-bearing evidence, error-diagnostic evidence, partial
 evidence, expired evidence, stale adapter version evidence, and waived evidence.
 Use `--runtime-evidence-review-queue <queue>` when terminal or CI review needs
-a focused queue artifact for `all`, `release-ready`, `missing-evidence`,
-`diagnostics`, `error-diagnostics`, `partial`, `expired-evidence`,
-`stale-adapter-version`, `failed`, `not-run`, or `waived` instead of the full
-support-boundary report.
+a focused queue artifact for `all`, `release-ready`, `runtime-complete`,
+`missing-evidence`, `diagnostics`, `error-diagnostics`, `partial`,
+`expired-evidence`, `stale-adapter-version`, `failed`, `not-run`, or `waived`
+instead of the full support-boundary report.
 In VS Code, `MetaFlow: Open Codex Runtime Evidence Review Queue` opens a
 focused triage document for those queues, release-ready blockers, failed
-evidence, not-run evidence, partial evidence, expired evidence, stale adapter
-version evidence, or waived evidence using the same support-boundary data.
+evidence, not-run evidence, partial evidence, runtime-complete completion work,
+expired evidence, stale adapter version evidence, or waived evidence using the
+same support-boundary data.
 The runtime evidence gate summary then records the `--fail-on` checks as
 triggered or untriggered rows with counts, concept lists, and the exact
 messages used by the CLI gate.

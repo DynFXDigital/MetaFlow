@@ -62,11 +62,13 @@ surfaces, expected runtime proof, authority implications, and matching runtime
 evidence record IDs so operators can work from the persisted report artifact.
 `metaflow codex-support-boundaries --runtime-evidence-review-queue <queue>`
 emits a focused Markdown queue document, or JSON when `--json` is supplied,
-for `all`, `release-ready`, `missing-evidence`, `diagnostics`,
-`error-diagnostics`, `partial`, `expired-evidence`, `stale-adapter-version`,
-`failed`, `not-run`, or `waived` triage. Partial, waived, expired, and stale-adapter queue
-documents include advisory review items for matching concepts but do not add
-release gate blockers.
+for `all`, `release-ready`, `runtime-complete`, `missing-evidence`,
+`diagnostics`, `error-diagnostics`, `partial`, `expired-evidence`,
+`stale-adapter-version`, `failed`, `not-run`, or `waived` triage. The
+`runtime-complete` queue combines release-ready blockers with partial evidence
+completion actions. Partial, waived, expired, and stale-adapter queue documents
+include advisory review items for matching concepts but do not add release gate
+blockers.
 `metaflow codex-support-boundaries --projection-boundary-review` emits a
 focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,

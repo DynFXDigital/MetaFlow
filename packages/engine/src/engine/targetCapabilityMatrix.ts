@@ -194,6 +194,7 @@ export interface CodexRuntimeEvidenceTemplateDocument {
 export const CODEX_RUNTIME_EVIDENCE_REVIEW_QUEUE_IDS = [
     'all',
     'release-ready',
+    'runtime-complete',
     'missing-evidence',
     'diagnostics',
     'error-diagnostics',
@@ -2372,6 +2373,12 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
             ? ['missing-evidence', 'diagnostics', 'error-diagnostics', 'failed', 'not-run']
             : queue === 'release-ready'
               ? supportBoundariesDocument.runtimeEvidenceReadinessSummary.checkedConditions
+              : queue === 'runtime-complete'
+                ? [
+                      ...supportBoundariesDocument.runtimeEvidenceReadinessSummary
+                          .checkedConditions,
+                      'partial',
+                  ]
               : queue === 'partial'
                 ? []
               : queue === 'waived'
@@ -2390,6 +2397,16 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                         supportBoundariesDocument.runtimeEvidenceGateSummary[condition]
                             ?.concepts ?? [],
                 )
+              : queue === 'runtime-complete'
+                ? [
+                      ...supportBoundariesDocument.runtimeEvidenceReadinessSummary
+                          .blockingConditions.flatMap(
+                              (condition) =>
+                                  supportBoundariesDocument.runtimeEvidenceGateSummary[condition]
+                                      ?.concepts ?? [],
+                          ),
+                      ...supportBoundariesDocument.runtimeEvidenceGateSummary.partial.concepts,
+                  ]
               : queue === 'partial'
                 ? supportBoundariesDocument.runtimeEvidenceCoverageSummary.conceptsByStatus.partial
               : queue === 'waived'
@@ -2410,12 +2427,24 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
                 supportBoundariesDocument.runtimeEvidenceReadinessSummary.blockingConditions.includes(
                     item.condition,
                 )) ||
+            (queue === 'runtime-complete' &&
+                supportBoundariesDocument.runtimeEvidenceReadinessSummary.blockingConditions.includes(
+                    item.condition,
+                )) ||
             (queue !== 'partial' &&
                 queue !== 'waived' &&
                 queue !== 'expired-evidence' &&
                 queue !== 'stale-adapter-version' &&
+                queue !== 'runtime-complete' &&
                 item.condition === queue),
     );
+    const queueActionPlan =
+        queue === 'runtime-complete'
+            ? [
+                  ...actionPlan,
+                  ...supportBoundariesDocument.runtimeEvidenceCompletionActionPlan,
+              ]
+            : actionPlan;
     const checklist =
         queue === 'all'
             ? supportBoundariesDocument.runtimeEvidenceChecklist
@@ -2430,7 +2459,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         `Codex adapter version \`${supportBoundariesDocument.adapterVersion}\`.`,
         `Queue \`${queue}\`.`,
         '',
-        'This review document is derived from the current Codex support-boundary report. It organizes runtime-only Codex concepts that need operator evidence, diagnostic review, reruns, waiver review, or release-ready confirmation. It does not create runtime proof.',
+        'This review document is derived from the current Codex support-boundary report. It organizes runtime-only Codex concepts that need operator evidence, diagnostic review, reruns, waiver review, release-ready confirmation, or runtime-complete completion. It does not create runtime proof.',
         '',
         '## Readiness',
         '',
@@ -2461,7 +2490,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
         '',
     ];
 
-    if (actionPlan.length === 0) {
+    if (queueActionPlan.length === 0) {
         const advisoryKind = getCodexRuntimeEvidenceReviewQueueAdvisoryKind(queue);
         if (advisoryKind && checklist.length > 0) {
             for (const item of checklist) {
@@ -2479,7 +2508,7 @@ export function buildCodexRuntimeEvidenceReviewQueueDocument(
             lines.push('- No runtime evidence actions match this queue.');
         }
     } else {
-        for (const action of actionPlan) {
+        for (const action of queueActionPlan) {
             lines.push(
                 `- ${action.kind} (${action.condition}, ${action.blockingReadiness ? 'blocking' : 'advisory'}): ${action.message}`,
                 `  Concepts: ${formatCodexRuntimeEvidenceReviewQueueConcepts(action.concepts)}`,

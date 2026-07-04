@@ -1880,6 +1880,55 @@ describe('Engine package: public API', () => {
         assert.ok(!queue.content.includes('| missing-evidence |'));
     });
 
+    it('builds a focused Codex runtime-complete runtime evidence review queue', () => {
+        const supportBoundaries = buildCodexSupportBoundariesDocument({
+            runtimeEvidenceRecords: [
+                {
+                    id: 'codex-review-partial',
+                    manifestPath: 'runtime-evidence/codex-review-partial.json',
+                    target: 'codex',
+                    concepts: ['reviewRuntime'],
+                    harness: 'Codex review',
+                    adapterVersion: 'codex-v0.1',
+                    scenario: 'Codex review completed without proving hosted review posting.',
+                    status: 'partial',
+                    evidence: ['RUN-160'],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'run',
+                            ref: 'RUN-160',
+                            description: 'Partial runtime evidence proof.',
+                        },
+                    ],
+                    limitations: ['Does not prove review posting or PR feedback handling.'],
+                    policyGrants: [],
+                    warnings: [],
+                },
+            ],
+        });
+        const queue = buildCodexRuntimeEvidenceReviewQueueDocument(
+            supportBoundaries,
+            'runtime-complete',
+        );
+
+        assert.strictEqual(queue.queue, 'runtime-complete');
+        assert.ok(queue.concepts.includes('reviewRuntime'));
+        assert.ok(queue.concepts.includes('issuePrOperation'));
+        assert.ok(queue.content.includes('Queue `runtime-complete`.'));
+        assert.ok(queue.content.includes('| missing-evidence | yes |'));
+        assert.ok(queue.content.includes('| partial | yes | 1 | reviewRuntime |'));
+        assert.ok(
+            queue.content.includes(
+                '- complete-partial-runtime-evidence (partial, blocking): 1 runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(
+            queue.content.includes(
+                '  - reviewRuntime: partial; native surfaces:',
+            ),
+        );
+    });
+
     it('builds a focused Codex expired runtime evidence review queue', () => {
         const supportBoundaries = buildCodexSupportBoundariesDocument({
             runtimeEvidenceRecords: [
