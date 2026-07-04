@@ -16,6 +16,7 @@ import type {
     CapabilityWarning,
     ConfigError,
     CodexRuntimeEvidenceGuideDocument,
+    CodexRuntimeEvidenceTemplateDocument,
     CodexSupportBoundariesDocument,
     GovernanceComplianceResult,
     GovernanceContract,
@@ -34,6 +35,7 @@ import type {
 import {
     buildGitHubCopilotMcpHandoff,
     buildCodexRuntimeEvidenceGuideDocument,
+    buildCodexRuntimeEvidenceTemplateDocument,
     buildCodexSupportBoundariesDocument,
     buildMigrationSuggestionsReport,
     buildTargetCapabilitySupportReference,
@@ -879,6 +881,32 @@ export function buildCodexRuntimeEvidenceGuideDocumentForWorkspace(
         concepts as TargetCapabilityConcept[],
         {
             generatedBy: 'metaflow extension codex-runtime-evidence-guide',
+        },
+    );
+}
+
+export function buildCodexRuntimeEvidenceTemplateDocumentForExtension(
+    concepts: string[],
+): CodexRuntimeEvidenceTemplateDocument {
+    return buildCodexRuntimeEvidenceTemplateDocument(
+        buildCodexSupportBoundariesDocumentForExtension(),
+        concepts as TargetCapabilityConcept[],
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-template',
+        },
+    );
+}
+
+export function buildCodexRuntimeEvidenceTemplateDocumentForWorkspace(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    concepts: string[],
+): CodexRuntimeEvidenceTemplateDocument {
+    return buildCodexRuntimeEvidenceTemplateDocument(
+        buildCodexSupportBoundariesDocumentForWorkspace(config, workspaceRoot),
+        concepts as TargetCapabilityConcept[],
+        {
+            generatedBy: 'metaflow extension codex-runtime-evidence-template',
         },
     );
 }
@@ -6279,6 +6307,94 @@ export function registerCommands(
                     await vscode.window.showTextDocument(doc, { preview: false });
                     vscode.window.showInformationMessage(
                         'MetaFlow: Opened Codex runtime evidence guide. Use it before filling runtime evidence records.',
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    showOutputChannel();
+                    logError(message);
+                    vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                }
+            },
+        ),
+    );
+
+    // ── metaflow.openCodexRuntimeEvidenceTemplate ─────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.openCodexRuntimeEvidenceTemplate',
+            async (arg?: unknown) => {
+                try {
+                    const ws = getWorkspace();
+                    const supportDocument =
+                        ws && state.config
+                            ? buildCodexSupportBoundariesDocumentForWorkspace(
+                                  state.config,
+                                  ws.uri.fsPath,
+                              )
+                            : buildCodexSupportBoundariesDocumentForExtension();
+                    const validConcepts = [
+                        ...new Set(
+                            supportDocument.runtimeEvidenceActionPlan.flatMap((item) =>
+                                item.conceptDetails.map((detail) => detail.concept),
+                            ),
+                        ),
+                    ];
+                    if (validConcepts.length === 0) {
+                        vscode.window.showInformationMessage(
+                            'MetaFlow: No blocking Codex runtime evidence template records are suggested.',
+                        );
+                        return;
+                    }
+                    let concepts =
+                        Array.isArray(arg) && arg.every((item) => typeof item === 'string')
+                            ? arg.map((item) => item.trim()).filter(Boolean)
+                            : typeof arg === 'string' && arg.trim().length > 0
+                              ? arg
+                                    .split(',')
+                                    .map((item) => item.trim())
+                                    .filter(Boolean)
+                              : [];
+                    if (concepts.length === 0) {
+                        concepts =
+                            (await vscode.window.showQuickPick(validConcepts, {
+                                canPickMany: true,
+                                title: 'Open Codex Runtime Evidence Template',
+                                placeHolder: 'Select runtime-only Codex concepts',
+                            })) ?? [];
+                    }
+                    concepts = [...new Set(concepts)];
+                    if (concepts.length === 0) {
+                        return;
+                    }
+                    const invalidConcepts = concepts.filter(
+                        (concept) => !validConcepts.includes(concept as TargetCapabilityConcept),
+                    );
+                    if (invalidConcepts.length > 0) {
+                        vscode.window.showErrorMessage(
+                            `MetaFlow: Unknown Codex runtime evidence concept(s): ${invalidConcepts.join(', ')}.`,
+                        );
+                        return;
+                    }
+                    const template = buildCodexRuntimeEvidenceTemplateDocument(
+                        supportDocument,
+                        concepts as TargetCapabilityConcept[],
+                        {
+                            generatedBy: 'metaflow extension codex-runtime-evidence-template',
+                        },
+                    );
+                    showOutputChannel();
+                    logInfo('=== Codex Runtime Evidence Template ===');
+                    logInfo(
+                        `${template.records.length} review-only runtime evidence template record(s).`,
+                    );
+
+                    const doc = await vscode.workspace.openTextDocument({
+                        language: 'json',
+                        content: `${JSON.stringify(template, null, 2)}\n`,
+                    });
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                    vscode.window.showInformationMessage(
+                        'MetaFlow: Opened Codex runtime evidence template. Review before adding canonical evidence records.',
                     );
                 } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : String(err);

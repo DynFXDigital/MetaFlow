@@ -782,6 +782,32 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('Evidence collection checklist:'));
     });
 
+    test('builds Codex runtime evidence template document for extension review', () => {
+        const { buildCodexRuntimeEvidenceTemplateDocumentForExtension } = loadCommandHandlers();
+        const document = buildCodexRuntimeEvidenceTemplateDocumentForExtension([
+            'issuePrOperation',
+        ]);
+
+        assert.strictEqual(
+            document.generatedBy,
+            'metaflow extension codex-runtime-evidence-template',
+        );
+        assert.strictEqual(document.schemaVersion, 'metaflow.runtimeEvidenceTemplate/v1');
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(document.target, 'codex');
+        assert.strictEqual(document.source, 'runtimeEvidenceActionPlan');
+        assert.deepStrictEqual(document.filters?.concepts, ['issuePrOperation']);
+        assert.strictEqual(document.records.length, 1);
+        assert.strictEqual(
+            document.records[0].suggestedPath,
+            '.metaflow/runtime-evidence/codex-issue-pr-operation.json',
+        );
+        assert.strictEqual(document.records[0].content.id, 'codex-issue-pr-operation');
+        assert.deepStrictEqual(document.records[0].content.concepts, ['issuePrOperation']);
+        assert.strictEqual(document.records[0].content.status, 'not-run');
+        assert.ok(document.records[0].content.harness.includes('Codex GitHub integration'));
+    });
+
     test('builds package marketplace report content for extension review', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-package-marketplace-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');

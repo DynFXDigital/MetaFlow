@@ -76,6 +76,9 @@ Use `metaflow codex-support-boundaries --runtime-evidence-template` to emit a
 review-only JSON bundle of suggested `.metaflow/runtime-evidence/*.json`
 records from the current action plan. Review the suggested paths and fill-in
 record payloads before adding canonical evidence records to a metadata layer.
+In VS Code, `MetaFlow: Open Codex Runtime Evidence Template` opens the same
+review-only JSON bundle for selected runtime-only Codex concepts as an unsaved
+document and does not create runtime proof or write canonical evidence records.
 Use `--runtime-evidence-template-dir <path>` to write the fill-in records as
 individual JSON scaffold files under an explicit workspace-relative directory;
 existing files are protected unless `--force` is supplied.

@@ -3,13 +3,14 @@ import * as path from 'path';
 import { Command } from 'commander';
 import {
     buildCodexRuntimeEvidenceGuideDocument,
+    buildCodexRuntimeEvidenceTemplateDocument,
     buildCodexSupportBoundariesDocument,
     loadConfig,
 } from '@metaflow/engine';
 import type {
     CodexRuntimeEvidenceGateCondition,
+    CodexRuntimeEvidenceTemplateDocument,
     CodexSupportBoundariesDocument,
-    RuntimeEvidenceStatus,
     TargetCapabilityConcept,
 } from '@metaflow/engine';
 import {
@@ -27,43 +28,6 @@ interface CodexSupportBoundariesOptions {
     runtimeEvidenceTemplateDir?: string;
     runtimeEvidenceConcept?: string;
     runtimeEvidenceGuide?: boolean;
-}
-
-interface RuntimeEvidenceTemplateRecord {
-    suggestedPath: string;
-    content: {
-        schemaVersion: 'metaflow.runtimeEvidence/v1';
-        id: string;
-        target: 'codex';
-        concepts: string[];
-        harness: string;
-        adapterVersion: string;
-        scenario: string;
-        status: RuntimeEvidenceStatus;
-        command: string;
-        evidence: string[];
-        evidenceArtifacts: Array<{
-            kind: 'report';
-            ref: string;
-            description: string;
-        }>;
-        limitations: string[];
-        policyGrants: string[];
-        description: string;
-    };
-}
-
-interface RuntimeEvidenceTemplateReport {
-    schemaVersion: 'metaflow.runtimeEvidenceTemplate/v1';
-    generatedBy: string;
-    generatedAt: string;
-    adapterVersion: string;
-    target: 'codex';
-    source: 'runtimeEvidenceActionPlan';
-    filters?: {
-        concepts: string[];
-    };
-    records: RuntimeEvidenceTemplateRecord[];
 }
 
 const FAIL_ON_CONDITIONS = [
@@ -142,85 +106,10 @@ function validateRuntimeEvidenceConcepts(
     return concepts.filter((concept) => !supportedConcepts.has(concept as never));
 }
 
-function toKebabCase(value: string): string {
-    return value
-        .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-        .replace(/[^a-zA-Z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .toLowerCase();
-}
-
-function buildRuntimeEvidenceTemplateReport(
-    document: CodexSupportBoundariesDocument,
-    concepts: string[] = [],
-): RuntimeEvidenceTemplateReport {
-    const seenConcepts = new Set<string>();
-    const requestedConcepts = new Set(concepts);
-    const records: RuntimeEvidenceTemplateRecord[] = [];
-    for (const action of document.runtimeEvidenceActionPlan) {
-        for (const detail of action.conceptDetails) {
-            if (requestedConcepts.size > 0 && !requestedConcepts.has(detail.concept)) {
-                continue;
-            }
-            if (seenConcepts.has(detail.concept)) {
-                continue;
-            }
-            seenConcepts.add(detail.concept);
-            const conceptSlug = toKebabCase(detail.concept);
-            const authority =
-                detail.authorityImplications.length > 0
-                    ? detail.authorityImplications.join(' ')
-                    : 'No explicit authority implication is recorded for this concept.';
-            records.push({
-                suggestedPath: `.metaflow/runtime-evidence/codex-${conceptSlug}.json`,
-                content: {
-                    schemaVersion: 'metaflow.runtimeEvidence/v1',
-                    id: `codex-${conceptSlug}`,
-                    target: 'codex',
-                    concepts: [detail.concept],
-                    harness: `TODO: Codex runtime surface (${detail.nativeSurfaces.join(', ')})`,
-                    adapterVersion: document.adapterVersion,
-                    scenario: detail.runtimeEvidenceExpected,
-                    status: 'not-run',
-                    command: 'TODO: command, hosted workflow, UI procedure, or review procedure used for validation',
-                    evidence: [],
-                    evidenceArtifacts: [
-                        {
-                            kind: 'report',
-                            ref: `doc/ftr/TODO-codex-${conceptSlug}.md`,
-                            description: 'TODO: replace with the reviewed runtime evidence artifact.',
-                        },
-                    ],
-                    limitations: [
-                        'TODO: document uncovered Codex surfaces, connectors, permissions, environments, or platform limits.',
-                    ],
-                    policyGrants: [],
-                    description: [
-                        `Runtime evidence template for ${detail.concept}.`,
-                        `Coverage status at template generation: ${detail.coverageStatus}.`,
-                        `Authority implications: ${authority}`,
-                    ].join(' '),
-                },
-            });
-        }
-    }
-
-    return {
-        schemaVersion: 'metaflow.runtimeEvidenceTemplate/v1',
-        generatedBy: 'metaflow codex-support-boundaries --runtime-evidence-template',
-        generatedAt: document.generatedAt,
-        adapterVersion: document.adapterVersion,
-        target: 'codex',
-        source: 'runtimeEvidenceActionPlan',
-        ...(concepts.length > 0 ? { filters: { concepts } } : {}),
-        records,
-    };
-}
-
 function writeRuntimeEvidenceTemplateRecords(
     workspaceRoot: string,
     directory: string,
-    report: RuntimeEvidenceTemplateReport,
+    report: CodexRuntimeEvidenceTemplateDocument,
     force: boolean | undefined,
 ): string[] | undefined {
     let outputDirectory: string;
@@ -413,7 +302,10 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
                 return;
             }
             const runtimeEvidenceTemplateReport = options.runtimeEvidenceTemplateDir
-                ? buildRuntimeEvidenceTemplateReport(document, runtimeEvidenceConcepts)
+                ? buildCodexRuntimeEvidenceTemplateDocument(
+                      document,
+                      runtimeEvidenceConcepts as TargetCapabilityConcept[],
+                  )
                 : undefined;
             if (options.runtimeEvidenceTemplateDir) {
                 const written = writeRuntimeEvidenceTemplateRecords(
@@ -438,7 +330,14 @@ export function registerCodexSupportBoundariesCommand(program: Command): void {
             }
 
             const payload = options.runtimeEvidenceTemplate
-                ? `${JSON.stringify(buildRuntimeEvidenceTemplateReport(document, runtimeEvidenceConcepts), null, 2)}\n`
+                ? `${JSON.stringify(
+                      buildCodexRuntimeEvidenceTemplateDocument(
+                          document,
+                          runtimeEvidenceConcepts as TargetCapabilityConcept[],
+                      ),
+                      null,
+                      2,
+                  )}\n`
                 : options.json
                   ? `${JSON.stringify(document, null, 2)}\n`
                   : document.content;

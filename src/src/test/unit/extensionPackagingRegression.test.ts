@@ -300,6 +300,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(command?.icon, '$(checklist)');
     });
 
+    test('Codex runtime evidence template is contributed for the command palette', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const command = packageJson.contributes?.commands?.find(
+            (entry) => entry.command === 'metaflow.openCodexRuntimeEvidenceTemplate',
+        );
+        assert.ok(command, 'Expected metaflow.openCodexRuntimeEvidenceTemplate command contribution');
+        assert.strictEqual(command?.icon, '$(json)');
+    });
+
     test('package marketplace report is contributed for the command palette', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

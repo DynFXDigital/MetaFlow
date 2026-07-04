@@ -142,6 +142,43 @@ export interface CodexRuntimeEvidenceGuideDocument {
     content: string;
 }
 
+export interface CodexRuntimeEvidenceTemplateRecord {
+    suggestedPath: string;
+    content: {
+        schemaVersion: 'metaflow.runtimeEvidence/v1';
+        id: string;
+        target: 'codex';
+        concepts: TargetCapabilityConcept[];
+        harness: string;
+        adapterVersion: string;
+        scenario: string;
+        status: RuntimeEvidenceStatus;
+        command: string;
+        evidence: string[];
+        evidenceArtifacts: Array<{
+            kind: 'report';
+            ref: string;
+            description: string;
+        }>;
+        limitations: string[];
+        policyGrants: string[];
+        description: string;
+    };
+}
+
+export interface CodexRuntimeEvidenceTemplateDocument {
+    schemaVersion: 'metaflow.runtimeEvidenceTemplate/v1';
+    generatedBy: string;
+    generatedAt: string;
+    adapterVersion: string;
+    target: 'codex';
+    source: 'runtimeEvidenceActionPlan';
+    filters?: {
+        concepts: TargetCapabilityConcept[];
+    };
+    records: CodexRuntimeEvidenceTemplateRecord[];
+}
+
 function row(
     concept: MatrixSeed['concept'],
     support: TargetCapabilitySupportStatus,
@@ -2003,6 +2040,78 @@ export function buildCodexRuntimeEvidenceGuideDocument(
         target: 'codex',
         concepts: guideConcepts,
         content: `${lines.join('\n')}\n`,
+    };
+}
+
+export function buildCodexRuntimeEvidenceTemplateDocument(
+    supportBoundariesDocument: CodexSupportBoundariesDocument,
+    concepts: TargetCapabilityConcept[] = [],
+    options?: {
+        generatedBy?: string;
+    },
+): CodexRuntimeEvidenceTemplateDocument {
+    const seenConcepts = new Set<TargetCapabilityConcept>();
+    const requestedConcepts = new Set(concepts);
+    const records: CodexRuntimeEvidenceTemplateRecord[] = [];
+    for (const action of supportBoundariesDocument.runtimeEvidenceActionPlan) {
+        for (const detail of action.conceptDetails) {
+            if (requestedConcepts.size > 0 && !requestedConcepts.has(detail.concept)) {
+                continue;
+            }
+            if (seenConcepts.has(detail.concept)) {
+                continue;
+            }
+            seenConcepts.add(detail.concept);
+            const conceptSlug = toRuntimeEvidenceSlug(detail.concept);
+            const authority =
+                detail.authorityImplications.length > 0
+                    ? detail.authorityImplications.join(' ')
+                    : 'No explicit authority implication is recorded for this concept.';
+            records.push({
+                suggestedPath: `.metaflow/runtime-evidence/codex-${conceptSlug}.json`,
+                content: {
+                    schemaVersion: 'metaflow.runtimeEvidence/v1',
+                    id: `codex-${conceptSlug}`,
+                    target: 'codex',
+                    concepts: [detail.concept],
+                    harness: `TODO: Codex runtime surface (${detail.nativeSurfaces.join(', ')})`,
+                    adapterVersion: supportBoundariesDocument.adapterVersion,
+                    scenario: detail.runtimeEvidenceExpected,
+                    status: 'not-run',
+                    command: 'TODO: command, hosted workflow, UI procedure, or review procedure used for validation',
+                    evidence: [],
+                    evidenceArtifacts: [
+                        {
+                            kind: 'report',
+                            ref: `doc/ftr/TODO-codex-${conceptSlug}.md`,
+                            description: 'TODO: replace with the reviewed runtime evidence artifact.',
+                        },
+                    ],
+                    limitations: [
+                        'TODO: document uncovered Codex surfaces, connectors, permissions, environments, or platform limits.',
+                    ],
+                    policyGrants: [],
+                    description: [
+                        `Runtime evidence template for ${detail.concept}.`,
+                        `Coverage status at template generation: ${detail.coverageStatus}.`,
+                        `Authority implications: ${authority}`,
+                    ].join(' '),
+                },
+            });
+        }
+    }
+
+    const generatedBy =
+        options?.generatedBy ?? 'metaflow codex-support-boundaries --runtime-evidence-template';
+    return {
+        schemaVersion: 'metaflow.runtimeEvidenceTemplate/v1',
+        generatedBy,
+        generatedAt: supportBoundariesDocument.generatedAt,
+        adapterVersion: supportBoundariesDocument.adapterVersion,
+        target: 'codex',
+        source: 'runtimeEvidenceActionPlan',
+        ...(concepts.length > 0 ? { filters: { concepts } } : {}),
+        records,
     };
 }
 

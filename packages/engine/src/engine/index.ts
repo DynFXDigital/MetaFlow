@@ -261,6 +261,7 @@ export { TARGET_CAPABILITY_CONCEPTS } from './types';
 export { describeProjection, describeProjectionWithTargetAdapters } from './projectionMetadata';
 export {
     buildCodexRuntimeEvidenceGuideDocument,
+    buildCodexRuntimeEvidenceTemplateDocument,
     buildCodexSupportBoundariesDocument,
     buildTargetCapabilitySupportReference,
     getTargetCapabilityMatrix,
@@ -275,6 +276,8 @@ export type {
     CodexRuntimeEvidenceGuideConcept,
     CodexRuntimeEvidenceGuideDocument,
     CodexRuntimeEvidenceReadinessSummary,
+    CodexRuntimeEvidenceTemplateDocument,
+    CodexRuntimeEvidenceTemplateRecord,
     CodexSupportBoundariesDocument,
 } from './targetCapabilityMatrix';
 export {

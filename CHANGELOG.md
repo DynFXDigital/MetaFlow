@@ -25,6 +25,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - `metaflow codex-support-boundaries --runtime-evidence-concept` now limits runtime evidence template and scaffold output to selected runtime-only Codex concepts.
 - `metaflow codex-support-boundaries --runtime-evidence-guide` now emits review-only runtime evidence collection guides for selected runtime-only Codex concepts.
 - `MetaFlow: Open Codex Runtime Evidence Guide` opens focused runtime evidence collection guidance from the VS Code command palette for selected runtime-only Codex concepts.
+- `MetaFlow: Open Codex Runtime Evidence Template` opens the same review-only runtime evidence template bundle from the VS Code command palette without writing canonical evidence records.
 - VS Code Codex support-boundary and runtime-evidence guide reports now include workspace runtime evidence records when a MetaFlow config is loaded.
 - Codex support boundary gate checks now include `release-ready` and `all` CLI presets while preserving explicit gate conditions.
 - Codex command-rules target support reports for `.codex/rules/*.rules` policy files.
