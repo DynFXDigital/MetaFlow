@@ -42,12 +42,14 @@ const FAIL_ON_CONDITIONS = [
     'error-diagnostics',
     'failed',
     'not-run',
+    'partial',
 ] as const;
 
 type FailOnCondition = CodexRuntimeEvidenceGateCondition;
 
 const FAIL_ON_PRESETS: Record<string, FailOnCondition[]> = {
     'release-ready': ['missing-evidence', 'diagnostics', 'failed', 'not-run'],
+    'runtime-complete': ['missing-evidence', 'diagnostics', 'failed', 'not-run', 'partial'],
     all: [...FAIL_ON_CONDITIONS],
 };
 

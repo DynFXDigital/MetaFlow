@@ -3177,6 +3177,13 @@ describe('CLI: codex-support-boundaries', () => {
                 concepts: [],
                 message: '0 runtime-only concept(s) are covered by not-run evidence',
             },
+            partial: {
+                condition: 'partial',
+                triggered: false,
+                count: 0,
+                concepts: [],
+                message: '0 runtime-only concept(s) are covered by partial evidence',
+            },
         });
         assert.ok(
             data.fileBackedRows.some(
@@ -4317,6 +4324,7 @@ describe('CLI: codex-support-boundaries', () => {
         assert.strictEqual(result.exitCode, 1);
         assert.ok(result.stderr.includes('--fail-on must be a comma-separated list'));
         assert.ok(result.stderr.includes('release-ready'));
+        assert.ok(result.stderr.includes('runtime-complete'));
         assert.ok(result.stderr.includes('all'));
     });
 
@@ -4363,6 +4371,78 @@ describe('CLI: codex-support-boundaries', () => {
             ),
         );
         assert.ok(!result.stderr.includes('diagnostics: 0 runtime evidence record(s)'));
+    });
+
+    it('fails Codex support boundary runtime-complete gates when evidence is partial', async () => {
+        ws = createTestWorkspace({
+            config: {
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                layers: ['company/core'],
+            },
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.metaflow/runtime-evidence/codex-pr-review-smoke.json',
+                        content: JSON.stringify({
+                            schemaVersion: 'metaflow.runtimeEvidence/v1',
+                            id: 'codex-pr-review-smoke',
+                            target: 'codex',
+                            concepts: ['issuePrOperation'],
+                            harness: 'Codex Cloud',
+                            adapterVersion: 'codex-v0.1',
+                            scenario: 'Codex opens a draft pull request from an assigned issue.',
+                            status: 'partial',
+                            evidence: ['RUN-095'],
+                        }),
+                    },
+                ],
+            },
+        });
+
+        const partialOnly = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--fail-on',
+            'partial',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(partialOnly.exitCode, 1);
+        const partialData = JSON.parse(partialOnly.stdout);
+        assert.deepStrictEqual(partialData.runtimeEvidenceGateSummary.partial, {
+            condition: 'partial',
+            triggered: true,
+            count: 1,
+            concepts: ['issuePrOperation'],
+            message: '1 runtime-only concept(s) are covered by partial evidence',
+        });
+        assert.ok(
+            partialOnly.stderr.includes(
+                'Codex support boundary gate failed: partial: 1 runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+
+        const preset = await runCli([
+            'codex-support-boundaries',
+            '--json',
+            '--fail-on',
+            'runtime-complete',
+            '-w',
+            ws.root,
+        ]);
+
+        assert.strictEqual(preset.exitCode, 1);
+        assert.ok(
+            preset.stderr.includes(
+                'partial: 1 runtime-only concept(s) are covered by partial evidence',
+            ),
+        );
+        assert.ok(
+            preset.stderr.includes(
+                'Codex support boundary gate failed: missing-evidence: 33 runtime-only concept(s) have no matching evidence',
+            ),
+        );
     });
 
     it('fails Codex support boundary gates when runtime evidence has diagnostics', async () => {

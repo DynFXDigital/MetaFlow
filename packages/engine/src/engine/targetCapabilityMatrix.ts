@@ -66,7 +66,8 @@ export type CodexRuntimeEvidenceGateCondition =
     | 'diagnostics'
     | 'error-diagnostics'
     | 'failed'
-    | 'not-run';
+    | 'not-run'
+    | 'partial';
 
 export interface CodexRuntimeEvidenceGateResult {
     condition: CodexRuntimeEvidenceGateCondition;
@@ -93,7 +94,8 @@ export type CodexRuntimeEvidenceActionKind =
     | 'collect-runtime-evidence'
     | 'review-runtime-diagnostics'
     | 'rerun-failed-evidence'
-    | 'run-not-run-evidence';
+    | 'run-not-run-evidence'
+    | 'complete-partial-runtime-evidence';
 
 export interface CodexRuntimeEvidenceActionPlanConceptDetail {
     concept: TargetCapabilityConcept;
@@ -1929,6 +1931,12 @@ function buildRuntimeEvidenceGateSummary(
             summary.conceptsByStatus['not-run'],
             `${summary.byStatus['not-run']} runtime-only concept(s) are covered by not-run evidence`,
         ),
+        partial: buildRuntimeEvidenceGateResult(
+            'partial',
+            summary.byStatus.partial,
+            summary.conceptsByStatus.partial,
+            `${summary.byStatus.partial} runtime-only concept(s) are covered by partial evidence`,
+        ),
     };
 }
 
@@ -1969,6 +1977,8 @@ function actionKindForGateCondition(
             return 'rerun-failed-evidence';
         case 'not-run':
             return 'run-not-run-evidence';
+        case 'partial':
+            return 'complete-partial-runtime-evidence';
     }
 }
 

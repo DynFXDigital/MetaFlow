@@ -1387,6 +1387,13 @@ describe('Engine package: public API', () => {
             concepts: [],
             message: '0 runtime evidence record(s) have diagnostics',
         });
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary.partial, {
+            condition: 'partial',
+            triggered: false,
+            count: 0,
+            concepts: [],
+            message: '0 runtime-only concept(s) are covered by partial evidence',
+        });
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
             ready: false,
@@ -1674,6 +1681,13 @@ describe('Engine package: public API', () => {
             count: 1,
             concepts: ['modelProviderRuntime'],
             message: '1 runtime evidence record(s) have error diagnostics',
+        });
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary.partial, {
+            condition: 'partial',
+            triggered: true,
+            count: 2,
+            concepts: ['issuePrOperation', 'reviewRuntime'].sort(),
+            message: '2 runtime-only concept(s) are covered by partial evidence',
         });
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary, {
             preset: 'release-ready',
@@ -2064,6 +2078,13 @@ describe('Engine package: public API', () => {
         assert.strictEqual(document.runtimeEvidenceReadinessSummary.ready, true);
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingConditions, []);
         assert.deepStrictEqual(document.runtimeEvidenceReadinessSummary.blockingMessages, []);
+        assert.deepStrictEqual(document.runtimeEvidenceGateSummary.partial, {
+            condition: 'partial',
+            triggered: false,
+            count: 0,
+            concepts: [],
+            message: '0 runtime-only concept(s) are covered by partial evidence',
+        });
         assert.deepStrictEqual(document.runtimeEvidenceActionPlan, []);
         assert.ok(document.content.includes('Release-ready preset: ready.'));
         assert.ok(document.content.includes('Blocking gates: none.'));

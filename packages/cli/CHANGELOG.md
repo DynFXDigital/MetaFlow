@@ -16,7 +16,7 @@
 - `metaflow codex-support-boundaries --runtime-evidence-review-queue` now emits focused review-only triage documents for all runtime-only concepts, release-ready blockers, individual runtime evidence gate queues, partial evidence, waived evidence, expired evidence, or stale adapter evidence queues.
 - Partial, waived, expired, and stale-adapter runtime evidence review queues now include advisory review items for matching concepts without changing release gate behavior.
 - `metaflow codex-support-boundaries --projection-boundary-review` now emits focused repository projection boundary review documents for Codex file-backed, runtime-only, unsupported, and not-achievable surfaces.
-- `metaflow codex-support-boundaries --fail-on` now supports `release-ready` and `all` presets for CI and release checks.
+- `metaflow codex-support-boundaries --fail-on` now supports a `partial` gate condition plus `release-ready`, `runtime-complete`, and `all` presets for CI and release checks.
 - `metaflow target-support` command for inspecting target capability support, runtime-only behavior, and unsupported surfaces without requiring a configured workspace.
 - Target-aware lifecycle output for `metaflow status`, `metaflow validate`, `metaflow apply`, and `metaflow clean`, including target support summaries and `[codex]`-style mutation labels from managed projection metadata.
 - Operator documentation for `export-copilot-mcp` now covers review-first handoff usage, required secret/policy checks, overwrite handling, and the boundary between GitHub Copilot MCP handoff and Codex MCP projection.
