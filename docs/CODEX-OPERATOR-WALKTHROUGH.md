@@ -45,6 +45,8 @@ or release checkpoint needs a focused retained artifact for what repository
 projection can produce and what remains runtime-owned. The document includes
 file-backed surfaces, runtime-only surfaces, unsupported rows, not-achievable
 repository-projection items, expected runtime evidence, and related guides.
+In VS Code, `MetaFlow: Open Codex Projection Boundary Review` opens the same
+focused projection-boundary document from the command palette.
 
 The boundary report includes a runtime evidence checklist keyed by target
 capability concept. Use that section when a package, target adapter, release

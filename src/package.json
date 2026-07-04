@@ -54,6 +54,11 @@
         "icon": "$(book)"
       },
       {
+        "command": "metaflow.openCodexProjectionBoundaryReview",
+        "title": "MetaFlow: Open Codex Projection Boundary Review",
+        "icon": "$(inspect)"
+      },
+      {
         "command": "metaflow.openCodexRuntimeEvidenceGuide",
         "title": "MetaFlow: Open Codex Runtime Evidence Guide",
         "icon": "$(checklist)"

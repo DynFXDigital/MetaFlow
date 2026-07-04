@@ -57,6 +57,8 @@ focused Markdown projection-boundary document, or JSON when `--json` is
 supplied, for retaining Codex file-backed, runtime-only, unsupported,
 not-achievable, and expected-evidence boundaries without collecting runtime
 proof.
+In VS Code, `MetaFlow: Open Codex Projection Boundary Review` opens the same
+projection-boundary review as a focused Markdown document.
 `metaflow codex-support-boundaries --runtime-evidence-guide
 --runtime-evidence-concept <concepts>` emits a Markdown guide, or a JSON guide
 when `--json` is supplied, for collecting reviewable proof for selected

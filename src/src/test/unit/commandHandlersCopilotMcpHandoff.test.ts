@@ -782,6 +782,43 @@ suite('GitHub Copilot MCP handoff command helpers', () => {
         assert.ok(document.content.includes('| issuePrOperation | missing | none recorded |'));
     });
 
+    test('builds Codex projection boundary review document for extension review', () => {
+        const { buildCodexProjectionBoundaryDocumentForExtension } = loadCommandHandlers();
+        const document = buildCodexProjectionBoundaryDocumentForExtension();
+
+        assert.strictEqual(document.schemaVersion, 'metaflow.codexProjectionBoundary/v1');
+        assert.strictEqual(
+            document.generatedBy,
+            'metaflow extension codex-projection-boundary-review',
+        );
+        assert.match(document.generatedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+        assert.strictEqual(document.adapterVersion, 'codex-v0.1');
+        assert.strictEqual(document.target, 'codex');
+        assert.ok(document.summary.fileBackedRows > 0);
+        assert.strictEqual(document.summary.runtimeOnlyRows, 34);
+        assert.ok(document.summary.notAchievableItems > 0);
+        assert.ok(
+            document.fileBackedSurfaces.some(
+                (entry) => entry.concept === 'skills' && entry.support === 'supported',
+            ),
+        );
+        assert.ok(
+            document.runtimeOnlySurfaces.some(
+                (entry) =>
+                    entry.concept === 'issuePrOperation' &&
+                    entry.boundary.includes('Issue, PR, and review operation'),
+            ),
+        );
+        assert.ok(
+            document.notAchievableByRepositoryProjection.some((item) =>
+                item.includes('Installing or launching the Codex IDE extension'),
+            ),
+        );
+        assert.ok(document.content.includes('# Codex Repository Projection Boundary Review'));
+        assert.ok(document.content.includes('## Runtime-Only Surfaces'));
+        assert.ok(document.content.includes('## Not Achievable By Repository Projection Alone'));
+    });
+
     test('builds Codex runtime evidence review queue document with workspace evidence', () => {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-vscode-runtime-queue-'));
         const metadataRepo = path.join(tmpDir, '.ai', 'ai-metadata');

@@ -15,6 +15,7 @@ import type {
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
+    CodexProjectionBoundaryDocument,
     CodexRuntimeEvidenceGuideDocument,
     CodexRuntimeEvidenceTemplateDocument,
     CodexRuntimeEvidenceTemplateRecord,
@@ -37,6 +38,7 @@ import type {
 } from '@metaflow/engine';
 import {
     buildGitHubCopilotMcpHandoff,
+    buildCodexProjectionBoundaryDocument,
     buildCodexRuntimeEvidenceReviewQueueDocument,
     buildCodexRuntimeEvidenceGuideDocument,
     buildCodexRuntimeEvidenceTemplateDocument,
@@ -918,6 +920,24 @@ export function buildCodexSupportBoundariesDocumentForWorkspace(
         generatedBy: 'metaflow extension codex-support-boundaries',
         runtimeEvidenceRecords: resolveRuntimeEvidenceRecordsForExtension(config, workspaceRoot),
     });
+}
+
+export function buildCodexProjectionBoundaryDocumentForExtension(): CodexProjectionBoundaryDocument {
+    return buildCodexProjectionBoundaryDocument(buildCodexSupportBoundariesDocumentForExtension(), {
+        generatedBy: 'metaflow extension codex-projection-boundary-review',
+    });
+}
+
+export function buildCodexProjectionBoundaryDocumentForWorkspace(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): CodexProjectionBoundaryDocument {
+    return buildCodexProjectionBoundaryDocument(
+        buildCodexSupportBoundariesDocumentForWorkspace(config, workspaceRoot),
+        {
+            generatedBy: 'metaflow extension codex-projection-boundary-review',
+        },
+    );
 }
 
 function isCodexRuntimeEvidenceReviewQueueId(
@@ -6346,6 +6366,44 @@ export function registerCommands(
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             }
         }),
+    );
+
+    // ── metaflow.openCodexProjectionBoundaryReview ────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.openCodexProjectionBoundaryReview',
+            async () => {
+                try {
+                    const ws = getWorkspace();
+                    const document =
+                        ws && state.config
+                            ? buildCodexProjectionBoundaryDocumentForWorkspace(
+                                  state.config,
+                                  ws.uri.fsPath,
+                              )
+                            : buildCodexProjectionBoundaryDocumentForExtension();
+                    showOutputChannel();
+                    logInfo('=== Codex Projection Boundary Review ===');
+                    logInfo(
+                        `${document.summary.runtimeOnlyRows} Codex runtime-only row(s); ${document.summary.notAchievableItems} repository projection boundary item(s).`,
+                    );
+
+                    const doc = await vscode.workspace.openTextDocument({
+                        language: 'markdown',
+                        content: document.content,
+                    });
+                    await vscode.window.showTextDocument(doc, { preview: false });
+                    vscode.window.showInformationMessage(
+                        'MetaFlow: Opened Codex projection boundary review. Use it to retain what repository projection can and cannot do.',
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    showOutputChannel();
+                    logError(message);
+                    vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                }
+            },
+        ),
     );
 
     // ── metaflow.openCodexRuntimeEvidenceReviewQueue ──────────────
