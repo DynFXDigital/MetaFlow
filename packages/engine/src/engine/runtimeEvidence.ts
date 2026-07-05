@@ -101,6 +101,26 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isRuntimeEvidenceSummaryArtifact(fileName: string): boolean {
+    return fileName.toLowerCase().endsWith('-summary.json');
+}
+
+function shouldParseRuntimeEvidenceFile(fileName: string, rawText: string): boolean {
+    if (!isRuntimeEvidenceSummaryArtifact(fileName)) {
+        return true;
+    }
+
+    try {
+        const data = JSON.parse(rawText.replace(/^\uFEFF/, ''));
+        return (
+            isObjectRecord(data) &&
+            parseNonEmptyString(data.schemaVersion) === RUNTIME_EVIDENCE_SCHEMA_VERSION
+        );
+    } catch {
+        return false;
+    }
+}
+
 function parseNonEmptyString(value: unknown): string | undefined {
     if (typeof value !== 'string') {
         return undefined;
@@ -641,10 +661,14 @@ export function loadRuntimeEvidenceForLayer(
     return fs
         .readdirSync(evidenceDir, { withFileTypes: true })
         .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.json'))
-        .map((entry) => {
+        .flatMap((entry) => {
             const manifestPath = path.join(evidenceDir, entry.name);
+            const rawText = fs.readFileSync(manifestPath, 'utf-8');
+            if (!shouldParseRuntimeEvidenceFile(entry.name, rawText)) {
+                return [];
+            }
             return parseRuntimeEvidenceContent(
-                fs.readFileSync(manifestPath, 'utf-8'),
+                rawText,
                 manifestPath,
                 knownPolicyGrantIds,
             );

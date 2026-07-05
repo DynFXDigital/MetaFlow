@@ -4935,6 +4935,63 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(record?.warnings.length, 0);
     });
 
+    it('ignores runtime evidence summary artifacts that do not declare runtime evidence schema', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'codex-pr-review-smoke.json',
+            ),
+            JSON.stringify({
+                schemaVersion: 'metaflow.runtimeEvidence/v1',
+                id: 'codex-pr-review-smoke',
+                target: 'codex',
+                concepts: ['issuePrOperation', 'reviewRuntime'],
+                harness: 'Codex Cloud',
+                adapterVersion: 'codex-v0.1',
+                scenario: 'Codex opens a draft pull request from an assigned issue.',
+                status: 'partial',
+                evidence: ['RUN-095'],
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(
+                repoDir,
+                'core',
+                '.metaflow',
+                'runtime-evidence',
+                'permission-runtime-summary.json',
+            ),
+            JSON.stringify({
+                runId: 'RUN-271',
+                target: 'codex',
+                concept: 'permissionRuntime',
+                status: 'reviewed',
+            }),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.deepStrictEqual(
+            layers[0].runtimeEvidenceRecords?.map((record) => record.id),
+            ['codex-pr-review-smoke'],
+        );
+        assert.strictEqual(layers[0].runtimeEvidenceRecords?.[0].warnings.length, 0);
+    });
+
     it('warns when canonical runtime evidence local artifact references are missing', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.metaflow', 'runtime-evidence'), {
