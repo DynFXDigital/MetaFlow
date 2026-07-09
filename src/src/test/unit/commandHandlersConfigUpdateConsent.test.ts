@@ -209,4 +209,60 @@ suite('Command handler config update consent', () => {
         );
         assert.doesNotMatch(previewHelper, /saveManagedState\(/);
     });
+
+    test('plugin injection upgrade is consented and one-time only', () => {
+        const source = readCommandHandlersSource();
+        const upgradeHelper = sourceSlice(
+            source,
+            'async function offerPluginInjectionUpgrade(',
+            'async function pickRemoteForPromotion(',
+        );
+
+        assert.match(upgradeHelper, /PLUGIN_INJECTION_UPGRADE_SUPPRESSIONS_STATE_KEY/);
+        assert.match(upgradeHelper, /PLUGIN_INJECTION_UPGRADE_ACTION/);
+        assert.match(upgradeHelper, /PLUGIN_INJECTION_UPGRADE_REVIEW_ACTION/);
+        assert.match(upgradeHelper, /PLUGIN_INJECTION_UPGRADE_DISMISS_ACTION/);
+        assert.match(
+            upgradeHelper,
+            /suppressions\[suppressionKey\] === PLUGIN_INJECTION_UPGRADE_DISABLED_SIGNATURE/,
+        );
+        assert.match(upgradeHelper, /suppressions\[suppressionKey\] === signature/);
+        assert.match(upgradeHelper, /const configPath = state\.configPath/);
+        assert.match(upgradeHelper, /await persistConfig\(configPath, candidateConfig, state\)/);
+    });
+
+    test('plugin injection upgrade only rewrites plugin-capable settings entries', () => {
+        const source = readCommandHandlersSource();
+        const candidateHelper = sourceSlice(
+            source,
+            'function hasSettingsBackedPluginInjectionCandidate(',
+            'function applyPluginInjectionUpgrade(',
+        );
+        const applyHelper = sourceSlice(
+            source,
+            'function applyPluginInjectionUpgrade(',
+            'async function offerPluginInjectionUpgrade(',
+        );
+
+        assert.match(
+            source,
+            /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'skills',\s+'agents',\s+\];/m,
+        );
+        assert.match(candidateHelper, /injection\?\.\[key\] === 'settings'/);
+        assert.match(applyHelper, /if \(injection\[key\] === 'settings'\) \{\s+injection\[key\] = 'plugin';/m);
+        assert.doesNotMatch(applyHelper, /prompts/);
+        assert.doesNotMatch(applyHelper, /hooks/);
+    });
+
+    test('refresh does not show plugin upgrade prompts in non-interactive or test mode', () => {
+        const source = readCommandHandlersSource();
+        const refreshEndBlock = sourceSlice(
+            source,
+            'await offerPluginInjectionUpgrade({',
+            '} catch (err: unknown) {',
+        );
+
+        assert.match(refreshEndBlock, /refreshOptions\.nonInteractive === true/);
+        assert.match(refreshEndBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
+    });
 });

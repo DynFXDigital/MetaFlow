@@ -1036,6 +1036,17 @@ type GitRemotePromotionSuppressionState = Record<string, string>;
 
 const GIT_REMOTE_PROMOTION_SUPPRESSIONS_STATE_KEY = 'metaflow.gitRemotePromotionSuppressions.v1';
 const METAFLOW_GITIGNORE_PROMPT_SUPPRESSIONS_STATE_KEY = 'metaflow.gitignorePromptSuppressions.v1';
+const PLUGIN_INJECTION_UPGRADE_SUPPRESSIONS_STATE_KEY =
+    'metaflow.pluginInjectionUpgradeSuppressions.v1';
+const PLUGIN_INJECTION_UPGRADE_DISABLED_SIGNATURE = 'disabled';
+const PLUGIN_INJECTION_UPGRADE_ACTION = 'Update Config';
+const PLUGIN_INJECTION_UPGRADE_REVIEW_ACTION = 'Review Injection Defaults';
+const PLUGIN_INJECTION_UPGRADE_DISMISS_ACTION = "Don't Show Again";
+const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey[] = [
+    'instructions',
+    'skills',
+    'agents',
+];
 
 type CheckRepoUpdatesOutcome =
     | { executed: true }
@@ -3838,6 +3849,175 @@ function computeGitIgnorePromptSignature(content: string): string {
     return createHash('sha1').update(content).digest('hex');
 }
 
+function getInjectionUpgradeSignatureParts(
+    scopeLabel: string,
+    injection: InjectionConfig | undefined,
+): string[] {
+    if (!injection) {
+        return [];
+    }
+
+    return PLUGIN_INJECTION_RECOMMENDED_KEYS.map(
+        (key) => `${scopeLabel}.${key}=${injection[key] ?? 'inherit'}`,
+    );
+}
+
+function collectPluginInjectionUpgradeSignature(config: MetaFlowConfig): string {
+    const parts: string[] = [];
+    parts.push(...getInjectionUpgradeSignatureParts('global', config.injection));
+    for (const repo of config.metadataRepos ?? []) {
+        parts.push(...getInjectionUpgradeSignatureParts(`repo:${repo.id}`, repo.injection));
+        for (const capability of repo.capabilities ?? []) {
+            parts.push(
+                ...getInjectionUpgradeSignatureParts(
+                    `capability:${repo.id}:${capability.path}`,
+                    capability.injection,
+                ),
+            );
+        }
+    }
+    for (const layerSource of config.layerSources ?? []) {
+        parts.push(
+            ...getInjectionUpgradeSignatureParts(
+                `layerSource:${layerSource.repoId}:${layerSource.path}`,
+                layerSource.injection,
+            ),
+        );
+    }
+
+    return createHash('sha1').update(parts.sort().join('|')).digest('hex');
+}
+
+function hasSettingsBackedPluginInjectionCandidate(config: MetaFlowConfig): boolean {
+    const injectionConfigs: Array<InjectionConfig | undefined> = [config.injection];
+    for (const repo of config.metadataRepos ?? []) {
+        injectionConfigs.push(repo.injection);
+        for (const capability of repo.capabilities ?? []) {
+            injectionConfigs.push(capability.injection);
+        }
+    }
+    for (const layerSource of config.layerSources ?? []) {
+        injectionConfigs.push(layerSource.injection);
+    }
+
+    return injectionConfigs.some((injection) =>
+        PLUGIN_INJECTION_RECOMMENDED_KEYS.some((key) => injection?.[key] === 'settings'),
+    );
+}
+
+function applyPluginInjectionUpgrade(config: MetaFlowConfig): boolean {
+    let changed = false;
+    const updateInjection = (injection: InjectionConfig | undefined): void => {
+        if (!injection) {
+            return;
+        }
+        for (const key of PLUGIN_INJECTION_RECOMMENDED_KEYS) {
+            if (injection[key] === 'settings') {
+                injection[key] = 'plugin';
+                changed = true;
+            }
+        }
+    };
+
+    updateInjection(config.injection);
+    for (const repo of config.metadataRepos ?? []) {
+        updateInjection(repo.injection);
+        for (const capability of repo.capabilities ?? []) {
+            updateInjection(capability.injection);
+        }
+    }
+    for (const layerSource of config.layerSources ?? []) {
+        updateInjection(layerSource.injection);
+    }
+
+    return changed;
+}
+
+async function offerPluginInjectionUpgrade(options: {
+    context: vscode.ExtensionContext;
+    state: ExtensionState;
+    workspaceRoot: string;
+    skipPrompt: boolean;
+}): Promise<void> {
+    const { context, state, workspaceRoot, skipPrompt } = options;
+    if (skipPrompt || !state.config || !state.configPath) {
+        return;
+    }
+    const configPath = state.configPath;
+    if (!hasSettingsBackedPluginInjectionCandidate(state.config)) {
+        return;
+    }
+
+    const suppressions = readWorkspaceSuppressions(
+        context,
+        PLUGIN_INJECTION_UPGRADE_SUPPRESSIONS_STATE_KEY,
+    );
+    const suppressionKey = buildWorkspaceScopedSuppressionKey(workspaceRoot);
+    if (suppressions[suppressionKey] === PLUGIN_INJECTION_UPGRADE_DISABLED_SIGNATURE) {
+        return;
+    }
+
+    const signature = collectPluginInjectionUpgradeSignature(state.config);
+    if (suppressions[suppressionKey] === signature) {
+        return;
+    }
+
+    const action = await vscode.window.showInformationMessage(
+        'MetaFlow: Plugin injection is recommended for instructions, skills, and agents.',
+        PLUGIN_INJECTION_UPGRADE_ACTION,
+        PLUGIN_INJECTION_UPGRADE_REVIEW_ACTION,
+        PLUGIN_INJECTION_UPGRADE_DISMISS_ACTION,
+    );
+
+    if (action === PLUGIN_INJECTION_UPGRADE_DISMISS_ACTION) {
+        suppressions[suppressionKey] = PLUGIN_INJECTION_UPGRADE_DISABLED_SIGNATURE;
+        await context.workspaceState.update(
+            PLUGIN_INJECTION_UPGRADE_SUPPRESSIONS_STATE_KEY,
+            suppressions,
+        );
+        return;
+    }
+
+    suppressions[suppressionKey] = signature;
+    await context.workspaceState.update(
+        PLUGIN_INJECTION_UPGRADE_SUPPRESSIONS_STATE_KEY,
+        suppressions,
+    );
+
+    if (action === PLUGIN_INJECTION_UPGRADE_REVIEW_ACTION) {
+        await vscode.commands.executeCommand('metaflow.configureGlobalInjectionDefaults');
+        return;
+    }
+
+    if (action !== PLUGIN_INJECTION_UPGRADE_ACTION) {
+        return;
+    }
+
+    const candidateConfig = cloneConfig(state.config);
+    if (!applyPluginInjectionUpgrade(candidateConfig)) {
+        return;
+    }
+
+    const applied = await executeGovernedMutation({
+        actionLabel: 'updating plugin-capable injection defaults to plugin mode',
+        state,
+        candidateConfig,
+        persist: async () => {
+            await persistConfig(configPath, candidateConfig, state);
+            state.config = candidateConfig;
+        },
+    });
+    if (!applied) {
+        return;
+    }
+
+    logInfo('Updated plugin-capable settings-backed injection defaults to plugin mode.');
+    void vscode.window.showInformationMessage(
+        'MetaFlow: Updated instructions, skills, and agents to plugin injection.',
+    );
+    await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+}
+
 async function pickRemoteForPromotion(
     repo: UntrackedLocalRepoSource,
     remotes: GitRemoteInfo[],
@@ -5684,6 +5864,15 @@ export function registerCommands(
                         });
                     }
                 }
+
+                await offerPluginInjectionUpgrade({
+                    context,
+                    state,
+                    workspaceRoot: ws.uri.fsPath,
+                    skipPrompt:
+                        refreshOptions.nonInteractive === true ||
+                        context.extensionMode === vscode.ExtensionMode.Test,
+                });
             } catch (err: unknown) {
                 state.isLoading = false;
                 notifyStateChanged();
