@@ -865,8 +865,12 @@ describe('Engine: settings injector', () => {
         ]);
     });
 
-    it('classifySingle treats .github instructions as plugin artifacts by default', () => {
+    it('classifySingle treats Copilot plugin artifacts as plugin artifacts by default', () => {
         assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.github/hooks/session.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('hooks.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('hooks/hooks.json', { hooks: 'settings' }), 'settings');
+        assert.strictEqual(classifySingle('hooks.json', { hooks: 'synchronize' }), 'synchronized');
         assert.strictEqual(
             classifySingle('.github/prompts/review.prompt.md', undefined),
             'settings',

@@ -246,12 +246,11 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             source,
-            /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'skills',\s+'agents',\s+\];/m,
+            /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'skills',\s+'agents',\s+'hooks',\s+\];/m,
         );
         assert.match(candidateHelper, /injection\?\.\[key\] === 'settings'/);
         assert.match(applyHelper, /if \(injection\[key\] === 'settings'\) \{\s+injection\[key\] = 'plugin';/m);
         assert.doesNotMatch(applyHelper, /prompts/);
-        assert.doesNotMatch(applyHelper, /hooks/);
     });
 
     test('refresh does not show plugin upgrade prompts in non-interactive or test mode', () => {

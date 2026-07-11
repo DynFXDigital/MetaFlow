@@ -226,6 +226,10 @@
         "title": "Inherit"
       },
       {
+        "command": "metaflow.synchronization.hooks.plugin",
+        "title": "Plugin"
+      },
+      {
         "command": "metaflow.synchronization.hooks.settings",
         "title": "Settings"
       },
@@ -668,6 +672,10 @@
           "when": "viewItem == layerArtifactType:agents"
         },
         {
+          "command": "metaflow.synchronization.hooks.plugin",
+          "when": "viewItem == layerArtifactType:hooks"
+        },
+        {
           "command": "metaflow.synchronization.hooks.settings",
           "when": "viewItem == layerArtifactType:hooks"
         },
@@ -746,7 +754,7 @@
             "prompts": "settings",
             "skills": "plugin",
             "agents": "plugin",
-            "hooks": "settings"
+            "hooks": "plugin"
           },
           "description": "Injection mode by artifact type (Item = artifact type, Value = mode)",
           "additionalProperties": false,

@@ -13,7 +13,7 @@ const DEFAULT_INJECTION_MODE = {
     prompts: 'settings',
     skills: 'plugin',
     agents: 'plugin',
-    hooks: 'settings',
+    hooks: 'plugin',
 } as const;
 
 type InjectionKey = keyof typeof DEFAULT_INJECTION_MODE;

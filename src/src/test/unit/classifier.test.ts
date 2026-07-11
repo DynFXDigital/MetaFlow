@@ -28,8 +28,8 @@ suite('classifier', () => {
             assert.strictEqual(classifySingle('agents/coder.agent.md', undefined), 'plugin');
         });
 
-        test('hooks → settings', () => {
-            assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'settings');
+        test('hooks → plugin', () => {
+            assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'plugin');
         });
 
         test('chatmodes → synchronized (deprecated)', () => {

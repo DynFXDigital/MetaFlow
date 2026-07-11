@@ -37,7 +37,7 @@ export function registerInitCommand(program: Command): void {
                     prompts: 'settings',
                     skills: 'plugin',
                     agents: 'plugin',
-                    hooks: 'settings',
+                    hooks: 'plugin',
                 },
             };
 

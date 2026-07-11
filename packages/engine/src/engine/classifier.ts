@@ -9,7 +9,7 @@
  * - prompts/** → settings
  * - skills/** → plugin
  * - agents/** → plugin
- * - hooks/** → settings
+ * - hooks/** and hooks.json → plugin
  * - chatmodes/** → synchronized (deprecated, no settings injection)
  * - unknown → synchronized
  *
@@ -26,12 +26,13 @@ const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
     prompts: 'settings',
     skills: 'plugin',
     agents: 'plugin',
-    hooks: 'settings',
+    hooks: 'plugin',
     chatmodes: 'synchronized',
 };
 
-const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents']);
+const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents', 'hooks']);
 const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
+const ROOT_PLUGIN_HOOK_CONFIGURATION_PATH = 'hooks.json';
 
 /**
  * Build a lookup key matching the layerId format used by the overlay engine.
@@ -122,6 +123,14 @@ export function classifySingle(
 
     if (effectivePath === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH) {
         return 'synchronized';
+    }
+
+    if (effectivePath === ROOT_PLUGIN_HOOK_CONFIGURATION_PATH) {
+        const mode = injection?.hooks;
+        if (mode === 'settings' || mode === 'synchronize' || mode === 'plugin') {
+            return mode === 'synchronize' ? 'synchronized' : mode;
+        }
+        return 'plugin';
     }
 
     // Deprecated chatmodes remain synchronized-only.

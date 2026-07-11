@@ -93,6 +93,7 @@ export function computeSettingsEntries(
 
     // Collect unique settings-backed directories by artifact type
     const settingsDirs = new Map<string, Set<string>>();
+    const settingsHookFiles = new Set<string>();
     const pluginRoots = computePluginRootPaths(effectiveFiles);
     for (const file of effectiveFiles) {
         if (file.classification === 'plugin') {
@@ -109,6 +110,10 @@ export function computeSettingsEntries(
                 ? rawSegments.slice(1)
                 : rawSegments;
         const topDir = relativeSegments[0];
+        if (topDir === 'hooks' || normalized === 'hooks.json') {
+            settingsHookFiles.add(toWorkspaceRelative(workspaceRoot, file.sourcePath));
+            continue;
+        }
 
         // Navigate up to the artifact type directory (e.g., instructions/, skills/, prompts/)
         // VS Code will scan subdirectories automatically, so we only add the top level
@@ -155,20 +160,21 @@ export function computeSettingsEntries(
         });
     }
 
-    // Hook file locations (hooks are file-based)
-    if (config.hooks) {
-        const hookLocations = new Set<string>();
+    // Hook file locations include settings-backed hook artifacts and legacy script paths.
+    const legacyHooks = config.hooks;
+    if (settingsHookFiles.size > 0 || legacyHooks) {
+        const hookLocations = new Set(settingsHookFiles);
 
-        if (config.hooks.preApply) {
-            const preApplyPath = path.isAbsolute(config.hooks.preApply)
-                ? config.hooks.preApply
-                : path.join(workspaceRoot, config.hooks.preApply);
+        if (legacyHooks?.preApply) {
+            const preApplyPath = path.isAbsolute(legacyHooks.preApply)
+                ? legacyHooks.preApply
+                : path.join(workspaceRoot, legacyHooks.preApply);
             hookLocations.add(toWorkspaceRelative(workspaceRoot, preApplyPath));
         }
-        if (config.hooks.postApply) {
-            const postApplyPath = path.isAbsolute(config.hooks.postApply)
-                ? config.hooks.postApply
-                : path.join(workspaceRoot, config.hooks.postApply);
+        if (legacyHooks?.postApply) {
+            const postApplyPath = path.isAbsolute(legacyHooks.postApply)
+                ? legacyHooks.postApply
+                : path.join(workspaceRoot, legacyHooks.postApply);
             hookLocations.add(toWorkspaceRelative(workspaceRoot, postApplyPath));
         }
 

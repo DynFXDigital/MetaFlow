@@ -118,7 +118,7 @@ The maintained plugin manifest contract currently expects:
 
 MetaFlow also builds a normalized internal plugin catalog from valid capability plugin manifests and can generate `.github/plugin/marketplace.json` from those manifests for discovery surfaces.
 
-Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, and `agents` to `plugin`, while `prompts` and `hooks` remain settings-backed until the host consumes those artifact types through plugin discovery.
+Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, `agents`, and Copilot hook artifacts to `plugin`; prompts remain settings-backed because Copilot plugin discovery does not consume MetaFlow prompt directories directly.
 
 An explicit config looks like this:
 
@@ -137,9 +137,9 @@ When `MetaFlow: Apply` runs, MetaFlow injects those capability roots into the us
 
 Current scope:
 
-- `plugin` is the default mode for `instructions`, `skills`, and `agents`
+- `plugin` is the default mode for `instructions`, `skills`, `agents`, and hook artifacts (`hooks.json`, `hooks/**`, or `.github/hooks/**`)
 - `prompts` remain `settings` or `synchronize` because Copilot plugin discovery does not consume MetaFlow prompt directories directly
-- `hooks` remain `settings` because the current plugin discovery path does not consume MetaFlow hook directories directly
+- legacy top-level `hooks.preApply` and `hooks.postApply` remain settings-backed script paths; they are distinct from Copilot plugin hook configuration
 - `plugin.json` must exist at the capability root and should be kept in sync with `CAPABILITY.md`
 
 ## Where to go next

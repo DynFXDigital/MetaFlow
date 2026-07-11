@@ -97,7 +97,7 @@ Supported injection modes are:
 - `synchronize`: materialize files into the workspace `.github` directory
 - `plugin`: inject capability roots into `chat.pluginLocations` for local Copilot plugin discovery
 
-`plugin` mode is now the default for `instructions`, `skills`, and `agents`. `prompts` still need `settings` or `synchronize`, and `hooks` still need `settings`, because the current Copilot plugin loader path does not consume those MetaFlow artifact directories directly.
+`plugin` mode is now the default for `instructions`, `skills`, `agents`, and Copilot hook artifacts. Prompts still need `settings` or `synchronize`. Legacy `hooks.preApply` and `hooks.postApply` remain settings-backed script paths because they are not Copilot `hooks.json` event definitions.
 
 > **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses _desired_ state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
 

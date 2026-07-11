@@ -627,6 +627,14 @@ describe('Engine gaps: settingsInjector plugin roots', () => {
         assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
     });
 
+    it('computePluginRootPaths discovers a hook-only plugin from hooks.json', () => {
+        const file = pluginFile(
+            'hooks.json',
+            path.join(workspaceRoot, 'repo', 'cap', 'hooks.json'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
     it('computePluginRootPaths ignores non-plugin files', () => {
         const settingsFile: EffectiveFile = {
             relativePath: '.github/instructions/x.md',
@@ -658,4 +666,16 @@ describe('Engine gaps: settingsInjector plugin roots', () => {
         assert.ok(pluginEntry, 'should emit chat.pluginLocations');
         assert.deepStrictEqual(pluginEntry?.value, { cap: true });
     });
-});
+
+    it('computeSettingsEntries preserves explicit settings hook artifacts', () => {
+        const file: EffectiveFile = {
+            relativePath: 'hooks.json',
+            sourcePath: path.join(workspaceRoot, 'cap', 'hooks.json'),
+            sourceLayer: 'core',
+            classification: 'settings',
+        };
+        const config: MetaFlowConfig = { metadataRepo: { localPath: 'repo' }, layers: ['core'] };
+        const entries = computeSettingsEntries([file], workspaceRoot, config);
+        const hookEntry = entries.find((entry) => entry.key === 'chat.hookFilesLocations');
+        assert.deepStrictEqual(hookEntry?.value, { 'cap/hooks.json': true });
+    });});

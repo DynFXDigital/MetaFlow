@@ -68,7 +68,7 @@ export function buildConfig(
             prompts: 'settings',
             skills: 'plugin',
             agents: 'plugin',
-            hooks: 'settings',
+            hooks: 'plugin',
         },
     };
 }

@@ -147,7 +147,7 @@ const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 
     prompts: 'settings',
     skills: 'plugin',
     agents: 'plugin',
-    hooks: 'settings',
+    hooks: 'plugin',
 };
 
 const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
@@ -1046,6 +1046,7 @@ const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey[] = [
     'instructions',
     'skills',
     'agents',
+    'hooks',
 ];
 
 type CheckRepoUpdatesOutcome =
@@ -1226,7 +1227,10 @@ function formatInjectionModeOptionLabel(mode: 'settings' | 'synchronize' | 'plug
 
 function supportsPluginInjection(artifactType: InjectionKey): boolean {
     return (
-        artifactType === 'instructions' || artifactType === 'skills' || artifactType === 'agents'
+        artifactType === 'instructions' ||
+        artifactType === 'skills' ||
+        artifactType === 'agents' ||
+        artifactType === 'hooks'
     );
 }
 
@@ -7189,7 +7193,11 @@ export function registerCommands(
     );
 
     for (const artifactType of INJECTION_KEYS) {
-        for (const mode of ['settings', 'synchronize', 'inherit'] as const) {
+        const modes: InjectionEditMode[] = ['settings', 'synchronize', 'inherit'];
+        if (supportsPluginInjection(artifactType)) {
+            modes.push('plugin');
+        }
+        for (const mode of modes) {
             const mutation: InjectionMutationSelection = { artifactType, mode };
             context.subscriptions.push(
                 vscode.commands.registerCommand(

@@ -284,7 +284,7 @@ const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
     prompts: 'settings',
     agents: 'plugin',
     skills: 'plugin',
-    hooks: 'settings',
+    hooks: 'plugin',
 };
 
 function normalizeInjectionPath(layerPath: string): string {
