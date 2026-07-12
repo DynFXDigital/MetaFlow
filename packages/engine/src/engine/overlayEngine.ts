@@ -33,7 +33,7 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
     'chatmodes',
 ]);
 
-const KNOWN_GITHUB_ROOT_FILES = new Set(['copilot-instructions.md']);
+const KNOWN_GITHUB_ROOT_FILES = new Set(['copilot-instructions.md', 'hooks.json']);
 
 export interface ResolveLayersOptions {
     /** Enables runtime layer discovery for repos with discover.enabled=true. */

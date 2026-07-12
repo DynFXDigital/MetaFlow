@@ -10,29 +10,36 @@ agentPlugin: true
 
 ## Mission
 
-Provide reusable standards and maintenance workflows for GitHub Copilot repository metadata.
+Review and maintain GitHub Copilot metadata after Copilot or a human has produced an initial draft.
 
 ## Primary Concern
 
-GitHub Copilot-native metadata quality, structure, compatibility, context efficiency, and promotion readiness.
+Metadata design quality: choosing the smallest effective surface, scoping it correctly, limiting
+permissions, preserving host compatibility, and deciding whether it is ready to share or promote.
 
 ## Use This Capability When
 
-- a repository needs GitHub Copilot-specific guidance for instructions, prompts, agents, skills, or hooks
-- authoring work needs portable GitHub Copilot metadata conventions instead of product-specific behavior rules
-- a task needs the deeper `ai-metadata` skill, steward agent, or prompt support rather than restating long workflow detail in layer 1
+- generated or existing Copilot metadata needs a quality, security, or compatibility review
+- a task must choose between instructions, prompts, agents, skills, and hooks
+- metadata is being prepared for reuse across repositories, hosts, or an organization
+- a task needs the deeper `ai-metadata` skill, steward agent, or review prompt
+
+For a simple first draft, use Copilot's native generators and documentation first. Load this
+capability when the draft needs judgment beyond file syntax or when it will be shared.
 
 ## In Scope
 
-- Authoring standards for `.github/copilot-instructions.md`, instructions, prompts, agents, skills, and hooks
+- Selecting and scoping `.github/copilot-instructions.md`, instructions, prompts, agents, skills, and hooks
+- Review criteria for context cost, tool exposure, executable behavior, and maintainability
 - Interactive-decision patterns for prompts, agents, and instructions that collect high-impact user input consistently
-- Progressive-discovery patterns that keep hot-path GitHub Copilot metadata concise and move detail into support docs
+- Progressive-discovery patterns that keep hot-path metadata concise and move detail into support docs
 - GitHub Copilot and VS Code compatibility guidance for current metadata constructs
 - AGENTS.md scope and precedence conventions
-- Review and refresh workflows for GitHub Copilot metadata guidance
+- Review, validation, refresh, and promotion workflows for reusable metadata
 
 ## Non-Goals
 
+- Re-teaching basic filenames and frontmatter that current Copilot generators and official documentation already provide
 - Codex-specific metadata authoring rules that belong in `codex-metadata-authoring`
 - Claude Code-specific metadata authoring rules that belong in `claude-code-metadata-authoring`
 - Product-specific runtime feature behavior outside GitHub Copilot metadata surfaces
@@ -40,8 +47,12 @@ GitHub Copilot-native metadata quality, structure, compatibility, context effici
 
 ## Must-Follow Constraints
 
+- Treat generated metadata as a draft: verify its purpose, owning surface, scope, permissions, and host assumptions before sharing it.
+- Choose the smallest effective artifact and scope; do not use always-on or global application when a narrower surface works.
 - Keep always-on metadata surfaces minimal and front-load trigger conditions, scope, precedence, and must-follow rules.
 - Move long procedures, examples, edge cases, rationale, and compatibility detail into second-layer support docs unless duplication is required for enforcement.
+- Review executable metadata, including hooks and unrestricted tools, as a security boundary rather than as ordinary prose.
+- State the supported Copilot surfaces when behavior differs between VS Code, GitHub.com, and Copilot CLI.
 - Keep GitHub Copilot-specific guidance inside this capability instead of claiming adjacent Codex or Claude Code ownership.
 
 ## Load For Detail
@@ -53,7 +64,7 @@ GitHub Copilot-native metadata quality, structure, compatibility, context effici
 
 ## Ownership Boundaries
 
-- Owns GitHub Copilot-specific metadata artifact conventions and promotion design rules
+- Owns GitHub Copilot-specific metadata selection, review, compatibility, and promotion design rules
 - Owns shared authoring guidance for when interactive metadata should use askQuestions, including trigger, batching, and fallback expectations
 - Does not own non-Copilot metadata contracts or domain-specific implementation policy outside metadata scope
 

@@ -7,6 +7,15 @@ applyTo: '.github/copilot-instructions.md,.github/instructions/**/*.instructions
 
 Use GitHub Copilot custom instructions for compact, enforceable repository guidance.
 
+## Review-first default
+
+Current Copilot can usually produce a valid first draft of an instruction, prompt, skill, agent,
+or hook. When metadata will be committed, shared, or promoted, review the draft for surface
+selection, scope, context cost, tool exposure, host compatibility, and validation evidence.
+
+Load the `ai-metadata` skill for that review. Do not repeat generic authoring advice that Copilot
+already knows unless it prevents a repository-specific failure.
+
 ## Repo-wide Copilot instructions
 
 Use `.github/copilot-instructions.md` for broad repo context and defaults.

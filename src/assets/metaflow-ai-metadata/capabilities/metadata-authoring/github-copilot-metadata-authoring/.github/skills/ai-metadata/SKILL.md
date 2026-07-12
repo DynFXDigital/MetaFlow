@@ -1,11 +1,15 @@
 ---
 name: ai-metadata
-description: Consolidated guidance for authoring Copilot instructions, prompt files, custom agents, agent skills, and hooks with current compatibility caveats.
+description: Review and improve GitHub Copilot metadata for correct surface selection, scope, security, portability, and promotion readiness.
 ---
 
-# AI metadata skill
+# AI metadata review skill
 
-Use this skill when creating or updating:
+Use this skill when a Copilot-generated or human-authored metadata draft needs review before it is
+committed, shared, or promoted. Current Copilot generators and official documentation are usually
+enough for a simple first draft; this skill supplies the judgment and validation pass around it.
+
+Use it when creating or updating:
 
 - Repository custom instructions
 - Prompt files
@@ -13,27 +17,39 @@ Use this skill when creating or updating:
 - Agent skills
 - Hooks
 
-## Scope
+## Core workflow
 
-This skill consolidates current best practices and compatibility notes across GitHub Copilot and VS Code. It is intentionally redundant with the repo’s instruction files so guidance is available both as instructions and as a loadable skill, while still favoring thin hot-path metadata and progressive discovery of detail.
+1. Identify the intended outcome, target hosts, and whether the artifact is local, shared, or intended for promotion.
+2. Select the smallest effective surface:
+    - instructions for stable rules that apply automatically
+    - prompts for repeatable, user-invoked tasks
+    - skills for specialized workflows with supporting resources
+    - agents for distinct roles, tool boundaries, or delegation
+    - hooks for deterministic lifecycle automation or enforcement
+3. Review scope and context cost. Prefer the narrowest `applyTo` or invocation boundary, avoid duplicate rules, and move examples and procedures into progressively loaded support files.
+4. Review execution risk. Check agent tools, subagent access, hook commands, input handling, secrets, filesystem effects, and whether a human decision is required.
+5. Review host compatibility. State meaningful differences between VS Code, GitHub.com, and Copilot CLI, and label preview-only behavior. Do not infer portability from matching filenames.
+6. Validate frontmatter, paths, references, and any executable behavior. Run a representative task when the metadata changes user-visible agent behavior.
+7. Report unresolved assumptions and promotion readiness. Do not promote a draft merely because its syntax is valid.
 
-## How to use
+## Decision rules
 
-1. Read `References.md` for authoritative sources and last-reviewed dates.
-2. Apply `BestPractices.md` when authoring or reviewing metadata files.
-3. Use `ReflectionReinforcement.md` for evidence-gated reflection-to-policy updates.
-4. Check `Compatibility.md` for environment-specific caveats and preview status.
-5. Keep repo-specific instruction files authoritative for enforcement and scoping.
-6. When editing metadata files, proactively offer to fix non-compliant patterns.
-7. Prefer metadata that puts trigger conditions, scope, and must-follow rules in the main file, then moves extended examples, edge cases, and long procedures into support docs.
+- Treat generated metadata as a draft, not as evidence that the design is correct.
+- Prefer repository-specific facts and enforceable rules over generic advice that Copilot already
+  knows.
+- Keep always-on metadata thin and high-signal. A long procedure belongs in a skill or prompt.
+- Ask for user input only when it changes the artifact surface, scope, permissions, host target, or
+  validation criteria; batch those decisions instead of guessing.
+- Keep repo-specific instruction files authoritative for enforcement and scoping.
 
-## Files
+## Supporting material
 
-- `References.md`
-- `BestPractices.md`
-- `ReflectionReinforcement.md`
-- `Compatibility.md`
+- Read [References.md](./References.md) when source freshness matters.
+- Apply [BestPractices.md](./BestPractices.md) for the detailed review checklist.
+- Check [Compatibility.md](./Compatibility.md) for host-specific behavior and preview status.
+- Use [ReflectionReinforcement.md](./ReflectionReinforcement.md) when converting observed outcomes
+  into durable policy.
 
 ## Versioning
 
-- Last reviewed: 2026-05-22
+- Last reviewed: 2026-07-11

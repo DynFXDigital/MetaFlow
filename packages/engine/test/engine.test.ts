@@ -353,6 +353,31 @@ describe('Engine package: cross-platform path handling', () => {
             assert.ok(layers[0].files.length > 0);
         }
     });
+
+    it('resolveLayers includes root hooks.json in a capability layer', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerDir = path.join(repoDir, 'agentic-development', 'test-capability');
+        fs.mkdirSync(layerDir, { recursive: true });
+        fs.writeFileSync(path.join(layerDir, 'hooks.json'), '{"hooks":[]}', 'utf-8');
+
+        const config = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['agentic-development/test-capability'],
+        };
+        fs.writeFileSync(
+            path.join(tmpDir, '.metaflow', 'config.jsonc'),
+            JSON.stringify(config),
+            'utf-8',
+        );
+
+        const result = loadConfig(tmpDir);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            const layers = resolveLayers(result.config, tmpDir);
+            assert.strictEqual(layers.length, 1);
+            assert.deepStrictEqual(layers[0].files.map((file) => file.relativePath), ['hooks.json']);
+        }
+    });
 });
 
 describe('Engine package: overlay pipeline', () => {

@@ -1,6 +1,6 @@
 ---
 name: review-metadata-authoring-capability
-description: Re-evaluate the GitHub Copilot metadata-authoring capability against current GitHub Copilot and VS Code documentation, then update instructions and skills to match best practices.
+description: Review GitHub Copilot metadata guidance against current GitHub and VS Code behavior, then improve scope, security, compatibility, and promotion readiness.
 agent: agent
 argument-hint: '[optional: specific artifact type to focus on, e.g. agents / skills / prompts / hooks]'
 tools: ['read', 'search', 'edit', 'web']
@@ -8,7 +8,7 @@ tools: ['read', 'search', 'edit', 'web']
 
 # Review and Refresh: Metadata Authoring Capability
 
-Use this prompt to evaluate the `capabilities/metadata-authoring/github-copilot-metadata-authoring` capability against current GitHub and VS Code documentation, surface gaps or stale guidance, and apply targeted improvements.
+Use this prompt to review the `capabilities/metadata-authoring/github-copilot-metadata-authoring` capability against current GitHub and VS Code documentation, surface gaps or stale guidance, and apply targeted improvements. Assume current Copilot can produce a valid first draft; focus the review on decisions that require repository context or human judgment.
 
 ## Scope
 
@@ -42,6 +42,8 @@ Focus on:
 - Platform differences (GitHub.com vs VS Code vs CLI)
 - New artifact types or workflows (for example subagents, agent teams, hooks, personal skills)
 - Tool alias changes or new portable aliases
+- Whether the guidance still adds value beyond Copilot's native generators and official documentation
+- Scope, context cost, tool exposure, executable behavior, validation evidence, and promotion readiness
 
 ### Step 2: Prioritize findings
 
