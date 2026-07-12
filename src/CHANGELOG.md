@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+### Patch Changes
+
+- 44dc4e9: Support GitHub Copilot agent plugin hooks as a first-class plugin injection artifact, including hook-only capabilities and settings-backed compatibility.
+
 ## 0.3.2
 
 ### Patch Changes
