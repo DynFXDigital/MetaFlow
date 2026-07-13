@@ -224,6 +224,24 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('injection settings expose plugin mode for hooks', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const injectionModes =
+            packageJson.contributes?.configuration?.properties?.['metaflow.injection.modes'];
+        const hooks = (
+            injectionModes as {
+                properties?: Record<string, { enum?: string[]; default?: unknown }>;
+            } | undefined
+        )?.properties?.hooks;
+        assert.ok(hooks, 'Expected hooks injection mode setting to be contributed');
+        assert.deepStrictEqual(hooks?.enum, ['settings', 'synchronize', 'plugin']);
+        assert.strictEqual(hooks?.default, 'plugin');
+    });
+
     test('repo update commands are contributed for the command palette', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

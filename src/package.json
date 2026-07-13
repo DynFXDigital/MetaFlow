@@ -802,9 +802,10 @@
               "type": "string",
               "enum": [
                 "settings",
-                "synchronize"
+                "synchronize",
+                "plugin"
               ],
-              "default": "settings",
+              "default": "plugin",
               "description": "Injection mode for hooks artifacts"
             }
           }
