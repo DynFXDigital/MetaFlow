@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.3.4
+
+### Patch Changes
+
+- 1941a2b: Expose the plugin injection mode for hooks in the user settings schema and make it the default.
+
 ## 0.3.3
 
 ## 0.3.2
