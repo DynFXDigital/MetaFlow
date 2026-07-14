@@ -19,6 +19,7 @@ export interface RefreshCommandOptions {
 
 export interface ApplyCommandOptions {
     skipRefresh?: boolean;
+    markApply?: boolean;
 }
 
 export interface RepoScopeOptions {
@@ -496,8 +497,10 @@ export function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
     }
 
     const skipRefresh = (arg as { skipRefresh?: unknown }).skipRefresh;
+    const markApply = (arg as { markApply?: unknown }).markApply;
     return {
         skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
+        markApply: typeof markApply === 'boolean' ? markApply : undefined,
     };
 }
 

@@ -5924,6 +5924,7 @@ export function registerCommands(
                         logInfo('Auto-apply enabled; applying overlay after refresh.');
                         await vscode.commands.executeCommand('metaflow.apply', {
                             skipRefresh: true,
+                            markApply: result.migrated,
                         });
                     }
                 }
@@ -6033,6 +6034,11 @@ export function registerCommands(
                         logInfo(
                             `Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed.`,
                         );
+                        if (applyOptions.markApply) {
+                            const managedState = loadManagedState(ws.uri.fsPath);
+                            managedState.lastApply = new Date().toISOString();
+                            saveManagedState(ws.uri.fsPath, managedState);
+                        }
                         for (const w of result.warnings) {
                             logWarn(w);
                         }
