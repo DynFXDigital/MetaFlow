@@ -498,10 +498,13 @@ export function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
 
     const skipRefresh = (arg as { skipRefresh?: unknown }).skipRefresh;
     const markApply = (arg as { markApply?: unknown }).markApply;
-    return {
+    const options: ApplyCommandOptions = {
         skipRefresh: typeof skipRefresh === 'boolean' ? skipRefresh : undefined,
-        markApply: typeof markApply === 'boolean' ? markApply : undefined,
     };
+    if (typeof markApply === 'boolean') {
+        options.markApply = markApply;
+    }
+    return options;
 }
 
 export function extractRepoScopeOptions(arg: unknown): RepoScopeOptions {
