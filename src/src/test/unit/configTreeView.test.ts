@@ -134,6 +134,44 @@ function loadConfigTreeView(): ConfigTreeViewModule {
     }
 }
 
+function makeEmptyTreeSummaryCache() {
+    const emptySummary = {
+        totalActive: 0,
+        totalAvailable: 0,
+        byType: {
+            instructions: { active: 0, available: 0 },
+            prompts: { active: 0, available: 0 },
+            agents: { active: 0, available: 0 },
+            skills: { active: 0, available: 0 },
+            hooks: { active: 0, available: 0 },
+        },
+    };
+    const emptyInstructionScopeSummary = {
+        inspectedCount: 0,
+        activeCount: 0,
+        highRiskCount: 0,
+        mediumRiskCount: 0,
+        lowRiskCount: 0,
+        unknownCount: 0,
+        missingApplyToCount: 0,
+        activeHighRiskCount: 0,
+        topRisks: [],
+        status: 'none' as const,
+    };
+
+    return {
+        availableRecords: [],
+        currentActiveRecords: [],
+        baseActiveRecords: [],
+        instructionScopeRecords: [],
+        currentInstructionScopeSummary: emptyInstructionScopeSummary,
+        profileInstructionScopeSummaries: {},
+        profileSummaries: {},
+        currentSummary: emptySummary,
+        availableSummary: emptySummary,
+    };
+}
+
 function makeState(
     overrides?: Partial<{
         isLoading: boolean;
@@ -144,6 +182,7 @@ function makeState(
         repoSyncByRepoId: Record<string, unknown>;
         repoMetadataById: Record<string, { name?: string; description?: string }>;
         capabilityByLayer: Record<string, { name?: string }>;
+        treeSummaryCache: ReturnType<typeof makeEmptyTreeSummaryCache> | undefined;
         governanceContractErrors: Array<{ message: string; code?: string | number }>;
         governanceContract: {
             requiredCapabilities?: Array<{ repoId: string; path: string }>;
@@ -184,6 +223,7 @@ function makeState(
         repoSyncByRepoId: {},
         repoMetadataById: {},
         capabilityByLayer: {},
+        treeSummaryCache: makeEmptyTreeSummaryCache(),
         governanceContractErrors: [],
         governanceContract: undefined,
         governanceCompliance: undefined,
@@ -442,10 +482,11 @@ suite('ConfigTreeView', () => {
             makeState({
                 isLoading: true,
                 config: {},
+                treeSummaryCache: undefined,
                 builtInCapability: {
                     enabled: false,
                     layerEnabled: false,
-                    synchronizedFiles: [],
+                    synchronizedFiles: ['.github/instructions/example.instructions.md'],
                     sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
                     sourceId: 'dynfxdigital.metaflow-ai',
                     sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
@@ -458,6 +499,29 @@ suite('ConfigTreeView', () => {
 
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (loading)');
         assert.ok(!String(builtInItem.description).includes('0/0'));
+    });
+
+    test('CTV-06d: loading refresh preserves the previous capability summary', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                isLoading: true,
+                config: {},
+                builtInCapability: {
+                    enabled: false,
+                    layerEnabled: false,
+                    synchronizedFiles: ['.github/instructions/example.instructions.md'],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [builtInItem] = provider.getChildren(section);
+
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
     });
 
     test('CTV-07: warnings section appears with warning leaves alongside repositories', () => {
