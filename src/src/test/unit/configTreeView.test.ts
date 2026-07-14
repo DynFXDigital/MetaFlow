@@ -436,6 +436,30 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
     });
 
+    test('CTV-06c: loading config does not expose an empty capability summary', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                isLoading: true,
+                config: {},
+                builtInCapability: {
+                    enabled: false,
+                    layerEnabled: false,
+                    synchronizedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [builtInItem] = provider.getChildren(section);
+
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (loading)');
+        assert.ok(!String(builtInItem.description).includes('0/0'));
+    });
+
     test('CTV-07: warnings section appears with warning leaves alongside repositories', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(

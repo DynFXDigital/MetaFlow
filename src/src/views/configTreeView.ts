@@ -674,9 +674,15 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
     private createBuiltInSourceItem(): RepoSourceItem {
         const repoMetadata = this.getRepoMetadataById();
         const builtInLayerId = `${BUILT_IN_CAPABILITY_REPO_ID}/${BUILT_IN_CAPABILITY_LAYER_PATH}`;
-        const summary = summarizeRepo(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID);
+        const summaryCache =
+            this.state.isLoading && !this.state.treeSummaryCache
+                ? undefined
+                : this.state.treeSummaryCache;
+        const summary = summaryCache
+            ? summarizeRepo(summaryCache, BUILT_IN_CAPABILITY_REPO_ID)
+            : undefined;
         const builtInEnabled =
-            resolveBuiltInRepoEnabled(this.state.builtInCapability) || summary.totalActive > 0;
+            resolveBuiltInRepoEnabled(this.state.builtInCapability) || (summary?.totalActive ?? 0) > 0;
         const builtInCapabilityName =
             repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.name?.trim() ||
             resolveBuiltInCapabilityDisplayName(
@@ -691,7 +697,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             undefined,
             undefined,
             summary,
-            summarizeRepoInstructionScope(this.state.treeSummaryCache, BUILT_IN_CAPABILITY_REPO_ID),
+            summary
+                ? summarizeRepoInstructionScope(summaryCache, BUILT_IN_CAPABILITY_REPO_ID)
+                : undefined,
             {
                 title: builtInCapabilityName,
                 description: repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.description,
@@ -704,7 +712,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             },
         );
         item.contextValue = 'configRepoSourceBuiltin';
-        item.description = `bundled extension metadata (${summary.totalActive}/${summary.totalAvailable}, ${builtInEnabled ? 'enabled' : 'disabled'})`;
+        item.description = summary
+            ? `bundled extension metadata (${summary.totalActive}/${summary.totalAvailable}, ${builtInEnabled ? 'enabled' : 'disabled'})`
+            : `bundled extension metadata (${builtInEnabled ? 'enabled' : 'loading'})`;
         item.iconPath = new vscode.ThemeIcon('package');
         return item;
     }
@@ -716,6 +726,10 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
 
         const warningMessages = this.getWarningMessages();
         const config = this.state.config;
+        const summaryCache =
+            this.state.isLoading && !this.state.treeSummaryCache
+                ? undefined
+                : this.state.treeSummaryCache;
 
         if (element instanceof SectionItem) {
             if (element.section === 'warnings') {
@@ -747,8 +761,12 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                 this.toDisplayPath(repo.localPath),
                                 repo.url,
                                 this.state.repoSyncByRepoId[repo.id],
-                                summarizeRepo(this.state.treeSummaryCache, repo.id),
-                                summarizeRepoInstructionScope(this.state.treeSummaryCache, repo.id),
+                                summaryCache
+                                    ? summarizeRepo(summaryCache, repo.id)
+                                    : undefined,
+                                summaryCache
+                                    ? summarizeRepoInstructionScope(summaryCache, repo.id)
+                                    : undefined,
                                 {
                                     title: repoMetadataById.get(repo.id)?.name,
                                     description: repoMetadataById.get(repo.id)?.description,
@@ -781,8 +799,12 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                         this.toDisplayPath(config.metadataRepo.localPath),
                         config.metadataRepo.url,
                         this.state.repoSyncByRepoId.primary,
-                        summarizeRepo(this.state.treeSummaryCache, 'primary'),
-                        summarizeRepoInstructionScope(this.state.treeSummaryCache, 'primary'),
+                        summaryCache
+                            ? summarizeRepo(summaryCache, 'primary')
+                            : undefined,
+                        summaryCache
+                            ? summarizeRepoInstructionScope(summaryCache, 'primary')
+                            : undefined,
                         {
                             title: repoMetadataById.get('primary')?.name,
                             description: repoMetadataById.get('primary')?.description,
