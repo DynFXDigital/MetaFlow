@@ -16,6 +16,44 @@ import { LayersTreeViewProvider } from '../../views/layersTreeView';
 import { FilesTreeViewProvider } from '../../views/filesTreeView';
 import { StagedTreeExpandController } from '../../views/stagedTreeExpand';
 import { createState, ExtensionState } from '../../commands/commandHandlers';
+import { TreeSummaryCache } from '../../treeSummary';
+
+function makeEmptyTreeSummaryCache(): TreeSummaryCache {
+    const emptySummary = {
+        totalActive: 0,
+        totalAvailable: 0,
+        byType: {
+            instructions: { active: 0, available: 0 },
+            prompts: { active: 0, available: 0 },
+            agents: { active: 0, available: 0 },
+            skills: { active: 0, available: 0 },
+            hooks: { active: 0, available: 0 },
+        },
+    };
+
+    return {
+        availableRecords: [],
+        currentActiveRecords: [],
+        baseActiveRecords: [],
+        instructionScopeRecords: [],
+        currentInstructionScopeSummary: {
+            inspectedCount: 0,
+            activeCount: 0,
+            highRiskCount: 0,
+            mediumRiskCount: 0,
+            lowRiskCount: 0,
+            unknownCount: 0,
+            missingApplyToCount: 0,
+            activeHighRiskCount: 0,
+            topRisks: [],
+            status: 'none',
+        },
+        profileInstructionScopeSummaries: {},
+        profileSummaries: {},
+        currentSummary: emptySummary,
+        availableSummary: emptySummary,
+    };
+}
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 
@@ -133,6 +171,7 @@ suite('TreeView Providers', () => {
     });
 
     test('ConfigTreeView marks git-backed repositories and shows remote URL in tooltip', () => {
+        state.treeSummaryCache = makeEmptyTreeSummaryCache();
         state.config = {
             metadataRepos: [
                 {
@@ -209,6 +248,7 @@ suite('TreeView Providers', () => {
     });
 
     test('ConfigTreeView shows repo sync status indicators and tooltip details', () => {
+        state.treeSummaryCache = makeEmptyTreeSummaryCache();
         state.config = {
             metadataRepos: [
                 {
@@ -270,6 +310,7 @@ suite('TreeView Providers', () => {
     });
 
     test('ConfigTreeView surfaces repo-scoped governance signals in the Extension Host', () => {
+        state.treeSummaryCache = makeEmptyTreeSummaryCache();
         state.config = {
             metadataRepos: [
                 {
