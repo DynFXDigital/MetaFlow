@@ -2456,14 +2456,13 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 );
             }
 
+            // Keep disabled roots visible so their unchecked state remains recoverable;
+            // LayerRepoItem disables expansion while the repository is disabled.
             const repoIds = Array.from(
                 new Set(
                     entries
                         .map((entry) => entry.repoId)
-                        .filter(
-                            (id): id is string =>
-                                typeof id === 'string' && repoDisabled.get(id) !== true,
-                        ),
+                        .filter((id): id is string => typeof id === 'string'),
                 ),
             );
             return this.trackChildren(

@@ -233,6 +233,7 @@ function makeState(
     builtInCapability: {
         enabled: boolean;
         layerEnabled: boolean;
+        disabledByUser?: boolean;
         synchronizedFiles: string[];
         sourceRoot?: string;
         sourceId: string;
@@ -416,7 +417,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-03b: disabled repo is hidden from the capabilities root', () => {
+    test('LTV-AT-03b: disabled repo remains visible as an unchecked root', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: false }],
@@ -427,10 +428,13 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
+        const [repoItem] = provider.getChildren();
+        assert.strictEqual(String(repoItem?.label), 'repo1');
+        assert.strictEqual(repoItem?.checkboxState, 0);
         assert.deepStrictEqual(
-            provider.getChildren().map((item) => String(item.label)),
+            provider.getChildren(repoItem),
             [],
-            'disabled repositories should not show a root row in the Capabilities view',
+            'disabled repositories should remain collapsed and unchecked in the Capabilities view',
         );
     });
 
@@ -733,7 +737,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-AT-08b: repo-disabled source is omitted from the capabilities tree', () => {
+    test('LTV-AT-08b: repo-disabled source remains as an unchecked root', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: false }],
@@ -744,10 +748,13 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
+        const [repoItem] = provider.getChildren();
+        assert.strictEqual(String(repoItem?.label), 'repo1');
+        assert.strictEqual(repoItem?.checkboxState, 0);
         assert.deepStrictEqual(
-            provider.getChildren().map((item) => String(item.label)),
+            provider.getChildren(repoItem),
             [],
-            'repo-disabled source should not show a repo root or capabilities until re-enabled',
+            'repo-disabled source should remain collapsed until re-enabled',
         );
     });
 
@@ -2119,6 +2126,38 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(String(builtInLayer.description), '(0/0)');
     });
 
+    test('LTV-NF-05b: disabled built-in capability remains as an unchecked root', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                makeMultiRepoConfig(),
+                [],
+                { '__metaflow_builtin__/.': { name: 'MetaFlow AI Metadata' } },
+                {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            ),
+            () => 'tree',
+        );
+
+        const builtInRepo = provider
+            .getChildren()
+            .find((item) => item.repoId === '__metaflow_builtin__');
+        assert.ok(builtInRepo, 'disabled built-in repo should remain visible');
+        assert.strictEqual(builtInRepo?.checkboxState, 0);
+        assert.deepStrictEqual(
+            provider.getChildren(builtInRepo),
+            [],
+            'disabled built-in repo should remain collapsed until re-enabled',
+        );
+    });
+
     test('LTV-NF-06: root layer shows capability name without path prefix in description', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
@@ -2167,7 +2206,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-NF-08: tree mode omits disabled repo roots from capabilities', () => {
+    test('LTV-NF-08: tree mode keeps disabled repo roots unchecked', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: false }],
@@ -2181,10 +2220,13 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'tree',
         );
 
+        const [repoItem] = provider.getChildren();
+        assert.strictEqual(String(repoItem?.label), 'CoreMeta');
+        assert.strictEqual(repoItem?.checkboxState, 0);
         assert.deepStrictEqual(
-            provider.getChildren().map((item) => String(item.label)),
+            provider.getChildren(repoItem),
             [],
-            'tree mode should not show the disabled repo root in the capabilities area',
+            'tree mode should keep the disabled repo root visible but collapsed',
         );
     });
 
