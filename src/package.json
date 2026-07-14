@@ -739,12 +739,6 @@
           ],
           "description": "Output channel log verbosity"
         },
-        "metaflow.hooksEnabled": {
-          "type": "boolean",
-          "default": true,
-          "order": 3,
-          "description": "Enable hook path injection into VS Code settings"
-        },
         "metaflow.injection.modes": {
           "type": "object",
           "order": 4,

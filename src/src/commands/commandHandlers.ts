@@ -5028,14 +5028,10 @@ export async function injectWorkspaceSettings(
             effectiveFiles,
             builtInCapability,
         );
-        const hooksEnabled = vscode.workspace
-            .getConfiguration('metaflow', workspace.uri)
-            .get<boolean>('hooksEnabled', true);
-        const configForSettings = hooksEnabled ? config : { ...config, hooks: undefined };
         const entries = computeSettingsEntries(
             settingsEffectiveFiles,
             workspace.uri.fsPath,
-            configForSettings,
+            config,
         );
         const entriesByKey = new Map(entries.map((entry) => [entry.key, entry.value] as const));
         const legacyEntriesByKey = new Map(

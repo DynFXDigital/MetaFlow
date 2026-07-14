@@ -200,7 +200,6 @@ description: Shared repository-level metadata for this workspace.
 | `metaflow.autoAcceptRefreshUpdates` | `false` | Skip refresh-time confirmation prompts and persist discovered config or built-in capability repair updates automatically; can also be enabled from the refresh prompt itself |
 | `metaflow.aiMetadataAutoApplyMode`  | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer` |
 | `metaflow.logLevel`                 | `info`  | Log verbosity (debug/info/warn/error)                                                                                                        |
-| `metaflow.hooksEnabled`             | `true`  | Enable Copilot hooks injection                                                                                                               |
 | `metaflow.repoUpdateCheckInterval`  | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                      |
 
 ## Managed State
