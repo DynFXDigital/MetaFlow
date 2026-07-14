@@ -2303,6 +2303,40 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
+    test('LTV-PCT-01b: pending repo re-enable expands the stale root item', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: true }],
+            layerSources: [{ repoId: 'repo1', path: '.' }],
+        };
+        const provider = new LayersTreeViewProvider(
+            makeState(config, ALL_TYPES_FILES),
+            () => 'tree',
+        );
+        const repoItem = provider.getChildren()[0];
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'repo',
+            repoId: 'repo1',
+            checked: false,
+        });
+        assert.deepStrictEqual(
+            provider.getChildren(repoItem),
+            [],
+            'pending repo disable should hide capabilities from the existing root item',
+        );
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'repo',
+            repoId: 'repo1',
+            checked: true,
+        });
+        assert.ok(
+            provider.getChildren(repoItem).length > 0,
+            'pending repo re-enable should restore capabilities from the existing root item',
+        );
+    });
+
     test('LTV-PCT-02: pending branch toggle applies to descendant capability rows', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
