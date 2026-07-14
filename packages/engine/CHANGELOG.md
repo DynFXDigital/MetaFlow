@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.3.5
+
+### Patch Changes
+
+- 773f9b9: Improve refresh responsiveness by avoiding redundant Git/network work, coalescing refresh bursts, skipping unchanged synchronization writes, reusing overlay resolution work, and trimming unused extension assets.
+
 ## 0.3.4
 
 ### Patch Changes
