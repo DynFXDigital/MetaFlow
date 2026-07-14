@@ -1,5 +1,5 @@
 export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
-export type { ResolveLayersOptions } from './overlayEngine';
+export type { ResolveLayersCache, ResolveLayersOptions } from './overlayEngine';
 export {
     applyCapabilityReferenceRepairs,
     buildCapabilityIdentityIndexFromConfig,

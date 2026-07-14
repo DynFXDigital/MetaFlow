@@ -18,6 +18,7 @@ import type {
     GovernanceComplianceResult,
     GovernanceContract,
     GovernanceViolation,
+    ResolveLayersCache,
     SurfacedFileConflict,
 } from '@metaflow/engine';
 import {
@@ -66,7 +67,7 @@ import {
     clearDiagnostics,
 } from '../diagnostics/configDiagnostics';
 import { buildDiagnosticsSnapshot } from '../diagnostics/diagnosticsSnapshot';
-import { logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
+import { logDebug, logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
 import { detectMetaflowGitIgnoreMode, ensureMetaflowGitIgnoreEntry } from './initConfigHelpers';
@@ -97,6 +98,7 @@ import {
     normalizeAndDeduplicateLayerPaths,
     updateProfileLayerOverride,
     writeManagedViewsState,
+    type RefreshCommandOptions,
 } from './commandHelpers';
 import { ensureMetaFlowAiMetadataCache, scaffoldMetaFlowAiMetadata } from './starterMetadata';
 import {
@@ -107,6 +109,8 @@ import {
     runGitCommand,
 } from './repoSyncStatus';
 import { loadCapabilityDetailModel, resolveCapabilityDetailTarget } from './capabilityDetails';
+import { createRefreshCoordinator } from '../refreshCoordinator';
+import { createPerformanceTimer } from '../performanceTelemetry';
 import {
     BUILT_IN_CAPABILITY_LAYER_PATH,
     BUILT_IN_CAPABILITY_REPO_ID,
@@ -135,6 +139,28 @@ import {
 
 function getConfigMigrationNoticeMessage(): string {
     return 'MetaFlow: Configuration was automatically migrated. Check the output channel for details.';
+}
+
+function mergeRefreshCommandOptions(
+    current: RefreshCommandOptions,
+    next: RefreshCommandOptions,
+): RefreshCommandOptions {
+    const mergeBoolean = (left: boolean | undefined, right: boolean | undefined): boolean | undefined =>
+        left === true || right === true ? true : left === false || right === false ? false : undefined;
+
+    return {
+        skipAutoApply: mergeBoolean(current.skipAutoApply, next.skipAutoApply),
+        skipBuiltInAutoApply: mergeBoolean(current.skipBuiltInAutoApply, next.skipBuiltInAutoApply),
+        skipConfigMaintenance: mergeBoolean(current.skipConfigMaintenance, next.skipConfigMaintenance),
+        skipRepoSync: mergeBoolean(current.skipRepoSync, next.skipRepoSync),
+        skipSettingsInjection: mergeBoolean(current.skipSettingsInjection, next.skipSettingsInjection),
+        skipLoadingState: mergeBoolean(current.skipLoadingState, next.skipLoadingState),
+        skipStateChangeEvent: mergeBoolean(current.skipStateChangeEvent, next.skipStateChangeEvent),
+        preferStateConfig: mergeBoolean(current.preferStateConfig, next.preferStateConfig),
+        nonInteractive: mergeBoolean(current.nonInteractive, next.nonInteractive),
+        forceDiscovery: mergeBoolean(current.forceDiscovery, next.forceDiscovery),
+        forceDiscoveryRepoId: next.forceDiscoveryRepoId ?? current.forceDiscoveryRepoId,
+    };
 }
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 import { buildTreeSummaryCache, TreeSummaryCache } from '../treeSummary';
@@ -2966,6 +2992,7 @@ function resolveOverlay(
         enableDiscovery?: boolean;
         forceDiscoveryRepoIds?: string[];
         builtInCapability?: BuiltInCapabilityRuntimeState;
+        layerResolutionCache?: ResolveLayersCache;
     },
     emitLogs: boolean = true,
 ): {
@@ -2987,6 +3014,7 @@ function resolveOverlay(
     const layers = resolveLayers(config, workspaceRoot, {
         enableDiscovery: options?.enableDiscovery,
         forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
+        cache: options?.layerResolutionCache,
     });
 
     const capabilityByLayer: Record<
@@ -3124,6 +3152,7 @@ function buildProfileEffectiveFilesLookup(
         enableDiscovery?: boolean;
         forceDiscoveryRepoIds?: string[];
         builtInCapability?: BuiltInCapabilityRuntimeState;
+        layerResolutionCache?: ResolveLayersCache;
     },
 ): Record<string, EffectiveFile[]> {
     const profileIds = Object.keys(config.profiles ?? {});
@@ -3765,10 +3794,15 @@ async function discoverLocalGitRepoIds(
 ): Promise<Set<string>> {
     const repoIds = new Set<string>();
     const candidates = resolveUntrackedLocalRepoSources(config, workspaceRoot);
-    for (const candidate of candidates) {
-        const state = await discoverLocalGitRepositoryState(candidate.localPath);
+    const states = await Promise.all(
+        candidates.map(async (candidate) => ({
+            repoId: candidate.repoId,
+            state: await discoverLocalGitRepositoryState(candidate.localPath),
+        })),
+    );
+    for (const { repoId, state } of states) {
         if (state.isGitRepo) {
-            repoIds.add(candidate.repoId);
+            repoIds.add(repoId);
         }
     }
     return repoIds;
@@ -4915,7 +4949,9 @@ async function refreshRepoSyncStatusCache(
     );
 
     for (const target of targets) {
-        const result = await checkRepoSyncStatus(target.localPath);
+        // Refresh must stay local and responsive. Remote fetches belong to the
+        // scheduled/manual repository update workflow, not the overlay refresh.
+        const result = await checkRepoSyncStatus(target.localPath, undefined, { fetch: false });
 
         if (result.kind === 'nonGit') {
             nonGitCount += 1;
@@ -5424,14 +5460,24 @@ export function registerCommands(
     };
 
     // ── metaflow.refresh ───────────────────────────────────────────
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
+    const runRefresh = async (requestOptions: RefreshCommandOptions): Promise<void> => {
+            const arg = requestOptions;
+            const refreshOptions = extractRefreshCommandOptions(arg);
             const ws = getWorkspace();
             if (!ws) {
                 return;
             }
 
-            const refreshOptions = extractRefreshCommandOptions(arg);
+            const refreshTimer = createPerformanceTimer();
+            const flushRefreshTimings = (terminalLabel: string): void => {
+                refreshTimer.mark(terminalLabel);
+                for (const timing of refreshTimer.records()) {
+                    logDebug(
+                        `MetaFlow refresh timing: ${timing.label} ${timing.durationMs.toFixed(1)}ms`,
+                    );
+                }
+            };
+
             const notifyStateChanged = (): void => {
                 if (!refreshOptions.skipStateChangeEvent) {
                     state.onDidChange.fire();
@@ -5466,6 +5512,7 @@ export function registerCommands(
                               migrationMessages: [],
                           }
                         : loadConfig(ws.uri.fsPath);
+                refreshTimer.mark('config-load');
                 if (!result.ok) {
                     // A genuinely missing config (no configPath) is the first-run
                     // state, not an error: the config tree's welcome view surfaces an
@@ -5512,6 +5559,7 @@ export function registerCommands(
                     );
                     state.isLoading = false;
                     notifyStateChanged();
+                    flushRefreshTimings('refresh-invalid-config');
                     return;
                 }
 
@@ -5647,6 +5695,7 @@ export function registerCommands(
                         }
                     }
                 }
+                refreshTimer.mark('config-maintenance');
                 state.config = result.config;
                 state.configPath = result.configPath;
                 state.activeProfile = result.config.activeProfile;
@@ -5718,8 +5767,13 @@ export function registerCommands(
                 } else {
                     await refreshRepoSyncStatusCache(state, gitRepos);
                 }
+                refreshTimer.mark('repo-status');
 
                 let overlayResolved = false;
+                const layerResolutionCache: ResolveLayersCache = {
+                    layerContents: new Map(),
+                    discoveredLayerPaths: new Map(),
+                };
 
                 try {
                     const injectionConfig = resolveInjectionConfig(ws, result.config);
@@ -5760,6 +5814,7 @@ export function registerCommands(
                                 ? [refreshOptions.forceDiscoveryRepoId]
                                 : undefined,
                             builtInCapability: state.builtInCapability,
+                            layerResolutionCache,
                         },
                     );
                     state.baseProfileFiles = overlay.baseProfileFiles;
@@ -5804,6 +5859,7 @@ export function registerCommands(
                                 ? [refreshOptions.forceDiscoveryRepoId]
                                 : undefined,
                             builtInCapability: state.builtInCapability,
+                            layerResolutionCache,
                         },
                     );
                     state.treeSummaryCache = await buildTreeSummaryCache(
@@ -5814,6 +5870,7 @@ export function registerCommands(
                         state.builtInCapability,
                         profileEffectiveFilesByName,
                     );
+                    refreshTimer.mark('overlay-and-tree-summary');
                     if (!refreshOptions.skipSettingsInjection) {
                         await injectWorkspaceSettings(
                             ws,
@@ -5822,6 +5879,7 @@ export function registerCommands(
                             context,
                             state.builtInCapability,
                         );
+                        refreshTimer.mark('settings-injection');
                     }
                     overlayResolved = true;
                     logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
@@ -5859,6 +5917,7 @@ export function registerCommands(
                 );
                 state.isLoading = false;
                 notifyStateChanged();
+                refreshTimer.mark('state-ready');
 
                 if (!refreshOptions.skipAutoApply && overlayResolved) {
                     if (autoApplyEnabled) {
@@ -5877,12 +5936,24 @@ export function registerCommands(
                         refreshOptions.nonInteractive === true ||
                         context.extensionMode === vscode.ExtensionMode.Test,
                 });
+                flushRefreshTimings('refresh-complete');
             } catch (err: unknown) {
                 state.isLoading = false;
                 notifyStateChanged();
+                flushRefreshTimings('refresh-error');
                 throw err;
             }
-        }),
+        };
+
+    const refreshCoordinator = createRefreshCoordinator<RefreshCommandOptions>({
+        execute: runRefresh,
+        merge: mergeRefreshCommandOptions,
+    });
+    context.subscriptions.push({ dispose: () => refreshCoordinator.dispose() });
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.refresh', (arg?: unknown) =>
+            refreshCoordinator.request(extractRefreshCommandOptions(arg)),
+        ),
     );
 
     // ── metaflow.preview ───────────────────────────────────────────

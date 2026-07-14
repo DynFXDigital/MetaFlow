@@ -123,6 +123,32 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(packageJson.main, './dist/extension.js');
     });
 
+    test('package ignore rules retain runtime icons and exclude unused artwork', () => {
+        const ignorePath = path.join(EXTENSION_ROOT, '.vscodeignore');
+        const ignoreSource = fs.readFileSync(ignorePath, 'utf-8');
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as {
+            icon?: string;
+            contributes?: { viewsContainers?: { activitybar?: Array<{ icon?: string }> } };
+        };
+
+        assert.strictEqual(packageJson.icon, 'images/icon.png');
+        assert.ok(
+            packageJson.contributes?.viewsContainers?.activitybar?.some(
+                (entry) => entry.icon === 'images/metaflow-activity.svg',
+            ),
+        );
+        for (const excluded of [
+            'images/MetaFlow-*',
+            'images/metaflow-sidebar-overview.png',
+            'images/metaflow.png',
+            'images/icon.svg',
+            'images/metaflow.svg',
+        ]) {
+            assert.ok(ignoreSource.includes(excluded), `Expected ${excluded} to stay excluded`);
+        }
+    });
+
     test('activation events only include the unified config location', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(

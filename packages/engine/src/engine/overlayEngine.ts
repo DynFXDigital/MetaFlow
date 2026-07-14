@@ -40,6 +40,13 @@ export interface ResolveLayersOptions {
     enableDiscovery?: boolean;
     /** Force runtime discovery for specific repo IDs even when discover.enabled is not set. */
     forceDiscoveryRepoIds?: string[];
+    /** Optional refresh-scoped cache for layer contents and discovery results. */
+    cache?: ResolveLayersCache;
+}
+
+export interface ResolveLayersCache {
+    layerContents: Map<string, LayerContent>;
+    discoveredLayerPaths: Map<string, string[]>;
 }
 
 /**
@@ -57,6 +64,7 @@ export function resolveLayers(
     const resolveOptions: ResolveLayersOptions = {
         enableDiscovery: options?.enableDiscovery ?? true,
         forceDiscoveryRepoIds: options?.forceDiscoveryRepoIds,
+        cache: options?.cache,
     };
 
     if (config.metadataRepos && config.layerSources) {
@@ -174,34 +182,56 @@ function resolveSingleRepoLayers(
             continue; // directory was removed — omit this layer from results
         }
 
-        const files = walkDirectory(layerAbsPath, layerAbsPath);
-        result.push({
+        const cacheKey = `${repoRoot}\0${normalizedLayerPath}`;
+        const cached = options.cache?.layerContents.get(cacheKey);
+        if (cached) {
+            result.push(cached);
+            continue;
+        }
+
+        const layerContent: LayerContent = {
             layerId: normalizedLayerPath,
-            files,
+            files: walkDirectory(layerAbsPath, layerAbsPath),
             capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-        });
+        };
+        options.cache?.layerContents.set(cacheKey, layerContent);
+        result.push(layerContent);
     }
 
     const shouldForceSingleRepoDiscovery =
         options.forceDiscoveryRepoIds?.includes('primary') === true;
     if (options.enableDiscovery && shouldForceSingleRepoDiscovery) {
-        const discoveredLayers = discoverLayersInRepo(repoRoot).filter(
+        const discoveryKey = `${repoRoot}\0`;
+        const discoveredLayers = (
+            options.cache?.discoveredLayerPaths.get(discoveryKey) ??
+            discoverLayersInRepo(repoRoot)
+        );
+        options.cache?.discoveredLayerPaths.set(discoveryKey, discoveredLayers);
+        const newLayers = discoveredLayers.filter(
             (layerPath) => !explicitLayers.has(layerPath),
         );
 
-        for (const layerPath of discoveredLayers) {
+        for (const layerPath of newLayers) {
             const layerAbsPath = path.join(repoRoot, layerPath);
             const capabilityId = deriveCapabilityId(layerPath, repoRoot);
             if (!isWithinBoundary(layerAbsPath, repoRoot)) {
                 continue;
             }
 
-            const files = walkDirectory(layerAbsPath, layerAbsPath);
-            result.push({
+            const cacheKey = `${repoRoot}\0${normalizeInputPath(layerPath)}`;
+            const cached = options.cache?.layerContents.get(cacheKey);
+            if (cached) {
+                result.push(cached);
+                continue;
+            }
+
+            const layerContent: LayerContent = {
                 layerId: layerPath,
-                files,
+                files: walkDirectory(layerAbsPath, layerAbsPath),
                 capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-            });
+            };
+            options.cache?.layerContents.set(cacheKey, layerContent);
+            result.push(layerContent);
         }
     }
 
@@ -232,7 +262,12 @@ function resolveMultiRepoLayers(
                 options.forceDiscoveryRepoIds?.includes(repo.id) === true);
 
         if (shouldDiscoverRepo) {
-            const discoveredPaths = discoverLayersInRepo(repoRoot, repo.discover?.exclude);
+            const excludePatterns = repo.discover?.exclude ?? [];
+            const discoveryKey = `${repoRoot}\0${JSON.stringify(excludePatterns)}`;
+            const discoveredPaths =
+                options.cache?.discoveredLayerPaths.get(discoveryKey) ??
+                discoverLayersInRepo(repoRoot, excludePatterns);
+            options.cache?.discoveredLayerPaths.set(discoveryKey, discoveredPaths);
             for (const discoveredPath of discoveredPaths) {
                 const layerKey = `${repo.id}:${discoveredPath}`;
                 if (explicitLayerKeys.has(layerKey)) {
@@ -278,13 +313,21 @@ function resolveMultiRepoLayers(
             continue; // directory was removed — omit this layer from results
         }
 
-        const files = walkDirectory(layerAbsPath, layerAbsPath);
-        result.push({
+        const cacheKey = `${repoRoot}\0${normalizedLayerPath}`;
+        const cached = options.cache?.layerContents.get(cacheKey);
+        if (cached) {
+            result.push(cached);
+            continue;
+        }
+
+        const layerContent: LayerContent = {
             layerId: `${ls.repoId}/${normalizedLayerPath}`,
             repoId: ls.repoId,
-            files,
+            files: walkDirectory(layerAbsPath, layerAbsPath),
             capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-        });
+        };
+        options.cache?.layerContents.set(cacheKey, layerContent);
+        result.push(layerContent);
     }
 
     return result;

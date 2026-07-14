@@ -111,6 +111,23 @@ function normalizeRelativePath(relativePath: string): string {
     return relativePath.replace(/\\/g, '/');
 }
 
+function isManagedFileStateEquivalent(
+    fileState: ManagedFileState | undefined,
+    entry: PlannedSynchronizedFile,
+    contentHash: string,
+): boolean {
+    if (!fileState || fileState.sourceCommit !== undefined) {
+        return false;
+    }
+
+    return (
+        fileState.contentHash === contentHash &&
+        fileState.sourceLayer === entry.file.sourceLayer &&
+        fileState.sourceRelativePath === normalizeRelativePath(entry.file.relativePath) &&
+        fileState.sourceRepo === entry.file.sourceRepo
+    );
+}
+
 function resolveFileNamingStrategy(
     fileNamingStrategy?: SyncFileNamingStrategy,
 ): SyncFileNamingStrategy {
@@ -434,6 +451,7 @@ export function apply(options: ApplyOptions): ApplyResult {
     const outPath = path.join(options.workspaceRoot, plan.outputDir);
     const state = plan.state;
     const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
+    let managedStateChanged = false;
 
     // Track which files are in the current overlay
     const currentFiles = new Set(
@@ -466,6 +484,18 @@ export function apply(options: ApplyOptions): ApplyResult {
             : `${sourceContent}\n`;
         const contentHash = computeContentHash(synchronizedBody);
 
+        // If the destination is still in sync and the source/ownership hash is
+        // unchanged, avoid regenerating the timestamped provenance header and
+        // avoid touching the destination or managed state file.
+        if (
+            !options.force &&
+            drift.status === 'in-sync' &&
+            isManagedFileStateEquivalent(state.files[relPath], entry, contentHash)
+        ) {
+            result.skipped.push(relPath);
+            continue;
+        }
+
         // Generate provenance header
         const provenance: ProvenanceData = {
             synced: new Date().toISOString(),
@@ -493,6 +523,7 @@ export function apply(options: ApplyOptions): ApplyResult {
             sourceRepo: file.sourceRepo,
         };
         state.files[relPath] = fileState;
+        managedStateChanged = true;
     }
 
     // Remove files no longer in overlay (only if in-sync)
@@ -506,6 +537,7 @@ export function apply(options: ApplyOptions): ApplyResult {
                 }
                 delete state.files[trackedPath];
                 result.removed.push(trackedPath);
+                managedStateChanged = true;
             } else if (drift.status === 'drifted') {
                 result.warnings.push(`Drifted file not removed: ${trackedPath}`);
             }
@@ -513,8 +545,10 @@ export function apply(options: ApplyOptions): ApplyResult {
     }
 
     // Save state
-    state.lastApply = new Date().toISOString();
-    saveManagedState(options.workspaceRoot, state);
+    if (managedStateChanged) {
+        state.lastApply = new Date().toISOString();
+        saveManagedState(options.workspaceRoot, state);
+    }
 
     return result;
 }

@@ -126,6 +126,33 @@ suite('repoSyncStatus helpers', () => {
         assert.strictEqual(result.status?.trackingRef, 'origin/main');
     });
 
+    test('checkRepoSyncStatus can use local refs without fetching', async () => {
+        let calls = 0;
+        const result = await checkRepoSyncStatus(
+            'C:/repo',
+            async (_repoRoot, args) => {
+                calls += 1;
+                const rendered = args.join(' ');
+                if (rendered.includes('rev-parse --is-inside-work-tree')) {
+                    return { stdout: 'true\n', stderr: '' };
+                }
+                if (rendered.includes('rev-parse --abbrev-ref')) {
+                    return { stdout: 'origin/main\n', stderr: '' };
+                }
+                assert.ok(
+                    rendered.includes('rev-list --left-right --count'),
+                    `Expected local status command, got ${rendered}`,
+                );
+                return { stdout: '0 0\n', stderr: '' };
+            },
+            { fetch: false },
+        );
+
+        assert.strictEqual(result.kind, 'status');
+        assert.strictEqual(result.status?.state, 'upToDate');
+        assert.strictEqual(calls, 3);
+    });
+
     test('mapPullFailureMessage maps common git pull errors', () => {
         assert.ok(
             mapPullFailureMessage('fatal: Not possible to fast-forward, aborting.').includes(

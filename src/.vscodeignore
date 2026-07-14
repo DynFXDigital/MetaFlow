@@ -1,6 +1,11 @@
 .vscode/**
 images/.vscode
 images/.vscode/**
+images/MetaFlow-*
+images/metaflow-sidebar-overview.png
+images/metaflow.png
+images/icon.svg
+images/metaflow.svg
 .vscode-test/**
 .vscode-test-extensions/**
 .vscode-test-user-data/**

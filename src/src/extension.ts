@@ -78,16 +78,6 @@ function isCapabilitySearchBoundary(
     );
 }
 
-function getFilesViewMode(): FilesViewMode {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    return readManagedViewsState(workspaceRoot).filesViewMode;
-}
-
-function getLayersViewMode(): LayersViewMode {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    return readManagedViewsState(workspaceRoot).layersViewMode;
-}
-
 function workspaceHasMetaFlowConfig(): boolean {
     const folders = vscode.workspace.workspaceFolders ?? [];
     return folders.some((folder) =>
@@ -306,6 +296,25 @@ export function activate(context: vscode.ExtensionContext): void {
     // Register commands (wires engine + synchronization pipeline)
     registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
 
+    let scheduledRefreshHandle: ReturnType<typeof setTimeout> | undefined;
+    const scheduleRefresh = (): void => {
+        if (scheduledRefreshHandle !== undefined) {
+            clearTimeout(scheduledRefreshHandle);
+        }
+        scheduledRefreshHandle = setTimeout(() => {
+            scheduledRefreshHandle = undefined;
+            void vscode.commands.executeCommand('metaflow.refresh');
+        }, 200);
+    };
+    context.subscriptions.push({
+        dispose: () => {
+            if (scheduledRefreshHandle !== undefined) {
+                clearTimeout(scheduledRefreshHandle);
+                scheduledRefreshHandle = undefined;
+            }
+        },
+    });
+
     registerDiagnosticsTool(
         context,
         () => buildDiagnosticsSnapshot(state, diagnosticCollection),
@@ -332,9 +341,18 @@ export function activate(context: vscode.ExtensionContext): void {
     const layersTreeViewProvider = new LayersTreeViewProvider(state);
     const filesTreeViewProvider = new FilesTreeViewProvider(state);
 
+    let lastFilesViewMode: FilesViewMode | undefined;
+    let lastLayersViewMode: LayersViewMode | undefined;
     const syncManagedViewModeContext = (): void => {
-        const filesMode = getFilesViewMode();
-        const layersMode = getLayersViewMode();
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const managedViews = readManagedViewsState(workspaceRoot);
+        const filesMode = managedViews.filesViewMode;
+        const layersMode = managedViews.layersViewMode;
+        if (filesMode === lastFilesViewMode && layersMode === lastLayersViewMode) {
+            return;
+        }
+        lastFilesViewMode = filesMode;
+        lastLayersViewMode = layersMode;
         vscode.commands.executeCommand('setContext', 'metaflow.filesViewMode', filesMode);
         vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', layersMode);
         filesTreeViewProvider.refresh();
@@ -677,10 +695,10 @@ export function activate(context: vscode.ExtensionContext): void {
                 vscode.commands.executeCommand('setContext', 'metaflow.active', enabled);
             }
             if (e.affectsConfiguration('metaflow.injection')) {
-                vscode.commands.executeCommand('metaflow.refresh');
+                scheduleRefresh();
             }
             if (e.affectsConfiguration('metaflow.aiMetadataAutoApplyMode')) {
-                vscode.commands.executeCommand('metaflow.refresh');
+                scheduleRefresh();
             }
         }),
     );
@@ -714,7 +732,7 @@ export function activate(context: vscode.ExtensionContext): void {
                     }
                     logInfo(`Config created (${label}); refreshing MetaFlow.`);
                     syncRepoUpdateSchedulerLifecycle();
-                    vscode.commands.executeCommand('metaflow.refresh');
+                    scheduleRefresh();
                 }),
                 watcher.onDidChange(() => {
                     if (
@@ -729,12 +747,12 @@ export function activate(context: vscode.ExtensionContext): void {
                     }
                     logInfo(`Config changed (${label}); refreshing MetaFlow.`);
                     syncRepoUpdateSchedulerLifecycle();
-                    vscode.commands.executeCommand('metaflow.refresh');
+                    scheduleRefresh();
                 }),
                 watcher.onDidDelete(() => {
                     logInfo(`Config deleted (${label}); refreshing MetaFlow.`);
                     syncRepoUpdateSchedulerLifecycle();
-                    vscode.commands.executeCommand('metaflow.refresh');
+                    scheduleRefresh();
                 }),
             );
         };

@@ -112,16 +112,26 @@ suite('synchronization engine', () => {
         assert.ok(result.warnings.some((w) => w.includes('drifted')));
     });
 
-    test('apply is deterministic (same result on repeat)', () => {
+    test('apply skips identical synchronized output on repeat', () => {
         const files = [makeEffectiveFile('instructions/coding.md', '# Coding')];
 
         apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
-        loadManagedState(tmpDir);
+        const outputPath = path.join(
+            tmpDir,
+            outputDir,
+            expectedSynchronizedPath('instructions/coding.md'),
+        );
+        const firstMtime = fs.statSync(outputPath).mtimeMs;
+        const firstState = fs.readFileSync(path.join(tmpDir, '.metaflow', 'state.json'), 'utf-8');
 
-        // Apply again — content doesn't drift (provenance header differs in timestamp but body hash is the same)
         const result2 = apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: files });
-        assert.strictEqual(result2.written.length, 1);
-        assert.strictEqual(result2.skipped.length, 0);
+        assert.strictEqual(result2.written.length, 0);
+        assert.strictEqual(result2.skipped.length, 1);
+        assert.strictEqual(fs.statSync(outputPath).mtimeMs, firstMtime);
+        assert.strictEqual(
+            fs.readFileSync(path.join(tmpDir, '.metaflow', 'state.json'), 'utf-8'),
+            firstState,
+        );
     });
 
     test('apply removes files no longer in overlay', () => {

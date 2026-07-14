@@ -180,6 +180,7 @@ function createCommandHandlersHarness(initResult: boolean) {
         if (request === '../views/outputChannel' || request.endsWith('/views/outputChannel')) {
             return {
                 logInfo: () => {},
+                logDebug: () => {},
                 logWarn: () => {},
                 logError: () => {},
                 showOutputChannel: () => {},

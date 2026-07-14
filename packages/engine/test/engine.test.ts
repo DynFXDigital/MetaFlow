@@ -431,6 +431,29 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(instr?.classification, 'settings');
     });
 
+    it('reuses layer content from a refresh-scoped resolution cache', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        fs.mkdirSync(path.join(repoDir, 'core', 'skills'), { recursive: true });
+        fs.writeFileSync(path.join(repoDir, 'core', 'skills', 'cached.md'), '# Cached');
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+        const cache = {
+            layerContents: new Map(),
+            discoveredLayerPaths: new Map(),
+        };
+
+        const first = resolveLayers(config, tmpDir, { cache });
+        const second = resolveLayers(config, tmpDir, { cache });
+
+        assert.strictEqual(first.length, 1);
+        assert.strictEqual(second.length, 1);
+        assert.strictEqual(second[0], first[0]);
+        assert.strictEqual(cache.layerContents.size, 1);
+    });
+
     it('normalizes .github-prefixed paths before classification', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'instructions'), { recursive: true });
