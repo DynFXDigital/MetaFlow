@@ -134,6 +134,16 @@ suite('synchronization engine', () => {
         );
     });
 
+    test('initial empty apply records lastApply once', () => {
+        const first = apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: [] });
+        assert.strictEqual(first.written.length, 0);
+        const firstLastApply = loadManagedState(tmpDir).lastApply;
+        assert.ok(firstLastApply);
+
+        apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: [] });
+        assert.strictEqual(loadManagedState(tmpDir).lastApply, firstLastApply);
+    });
+
     test('apply removes files no longer in overlay', () => {
         const file1 = makeEffectiveFile('instructions/a.md', '# A');
         const file2 = makeEffectiveFile('instructions/b.md', '# B');

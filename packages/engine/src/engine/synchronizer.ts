@@ -545,7 +545,10 @@ export function apply(options: ApplyOptions): ApplyResult {
     }
 
     // Save state
-    if (managedStateChanged) {
+    // Preserve the observable first-apply marker even when the overlay has no
+    // synchronized files. Subsequent unchanged applies still avoid touching
+    // managed state because lastApply is already initialized.
+    if (managedStateChanged || state.lastApply === undefined) {
         state.lastApply = new Date().toISOString();
         saveManagedState(options.workspaceRoot, state);
     }
