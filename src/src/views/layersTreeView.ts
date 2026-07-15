@@ -2334,7 +2334,14 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof LayerRepoItem) {
-            if (element.checkboxState === vscode.TreeItemCheckboxState.Unchecked) {
+            const configuredRepoEnabled =
+                projectedConfig?.metadataRepos?.find((repo) => repo.id === element.repoId)
+                    ?.enabled !== false;
+            const repoEnabled =
+                element.repoId === BUILT_IN_CAPABILITY_REPO_ID
+                    ? resolveBuiltInRepoEnabled(this.state.builtInCapability)
+                    : configuredRepoEnabled;
+            if (!this.resolvePendingRepoEnabled(element.repoId, repoEnabled)) {
                 return [];
             }
 
@@ -2456,14 +2463,13 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 );
             }
 
+            // Keep disabled roots visible so their unchecked state remains recoverable;
+            // LayerRepoItem disables expansion while the repository is disabled.
             const repoIds = Array.from(
                 new Set(
                     entries
                         .map((entry) => entry.repoId)
-                        .filter(
-                            (id): id is string =>
-                                typeof id === 'string' && repoDisabled.get(id) !== true,
-                        ),
+                        .filter((id): id is string => typeof id === 'string'),
                 ),
             );
             return this.trackChildren(

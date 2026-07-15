@@ -1407,7 +1407,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('refresh with hooks disabled omits hook settings injection', async function () {
+    test('refresh always injects hook settings', async function () {
         this.timeout(20000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -1424,7 +1424,6 @@ suite('Command Execution', function () {
             postApply: 'scripts/post-apply.sh',
         };
 
-        await wsConfig.update('metaflow.hooksEnabled', false, vscode.ConfigurationTarget.Workspace);
         await wsConfig.update(
             'chat.hookFilesLocations',
             undefined,
@@ -1438,18 +1437,9 @@ suite('Command Execution', function () {
             const hookLocations = getInjectedLocationValue(
                 wsConfig.inspect<Record<string, boolean>>('chat.hookFilesLocations'),
             );
-            assert.strictEqual(
-                hookLocations,
-                undefined,
-                'Hook locations should not be injected when metaflow.hooksEnabled is false',
-            );
+            assert.ok(hookLocations && Object.keys(hookLocations).length > 0);
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            await wsConfig.update(
-                'metaflow.hooksEnabled',
-                undefined,
-                vscode.ConfigurationTarget.Workspace,
-            );
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
