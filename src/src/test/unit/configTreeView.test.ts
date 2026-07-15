@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import type { TreeSummaryCache } from '../../treeSummary';
 
 class MockTreeItem {
     label: unknown;
@@ -134,7 +135,7 @@ function loadConfigTreeView(): ConfigTreeViewModule {
     }
 }
 
-function makeEmptyTreeSummaryCache() {
+function makeEmptyTreeSummaryCache(): TreeSummaryCache {
     const emptySummary = {
         totalActive: 0,
         totalAvailable: 0,
@@ -522,6 +523,39 @@ suite('ConfigTreeView', () => {
         const [builtInItem] = provider.getChildren(section);
 
         assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
+    });
+
+    test('CTV-06e: stale active summary does not re-check a disabled built-in repo', () => {
+        const { ConfigTreeViewProvider } = loadConfigTreeView();
+        const summaryCache = makeEmptyTreeSummaryCache();
+        summaryCache.currentActiveRecords.push({
+            repoId: '__metaflow_builtin__',
+            artifactType: 'instructions',
+            repoRelativePath: '.github/instructions/example.instructions.md',
+            displayPath: '.github/instructions/example.instructions.md',
+            artifactPath: '/tmp/ext/assets/metaflow-ai-metadata/.github/instructions/example.instructions.md',
+        });
+        const provider = new ConfigTreeViewProvider(
+            makeState({
+                config: {},
+                treeSummaryCache: summaryCache,
+                builtInCapability: {
+                    enabled: false,
+                    layerEnabled: false,
+                    disabledByUser: true,
+                    synchronizedFiles: [],
+                    sourceRoot: '/tmp/ext/assets/metaflow-ai-metadata',
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            }),
+        );
+
+        const [section] = provider.getChildren();
+        const [builtInItem] = provider.getChildren(section);
+
+        assert.strictEqual(builtInItem.checkboxState, 0);
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (1/0, disabled)');
     });
 
     test('CTV-07: warnings section appears with warning leaves alongside repositories', () => {

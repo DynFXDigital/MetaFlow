@@ -681,8 +681,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         const summary = summaryCache
             ? summarizeRepo(summaryCache, BUILT_IN_CAPABILITY_REPO_ID)
             : undefined;
-        const builtInEnabled =
-            resolveBuiltInRepoEnabled(this.state.builtInCapability) || (summary?.totalActive ?? 0) > 0;
+        const builtInEnabled = resolveBuiltInRepoEnabled(this.state.builtInCapability);
         const builtInCapabilityName =
             repoMetadata.get(BUILT_IN_CAPABILITY_REPO_ID)?.name?.trim() ||
             resolveBuiltInCapabilityDisplayName(
