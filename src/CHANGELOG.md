@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.6
+
+### Patch Changes
+
+- 9024dc6: Improve prerelease readiness by keeping capability summaries truthful while loading, preserving disabled repository roots in the Layers view, applying bundled agent-plugin hooks consistently, and clarifying capability authoring documentation structure.
+
 ## 0.3.5
 
 ### Patch Changes
