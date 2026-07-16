@@ -227,6 +227,33 @@ async function focusFirstTreeItem<T extends vscode.TreeItem>(
     await treeView.reveal(firstItem, { focus: true, select: false, expand: false });
 }
 
+let layersNativeFilterPreviousMode: LayersViewMode | undefined;
+
+async function restoreLayersViewModeAfterFilter(
+    provider: LayersTreeViewProvider,
+): Promise<void> {
+    const previousMode = layersNativeFilterPreviousMode;
+    layersNativeFilterPreviousMode = undefined;
+
+    if (!previousMode) {
+        return;
+    }
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+        return;
+    }
+
+    const currentMode = readManagedViewsState(workspaceRoot).layersViewMode;
+    if (currentMode === previousMode) {
+        return;
+    }
+
+    writeManagedViewsState(workspaceRoot, { layersViewMode: previousMode });
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', previousMode);
+    provider.refresh();
+}
+
 async function openLayersTreeFilter<T extends vscode.TreeItem>(
     treeView: vscode.TreeView<T>,
     provider: LayersTreeViewProvider & SearchPreparedTreeProvider<T>,
@@ -234,6 +261,7 @@ async function openLayersTreeFilter<T extends vscode.TreeItem>(
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspaceRoot) {
         const currentMode = readManagedViewsState(workspaceRoot).layersViewMode;
+        layersNativeFilterPreviousMode ??= currentMode;
         if (currentMode !== 'flat') {
             writeManagedViewsState(workspaceRoot, { layersViewMode: 'flat' });
             await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', 'flat');
@@ -264,13 +292,50 @@ async function openLayersTreeFilter<T extends vscode.TreeItem>(
     await waitForTreeViewRefresh();
     await vscode.commands.executeCommand('list.focusFirst');
     await waitForTreeViewRefresh();
-    await vscode.commands.executeCommand('list.find');
+
+    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', true);
+    try {
+        await vscode.commands.executeCommand('list.find');
+    } catch (error: unknown) {
+        await restoreLayersViewModeAfterFilter(provider);
+        await vscode.commands.executeCommand(
+            'setContext',
+            'metaflow.layersNativeFilterActive',
+            false,
+        );
+        throw error;
+    }
+}
+
+async function clearLayersTreeFilter(provider: LayersTreeViewProvider): Promise<void> {
+    try {
+        await vscode.commands.executeCommand('list.closeFind');
+    } catch {
+        // Some hosts may not have a focused list find widget when clearing from the title action.
+    }
+
+    try {
+        await restoreLayersViewModeAfterFilter(provider);
+    } finally {
+        await vscode.commands.executeCommand(
+            'setContext',
+            'metaflow.layersNativeFilterActive',
+            false,
+        );
+    }
+
+    try {
+        await vscode.commands.executeCommand('metaflow-layers.focus');
+    } catch {
+        // Fall back to the current sidebar focus when the generated focus command is unavailable.
+    }
 }
 
 // ── Activation ─────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
+    void vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', false);
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -439,6 +504,9 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
             await openLayersTreeFilter(layersTreeView, layersTreeViewProvider);
+        }),
+        vscode.commands.registerCommand('metaflow.clearLayersFilter', async () => {
+            await clearLayersTreeFilter(layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openFilesFilter', async () => {
             await openTreeViewFilter('metaflow-files', filesTreeView, filesTreeViewProvider);

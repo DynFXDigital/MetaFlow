@@ -16,6 +16,7 @@ const EXPECTED_COMMANDS = [
     'metaflow.addRepoSource',
     'metaflow.apply',
     'metaflow.checkRepoUpdates',
+    'metaflow.clearLayersFilter',
     'metaflow.clean',
     'metaflow.collapseAllFiles',
     'metaflow.collapseAllLayers',

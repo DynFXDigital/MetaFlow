@@ -46,6 +46,23 @@ const CONFIG_PATH = path.resolve(
     __dirname,
     '../../../test-workspace/.metaflow/config.jsonc',
 );
+const STATE_PATH = path.resolve(
+    __dirname,
+    '../../../test-workspace/.metaflow/state.json',
+);
+
+function readLayersViewMode(): string | undefined {
+    try {
+        const parsed = JSON.parse(fs.readFileSync(STATE_PATH, 'utf-8')) as {
+            views?: { layersViewMode?: unknown };
+        };
+        return typeof parsed.views?.layersViewMode === 'string'
+            ? parsed.views.layersViewMode
+            : undefined;
+    } catch {
+        return undefined;
+    }
+}
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
@@ -54,11 +71,17 @@ suite('Tree Filter Result Verification', function () {
 
     let sideBar: SideBarView;
     let originalConfig: string;
+    let originalState: string | undefined;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
         restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        try {
+            originalState = fs.readFileSync(STATE_PATH, 'utf-8');
+        } catch {
+            originalState = undefined;
+        }
         sideBar = await openMetaFlowSidebar();
 
         // Open and expand both sections so items are rendered
@@ -71,6 +94,15 @@ suite('Tree Filter Result Verification', function () {
     afterEach(async function () {
         await dismissActiveInput();
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
+        if (originalState === undefined) {
+            try {
+                fs.unlinkSync(STATE_PATH);
+            } catch {
+                // The fixture may not have created managed state.
+            }
+        } else {
+            fs.writeFileSync(STATE_PATH, originalState, 'utf-8');
+        }
         await sleep(1_000);
         await dismissAllNotifications(new Workbench());
     });
@@ -194,6 +226,34 @@ suite('Tree Filter Result Verification', function () {
             textsAfterCancel.length >= countBefore || textsAfterCancel.length >= 2,
             `After canceling filter, expected at least ${countBefore} items. Got: ${textsAfterCancel.length}. Items: ${textsAfterCancel.join(', ')}`,
         );
+    });
+
+    test('Canceling Capabilities filter restores the mode active before filtering', async function () {
+        this.timeout(WAIT_TIMEOUT * 3 + 20_000);
+
+        const workbench = new Workbench();
+        for (const mode of ['tree', 'flat'] as const) {
+            await workbench.executeCommand(
+                mode === 'tree'
+                    ? 'MetaFlow: Show Capabilities Tree View'
+                    : 'MetaFlow: Show Capabilities Flat View',
+            );
+            await waitFor(async () => readLayersViewMode() === mode, WAIT_TIMEOUT);
+
+            await workbench.executeCommand('MetaFlow: Filter Capabilities');
+            let input: InputBox | undefined;
+            try {
+                input = await InputBox.create(INTERACTION_TIMEOUT);
+            } catch {
+                return;
+            }
+
+            assert.ok(input, 'No input box appeared after Filter Capabilities command');
+            await waitFor(async () => readLayersViewMode() === 'flat', WAIT_TIMEOUT);
+            await input.cancel();
+            await waitFor(async () => readLayersViewMode() === mode, WAIT_TIMEOUT);
+            await sleep(600);
+        }
     });
 
     test('Filtering with a non-matching term leaves section accessible', async function () {
