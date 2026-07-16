@@ -205,10 +205,10 @@ suite('Command Execution', function () {
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: ['primary:company/core', 'primary:standards/sdlc'],
                 },
                 lean: {
-                    enable: ['**/*'],
+                    enabledCapabilities: ['primary:company/core', 'primary:standards/sdlc'],
                 },
             },
             activeProfile: 'default',
@@ -241,7 +241,7 @@ suite('Command Execution', function () {
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: [`plugin-enable:${capabilityPath}`],
                 },
             },
             activeProfile: 'default',
@@ -1124,18 +1124,19 @@ suite('Command Execution', function () {
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 compatibilityVersion?: number;
                 metadataRepos?: Array<{ id: string; capabilities?: Array<{ path: string }> }>;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(migratedConfig.compatibilityVersion, 2);
+            assert.strictEqual(migratedConfig.compatibilityVersion, 3);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
             );
-            assert.ok(
-                migratedConfig.metadataRepos?.[0]?.capabilities?.some(
-                    (capability) => capability.path === 'company/core',
-                ),
-                'Migrated config should persist capability entries',
+            assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
+            assert.deepStrictEqual(
+                migratedConfig.profiles?.default?.enabledCapabilities,
+                ['primary:company/core', 'primary:standards/sdlc'],
+                'Migrated config should persist selected capability references',
             );
         } finally {
             await wsConfig.update(
@@ -1176,14 +1177,13 @@ suite('Command Execution', function () {
                 {
                     id: 'primary',
                     localPath: '.ai/ai-metadata',
-                    enabled: true,
-                    capabilities: [{ path: 'company/core', enabled: true }],
+                    name: 'Primary',
                 },
             ],
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: ['primary:company/core'],
                 },
             },
             activeProfile: 'default',
@@ -1206,25 +1206,24 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 2;
+                return migratedConfig.compatibilityVersion === 3;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 compatibilityVersion?: number;
                 metadataRepos?: Array<{ capabilities?: Array<{ path: string }> }>;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
             assert.strictEqual(
                 migratedConfig.compatibilityVersion,
-                2,
+                3,
                 'Refresh should persist the current compatibilityVersion for released configs',
             );
-            assert.ok(
-                migratedConfig.metadataRepos?.[0]?.capabilities?.some(
-                    (capability) => capability.path === 'company/core',
-                ),
-                'Refresh should preserve configured capabilities while persisting compatibilityVersion',
-            );
+            assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
+            assert.deepStrictEqual(migratedConfig.profiles?.default?.enabledCapabilities, [
+                'primary:company/core',
+            ]);
             assert.ok(
                 infoMessages.includes(
                     'MetaFlow: Configuration was automatically migrated. Check the output channel for details.',
@@ -2028,12 +2027,12 @@ suite('Command Execution', function () {
             : undefined;
 
         const governedConfig = {
-            metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+            metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata' }],
             layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: [],
                 },
             },
             activeProfile: 'default',
@@ -2114,11 +2113,14 @@ suite('Command Execution', function () {
                 {
                     repoId: 'experimental-details',
                     path: 'review/experimental-capability',
-                    enabled: true,
                 },
             ],
             filters: { include: ['**'], exclude: [] },
-            profiles: { default: { enable: ['**/*'] } },
+            profiles: {
+                default: {
+                    enabledCapabilities: ['experimental-details:review/experimental-capability'],
+                },
+            },
             activeProfile: 'default',
         };
 
@@ -2213,13 +2215,12 @@ suite('Command Execution', function () {
         const governancePath = path.join(workspaceRoot, '.metaflow', 'governance.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
         const config = {
-            metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata', enabled: true }],
+            metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata' }],
             layerSources: [{ repoId: 'details-toggle', path: 'standards/sdlc', enabled: false }],
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
-                    disable: [],
+                    enabledCapabilities: [],
                 },
             },
             activeProfile: 'default',
@@ -2759,42 +2760,15 @@ suite('Command Execution', function () {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos: Array<{
-                    enabled?: boolean;
-                    capabilities?: Array<{ enabled?: boolean }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
-                >;
+                metadataRepos: Array<{ enabled?: boolean; capabilities?: unknown }>;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.ok(
-                updatedConfig.metadataRepos[0]?.capabilities?.length,
-                'Config should contain persisted capabilities',
-            );
-            assert.strictEqual(
-                updatedConfig.metadataRepos[0]?.capabilities?.[0]?.enabled,
-                false,
-                'Profile-scoped toggles should not rewrite the global capability baseline',
-            );
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === '.',
-                )?.enabled,
-                true,
-                'Layer should be enabled for the active default profile',
-            );
-            assert.strictEqual(
-                updatedConfig.metadataRepos[0].enabled,
-                true,
-                'Repo should be auto-enabled when layer is checked',
-            );
+            assert.strictEqual(updatedConfig.metadataRepos[0]?.capabilities, undefined);
+            assert.deepStrictEqual(updatedConfig.profiles?.default?.enabledCapabilities, [
+                'ai-metadata:.',
+            ]);
+            assert.strictEqual(updatedConfig.metadataRepos[0]?.enabled, undefined);
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -2849,45 +2823,14 @@ suite('Command Execution', function () {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos: Array<{
-                    capabilities?: Array<{ path: string; enabled?: boolean }>;
-                }>;
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
-                >;
+                metadataRepos: Array<{ capabilities?: unknown }>;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.ok(
-                updatedConfig.metadataRepos[0]?.capabilities?.length,
-                'Config should contain persisted capabilities',
-            );
-            assert.strictEqual(
-                updatedConfig.metadataRepos[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.enabled,
-                true,
-                'A stale index should not toggle the wrong layer',
-            );
-            assert.strictEqual(
-                updatedConfig.metadataRepos[0]?.capabilities?.find(
-                    (capability) => capability.path === 'standards/sdlc',
-                )?.enabled,
-                true,
-                'Profile-scoped toggles should not rewrite the global capability baseline',
-            );
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
-                false,
-                'The layer identified by repoId and layerPath should be toggled for the active profile even when the supplied index is stale',
-            );
+            assert.strictEqual(updatedConfig.metadataRepos[0]?.capabilities, undefined);
+            assert.deepStrictEqual(updatedConfig.profiles?.default?.enabledCapabilities, [
+                'ai-metadata:company/core',
+            ], 'A stale index should not toggle the wrong layer');
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -2953,42 +2896,14 @@ suite('Command Execution', function () {
                 }>;
                 profiles?: Record<
                     string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
+                    { enabledCapabilities?: string[] }
                 >;
             };
 
-            assert.strictEqual(
-                afterDeselect.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.enabled,
-                true,
-                'Profile-scoped branch toggles should not rewrite the global capability baseline',
-            );
-            assert.strictEqual(
-                afterDeselect.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/standards/sdlc',
-                )?.enabled,
-                true,
-                'Profile-scoped branch toggles should not rewrite nested global capability state',
-            );
-            assert.strictEqual(
-                afterDeselect.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/core',
-                )?.enabled,
-                false,
-                'Deselecting a folder branch should disable the first descendant capability for the active profile',
-            );
-            assert.strictEqual(
-                afterDeselect.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/standards/sdlc',
-                )?.enabled,
-                false,
-                'Deselecting a folder branch should disable the nested descendant capability for the active profile',
+            assert.deepStrictEqual(
+                afterDeselect.profiles?.default?.enabledCapabilities,
+                [],
+                'Deselecting a folder branch should clear all descendant capability selections',
             );
 
             await vscode.commands.executeCommand('metaflow.toggleLayerBranch', {
@@ -3002,42 +2917,14 @@ suite('Command Execution', function () {
                 }>;
                 profiles?: Record<
                     string,
-                    {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
+                    { enabledCapabilities?: string[] }
                 >;
             };
 
-            assert.strictEqual(
-                afterSelect.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.enabled,
-                true,
-                'Selecting a folder branch should leave the global baseline enabled',
-            );
-            assert.strictEqual(
-                afterSelect.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/standards/sdlc',
-                )?.enabled,
-                true,
-                'Selecting a folder branch should leave the nested global baseline enabled',
-            );
-            assert.strictEqual(
-                afterSelect.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/core',
-                )?.enabled,
-                true,
-                'Selecting a folder branch should re-enable the first descendant capability for the active profile',
-            );
-            assert.strictEqual(
-                afterSelect.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/standards/sdlc',
-                )?.enabled,
-                true,
-                'Selecting a folder branch should re-enable the nested descendant capability for the active profile',
+            assert.deepStrictEqual(
+                afterSelect.profiles?.default?.enabledCapabilities,
+                ['ai-metadata:company/core', 'ai-metadata:company/standards/sdlc'],
+                'Selecting a folder branch should select all descendant capabilities',
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -3092,19 +2979,14 @@ suite('Command Execution', function () {
                 profiles?: Record<
                     string,
                     {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
+                        enabledCapabilities?: string[];
                     }
                 >;
             };
 
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
-                false,
+            assert.deepStrictEqual(
+                updatedConfig.profiles?.default?.enabledCapabilities,
+                [],
                 'Tree item ids should be enough to toggle a layer when VS Code omits custom event fields',
             );
         } finally {
@@ -3166,27 +3048,15 @@ suite('Command Execution', function () {
                 profiles?: Record<
                     string,
                     {
-                        layerOverrides?: Array<{
-                            path: string;
-                            enabled?: boolean;
-                        }>;
+                        enabledCapabilities?: string[];
                     }
                 >;
             };
 
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/core',
-                )?.enabled,
-                false,
+            assert.deepStrictEqual(
+                updatedConfig.profiles?.default?.enabledCapabilities,
+                [],
                 'Tree item ids should be enough to toggle branch descendants when VS Code omits custom event fields',
-            );
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'company/standards/sdlc',
-                )?.enabled,
-                false,
-                'Branch toggles should still affect nested descendants when only the tree item id is available',
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -3263,18 +3133,10 @@ suite('Command Execution', function () {
             });
 
             const afterFocusedToggle = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ path: string; enabled?: boolean }>;
-                }>;
+                metadataRepos?: Array<{ capabilities?: unknown }>;
                 profiles?: Record<
                     string,
-                    {
-                        layerOverrides?: Array<{
-                            repoId: string;
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
+                    { enabledCapabilities?: string[] }
                 >;
                 activeProfile?: string;
             };
@@ -3284,25 +3146,14 @@ suite('Command Execution', function () {
                 'focused',
                 'Toggle should keep the focused profile active',
             );
-            assert.strictEqual(
-                afterFocusedToggle.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'standards/sdlc',
-                )?.enabled,
-                true,
-                'Profile-scoped layer changes should not overwrite the global capability baseline',
-            );
-            assert.strictEqual(
-                afterFocusedToggle.profiles?.default?.layerOverrides,
-                undefined,
-                'The default profile should remain unchanged while another profile is edited',
-            );
-            assert.strictEqual(
-                afterFocusedToggle.profiles?.focused?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
-                false,
-                'Focused profile should persist its own disabled layer override',
-            );
+            assert.strictEqual(afterFocusedToggle.metadataRepos?.[0]?.capabilities, undefined);
+            assert.deepStrictEqual(afterFocusedToggle.profiles?.default?.enabledCapabilities, [
+                'primary:company/core',
+                'primary:standards/sdlc',
+            ]);
+            assert.deepStrictEqual(afterFocusedToggle.profiles?.focused?.enabledCapabilities, [
+                'primary:company/core',
+            ]);
 
             await vscode.commands.executeCommand('metaflow.switchProfile', {
                 profileId: 'default',
@@ -3311,13 +3162,7 @@ suite('Command Execution', function () {
             const afterSwitchBack = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 profiles?: Record<
                     string,
-                    {
-                        layerOverrides?: Array<{
-                            repoId: string;
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
+                    { enabledCapabilities?: string[] }
                 >;
                 activeProfile?: string;
             };
@@ -3327,18 +3172,13 @@ suite('Command Execution', function () {
                 'default',
                 'Switching back should restore the default active profile',
             );
-            assert.strictEqual(
-                afterSwitchBack.profiles?.default?.layerOverrides,
-                undefined,
-                'Switching back should not invent overrides for the original profile',
-            );
-            assert.strictEqual(
-                afterSwitchBack.profiles?.focused?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
-                false,
-                'Focused profile override should survive switching away and back',
-            );
+            assert.deepStrictEqual(afterSwitchBack.profiles?.default?.enabledCapabilities, [
+                'primary:company/core',
+                'primary:standards/sdlc',
+            ]);
+            assert.deepStrictEqual(afterSwitchBack.profiles?.focused?.enabledCapabilities, [
+                'primary:company/core',
+            ]);
 
             await vscode.commands.executeCommand('metaflow.switchProfile', {
                 profileId: 'focused',
@@ -3348,13 +3188,7 @@ suite('Command Execution', function () {
                 activeProfile?: string;
                 profiles?: Record<
                     string,
-                    {
-                        layerOverrides?: Array<{
-                            repoId: string;
-                            path: string;
-                            enabled?: boolean;
-                        }>;
-                    }
+                    { enabledCapabilities?: string[] }
                 >;
             };
 
@@ -3363,13 +3197,9 @@ suite('Command Execution', function () {
                 'focused',
                 'Switching forward should reactivate the edited profile',
             );
-            assert.strictEqual(
-                afterSwitchForward.profiles?.focused?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
-                false,
-                'Edited profile should retain its layer override after being reselected',
-            );
+            assert.deepStrictEqual(afterSwitchForward.profiles?.focused?.enabledCapabilities, [
+                'primary:company/core',
+            ]);
         } finally {
             fs.writeFileSync(governancePath, originalGovernance, 'utf-8');
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -3510,15 +3340,15 @@ suite('Command Execution', function () {
             });
 
             let updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ path: string; injection?: Record<string, string> }>;
-                }>;
+                capabilityOverrides?: Record<
+                    string,
+                    { injection?: Record<string, string> }
+                >;
             };
 
             assert.strictEqual(
-                updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection?.prompts,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
+                    ?.prompts,
                 'synchronize',
                 'Capability prompt injection override should persist',
             );
@@ -3614,9 +3444,8 @@ suite('Command Execution', function () {
 
             updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             assert.ok(
-                !updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection?.prompts,
+                !updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
+                    ?.prompts,
                 'Capability prompt injection override should be removed when inherited',
             );
         } finally {
@@ -3771,15 +3600,12 @@ suite('Command Execution', function () {
             });
 
             let updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ path: string; injection?: Record<string, string> }>;
-                }>;
+                capabilityOverrides?: Record<string, { injection?: Record<string, string> }>;
             };
 
             assert.strictEqual(
-                updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection?.prompts,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
+                    ?.prompts,
                 'synchronize',
                 'Capability prompt synchronization override should persist',
             );
@@ -3792,9 +3618,8 @@ suite('Command Execution', function () {
 
             updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             assert.ok(
-                !updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection?.prompts,
+                !updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
+                    ?.prompts,
                 'Capability prompt synchronization override should be removed when inherited',
             );
         } finally {
@@ -3913,15 +3738,11 @@ suite('Command Execution', function () {
             });
 
             let updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{
-                    capabilities?: Array<{ path: string; injection?: Record<string, string> }>;
-                }>;
+                capabilityOverrides?: Record<string, { injection?: Record<string, string> }>;
             };
 
             assert.deepStrictEqual(
-                updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection,
                 {
                     instructions: 'synchronize',
                     prompts: 'synchronize',
@@ -3940,9 +3761,7 @@ suite('Command Execution', function () {
 
             updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
             assert.deepStrictEqual(
-                updatedConfig.metadataRepos?.[0]?.capabilities?.find(
-                    (capability) => capability.path === 'company/core',
-                )?.injection,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection,
                 {
                     instructions: 'settings',
                     prompts: 'settings',
@@ -4120,27 +3939,21 @@ suite('Command Execution', function () {
                     capabilities?: Array<{ path: string; enabled?: boolean }>;
                 }>;
             };
+            assert.ok(updatedConfig.metadataRepos?.every((repo) => !repo.capabilities));
+            const catalog = JSON.parse(
+                fs.readFileSync(path.join(workspaceRoot, '.metaflow', 'state.json'), 'utf-8'),
+            ) as { capabilityCatalog?: { entries?: Array<{ repoId: string; path: string }> } };
             assert.ok(
-                updatedConfig.metadataRepos?.some(
-                    (repo) =>
-                        repo.id === 'dynamic-a' &&
-                        repo.capabilities?.some(
-                            (capability) =>
-                                capability.path === 'dynamic-a' && capability.enabled === false,
-                        ),
-                ) === true,
-                'Refresh should persist discovered layers for the first repo as disabled by default',
+                catalog.capabilityCatalog?.entries?.some(
+                    (entry) => entry.repoId === 'dynamic-a' && entry.path === 'dynamic-a',
+                ),
+                'Refresh should persist the discovered first-repo capability in state',
             );
             assert.ok(
-                updatedConfig.metadataRepos?.some(
-                    (repo) =>
-                        repo.id === 'dynamic-b' &&
-                        repo.capabilities?.some(
-                            (capability) =>
-                                capability.path === 'dynamic-b' && capability.enabled === false,
-                        ),
-                ) === true,
-                'Refresh should persist discovered layers for the second repo as disabled by default',
+                catalog.capabilityCatalog?.entries?.some(
+                    (entry) => entry.repoId === 'dynamic-b' && entry.path === 'dynamic-b',
+                ),
+                'Refresh should persist the discovered second-repo capability in state',
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -4216,7 +4029,7 @@ suite('Command Execution', function () {
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: ['refresh-dynamic-a:base', 'refresh-dynamic-b:base'],
                 },
             },
             activeProfile: 'default',
@@ -4239,28 +4052,21 @@ suite('Command Execution', function () {
                     capabilities?: Array<{ path: string; enabled?: boolean }>;
                 }>;
             };
-
+            assert.ok(updatedConfig.metadataRepos?.every((repo) => !repo.capabilities));
+            const catalog = JSON.parse(
+                fs.readFileSync(path.join(workspaceRoot, '.metaflow', 'state.json'), 'utf-8'),
+            ) as { capabilityCatalog?: { entries?: Array<{ repoId: string; path: string }> } };
             assert.ok(
-                updatedConfig.metadataRepos?.some(
-                    (repo) =>
-                        repo.id === 'refresh-dynamic-a' &&
-                        repo.capabilities?.some(
-                            (capability) =>
-                                capability.path === 'dynamic-a' && capability.enabled === false,
-                        ),
-                ) === true,
-                'Global refresh should persist newly discovered capabilities for the first repo even without discover.enabled',
+                catalog.capabilityCatalog?.entries?.some(
+                    (entry) => entry.repoId === 'refresh-dynamic-a' && entry.path === 'dynamic-a',
+                ),
+                'Global refresh should persist the first discovered capability in state',
             );
             assert.ok(
-                updatedConfig.metadataRepos?.some(
-                    (repo) =>
-                        repo.id === 'refresh-dynamic-b' &&
-                        repo.capabilities?.some(
-                            (capability) =>
-                                capability.path === 'dynamic-b' && capability.enabled === false,
-                        ),
-                ) === true,
-                'Global refresh should persist newly discovered capabilities for the second repo even without discover.enabled',
+                catalog.capabilityCatalog?.entries?.some(
+                    (entry) => entry.repoId === 'refresh-dynamic-b' && entry.path === 'dynamic-b',
+                ),
+                'Global refresh should persist the second discovered capability in state',
             );
 
             const chatmodesDir = path.join(workspaceRoot, '.github', 'chatmodes');
@@ -4326,7 +4132,7 @@ suite('Command Execution', function () {
             filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
-                    enable: ['**/*'],
+                    enabledCapabilities: ['dynamic:base'],
                 },
             },
             activeProfile: 'default',
@@ -4368,16 +4174,15 @@ suite('Command Execution', function () {
                     capabilities?: Array<{ path: string; enabled?: boolean }>;
                 }>;
             };
+            assert.ok(updatedConfig.metadataRepos?.every((repo) => !repo.capabilities));
+            const catalog = JSON.parse(
+                fs.readFileSync(path.join(workspaceRoot, '.metaflow', 'state.json'), 'utf-8'),
+            ) as { capabilityCatalog?: { entries?: Array<{ repoId: string; path: string }> } };
             assert.ok(
-                updatedConfig.metadataRepos?.some(
-                    (repo) =>
-                        repo.id === 'dynamic' &&
-                        repo.capabilities?.some(
-                            (capability) =>
-                                capability.path === 'dynamic' && capability.enabled === false,
-                        ),
-                ) === true,
-                'Manual rescan should persist newly discovered capability into config as disabled by default',
+                catalog.capabilityCatalog?.entries?.some(
+                    (entry) => entry.repoId === 'dynamic' && entry.path === 'dynamic',
+                ),
+                'Manual rescan should persist the newly discovered capability in state',
             );
 
             await vscode.commands.executeCommand('metaflow.toggleLayer', {
@@ -5388,18 +5193,15 @@ suite('Command Execution', function () {
                     localPath: string;
                     capabilities?: Array<{ path: string }>;
                 }>;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(updatedConfig.compatibilityVersion, 2);
+            assert.strictEqual(updatedConfig.compatibilityVersion, 3);
             assert.strictEqual(
                 path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
                 path.normalize(path.relative(workspaceRoot, repoPath)),
             );
-            assert.deepStrictEqual(
-                updatedConfig.metadataRepos?.[0]?.capabilities,
-                [],
-                'Empty existing metadata directories should initialize with zero capabilities',
-            );
+            assert.deepStrictEqual(updatedConfig.profiles?.default?.enabledCapabilities, []);
             assert.ok(
                 infoMessages.some((message) => message.includes('0 discovered layer(s)')),
                 'Initialize configuration should report a zero-layer bootstrap config',

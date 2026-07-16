@@ -31,6 +31,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'filters',
     'profiles',
     'activeProfile',
+    'capabilityOverrides',
     'injection',
     'fileNamingStrategy',
     'settingsInjectionTarget',

@@ -52,7 +52,12 @@ export type CapabilityReferenceResolutionKind =
     | 'path-outside-repo';
 
 export interface ConfiguredCapabilityReference {
-    source: 'metadataRepos.capabilities' | 'layerSources' | 'profiles.layerOverrides' | 'layers';
+    source:
+        | 'metadataRepos.capabilities'
+        | 'layerSources'
+        | 'profiles.enabledCapabilities'
+        | 'profiles.layerOverrides'
+        | 'layers';
     repoId: string;
     path: string;
     enabled?: boolean;
@@ -340,6 +345,20 @@ function collectConfiguredReferences(
     }
 
     for (const [profileId, profile] of Object.entries(config.profiles ?? {})) {
+        for (const reference of profile.enabledCapabilities ?? []) {
+            const separator = reference.indexOf(':');
+            if (separator <= 0) {
+                continue;
+            }
+            references.push({
+                source: 'profiles.enabledCapabilities',
+                repoId: reference.slice(0, separator),
+                path: normalizeLayerPath(reference.slice(separator + 1)),
+                enabled: true,
+                profileId,
+            });
+        }
+
         for (const override of profile.layerOverrides ?? []) {
             if (override.enabled === false && !includeDisabled) {
                 continue;
@@ -635,6 +654,25 @@ export function applyCapabilityReferenceRepairs(
                         candidate.repoId !== resolution.reference.repoId ||
                         normalizeLayerPath(candidate.path) !== normalizeLayerPath(newPath),
                 );
+                pushRepair(repaired, resolution, newPath);
+            }
+            continue;
+        }
+
+        if (resolution.reference.source === 'profiles.enabledCapabilities') {
+            const profile = resolution.reference.profileId
+                ? config.profiles?.[resolution.reference.profileId]
+                : undefined;
+            if (!profile?.enabledCapabilities) {
+                continue;
+            }
+
+            const oldReference = `${resolution.reference.repoId}:${resolution.reference.path}`;
+            const newReference = `${resolution.reference.repoId}:${newPath}`;
+            const index = profile.enabledCapabilities.indexOf(oldReference);
+            if (index >= 0) {
+                profile.enabledCapabilities[index] = newReference;
+                profile.enabledCapabilities = Array.from(new Set(profile.enabledCapabilities));
                 pushRepair(repaired, resolution, newPath);
             }
             continue;

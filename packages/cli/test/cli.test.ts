@@ -60,7 +60,8 @@ describe('CLI: init', () => {
 
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         assert.ok(config.metadataRepos, 'config should have metadataRepos');
-        assert.ok(config.metadataRepos[0].capabilities, 'config should have grouped capabilities');
+        assert.strictEqual(config.metadataRepos[0].capabilities, undefined);
+        assert.deepStrictEqual(config.profiles?.default?.enabledCapabilities, []);
     });
 
     it('should refuse to overwrite existing config without --force', async () => {
@@ -327,7 +328,18 @@ describe('CLI: preview', () => {
 
     it('prints surfaced capability conflict warnings', async () => {
         ws = createTestWorkspace({
-            config: standardConfig({ layers: ['company/core', 'company/extra'] }),
+            config: standardConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/extra' },
+                ],
+                profiles: {
+                    default: {
+                        enabledCapabilities: ['primary:company/core', 'primary:company/extra'],
+                    },
+                    lean: { enabledCapabilities: [] },
+                },
+            }),
             layers: {
                 'company/core': [{ relativePath: 'skills/dup/SKILL.md', content: 'A' }],
                 'company/extra': [{ relativePath: 'skills/dup/SKILL.md', content: 'B' }],
@@ -1427,11 +1439,12 @@ describe('CLI: coverage - status edge cases', () => {
     it('should display repo URL and commit when provided', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                metadataRepo: {
+                metadataRepos: [{
+                    id: 'primary',
                     localPath: '.ai/ai-metadata',
                     url: 'https://github.com/org/metadata.git',
                     commit: 'abc1234',
-                },
+                }],
             }),
             layers: STANDARD_LAYERS,
         });
@@ -1446,7 +1459,18 @@ describe('CLI: coverage - status edge cases', () => {
 
     it('prints surfaced capability conflict warnings', async () => {
         ws = createTestWorkspace({
-            config: standardConfig({ layers: ['company/core', 'company/extra'] }),
+            config: standardConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/extra' },
+                ],
+                profiles: {
+                    default: {
+                        enabledCapabilities: ['primary:company/core', 'primary:company/extra'],
+                    },
+                    lean: { enabledCapabilities: [] },
+                },
+            }),
             layers: {
                 'company/core': [{ relativePath: 'skills/dup/SKILL.md', content: 'A' }],
                 'company/extra': [{ relativePath: 'skills/dup/SKILL.md', content: 'B' }],
@@ -1473,7 +1497,7 @@ describe('CLI: coverage - profile edge cases', () => {
 
         const result = await runCli(['profile', 'list', '-w', ws.root]);
         assert.strictEqual(result.exitCode, 0);
-        assert.ok(result.stdout.includes('No profiles defined'));
+        assert.ok(result.stdout.includes('default'));
     });
 
     it('profile list fails gracefully with missing config', async () => {

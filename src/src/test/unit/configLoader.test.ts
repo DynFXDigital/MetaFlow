@@ -24,8 +24,8 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.ok(typeof result.config.metadataRepos?.[0].localPath === 'string');
                 assert.ok((result.config.metadataRepos?.[0].localPath.length ?? 0) > 0);
-                assert.ok(Array.isArray(result.config.metadataRepos?.[0].capabilities));
-                assert.ok((result.config.metadataRepos?.[0].capabilities?.length ?? 0) > 0);
+                assert.strictEqual(result.config.metadataRepos?.[0].capabilities, undefined);
+                assert.ok((result.config.profiles?.default?.enabledCapabilities?.length ?? 0) > 0);
                 assert.ok(Array.isArray(result.config.layerSources));
                 assert.ok((result.config.layerSources?.length ?? 0) > 0);
                 if (result.config.activeProfile !== undefined) {
@@ -46,19 +46,19 @@ suite('Config Loader', () => {
     });
 
     suite('loadConfigFromPath()', () => {
-        test('loads valid canonical config', () => {
+        test('loads a canonical config without migration', () => {
             const result = loadConfigFromPath(
                 path.join(FIXTURES_ROOT, '.metaflow', 'config.jsonc'),
             );
             assert.strictEqual(result.ok, true);
             if (result.ok) {
-                assert.ok(Array.isArray(result.config.metadataRepos?.[0].capabilities));
-                assert.ok((result.config.metadataRepos?.[0].capabilities?.length ?? 0) > 0);
+                assert.strictEqual(result.config.metadataRepos?.[0].capabilities, undefined);
+                assert.ok((result.config.profiles?.default?.enabledCapabilities?.length ?? 0) > 0);
                 assert.ok(Array.isArray(result.config.layerSources));
                 assert.ok((result.config.layerSources?.length ?? 0) > 0);
                 assert.ok(typeof result.config.metadataRepos?.[0].localPath === 'string');
                 assert.ok((result.config.metadataRepos?.[0].localPath.length ?? 0) > 0);
-                assert.strictEqual(result.migrated, undefined);
+                assert.notStrictEqual(result.migrated, true);
             }
         });
 
@@ -70,7 +70,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
                 assert.strictEqual(result.config.layerSources?.length, 3);
-                assert.strictEqual(result.config.compatibilityVersion, 2);
+                assert.strictEqual(result.config.compatibilityVersion, 3);
             }
         });
 
@@ -89,7 +89,7 @@ suite('Config Loader', () => {
             );
             assert.strictEqual(result.ok, true);
             if (result.ok) {
-                assert.strictEqual(result.config.compatibilityVersion, 2);
+                assert.strictEqual(result.config.compatibilityVersion, 3);
                 assert.strictEqual(result.migrated, true);
                 assert.ok(
                     result.migrationMessages?.some((message) =>

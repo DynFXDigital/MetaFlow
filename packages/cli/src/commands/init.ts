@@ -20,17 +20,16 @@ export function registerInitCommand(program: Command): void {
             }
 
             const template = {
+                compatibilityVersion: 3,
                 metadataRepos: [
                     {
                         id: 'primary',
                         localPath: '../your-metadata-repo',
                         url: 'https://github.com/your-org/your-metadata-repo.git',
-                        enabled: true,
-                        capabilities: [{ path: 'company/core', enabled: true }],
                     },
                 ],
                 filters: { include: ['**'], exclude: [] },
-                profiles: { default: { displayName: 'Default', enable: ['**'] } },
+                profiles: { default: { displayName: 'Default', enabledCapabilities: [] } },
                 activeProfile: 'default',
                 injection: {
                     instructions: 'plugin',

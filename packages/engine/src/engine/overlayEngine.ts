@@ -166,8 +166,6 @@ function resolveSingleRepoLayers(
 ): LayerContent[] {
     const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
     const result: LayerContent[] = [];
-    const explicitLayers = new Set(layers);
-
     for (const layerPath of layers) {
         const normalizedLayerPath = normalizeInputPath(layerPath);
         const layerAbsPath = path.join(repoRoot, normalizedLayerPath);
@@ -198,43 +196,6 @@ function resolveSingleRepoLayers(
         result.push(layerContent);
     }
 
-    const shouldForceSingleRepoDiscovery =
-        options.forceDiscoveryRepoIds?.includes('primary') === true;
-    if (options.enableDiscovery && shouldForceSingleRepoDiscovery) {
-        const discoveryKey = `${repoRoot}\0`;
-        const discoveredLayers = (
-            options.cache?.discoveredLayerPaths.get(discoveryKey) ??
-            discoverLayersInRepo(repoRoot)
-        );
-        options.cache?.discoveredLayerPaths.set(discoveryKey, discoveredLayers);
-        const newLayers = discoveredLayers.filter(
-            (layerPath) => !explicitLayers.has(layerPath),
-        );
-
-        for (const layerPath of newLayers) {
-            const layerAbsPath = path.join(repoRoot, layerPath);
-            const capabilityId = deriveCapabilityId(layerPath, repoRoot);
-            if (!isWithinBoundary(layerAbsPath, repoRoot)) {
-                continue;
-            }
-
-            const cacheKey = `${repoRoot}\0${normalizeInputPath(layerPath)}`;
-            const cached = options.cache?.layerContents.get(cacheKey);
-            if (cached) {
-                result.push(cached);
-                continue;
-            }
-
-            const layerContent: LayerContent = {
-                layerId: layerPath,
-                files: walkDirectory(layerAbsPath, layerAbsPath),
-                capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-            };
-            options.cache?.layerContents.set(cacheKey, layerContent);
-            result.push(layerContent);
-        }
-    }
-
     return result;
 }
 
@@ -245,9 +206,6 @@ function resolveMultiRepoLayers(
     options: ResolveLayersOptions,
 ): LayerContent[] {
     const repoMap = new Map<string, string>();
-    const discoveredLayerSources: LayerSource[] = [];
-    const explicitLayerKeys = new Set(layerSources.map((ls) => `${ls.repoId}:${ls.path}`));
-
     for (const repo of repos) {
         if (repo.enabled === false) {
             continue;
@@ -256,38 +214,9 @@ function resolveMultiRepoLayers(
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
         repoMap.set(repo.id, repoRoot);
 
-        const shouldDiscoverRepo =
-            options.enableDiscovery &&
-            (repo.discover?.enabled === true ||
-                options.forceDiscoveryRepoIds?.includes(repo.id) === true);
-
-        if (shouldDiscoverRepo) {
-            const excludePatterns = repo.discover?.exclude ?? [];
-            const discoveryKey = `${repoRoot}\0${JSON.stringify(excludePatterns)}`;
-            const discoveredPaths =
-                options.cache?.discoveredLayerPaths.get(discoveryKey) ??
-                discoverLayersInRepo(repoRoot, excludePatterns);
-            options.cache?.discoveredLayerPaths.set(discoveryKey, discoveredPaths);
-            for (const discoveredPath of discoveredPaths) {
-                const layerKey = `${repo.id}:${discoveredPath}`;
-                if (explicitLayerKeys.has(layerKey)) {
-                    continue;
-                }
-                discoveredLayerSources.push({
-                    repoId: repo.id,
-                    path: discoveredPath,
-                    enabled: true,
-                });
-            }
-        }
     }
 
-    const allLayerSources = [
-        ...layerSources,
-        ...discoveredLayerSources.sort((a, b) =>
-            `${a.repoId}:${a.path}`.localeCompare(`${b.repoId}:${b.path}`),
-        ),
-    ];
+    const allLayerSources = layerSources;
 
     const result: LayerContent[] = [];
 

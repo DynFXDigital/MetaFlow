@@ -100,6 +100,7 @@ export type {
     ManagedFileState,
     ManagedViewsState,
     ManagedCapabilityIdentityState,
+    ManagedCapabilityCatalogState,
 } from './managedState';
 export type { DriftStatus, DriftResult } from './driftDetector';
 export type {

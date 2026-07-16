@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MetaFlow Configuration",
   "type": "object",
-  "description": "MetaFlow config for AI metadata repository sources, capabilities, profiles, and injection behavior.",
+  "description": "MetaFlow config for AI metadata repository sources, profile capability selections, and injection behavior.",
   "additionalProperties": false,
   "properties": {
     "compatibilityVersion": {
@@ -12,7 +12,7 @@
     },
     "metadataRepos": {
       "type": "array",
-      "description": "Public authored repository sources with grouped capability entries.",
+      "description": "Public authored metadata repository descriptors. Capability activation is owned by profiles.",
       "items": {
         "$ref": "#/definitions/namedMetadataRepo"
       }
@@ -48,6 +48,13 @@
     "activeProfile": {
       "type": "string",
       "description": "Currently active profile name."
+    },
+    "capabilityOverrides": {
+      "type": "object",
+      "description": "Sparse capability settings keyed by repo-qualified capability reference.",
+      "additionalProperties": {
+        "$ref": "#/definitions/capabilityOverride"
+      }
     },
     "injection": {
       "$ref": "#/definitions/injectionConfig"
@@ -158,7 +165,7 @@
         },
         "capabilities": {
           "type": "array",
-          "description": "Ordered capability entries for this repository.",
+          "description": "Legacy capability entries accepted only during migration; canonical files use profile enabledCapabilities references.",
           "items": {
             "$ref": "#/definitions/capabilitySource"
           }
@@ -210,6 +217,15 @@
         "displayName": {
           "type": "string"
         },
+        "enabledCapabilities": {
+          "type": "array",
+          "description": "Complete repo-qualified capability references selected by this profile.",
+          "items": {
+            "type": "string",
+            "pattern": "^[^:]+:.+$"
+          },
+          "uniqueItems": true
+        },
         "enable": {
           "type": "array",
           "items": {
@@ -224,7 +240,7 @@
         },
         "layerOverrides": {
           "type": "array",
-          "description": "Optional per-layer overrides applied while this profile is active.",
+          "description": "Legacy per-layer overrides accepted only during migration.",
           "items": {
             "$ref": "#/definitions/profileLayerOverride"
           }
@@ -255,6 +271,19 @@
             "type": "string",
             "enum": ["instructions", "prompts", "agents", "skills"]
           }
+        }
+      }
+    },
+    "capabilityOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "injection": {
+          "$ref": "#/definitions/injectionConfig"
+        },
+        "fileNamingStrategy": {
+          "type": "string",
+          "enum": ["prefixed", "original-unless-conflict"]
         }
       }
     },

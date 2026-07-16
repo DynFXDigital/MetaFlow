@@ -180,8 +180,8 @@ suite('Governance command enforcement', () => {
                 ],
                 layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: true }],
                 profiles: {
-                    default: { enable: ['**/*'] },
-                    review: { enable: ['**/*'] },
+                    default: { enabledCapabilities: ['primary:standards/sdlc'] },
+                    review: { enabledCapabilities: ['primary:standards/sdlc'] },
                 },
                 activeProfile: 'default',
             },
@@ -260,7 +260,7 @@ suite('Governance command enforcement', () => {
                 ],
                 layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: true }],
                 profiles: {
-                    default: { enable: ['**/*'] },
+                    default: { enabledCapabilities: ['primary:standards/sdlc'] },
                 },
                 activeProfile: 'default',
             },
@@ -288,19 +288,14 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{ path: string; enabled?: boolean }>;
-                    }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
             assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides?.find(
-                    (override) => override.path === 'standards/sdlc',
-                )?.enabled,
+                updatedConfig.profiles?.default?.enabledCapabilities?.includes(
+                    'primary:standards/sdlc',
+                ),
                 false,
-                'Warning-mode layer toggles should still persist the candidate profile override',
+                'Warning-mode layer toggles should still persist the candidate profile selection',
             );
             assert.ok(
                 messages.warnings.some((message) =>
@@ -374,7 +369,12 @@ suite('Governance command enforcement', () => {
                     { repoId: 'primary', path: 'company/standards/sdlc', enabled: true },
                 ],
                 profiles: {
-                    default: { enable: ['**/*'] },
+                    default: {
+                        enabledCapabilities: [
+                            'primary:company/core',
+                            'primary:company/standards/sdlc',
+                        ],
+                    },
                 },
                 activeProfile: 'default',
             },
@@ -405,23 +405,18 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<
-                    string,
-                    { layerOverrides?: Array<{ path: string; enabled?: boolean }> }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides,
-                undefined,
+            assert.deepStrictEqual(
+                updatedConfig.profiles?.default?.enabledCapabilities,
+                ['primary:company/core', 'primary:company/standards/sdlc'],
                 'Blocked branch toggles must not persist candidate profile overrides',
             );
             assert.ok(
                 messages.errors.some((message) =>
-                    message.includes(
-                        '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::company/core]',
-                    ),
+                    message.includes('Remediation: Review the listed governance violations'),
                 ),
-                `Expected stable governance ids in error message, got: ${messages.errors.join('\n')}`,
+                `Expected aggregate remediation in error message, got: ${messages.errors.join('\n')}`,
             );
         } finally {
             messages.restore();
@@ -463,7 +458,12 @@ suite('Governance command enforcement', () => {
                     { repoId: 'primary', path: 'company/standards/sdlc', enabled: true },
                 ],
                 profiles: {
-                    default: { enable: ['**/*'] },
+                    default: {
+                        enabledCapabilities: [
+                            'primary:company/core',
+                            'primary:company/standards/sdlc',
+                        ],
+                    },
                 },
                 activeProfile: 'default',
             },
@@ -493,23 +493,18 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<
-                    string,
-                    { layerOverrides?: Array<{ path: string; enabled?: boolean }> }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
-            assert.strictEqual(
-                updatedConfig.profiles?.default?.layerOverrides,
-                undefined,
+            assert.deepStrictEqual(
+                updatedConfig.profiles?.default?.enabledCapabilities,
+                ['primary:company/core', 'primary:company/standards/sdlc'],
                 'Blocked bulk deselection must not persist candidate overrides',
             );
             assert.ok(
                 messages.errors.some((message) =>
-                    message.includes(
-                        '[GOVERNANCE_REQUIRED_CAPABILITY_MISSING::primary::company/standards/sdlc]',
-                    ),
+                    message.includes('Remediation: Review the listed governance violations'),
                 ),
-                `Expected stable governance ids in error message, got: ${messages.errors.join('\n')}`,
+                `Expected aggregate remediation in error message, got: ${messages.errors.join('\n')}`,
             );
         } finally {
             messages.restore();
@@ -803,7 +798,7 @@ suite('Governance command enforcement', () => {
                 ],
                 profiles: {
                     default: {
-                        enable: ['**/*'],
+                        enabledCapabilities: ['primary:company/core'],
                     },
                 },
                 activeProfile: 'default',
@@ -847,18 +842,14 @@ suite('Governance command enforcement', () => {
             });
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<
-                    string,
-                    {
-                        layerOverrides?: Array<{ path: string; enabled?: boolean }>;
-                    }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
-            const layerOverrides = updatedConfig.profiles?.default?.layerOverrides ?? [];
             assert.strictEqual(
-                layerOverrides.find((override) => override.path === 'standards/sdlc')?.enabled,
+                updatedConfig.profiles?.default?.enabledCapabilities?.includes(
+                    'primary:standards/sdlc',
+                ),
                 true,
-                'selectAllLayers should persist a bulk-enable override for the governed capability',
+                'selectAllLayers should persist a bulk-enable profile selection for the governed capability',
             );
 
             const afterSnapshot = await vscode.commands.executeCommand<{

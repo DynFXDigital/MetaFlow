@@ -39,6 +39,8 @@ export function buildConfig(
     layers: string[],
     metadataUrl?: string,
 ): Record<string, unknown> {
+    // Discovery populates the catalog; activation is an explicit profile choice.
+    const enabledCapabilities: string[] = [];
     return {
         compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
         metadataRepos: [
@@ -47,19 +49,13 @@ export function buildConfig(
                 name: 'primary',
                 localPath,
                 ...(metadataUrl ? { url: metadataUrl } : {}),
-                enabled: true,
-                capabilities: layers.map((layerPath) => ({
-                    path: layerPath,
-                    enabled: false,
-                })),
             },
         ],
         filters: { include: [], exclude: [] },
         profiles: {
             default: {
                 displayName: 'Default',
-                enable: ['**/*'],
-                disable: [],
+                enabledCapabilities,
             },
         },
         activeProfile: 'default',

@@ -1,505 +1,64 @@
-/**
- * Unit tests for configNormalization.ts
- *
- * Covers: uncovered branches in normalizeConfigShape, toAuthoredConfig,
- * buildRestOfConfig optional fields, layerSourceToCapabilitySource,
- * capabilitySourceToLayerSource, flattenCapabilities injection merging,
- * and legacy metadataRepo optional fields.
- */
-
 import * as assert from 'assert';
 import { normalizeConfigShape, toAuthoredConfig } from '../src/index';
 import type { MetaFlowConfig } from '../src/index';
-import { canonicalizeAuthoredConfig } from '../src/config/configNormalization';
 
-describe('configNormalization: toAuthoredConfig — buildRestOfConfig optional fields', () => {
-    it('preserves injection config when present', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            injection: { instructions: 'settings', skills: 'synchronize' },
-        };
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.injection, config.injection);
-    });
-
-    it('preserves hooks config when present', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            hooks: { preApply: 'scripts/pre.sh', postApply: 'scripts/post.sh' },
-        };
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.hooks, config.hooks);
-    });
-
-    it('preserves profiles and activeProfile when present', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            profiles: { dev: { enable: ['**'] } },
-            activeProfile: 'dev',
-        };
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.profiles, config.profiles);
-        assert.strictEqual(authored.activeProfile, 'dev');
-    });
-
-    it('preserves filters when present', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            filters: { include: ['**'], exclude: ['secrets/**'] },
-        };
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.filters, config.filters);
-    });
-
-    it('preserves settingsInjectionTarget when present', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            settingsInjectionTarget: 'workspaceFolder',
-        };
-        const authored = toAuthoredConfig(config);
-        assert.strictEqual(authored.settingsInjectionTarget, 'workspaceFolder');
-    });
-
-    it('canonicalizes nested property ordering for stable serialization', () => {
-        const config: MetaFlowConfig = {
+describe('config normalization: atomic capability selections', () => {
+    it('writes repository descriptors and profile string references only', () => {
+        const authored = toAuthoredConfig({
             compatibilityVersion: 2,
             metadataRepos: [
                 {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    injection: {
-                        hooks: 'settings',
-                        agents: 'synchronize',
-                        prompts: 'settings',
-                        instructions: 'settings',
-                        skills: 'synchronize',
-                    },
-                    discover: {
-                        exclude: ['archive/**'],
-                        enabled: true,
-                    },
+                    id: 'primary',
+                    localPath: '.ai/metadata',
+                    enabled: true,
                     capabilities: [
-                        {
-                            path: 'cap-a',
-                            injection: {
-                                hooks: 'synchronize',
-                                prompts: 'settings',
-                                instructions: 'settings',
-                            },
-                        },
+                        { path: 'baseline', enabled: true },
+                        { path: 'optional', enabled: false },
                     ],
                 },
             ],
             profiles: {
-                zebra: { disable: ['agents/**'] },
-                alpha: {
-                    displayName: 'Alpha',
+                default: {
                     enable: ['**/*'],
-                    layerOverrides: [
-                        {
-                            path: 'cap-a',
-                            repoId: 'r1',
-                            enabled: false,
-                        },
-                    ],
+                    layerOverrides: [{ repoId: 'primary', path: 'optional', enabled: true }],
                 },
             },
-            injection: {
-                hooks: 'settings',
-                agents: 'synchronize',
-                prompts: 'settings',
-                instructions: 'settings',
-                skills: 'synchronize',
-            },
-            settingsInjectionTarget: 'workspaceFolder',
-            hooks: {
-                postApply: 'scripts/post.sh',
-                preApply: 'scripts/pre.sh',
-            },
-        };
-
-        const serialized = JSON.stringify(toAuthoredConfig(config), null, 2);
-        const expected = [
-            '{',
-            '  "metadataRepos": [',
-            '    {',
-            '      "id": "r1",',
-            '      "localPath": "repos/r1",',
-            '      "discover": {',
-            '        "enabled": true,',
-            '        "exclude": [',
-            '          "archive/**"',
-            '        ]',
-            '      },',
-            '      "injection": {',
-            '        "instructions": "settings",',
-            '        "prompts": "settings",',
-            '        "skills": "synchronize",',
-            '        "agents": "synchronize",',
-            '        "hooks": "settings"',
-            '      },',
-            '      "capabilities": [',
-            '        {',
-            '          "path": "cap-a",',
-            '          "injection": {',
-            '            "instructions": "settings",',
-            '            "prompts": "settings",',
-            '            "hooks": "synchronize"',
-            '          }',
-            '        }',
-            '      ]',
-            '    }',
-            '  ],',
-            '  "compatibilityVersion": 2,',
-            '  "profiles": {',
-            '    "alpha": {',
-            '      "displayName": "Alpha",',
-            '      "enable": [',
-            '        "**/*"',
-            '      ],',
-            '      "layerOverrides": [',
-            '        {',
-            '          "repoId": "r1",',
-            '          "path": "cap-a",',
-            '          "enabled": false',
-            '        }',
-            '      ]',
-            '    },',
-            '    "zebra": {',
-            '      "disable": [',
-            '        "agents/**"',
-            '      ]',
-            '    }',
-            '  },',
-            '  "injection": {',
-            '    "instructions": "settings",',
-            '    "prompts": "settings",',
-            '    "skills": "synchronize",',
-            '    "agents": "synchronize",',
-            '    "hooks": "settings"',
-            '  },',
-            '  "settingsInjectionTarget": "workspaceFolder",',
-            '  "hooks": {',
-            '    "preApply": "scripts/pre.sh",',
-            '    "postApply": "scripts/post.sh"',
-            '  }',
-            '}',
-        ].join('\n');
-
-        assert.strictEqual(serialized, expected);
-    });
-
-    it('preserves repo order while canonicalizing capability ordering and path normalization', () => {
-        const authored = toAuthoredConfig({
-            metadataRepos: [
-                {
-                    id: 'repo-b',
-                    localPath: 'repos/repo-b',
-                    capabilities: [{ path: 'team/zeta' }, { path: '.github' }, { path: 'team' }],
-                },
-                {
-                    id: 'repo-a',
-                    localPath: 'repos/repo-a',
-                    capabilities: [{ path: 'beta\\.github' }, { path: 'alpha/core' }],
-                },
-            ],
         });
 
-        assert.deepStrictEqual(
-            authored.metadataRepos?.map((repo) => repo.id),
-            ['repo-b', 'repo-a'],
-        );
-        assert.deepStrictEqual(
-            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
-            ['.', 'team', 'team/zeta'],
-        );
-        assert.deepStrictEqual(
-            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
-            ['beta', 'alpha/core'],
-        );
+        assert.strictEqual(authored.compatibilityVersion, 3);
+        assert.deepStrictEqual(authored.metadataRepos, [
+            { id: 'primary', localPath: '.ai/metadata' },
+        ]);
+        assert.deepStrictEqual(authored.profiles, {
+            default: { enabledCapabilities: ['primary:baseline', 'primary:optional'] },
+        });
+        assert.strictEqual(authored.layerSources, undefined);
     });
 
-    it('produces byte-stable authored output for logically equivalent repo state', () => {
-        const configA: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'repo-b',
-                    localPath: 'repos/repo-b',
-                    capabilities: [{ path: 'team/zeta' }, { path: 'team' }],
+    it('preserves explicit canonical selections and removes legacy profile fields', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
+            profiles: {
+                lean: {
+                    displayName: 'Lean',
+                    enabledCapabilities: ['r1:team/core', 'r1:team/core', 'r1:base/.github'],
+                    disable: ['agents/**'],
                 },
-                {
-                    id: 'repo-a',
-                    localPath: 'repos/repo-a',
-                    capabilities: [{ path: 'alpha/core' }, { path: '.github' }],
-                },
-            ],
-            layerSources: [
-                { repoId: 'repo-a', path: '.github', enabled: true },
-                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
-                { repoId: 'repo-b', path: 'team', enabled: false },
-            ],
-        };
-
-        const configB: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'repo-b',
-                    localPath: 'repos/repo-b',
-                    capabilities: [{ path: 'team' }, { path: 'team/zeta' }],
-                },
-                {
-                    id: 'repo-a',
-                    localPath: 'repos/repo-a',
-                    capabilities: [{ path: '.github' }, { path: 'alpha\\core' }],
-                },
-            ],
-            layerSources: [
-                { repoId: 'repo-b', path: 'team', enabled: false },
-                { repoId: 'repo-b', path: 'team/zeta', enabled: true },
-                { repoId: 'repo-a', path: '.github', enabled: true },
-            ],
-        };
-
-        assert.strictEqual(
-            JSON.stringify(toAuthoredConfig(configA), null, 2),
-            JSON.stringify(toAuthoredConfig(configB), null, 2),
-        );
-    });
-});
-
-describe('configNormalization: canonicalizeAuthoredConfig', () => {
-    it('deduplicates and sorts layerSources by authored repo order, then orphan repo id, then layer path', () => {
-        const canonical = canonicalizeAuthoredConfig({
-            metadataRepos: [
-                { id: 'repo-b', localPath: 'repos/repo-b' },
-                { id: 'repo-a', localPath: 'repos/repo-a' },
-            ],
-            layerSources: [
-                { repoId: 'orphan-z', path: 'team/z' },
-                { repoId: 'repo-a', path: 'beta/core', enabled: false },
-                { repoId: 'repo-b', path: '.github' },
-                { repoId: 'repo-a', path: 'beta\\.github', enabled: true },
-                { repoId: 'orphan-a', path: 'team' },
-                { repoId: 'repo-b', path: 'alpha/core' },
-                { repoId: 'repo-a', path: 'beta/.github' },
-            ],
-            layers: ['team/deeper', '.github', 'team', 'team\\.github', 'team/deeper'],
+            },
+            activeProfile: 'lean',
         });
 
-        assert.deepStrictEqual(canonical.layerSources, [
-            { repoId: 'repo-b', path: '.' },
-            { repoId: 'repo-b', path: 'alpha/core' },
-            { repoId: 'repo-a', path: 'beta', enabled: true },
-            { repoId: 'repo-a', path: 'beta/core', enabled: false },
-            { repoId: 'orphan-a', path: 'team' },
-            { repoId: 'orphan-z', path: 'team/z' },
-        ]);
-        assert.deepStrictEqual(canonical.layers, ['.', 'team', 'team/deeper']);
-    });
-});
-
-describe('configNormalization: toAuthoredConfig — legacy metadataRepo optional fields', () => {
-    it('preserves url and commit when present in legacy metadataRepo', () => {
-        const config: MetaFlowConfig = {
-            metadataRepo: {
-                localPath: '.ai/ai-metadata',
-                url: 'https://github.com/org/repo',
+        assert.deepStrictEqual(authored.profiles, {
+            lean: {
+                displayName: 'Lean',
+                enabledCapabilities: ['r1:base', 'r1:team/core'],
             },
-            layers: ['core'],
-        };
-        const authored = toAuthoredConfig(config);
-        assert.strictEqual(authored.metadataRepos?.[0].url, 'https://github.com/org/repo');
+        });
+        assert.strictEqual(authored.activeProfile, 'lean');
     });
 
-    it('preserves commit in legacy metadataRepo when set', () => {
-        const config: MetaFlowConfig = {
-            metadataRepo: {
-                localPath: '.ai/ai-metadata',
-            },
-            layers: ['core'],
-        };
-        const authored = toAuthoredConfig(config);
-        // commit is not set → should be absent
-        assert.strictEqual(authored.metadataRepos?.[0].commit, undefined);
-    });
-
-    it('preserves name in legacy metadataRepo', () => {
+    it('keeps capability injection and naming settings in sparse overrides', () => {
         const authored = toAuthoredConfig({
-            metadataRepo: {
-                localPath: '.ai',
-                name: 'My Metadata Repo',
-                url: 'https://example.com/repo',
-            },
-            layers: ['core'],
-        } as unknown as MetaFlowConfig); // name is not in typed MetadataRepo but JS allows it
-        // Extra fields must not crash; key typed fields must be preserved
-        assert.ok(authored.metadataRepos?.[0], 'should produce at least one metadataRepo entry');
-        assert.strictEqual(
-            authored.metadataRepos![0].localPath,
-            '.ai',
-            'localPath must be preserved',
-        );
-        assert.strictEqual(
-            authored.metadataRepos![0].url,
-            'https://example.com/repo',
-            'url must be preserved',
-        );
-    });
-
-    it('results in empty metadataRepos when no repo config', () => {
-        const authored = toAuthoredConfig({} as MetaFlowConfig);
-        assert.ok(!authored.metadataRepos || authored.metadataRepos.length === 0);
-    });
-});
-
-describe('configNormalization: toAuthoredConfig — named repo optional fields', () => {
-    it('includes url, commit, discover, injection when present in metadataRepos', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    url: 'https://github.com/org/repo',
-                    enabled: true,
-                    discover: { enabled: true, exclude: ['archive/**'] },
-                    injection: { instructions: 'settings' },
-                    capabilities: [],
-                },
-            ],
-        };
-        const authored = toAuthoredConfig(config);
-        const repo = authored.metadataRepos?.[0];
-        assert.ok(repo);
-        assert.strictEqual(repo.url, 'https://github.com/org/repo');
-        assert.strictEqual(repo.enabled, true);
-        assert.deepStrictEqual(repo.discover, { enabled: true, exclude: ['archive/**'] });
-        assert.deepStrictEqual(repo.injection, { instructions: 'settings' });
-    });
-});
-
-describe('configNormalization: toAuthoredConfig — layerSourceToCapabilitySource', () => {
-    it('creates capability from layerSource with injection when path not in capabilities', () => {
-        // When a layerSource path is NOT already in repo.capabilities, layerSourceToCapabilitySource is called
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'cap-a' }], // cap-b is not here
-                },
-            ],
-            layerSources: [
-                {
-                    repoId: 'r1',
-                    path: 'cap-b',
-                    enabled: true,
-                    injection: { skills: 'synchronize' },
-                },
-            ],
-        };
-        const authored = toAuthoredConfig(config);
-        const caps = authored.metadataRepos?.[0].capabilities;
-        assert.ok(caps);
-        // cap-b should be present from layerSource
-        const capB = caps.find((c) => c.path === 'cap-b');
-        assert.ok(capB, 'cap-b from layerSource should be included');
-        assert.deepStrictEqual(capB!.injection, { skills: 'synchronize' });
-        assert.strictEqual(capB!.enabled, true);
-    });
-
-    it('creates capability from layerSource when not in capabilities', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [],
-                },
-            ],
-            layerSources: [
-                {
-                    repoId: 'r1',
-                    path: 'cap-x',
-                    enabled: false,
-                },
-            ],
-        };
-        const authored = toAuthoredConfig(config);
-        const caps = authored.metadataRepos?.[0].capabilities;
-        const capX = caps?.find((c) => c.path === 'cap-x');
-        assert.ok(capX);
-        assert.strictEqual(capX!.enabled, false);
-    });
-
-    it('preserves existing capability enabled when matching layerSource omits it', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [
-                        {
-                            path: 'team/core',
-                            enabled: false,
-                        },
-                    ],
-                },
-            ],
-            layerSources: [
-                {
-                    repoId: 'r1',
-                    path: 'team/core',
-                },
-            ],
-        };
-
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.metadataRepos?.[0].capabilities, [
-            {
-                path: 'team/core',
-                enabled: false,
-            },
-        ]);
-    });
-
-    it('normalizes matching layerSource paths before merging into capabilities', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [
-                        {
-                            path: 'team/core',
-                            enabled: false,
-                        },
-                    ],
-                },
-            ],
-            layerSources: [
-                {
-                    repoId: 'r1',
-                    path: 'team\\core',
-                    injection: { skills: 'synchronize' },
-                },
-            ],
-        };
-
-        const authored = toAuthoredConfig(config);
-        assert.deepStrictEqual(authored.metadataRepos?.[0].capabilities, [
-            {
-                path: 'team/core',
-                enabled: false,
-                injection: { skills: 'synchronize' },
-            },
-        ]);
-    });
-});
-
-describe('configNormalization: normalizeConfigShape — flattenCapabilities with injection', () => {
-    it('merges repo injection with capability injection in flattened layerSources', () => {
-        // flattenCapabilities is called by normalizeConfigShape when layerSources is not explicit
-        const config: MetaFlowConfig = {
             metadataRepos: [
                 {
                     id: 'r1',
@@ -509,208 +68,71 @@ describe('configNormalization: normalizeConfigShape — flattenCapabilities with
                         {
                             path: 'core',
                             injection: { skills: 'synchronize' },
+                            fileNamingStrategy: 'original-unless-conflict',
                         },
                     ],
                 },
             ],
-            // No layerSources — so normalizeConfigShape will call flattenCapabilities
-        };
-        const result = normalizeConfigShape(config);
-        const ls = result.config.layerSources;
-        assert.ok(ls);
-        const core = ls.find((s) => s.path === 'core');
-        assert.ok(core, 'core capability should appear in flattened layerSources');
-        // Injection should be merged: capability wins over repo
-        assert.ok(core!.injection);
-        assert.strictEqual(core!.injection!.instructions, 'settings'); // from repo
-        assert.strictEqual(core!.injection!.skills, 'synchronize'); // from capability
+            profiles: { default: { enabledCapabilities: ['r1:core'] } },
+        });
+
+        assert.deepStrictEqual(authored.capabilityOverrides, {
+            'r1:core': {
+                injection: { skills: 'synchronize' },
+                fileNamingStrategy: 'original-unless-conflict',
+            },
+        });
     });
 
-    it('includes repo injection in flattened layerSources when only repo has injection', () => {
-        const config: MetaFlowConfig = {
+    it('normalizes runtime catalog entries with active selection state', () => {
+        const normalized = normalizeConfigShape({
+            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
+            profiles: {
+                default: { enabledCapabilities: ['r1:core'] },
+                lean: { enabledCapabilities: [] },
+            },
+            activeProfile: 'default',
+        });
+
+        assert.deepStrictEqual(normalized.config.layerSources, [
+            { repoId: 'r1', path: 'core', enabled: true },
+        ]);
+        assert.deepStrictEqual(normalized.config.metadataRepos, [
+            { id: 'r1', localPath: 'repos/r1' },
+        ]);
+    });
+
+    it('migrates legacy disabled inventory without selecting it', () => {
+        const normalized = normalizeConfigShape({
             metadataRepos: [
                 {
                     id: 'r1',
                     localPath: 'repos/r1',
-                    injection: { agents: 'synchronize' },
-                    capabilities: [{ path: 'core' }],
-                },
-            ],
-        };
-        const result = normalizeConfigShape(config);
-        const core = result.config.layerSources?.find((s) => s.path === 'core');
-        assert.ok(core);
-        assert.deepStrictEqual(core!.injection, { agents: 'synchronize' });
-    });
-
-    it('includes capability injection when only capability has injection', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'core', injection: { prompts: 'settings' } }],
-                },
-            ],
-        };
-        const result = normalizeConfigShape(config);
-        const core = result.config.layerSources?.find((s) => s.path === 'core');
-        assert.ok(core);
-        assert.deepStrictEqual(core!.injection, { prompts: 'settings' });
-    });
-
-    it('omits injection in layerSources when neither repo nor capability has it', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'core' }],
-                },
-            ],
-        };
-        const result = normalizeConfigShape(config);
-        const core = result.config.layerSources?.find((s) => s.path === 'core');
-        assert.ok(core);
-        assert.strictEqual(core!.injection, undefined);
-    });
-
-    it('flattens repo and capability fileNamingStrategy onto layerSources with capability precedence', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    fileNamingStrategy: 'original-unless-conflict',
                     capabilities: [
-                        { path: 'core' },
-                        { path: 'override', fileNamingStrategy: 'prefixed' },
+                        { path: 'core', enabled: true },
+                        { path: 'optional', enabled: false },
                     ],
                 },
             ],
-            fileNamingStrategy: 'prefixed',
-        };
-
-        const result = normalizeConfigShape(config);
-        const core = result.config.layerSources?.find((source) => source.path === 'core');
-        const override = result.config.layerSources?.find((source) => source.path === 'override');
-
-        assert.ok(core);
-        assert.ok(override);
-        assert.strictEqual(core!.fileNamingStrategy, 'original-unless-conflict');
-        assert.strictEqual(override!.fileNamingStrategy, 'prefixed');
-        assert.strictEqual(result.config.fileNamingStrategy, 'prefixed');
-    });
-});
-
-describe('configNormalization: normalizeConfigShape — migration messages', () => {
-    it('reports migration message for implicit released compatibility version', () => {
-        const result = normalizeConfigShape({
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'core' }],
-                },
-            ],
         });
-        assert.ok(result.migrated);
-        assert.strictEqual(result.authoredConfig.compatibilityVersion, 2);
-        assert.ok(result.migrationMessages.some((m) => m.includes('compatibilityVersion')));
-    });
 
-    it('reports migration message for legacy metadataRepo/layers config', () => {
-        const result = normalizeConfigShape({
-            metadataRepo: { localPath: '.ai' },
-            layers: ['core'],
+        assert.deepStrictEqual(normalized.authoredConfig.profiles, {
+            default: { enabledCapabilities: ['r1:core'] },
         });
-        assert.ok(result.migrated);
-        assert.ok(result.migrationMessages.some((m) => m.includes('Migrated legacy')));
+        assert.strictEqual(normalized.authoredConfig.metadataRepos?.[0].capabilities, undefined);
+        assert.ok(normalized.migrationMessages.some((message) => message.includes('enabledCapabilities')));
     });
 
-    it('reports migration message for legacy layerSources', () => {
-        const result = normalizeConfigShape({
+    it('is idempotent after canonical migration', () => {
+        const source: MetaFlowConfig = {
             metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            layerSources: [{ repoId: 'r1', path: 'core' }],
-        });
-        assert.ok(result.migrated);
-        assert.ok(result.migrationMessages.some((m) => m.includes('layerSources')));
-    });
-
-    it('reports migration when metadataRepos entries lack capabilities', () => {
-        const result = normalizeConfigShape({
-            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
-            // no layerSources, no capabilities on repo
-        });
-        assert.ok(result.migrated);
-        assert.ok(result.migrationMessages.some((m) => m.includes('Canonicalized')));
-    });
-
-    it('does not set migrated flag for modern config', () => {
-        const result = normalizeConfigShape({
-            compatibilityVersion: 2,
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'core' }],
-                },
-            ],
-            // No layerSources → not legacy
-        });
-        assert.strictEqual(result.migrated, false);
-    });
-});
-
-describe('configNormalization: capabilitySourceToLayerSource injection field', () => {
-    it('capabilitySourceToLayerSource includes injection when capability has it (via flattenCapabilities)', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'repo',
-                    localPath: './repo',
-                    capabilities: [
-                        { path: 'layers/base', injection: { instructions: 'settings' as const } },
-                        { path: 'layers/custom', enabled: false },
-                    ],
-                },
-            ],
+            profiles: { default: { enabledCapabilities: ['r1:core'] } },
+            activeProfile: 'default',
         };
-        const result = normalizeConfigShape(config);
-        const baseLayer = result.config.layerSources?.find((ls) => ls.path === 'layers/base');
-        assert.ok(baseLayer, 'layers/base should be in layerSources');
-        assert.deepStrictEqual(baseLayer!.injection, { instructions: 'settings' });
-
-        const customLayer = result.config.layerSources?.find((ls) => ls.path === 'layers/custom');
-        assert.ok(customLayer, 'layers/custom should be in layerSources');
-        assert.strictEqual(customLayer!.enabled, false);
-        assert.strictEqual(customLayer!.injection, undefined);
-    });
-});
-
-describe('configNormalization: normalizeConfigShape — idempotency', () => {
-    it('calling normalizeConfigShape twice produces identical layerSources and metadataRepos', () => {
-        const config: MetaFlowConfig = {
-            metadataRepos: [
-                {
-                    id: 'r1',
-                    localPath: 'repos/r1',
-                    capabilities: [{ path: 'core' }, { path: 'extra', enabled: false }],
-                },
-            ],
-        };
-        const first = normalizeConfigShape(config);
+        const first = normalizeConfigShape(source);
         const second = normalizeConfigShape(first.config);
-        // A second normalization of an already-normalized config must produce the same shape
-        assert.deepStrictEqual(
-            second.config.layerSources,
-            first.config.layerSources,
-            'layerSources must be stable across two normalizations',
-        );
-        assert.deepStrictEqual(
-            second.config.metadataRepos,
-            first.config.metadataRepos,
-            'metadataRepos must be stable across two normalizations',
-        );
+
+        assert.deepStrictEqual(second.config, first.config);
+        assert.strictEqual(second.migrated, false);
     });
 });

@@ -259,7 +259,7 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 const existingRepoId = enabledRepoIdsByPath.get(resolved);
                 if (existingRepoId) {
                     errors.push({
-                        message: `Enabled metadataRepos entries "${existingRepoId}" and "${repo.id}" resolve to the same localPath. Disable or remove one source.`,
+                        message: `metadataRepos entries "${existingRepoId}" and "${repo.id}" resolve to the same localPath. Remove one source.`,
                     });
                 } else {
                     enabledRepoIdsByPath.set(resolved, repo.id);
@@ -294,6 +294,49 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                     errors.push({
                         message:
                             `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
+                    });
+                }
+            }
+        }
+    }
+
+    if (config.profiles !== undefined) {
+        const repoIds = new Set(config.metadataRepos?.map((repo) => repo.id) ?? ['primary']);
+        for (const [profileId, profile] of Object.entries(config.profiles)) {
+            if (profile.enabledCapabilities === undefined) {
+                continue;
+            }
+
+            if (
+                !Array.isArray(profile.enabledCapabilities) ||
+                profile.enabledCapabilities.some((reference) => typeof reference !== 'string')
+            ) {
+                errors.push({
+                    message: `Profile "${profileId}" has invalid "enabledCapabilities" (must be an array of strings).`,
+                });
+                continue;
+            }
+
+            const seen = new Set<string>();
+            for (const reference of profile.enabledCapabilities) {
+                const separator = reference.indexOf(':');
+                const repoId = separator > 0 ? reference.slice(0, separator).trim() : '';
+                const layerPath = separator > 0 ? reference.slice(separator + 1).trim() : '';
+                if (!repoId || !layerPath) {
+                    errors.push({
+                        message: `Profile "${profileId}" has invalid capability reference "${reference}"; expected "repoId:path".`,
+                    });
+                    continue;
+                }
+                if (seen.has(reference)) {
+                    errors.push({
+                        message: `Profile "${profileId}" contains duplicate capability reference "${reference}".`,
+                    });
+                }
+                seen.add(reference);
+                if (config.metadataRepos && !repoIds.has(repoId)) {
+                    errors.push({
+                        message: `Profile "${profileId}" capability reference "${reference}" does not match a metadata repository.`,
                     });
                 }
             }

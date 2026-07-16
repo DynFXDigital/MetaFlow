@@ -81,13 +81,24 @@ export function registerStatusCommand(program: Command): void {
             const warnings = formatSurfacedConflictWarnings(conflicts);
             const settings = files.filter((f) => f.classification === 'settings').length;
             const synchronized = files.filter((f) => f.classification === 'synchronized').length;
-            const authoredCapabilities =
-                config.metadataRepos?.flatMap((repo) =>
-                    (repo.capabilities ?? []).map((capability) => ({
-                        repoId: repo.id,
-                        ...capability,
-                    })),
-                ) ?? [];
+            const activeProfile = config.activeProfile
+                ? config.profiles?.[config.activeProfile]
+                : config.profiles?.default;
+            const authoredCapabilities = (activeProfile?.enabledCapabilities ?? [])
+                .map((reference) => {
+                    const separator = reference.indexOf(':');
+                    return separator > 0
+                        ? {
+                              repoId: reference.slice(0, separator),
+                              path: reference.slice(separator + 1),
+                              enabled: true,
+                          }
+                        : undefined;
+                })
+                .filter(
+                    (capability): capability is { repoId: string; path: string; enabled: true } =>
+                        capability !== undefined,
+                );
             const injectionModes = resolveInjectionModes(config);
             const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
             const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
@@ -154,7 +165,7 @@ export function registerStatusCommand(program: Command): void {
             if (authoredCapabilities.length > 0) {
                 console.log(`Capabilities: ${authoredCapabilities.length}`);
                 for (const capability of authoredCapabilities) {
-                    const state = capability.enabled === false ? 'disabled' : 'enabled';
+                    const state = 'enabled';
                     console.log(`  - ${capability.repoId}/${capability.path} (${state})`);
                 }
             }

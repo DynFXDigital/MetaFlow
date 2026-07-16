@@ -96,7 +96,8 @@ import {
     type LayersViewMode,
     type AiMetadataAutoApplyMode,
     normalizeAndDeduplicateLayerPaths,
-    updateProfileLayerOverride,
+    capabilityCatalogFromConfig,
+    restoreCapabilityCatalog,
     writeManagedViewsState,
     type RefreshCommandOptions,
 } from './commandHelpers';
@@ -1742,40 +1743,25 @@ function syncLayerSourceToCapabilityConfig(
     config: MetaFlowConfig,
     layerSource: NonNullable<MetaFlowConfig['layerSources']>[number],
 ): void {
-    const { metadataRepos } = ensureMultiRepoConfig(config);
-    const repo = metadataRepos.find((candidate) => candidate.id === layerSource.repoId);
-    if (!repo) {
-        return;
-    }
-
-    repo.capabilities ??= [];
-    let capability = repo.capabilities.find(
-        (candidate) =>
-            normalizeCommandLayerPath(candidate.path) ===
-            normalizeCommandLayerPath(layerSource.path),
-    );
-    if (!capability) {
-        capability = { path: layerSource.path };
-        repo.capabilities.push(capability);
-    }
-
-    if (layerSource.enabled === undefined) {
-        delete capability.enabled;
+    const reference = `${layerSource.repoId}:${normalizeCommandLayerPath(layerSource.path)}`;
+    const override = {
+        ...(layerSource.injection !== undefined ? { injection: { ...layerSource.injection } } : {}),
+        ...(layerSource.fileNamingStrategy !== undefined
+            ? { fileNamingStrategy: layerSource.fileNamingStrategy }
+            : {}),
+    };
+    config.capabilityOverrides ??= {};
+    if (Object.keys(override).length === 0) {
+        delete config.capabilityOverrides[reference];
     } else {
-        capability.enabled = layerSource.enabled;
-    }
-
-    if (layerSource.injection === undefined) {
-        delete capability.injection;
-    } else {
-        capability.injection = { ...layerSource.injection };
+        config.capabilityOverrides[reference] = override;
     }
 }
 
 function getScopedLayerMutationProfile(
     config: MetaFlowConfig,
 ): { profileId: string; profile: NonNullable<MetaFlowConfig['profiles']>[string] } | undefined {
-    const profileId = config.activeProfile;
+    const profileId = config.activeProfile ?? DEFAULT_PROFILE_ID;
     if (!profileId) {
         return undefined;
     }
@@ -1801,7 +1787,16 @@ function applyLayerMutationToActiveProfile(
         return { scopedToProfile: false };
     }
 
-    updateProfileLayerOverride(target.profile, repoId, layerPath, mutation);
+    const reference = `${repoId}:${normalizeCommandLayerPath(layerPath)}`;
+    const selected = new Set(target.profile.enabledCapabilities ?? []);
+    if (mutation.enabled === false) {
+        selected.delete(reference);
+    } else if (mutation.enabled === true) {
+        selected.add(reference);
+    }
+    target.profile.enabledCapabilities = Array.from(selected).sort((left, right) =>
+        left.localeCompare(right),
+    );
     return { scopedToProfile: true, profileId: target.profileId };
 }
 
@@ -3245,6 +3240,7 @@ async function persistConfig(
         'layers',
         'metadataRepos',
         'layerSources',
+        'capabilityOverrides',
         'filters',
         'profiles',
         'activeProfile',
@@ -3482,7 +3478,10 @@ function loadLatestConfigForMutation(
 
     const loaded = loadConfig(workspaceRoot);
     if (loaded.ok) {
-        return cloneConfig(loaded.config);
+        const config = cloneConfig(loaded.config);
+        const managedState = loadManagedState(workspaceRoot);
+        restoreCapabilityCatalog(config, managedState.capabilityCatalog?.entries);
+        return config;
     }
 
     return state.config ? cloneConfig(state.config) : undefined;
@@ -5562,6 +5561,11 @@ export function registerCommands(
                 clearDiagnostics(diagnosticCollection);
                 state.configWarnings = [];
                 state.capabilityDiagnosticFilePaths = [];
+                const managedStateForCapabilityCatalog = loadManagedState(ws.uri.fsPath);
+                restoreCapabilityCatalog(
+                    result.config,
+                    managedStateForCapabilityCatalog.capabilityCatalog?.entries,
+                );
                 const governanceResult = loadGovernanceContract(ws.uri.fsPath);
                 publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
                 state.governanceContract = governanceResult.ok
@@ -5692,6 +5696,11 @@ export function registerCommands(
                     }
                 }
                 refreshTimer.mark('config-maintenance');
+                const capabilityCatalogEntries = capabilityCatalogFromConfig(result.config);
+                managedStateForCapabilityCatalog.capabilityCatalog = {
+                    entries: capabilityCatalogEntries,
+                };
+                saveManagedState(ws.uri.fsPath, managedStateForCapabilityCatalog);
                 state.config = result.config;
                 state.configPath = result.configPath;
                 state.activeProfile = result.config.activeProfile;
@@ -6762,8 +6771,8 @@ export function registerCommands(
                 }
 
                 if (scopedMutation) {
-                    updateProfileLayerOverride(
-                        scopedMutation.profile,
+                    applyLayerMutationToActiveProfile(
+                        candidateConfig,
                         matchedLayer.repoId,
                         matchedLayer.path,
                         { enabled: requestedCheckedState },
@@ -6860,8 +6869,8 @@ export function registerCommands(
                         continue;
                     }
                     if (scopedMutation) {
-                        updateProfileLayerOverride(
-                            scopedMutation.profile,
+                        applyLayerMutationToActiveProfile(
+                            candidateConfig,
                             layerSource.repoId,
                             layerSource.path,
                             { enabled: true },
@@ -6943,8 +6952,8 @@ export function registerCommands(
                         continue;
                     }
                     if (scopedMutation) {
-                        updateProfileLayerOverride(
-                            scopedMutation.profile,
+                        applyLayerMutationToActiveProfile(
+                            candidateConfig,
                             layerSource.repoId,
                             layerSource.path,
                             { enabled: false },
@@ -7112,6 +7121,10 @@ export function registerCommands(
                 }
 
                 const nextInjection = applyInjectionMutationToCapabilityTarget(target, mutation);
+
+                if (target.layerSource) {
+                    syncLayerSourceToCapabilityConfig(state.config, target.layerSource);
+                }
 
                 await persistConfig(state.configPath, state.config, state);
                 logInfo(

@@ -2,31 +2,21 @@
   "metadataRepos": [
     {
       "id": "primary",
-      "localPath": ".ai/ai-metadata",
-      "capabilities": [
-        {
-          "path": "company/core",
-          "enabled": false
-        },
-        {
-          "path": "standards/sdlc",
-          "enabled": true
-        }
-      ]
+      "localPath": ".ai/ai-metadata"
     }
   ],
   "profiles": {
     "default": {
-      "enable": [
-        "**/*"
+      "enabledCapabilities": [
+        "primary:standards/sdlc"
       ]
     },
     "review": {
-      "enable": [
-        "**/*"
+      "enabledCapabilities": [
+        "primary:standards/sdlc"
       ]
     }
   },
   "activeProfile": "default",
-  "compatibilityVersion": 2
+  "compatibilityVersion": 3
 }

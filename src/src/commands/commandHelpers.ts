@@ -1,7 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@metaflow/engine';
-import type { MetaFlowConfig, ProfileConfig, ProfileLayerOverride } from '@metaflow/engine';
+import type {
+    LayerSource,
+    MetaFlowConfig,
+    ProfileConfig,
+    ProfileLayerOverride,
+} from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
     skipAutoApply?: boolean;
@@ -35,6 +40,8 @@ export type LayersViewMode = 'flat' | 'tree';
 
 export const DEFAULT_FILES_VIEW_MODE: FilesViewMode = 'unified';
 export const DEFAULT_LAYERS_VIEW_MODE: LayersViewMode = 'tree';
+
+const RUNTIME_ONLY_CAPABILITY_REPO_IDS = new Set(['__metaflow_builtin__']);
 
 export interface ManagedViewsState {
     filesViewMode: FilesViewMode;
@@ -83,13 +90,22 @@ export function ensureMultiRepoConfig(config: MetaFlowConfig): {
     }
 
     if (config.metadataRepos) {
-        config.layerSources = config.metadataRepos.flatMap((repo) =>
-            (repo.capabilities ?? []).map((capability) => ({
+        const references = new Set<string>();
+        for (const profile of Object.values(config.profiles ?? {})) {
+            for (const reference of profile.enabledCapabilities ?? []) {
+                references.add(reference);
+            }
+        }
+        config.layerSources = config.metadataRepos.flatMap((repo) => [
+            ...(repo.capabilities ?? []).map((capability) => ({
                 repoId: repo.id,
                 path: capability.path,
                 ...(capability.enabled !== undefined ? { enabled: capability.enabled } : {}),
             })),
-        );
+            ...Array.from(references)
+                .filter((reference) => reference.startsWith(`${repo.id}:`))
+                .map((reference) => ({ repoId: repo.id, path: reference.slice(repo.id.length + 1) })),
+        ]);
 
         return {
             metadataRepos: config.metadataRepos,
@@ -286,6 +302,25 @@ export function projectConfigForProfile(
     profileId: string | undefined = config.activeProfile,
 ): MetaFlowConfig {
     const profile = profileId ? config.profiles?.[profileId] : undefined;
+    if (profile?.enabledCapabilities !== undefined) {
+        const selected = new Set(profile.enabledCapabilities);
+        return {
+            ...config,
+            ...(config.layerSources !== undefined
+                ? {
+                      layerSources: config.layerSources.map((layerSource) => ({
+                          ...layerSource,
+                          enabled: RUNTIME_ONLY_CAPABILITY_REPO_IDS.has(layerSource.repoId)
+                              ? layerSource.enabled
+                              : selected.has(
+                                    `${layerSource.repoId}:${normalizeLayerPath(layerSource.path)}`,
+                                ),
+                      })),
+                  }
+                : {}),
+        };
+    }
+
     if (!profile?.layerOverrides || profile.layerOverrides.length === 0) {
         return config;
     }
@@ -505,6 +540,76 @@ export function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
         options.markApply = markApply;
     }
     return options;
+}
+
+/** Restore the discovered capability catalog held in state.json into runtime config. */
+export function restoreCapabilityCatalog(
+    config: MetaFlowConfig,
+    catalogEntries: Array<{ repoId: string; path: string }> | undefined,
+): void {
+    if (!config.metadataRepos) {
+        return;
+    }
+
+    const sources = new Map<string, LayerSource>();
+    const addSource = (source: LayerSource): void => {
+        const normalizedPath = normalizeLayerPath(source.path);
+        const key = buildProfileLayerOverrideKey(source.repoId, normalizedPath);
+        const existing = sources.get(key);
+        sources.set(key, {
+            ...(existing ?? {}),
+            ...source,
+            path: normalizedPath,
+            ...(existing?.injection || source.injection
+                ? { injection: { ...(existing?.injection ?? {}), ...(source.injection ?? {}) } }
+                : {}),
+        });
+    };
+
+    for (const entry of catalogEntries ?? []) {
+        const repo = config.metadataRepos.find((candidate) => candidate.id === entry.repoId);
+        if (!repo) {
+            continue;
+        }
+        addSource({
+            repoId: entry.repoId,
+            path: entry.path,
+            ...(repo.injection !== undefined ? { injection: { ...repo.injection } } : {}),
+            ...(repo.fileNamingStrategy !== undefined
+                ? { fileNamingStrategy: repo.fileNamingStrategy }
+                : {}),
+        });
+    }
+
+    for (const source of config.layerSources ?? []) {
+        addSource(source);
+    }
+
+    for (const source of sources.values()) {
+        const reference = `${source.repoId}:${source.path}`;
+        const override = config.capabilityOverrides?.[reference];
+        if (override?.injection !== undefined) {
+            source.injection = {
+                ...(source.injection ?? {}),
+                ...override.injection,
+            };
+        }
+        if (override?.fileNamingStrategy !== undefined) {
+            source.fileNamingStrategy = override.fileNamingStrategy;
+        }
+    }
+
+    config.layerSources = Array.from(sources.values());
+}
+
+/** Return the runtime source identities suitable for persistence in state.json. */
+export function capabilityCatalogFromConfig(
+    config: MetaFlowConfig,
+): Array<{ repoId: string; path: string }> {
+    return (config.layerSources ?? []).map((source) => ({
+        repoId: source.repoId,
+        path: normalizeLayerPath(source.path),
+    }));
 }
 
 export function extractRepoScopeOptions(arg: unknown): RepoScopeOptions {

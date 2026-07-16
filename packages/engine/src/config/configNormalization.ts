@@ -20,7 +20,7 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
-export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 2;
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 3;
 const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
 
 function cloneJson<T>(value: T): T {
@@ -106,10 +106,8 @@ function orderProfileLayerOverride(override: ProfileLayerOverride): ProfileLayer
 function orderProfileConfig(config: ProfileConfig): ProfileConfig {
     return {
         ...(config.displayName !== undefined ? { displayName: config.displayName } : {}),
-        ...(config.enable !== undefined ? { enable: cloneJson(config.enable) } : {}),
-        ...(config.disable !== undefined ? { disable: cloneJson(config.disable) } : {}),
-        ...(config.layerOverrides !== undefined
-            ? { layerOverrides: config.layerOverrides.map(orderProfileLayerOverride) }
+        ...(config.enabledCapabilities !== undefined
+            ? { enabledCapabilities: normalizeCapabilityReferences(config.enabledCapabilities) }
             : {}),
     };
 }
@@ -169,7 +167,7 @@ function cloneLayerSource(source: LayerSource): LayerSource {
 
 function cloneNamedRepo(
     repo: NamedMetadataRepo,
-    capabilities: CapabilitySource[],
+    _legacyCapabilities?: CapabilitySource[],
 ): NamedMetadataRepo {
     return {
         id: repo.id,
@@ -177,7 +175,6 @@ function cloneNamedRepo(
         ...(repo.url !== undefined ? { url: repo.url } : {}),
         localPath: repo.localPath,
         ...(repo.commit !== undefined ? { commit: repo.commit } : {}),
-        ...(repo.enabled !== undefined ? { enabled: repo.enabled } : {}),
         ...(repo.discover !== undefined
             ? { discover: orderRepoDiscoveryConfig(repo.discover) }
             : {}),
@@ -187,7 +184,6 @@ function cloneNamedRepo(
         ...(repo.fileNamingStrategy !== undefined
             ? { fileNamingStrategy: repo.fileNamingStrategy }
             : {}),
-        capabilities,
     };
 }
 
@@ -330,6 +326,174 @@ function canonicalizeLegacyLayers(layers: string[] | undefined): string[] | unde
     return Array.from(unique.values()).sort(compareLayerPaths);
 }
 
+function capabilityReference(repoId: string, layerPath: string): string {
+    return `${repoId}:${normalizeLayerPath(layerPath)}`;
+}
+
+function normalizeCapabilityReferences(references: string[]): string[] {
+    const unique = new Set<string>();
+    for (const reference of references) {
+        if (typeof reference !== 'string') {
+            continue;
+        }
+
+        const separator = reference.indexOf(':');
+        if (separator <= 0) {
+            continue;
+        }
+
+        const repoId = reference.slice(0, separator).trim();
+        const layerPath = reference.slice(separator + 1).trim();
+        if (repoId && layerPath) {
+            unique.add(capabilityReference(repoId, layerPath));
+        }
+    }
+
+    return Array.from(unique).sort((left, right) => left.localeCompare(right));
+}
+
+function allLegacyLayerSources(config: MetaFlowConfig): LayerSource[] {
+    const sources = (config.layerSources ?? []).map(cloneLayerSource);
+    const seen = new Set(sources.map((source) => capabilityReference(source.repoId, source.path)));
+
+    for (const repo of config.metadataRepos ?? []) {
+        for (const capability of repo.capabilities ?? []) {
+            const reference = capabilityReference(repo.id, capability.path);
+            if (!seen.has(reference)) {
+                sources.push({
+                    repoId: repo.id,
+                    path: normalizeLayerPath(capability.path),
+                    ...(capability.enabled !== undefined ? { enabled: capability.enabled } : {}),
+                    ...(capability.injection !== undefined
+                        ? { injection: cloneJson(capability.injection) }
+                        : {}),
+                    ...(capability.fileNamingStrategy !== undefined
+                        ? { fileNamingStrategy: capability.fileNamingStrategy }
+                        : {}),
+                });
+                seen.add(reference);
+            }
+        }
+    }
+
+    if (config.metadataRepo && config.layers) {
+        for (const layerPath of config.layers) {
+            const reference = capabilityReference('primary', layerPath);
+            if (!seen.has(reference)) {
+                sources.push({ repoId: 'primary', path: normalizeLayerPath(layerPath) });
+                seen.add(reference);
+            }
+        }
+    }
+
+    const repoById = new Map((config.metadataRepos ?? []).map((repo) => [repo.id, repo]));
+    return sources.map((source) => {
+        const repo = repoById.get(source.repoId);
+        const mergedInjection =
+            repo?.injection || source.injection
+                ? {
+                      ...(repo?.injection ?? {}),
+                      ...(source.injection ?? {}),
+                  }
+                : undefined;
+        return {
+            ...source,
+            ...(mergedInjection !== undefined ? { injection: mergedInjection } : {}),
+            ...(source.fileNamingStrategy !== undefined || repo?.fileNamingStrategy !== undefined
+                ? { fileNamingStrategy: source.fileNamingStrategy ?? repo?.fileNamingStrategy }
+                : {}),
+        };
+    });
+}
+
+function legacyBaseReferences(config: MetaFlowConfig, sources: LayerSource[]): string[] {
+    const disabledRepoIds = new Set(
+        (config.metadataRepos ?? [])
+            .filter((repo) => repo.enabled === false)
+            .map((repo) => repo.id),
+    );
+
+    return normalizeCapabilityReferences(
+        sources
+            .filter((source) => source.enabled !== false && !disabledRepoIds.has(source.repoId))
+            .map((source) => capabilityReference(source.repoId, source.path)),
+    );
+}
+
+function buildCanonicalProfiles(config: MetaFlowConfig, sources: LayerSource[]): Record<string, ProfileConfig> {
+    const baseReferences = legacyBaseReferences(config, sources);
+    const inputProfiles = config.profiles;
+    if (!inputProfiles || Object.keys(inputProfiles).length === 0) {
+        return { default: { enabledCapabilities: baseReferences } };
+    }
+
+    const profiles: Record<string, ProfileConfig> = {};
+    for (const [profileId, profile] of Object.entries(inputProfiles)) {
+        let selected = profile.enabledCapabilities;
+        if (selected === undefined) {
+            selected = profile.enable?.length === 0 ? [] : [...baseReferences];
+            const overrides = new Map(
+                (profile.layerOverrides ?? []).map((override) => [
+                    capabilityReference(override.repoId, override.path),
+                    override.enabled,
+                ]),
+            );
+            selected = selected.filter((reference) => overrides.get(reference) !== false);
+            for (const [reference, enabled] of overrides) {
+                if (enabled === true && !selected.includes(reference)) {
+                    selected.push(reference);
+                }
+            }
+        }
+
+        profiles[profileId] = {
+            ...(profile.displayName !== undefined ? { displayName: profile.displayName } : {}),
+            enabledCapabilities: normalizeCapabilityReferences(selected),
+        };
+    }
+
+    return profiles;
+}
+
+function buildCapabilityOverrides(
+    config: MetaFlowConfig,
+    sources: LayerSource[],
+): Record<string, NonNullable<MetaFlowConfig['capabilityOverrides']>[string]> | undefined {
+    const overrides: NonNullable<MetaFlowConfig['capabilityOverrides']> = cloneJson(
+        config.capabilityOverrides ?? {},
+    );
+    const repoById = new Map((config.metadataRepos ?? []).map((repo) => [repo.id, repo]));
+    for (const source of sources) {
+        const reference = capabilityReference(source.repoId, source.path);
+        const repo = repoById.get(source.repoId);
+        const repoInjection = repo?.injection;
+        const injection = source.injection
+            ? Object.fromEntries(
+                  Object.entries(source.injection).filter(
+                      ([artifactType, mode]) => repoInjection?.[artifactType as keyof typeof repoInjection] !== mode,
+                  ),
+              )
+            : undefined;
+        const override = {
+            ...(injection !== undefined && Object.keys(injection).length > 0
+                ? { injection: orderInjectionConfig(injection) }
+                : {}),
+            ...(source.fileNamingStrategy !== undefined &&
+            source.fileNamingStrategy !== repo?.fileNamingStrategy
+                ? { fileNamingStrategy: source.fileNamingStrategy }
+                : {}),
+        };
+        if (Object.keys(override).length > 0) {
+            overrides[reference] = {
+                ...(overrides[reference] ?? {}),
+                ...override,
+            };
+        }
+    }
+
+    return Object.keys(overrides).length > 0 ? overrides : undefined;
+}
+
 function resolveCompatibilityVersion(config: MetaFlowConfig): {
     compatibilityVersion: number;
     migrationMessage?: string;
@@ -380,6 +544,7 @@ export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConf
 
 function buildRestOfConfig(
     config: MetaFlowConfig,
+    profiles: Record<string, ProfileConfig>,
 ): Omit<MetaFlowConfig, 'metadataRepo' | 'layers' | 'metadataRepos' | 'layerSources'> {
     const fileNamingStrategy = config.fileNamingStrategy as SyncFileNamingStrategy | undefined;
     const compatibility = resolveCompatibilityVersion(config);
@@ -387,8 +552,11 @@ function buildRestOfConfig(
     return {
         compatibilityVersion: compatibility.compatibilityVersion,
         ...(config.filters !== undefined ? { filters: orderFilterConfig(config.filters) } : {}),
-        ...(config.profiles !== undefined ? { profiles: orderProfiles(config.profiles) } : {}),
+        profiles: orderProfiles(profiles) ?? {},
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
+        ...(config.capabilityOverrides !== undefined
+            ? { capabilityOverrides: cloneJson(config.capabilityOverrides) }
+            : {}),
         ...(config.injection !== undefined
             ? { injection: orderInjectionConfig(config.injection) }
             : {}),
@@ -460,20 +628,19 @@ function flattenCapabilities(repos: NamedMetadataRepo[] | undefined): LayerSourc
 }
 
 export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
-    const rest = buildRestOfConfig(config);
+    const sources = allLegacyLayerSources(config);
+    const profiles = buildCanonicalProfiles(config, sources);
+    const rest = buildRestOfConfig(
+        {
+            ...config,
+            capabilityOverrides: buildCapabilityOverrides(config, sources),
+        },
+        profiles,
+    );
 
     if (config.metadataRepos && config.metadataRepos.length > 0) {
-        const layerSourcesByRepoId = new Map<string, LayerSource[]>();
-        for (const source of config.layerSources ?? []) {
-            const list = layerSourcesByRepoId.get(source.repoId) ?? [];
-            list.push(cloneLayerSource(source));
-            layerSourcesByRepoId.set(source.repoId, list);
-        }
-
         return canonicalizeAuthoredConfig({
-            metadataRepos: config.metadataRepos.map((repo) =>
-                cloneNamedRepo(repo, buildCapabilitiesForRepo(repo, layerSourcesByRepoId)),
-            ),
+            metadataRepos: config.metadataRepos.map((repo) => cloneNamedRepo(repo)),
             ...rest,
         });
     }
@@ -487,15 +654,11 @@ export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
             ...(config.metadataRepo.commit !== undefined
                 ? { commit: config.metadataRepo.commit }
                 : {}),
-            enabled: true,
-            capabilities: (config.layers ?? []).map((layerPath) => ({
-                path: layerPath,
-                enabled: true,
-            })),
         };
 
         return canonicalizeAuthoredConfig({
             metadataRepos: [primaryRepo],
+            profiles,
             ...rest,
         });
     }
@@ -507,11 +670,59 @@ export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
 
 export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigShape {
     const authoredConfig = toAuthoredConfig(config);
+    const catalogSources = allLegacyLayerSources(config);
+    const sourceByReference = new Map(
+        catalogSources.map((source) => [capabilityReference(source.repoId, source.path), source]),
+    );
+    for (const profile of Object.values(authoredConfig.profiles ?? {})) {
+        for (const reference of profile.enabledCapabilities ?? []) {
+            if (sourceByReference.has(reference)) {
+                continue;
+            }
+
+            const separator = reference.indexOf(':');
+            if (separator <= 0) {
+                continue;
+            }
+
+            const source: LayerSource = {
+                repoId: reference.slice(0, separator),
+                path: normalizeLayerPath(reference.slice(separator + 1)),
+            };
+            catalogSources.push(source);
+            sourceByReference.set(reference, source);
+        }
+    }
+
+    const activeProfileId =
+        config.activeProfile ?? (authoredConfig.profiles?.default ? 'default' : undefined);
+    const activeSelection = new Set(
+        activeProfileId
+            ? authoredConfig.profiles?.[activeProfileId]?.enabledCapabilities ?? []
+            : legacyBaseReferences(config, catalogSources),
+    );
+    const runtimeLayerSources = catalogSources.map((source) => {
+        const reference = capabilityReference(source.repoId, source.path);
+        const override = authoredConfig.capabilityOverrides?.[reference];
+        return {
+            ...cloneLayerSource(source),
+            ...(override?.injection !== undefined
+                ? {
+                      injection: orderInjectionConfig({
+                          ...(source.injection ?? {}),
+                          ...cloneJson(override.injection),
+                      }),
+                  }
+                : {}),
+            ...(override?.fileNamingStrategy !== undefined
+                ? { fileNamingStrategy: override.fileNamingStrategy }
+                : {}),
+            enabled: activeSelection.has(reference),
+        };
+    });
     const runtimeConfig: MetaFlowConfig = {
         ...cloneJson(authoredConfig),
-        ...(config.layerSources !== undefined
-            ? { layerSources: config.layerSources.map(cloneLayerSource) }
-            : { layerSources: flattenCapabilities(authoredConfig.metadataRepos) }),
+        layerSources: runtimeLayerSources,
     };
 
     const migrationMessages: string[] = [];
@@ -519,23 +730,22 @@ export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigSh
     if (compatibility.migrationMessage) {
         migrationMessages.push(compatibility.migrationMessage);
     }
-    if (config.metadataRepo !== undefined || config.layers !== undefined) {
-        migrationMessages.push(
-            'Migrated legacy metadataRepo/layers config to metadataRepos[*].capabilities.',
-        );
-    }
-    if (config.layerSources !== undefined) {
-        migrationMessages.push(
-            'Migrated legacy layerSources entries to metadataRepos[*].capabilities.',
-        );
-    }
     if (
-        config.metadataRepos !== undefined &&
-        config.metadataRepos.some((repo) => repo.capabilities === undefined) &&
-        config.layerSources === undefined
+        config.metadataRepo !== undefined ||
+        config.layers !== undefined ||
+        ((config.compatibilityVersion ?? 0) < CURRENT_CONFIG_COMPATIBILITY_VERSION &&
+            config.layerSources !== undefined) ||
+        (config.metadataRepos ?? []).some((repo) => repo.capabilities !== undefined)
     ) {
         migrationMessages.push(
-            'Canonicalized metadataRepos entries to include explicit capabilities arrays.',
+            'Migrated legacy capability entries to profile enabledCapabilities selections.',
+        );
+    }
+    if ((config.profiles && Object.values(config.profiles).some((profile) =>
+        profile.enable !== undefined || profile.disable !== undefined || profile.layerOverrides !== undefined,
+    ))) {
+        migrationMessages.push(
+            'Migrated legacy profile activation fields to complete enabledCapabilities selections.',
         );
     }
 

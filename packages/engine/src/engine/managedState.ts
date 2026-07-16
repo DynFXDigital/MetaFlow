@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import type { LayerSource } from '../config/configSchema';
 
 /** Per-file managed state entry. */
 export interface ManagedFileState {
@@ -53,6 +54,12 @@ export interface ManagedCapabilityIdentityState {
     }>;
 }
 
+/** Runtime capability paths discovered from configured metadata repositories. */
+export interface ManagedCapabilityCatalogState {
+    /** Discovered and configured capability source identities. */
+    entries: Array<Pick<LayerSource, 'repoId' | 'path'>>;
+}
+
 /** Full managed state document. */
 export interface ManagedState {
     /** Schema version for forward compatibility. */
@@ -65,6 +72,8 @@ export interface ManagedState {
     views?: ManagedViewsState;
     /** Optional last-known capability identity index snapshot. */
     capabilityIdentity?: ManagedCapabilityIdentityState;
+    /** Optional discovered capability catalog omitted from authored config. */
+    capabilityCatalog?: ManagedCapabilityCatalogState;
 }
 
 /** Default state directory relative to workspace root. */
@@ -157,6 +166,36 @@ function canonicalizeCapabilityIdentityState(
     };
 }
 
+function canonicalizeCapabilityCatalogState(
+    state: ManagedCapabilityCatalogState | undefined,
+): ManagedCapabilityCatalogState | undefined {
+    if (!state || !Array.isArray(state.entries)) {
+        return undefined;
+    }
+
+    const entries = state.entries
+        .filter(
+            (entry) =>
+                entry &&
+                typeof entry.repoId === 'string' &&
+                entry.repoId.trim().length > 0 &&
+                typeof entry.path === 'string' &&
+                entry.path.trim().length > 0,
+        )
+        .map((entry) => ({ repoId: entry.repoId, path: entry.path }))
+        .sort((left, right) =>
+            `${left.repoId}:${left.path}`.localeCompare(`${right.repoId}:${right.path}`),
+        )
+        .filter(
+            (entry, index, all) =>
+                index === 0 ||
+                `${entry.repoId}:${entry.path}` !==
+                    `${all[index - 1].repoId}:${all[index - 1].path}`,
+        );
+
+    return entries.length > 0 ? { entries } : undefined;
+}
+
 function canonicalizeManagedState(state: ManagedState): ManagedState {
     const files: Record<string, ManagedFileState> = {};
     for (const relativePath of Object.keys(state.files ?? {}).sort()) {
@@ -165,6 +204,7 @@ function canonicalizeManagedState(state: ManagedState): ManagedState {
 
     const views = canonicalizeManagedViewsState(state.views);
     const capabilityIdentity = canonicalizeCapabilityIdentityState(state.capabilityIdentity);
+    const capabilityCatalog = canonicalizeCapabilityCatalogState(state.capabilityCatalog);
 
     return {
         version: state.version,
@@ -172,6 +212,7 @@ function canonicalizeManagedState(state: ManagedState): ManagedState {
         files,
         ...(views ? { views } : {}),
         ...(capabilityIdentity ? { capabilityIdentity } : {}),
+        ...(capabilityCatalog ? { capabilityCatalog } : {}),
     };
 }
 

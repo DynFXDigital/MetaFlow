@@ -156,8 +156,9 @@ describe('Engine package: config loading', () => {
         assert.strictEqual(result.ok, true);
         if (result.ok) {
             assert.strictEqual(result.config.metadataRepos?.[0].localPath, '.ai/ai-metadata');
-            assert.deepStrictEqual(result.config.metadataRepos?.[0].capabilities, [
-                { path: 'company/core', enabled: true },
+            assert.strictEqual(result.config.metadataRepos?.[0].capabilities, undefined);
+            assert.deepStrictEqual(result.config.profiles?.default?.enabledCapabilities, [
+                'primary:company/core',
             ]);
             assert.deepStrictEqual(result.config.layerSources, [
                 { repoId: 'primary', path: 'company/core', enabled: true },
@@ -216,11 +217,9 @@ describe('Engine package: config loading', () => {
             ],
         });
 
-        assert.deepStrictEqual(authored.metadataRepos?.[0].capabilities, [
-            {
-                path: 'company/core',
-                enabled: true,
-            },
+        assert.strictEqual(authored.metadataRepos?.[0].capabilities, undefined);
+        assert.deepStrictEqual(authored.profiles?.default?.enabledCapabilities, [
+            'primary:company/core',
         ]);
     });
 
@@ -244,14 +243,13 @@ describe('Engine package: config loading', () => {
             authored.metadataRepos?.map((repo) => repo.id),
             ['repo-z', 'repo-a'],
         );
-        assert.deepStrictEqual(
-            authored.metadataRepos?.[0].capabilities?.map((capability) => capability.path),
-            ['.', 'team', 'team/zeta'],
-        );
-        assert.deepStrictEqual(
-            authored.metadataRepos?.[1].capabilities?.map((capability) => capability.path),
-            ['beta', 'gamma/core'],
-        );
+        assert.deepStrictEqual(authored.profiles?.default?.enabledCapabilities, [
+            'repo-a:beta',
+            'repo-a:gamma/core',
+            'repo-z:.',
+            'repo-z:team',
+            'repo-z:team/zeta',
+        ]);
     });
 
     it('loadConfig preserves fileNamingStrategy through normalization', () => {
@@ -1313,8 +1311,7 @@ describe('Engine: overlay multi-repo resolution', () => {
 
         const layers = resolveLayers(config, tmpDir);
         const layerIds = layers.map((layer) => layer.layerId);
-        assert.ok(layerIds.includes('company/base'));
-        assert.ok(layerIds.includes('company/dynamic'));
+        assert.deepStrictEqual(layerIds, ['company/base']);
     });
 
     it('discovers layers when .github is mounted through a directory link', () => {
@@ -1434,8 +1431,7 @@ describe('Engine: overlay multi-repo resolution', () => {
             forceDiscoveryRepoIds: ['company'],
         });
         const layerIds = layers.map((layer) => layer.layerId);
-        assert.ok(layerIds.includes('company/base'));
-        assert.ok(layerIds.includes('company/dynamic'));
+        assert.deepStrictEqual(layerIds, ['company/base']);
     });
 
     it('resolves files from a layer whose .github directory is mounted through a directory link', () => {
@@ -1484,7 +1480,7 @@ describe('Engine: overlay multi-repo resolution', () => {
         });
 
         assert.ok(layers.some((layer) => layer.layerId === 'base'));
-        assert.ok(layers.some((layer) => layer.layerId === 'dynamic'));
+        assert.deepStrictEqual(layers.map((layer) => layer.layerId), ['base']);
     });
 });
 
@@ -1561,7 +1557,8 @@ describe('Engine: config validation', () => {
         const result = loadConfigFromPath(configPath);
         assert.strictEqual(result.ok, true);
         if (result.ok) {
-            assert.deepStrictEqual(result.config.metadataRepos?.[0]?.capabilities, []);
+            assert.strictEqual(result.config.metadataRepos?.[0]?.capabilities, undefined);
+            assert.deepStrictEqual(result.config.profiles?.default?.enabledCapabilities, []);
             assert.deepStrictEqual(result.config.layerSources, []);
         }
     });
@@ -1598,7 +1595,8 @@ describe('Engine: config validation', () => {
         const result = loadConfigFromPath(configPath);
         assert.strictEqual(result.ok, true);
         if (result.ok) {
-            assert.deepStrictEqual(result.config.metadataRepos?.[0].capabilities, []);
+            assert.strictEqual(result.config.metadataRepos?.[0].capabilities, undefined);
+            assert.deepStrictEqual(result.config.profiles?.default?.enabledCapabilities, []);
             assert.deepStrictEqual(result.config.layerSources, []);
             assert.strictEqual(result.migrated, true);
         }
@@ -1623,10 +1621,10 @@ describe('Engine: config validation', () => {
         const result = loadConfigFromPath(configPath);
         assert.strictEqual(result.ok, true);
         if (result.ok) {
-            assert.strictEqual(result.config.compatibilityVersion, 2);
+            assert.strictEqual(result.config.compatibilityVersion, 3);
             assert.strictEqual(result.migrated, true);
             assert.ok(
-                result.migrationMessages?.some((message) => message.includes('implicit v1 to v2')),
+                result.migrationMessages?.some((message) => message.includes('implicit v1 to v3')),
             );
         }
     });
@@ -2240,7 +2238,7 @@ describe('Engine: injection mode hierarchy', () => {
         assert.deepStrictEqual(authored.metadataRepos?.[0].injection, {
             instructions: 'synchronize',
         });
-        assert.deepStrictEqual(authored.metadataRepos?.[0].capabilities?.[0].injection, {
+        assert.deepStrictEqual(authored.capabilityOverrides?.['r1:cap1']?.injection, {
             prompts: 'synchronize',
         });
         assert.deepStrictEqual(authored.injection, { skills: 'synchronize' });

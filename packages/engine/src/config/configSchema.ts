@@ -25,11 +25,11 @@ export interface MetadataRepo {
 export interface NamedMetadataRepo extends MetadataRepo {
     /** Unique identifier for this repo. */
     id: string;
-    /** Whether this repo source is enabled (default: true). */
+    /** @deprecated Repository activation is controlled by profile capability selections. */
     enabled?: boolean;
     /** Optional runtime layer discovery settings. */
     discover?: RepoDiscoveryConfig;
-    /** Public authored capability entries for this repository. */
+    /** @deprecated Legacy authored capability entries accepted only during migration. */
     capabilities?: CapabilitySource[];
     /** Repo-scoped injection mode defaults (overrides top-level). */
     injection?: InjectionConfig;
@@ -51,7 +51,7 @@ export interface RepoDiscoveryConfig {
 export interface CapabilitySource {
     /** Path within the repo (e.g., `company/core`). */
     path: string;
-    /** Whether this capability is enabled (default: true). */
+    /** @deprecated Capability activation is represented by profile membership. */
     enabled?: boolean;
     /** Capability-scoped injection mode overrides (overrides repo and top-level). */
     injection?: InjectionConfig;
@@ -89,11 +89,13 @@ export interface FilterConfig {
 export interface ProfileConfig {
     /** Optional user-facing display name shown in UI surfaces. */
     displayName?: string;
-    /** Glob patterns for files to enable. */
+    /** Complete repo-qualified capability references selected by this profile. */
+    enabledCapabilities?: string[];
+    /** @deprecated Legacy file-pattern activation accepted only during migration. */
     enable?: string[];
-    /** Glob patterns for files to disable (wins over enable). */
+    /** @deprecated Legacy file-pattern activation accepted only during migration. */
     disable?: string[];
-    /** Optional per-layer overrides applied while this profile is active. */
+    /** @deprecated Legacy per-layer activation accepted only during migration. */
     layerOverrides?: ProfileLayerOverride[];
 }
 
@@ -128,6 +130,12 @@ export interface InjectionConfig {
     chatmodes?: InjectionMode;
 }
 
+/** Sparse capability-specific settings keyed by a repo-qualified capability reference. */
+export interface CapabilityOverride {
+    injection?: InjectionConfig;
+    fileNamingStrategy?: SyncFileNamingStrategy;
+}
+
 // ── Hooks ──────────────────────────────────────────────────────────
 
 /** Hook file path configuration. */
@@ -141,9 +149,9 @@ export interface HooksConfig {
 /**
  * The full `.metaflow/config.jsonc` configuration.
  *
- * Public v1 authoring is `metadataRepos[*].capabilities`.
- * Pre-release compatibility also accepts legacy single-repo
- * (`metadataRepo` + `layers`) and legacy multi-repo (`layerSources`) shapes.
+ * Canonical authoring uses repository descriptors plus profile-owned
+ * `enabledCapabilities` arrays. Pre-release compatibility also accepts legacy
+ * single-repo (`metadataRepo` + `layers`) and repo-grouped capability objects.
  */
 export interface MetaFlowConfig {
     /** Authored config compatibility version used for release-aware migration. */
@@ -163,6 +171,9 @@ export interface MetaFlowConfig {
      * Maintained for compatibility and runtime normalization.
      */
     layerSources?: LayerSource[];
+
+    /** Sparse capability settings keyed by `repoId:path`; omitted when unused. */
+    capabilityOverrides?: Record<string, CapabilityOverride>;
 
     // ── Filtering & profiles ───────────────────────────────────────
     /** Path-based include/exclude filters. */

@@ -63,21 +63,18 @@ suite('Init Config Helpers', () => {
             injection: Record<string, string>;
         };
 
-        assert.strictEqual(withUrl.compatibilityVersion, 2);
+        assert.strictEqual(withUrl.compatibilityVersion, 3);
         assert.strictEqual(withUrl.metadataRepos.length, 1);
         assert.strictEqual(withUrl.metadataRepos[0].id, 'primary');
         assert.strictEqual(withUrl.metadataRepos[0].localPath, '.ai/metadata');
         assert.strictEqual(withUrl.metadataRepos[0].url, 'https://github.com/org/meta.git');
-        assert.strictEqual(withUrl.metadataRepos[0].enabled, true);
-        assert.strictEqual(withUrl.metadataRepos[0].capabilities?.length, 1);
-        assert.strictEqual(withUrl.metadataRepos[0].capabilities?.[0].path, 'company');
-        assert.strictEqual(withUrl.metadataRepos[0].capabilities?.[0].enabled, false);
+        assert.strictEqual(withUrl.metadataRepos[0].enabled, undefined);
+        assert.strictEqual(withUrl.metadataRepos[0].capabilities, undefined);
         assert.strictEqual(withUrl.activeProfile, 'default');
         assert.ok(withUrl.profiles.default);
         assert.deepStrictEqual(withUrl.profiles.default, {
             displayName: 'Default',
-            enable: ['**/*'],
-            disable: [],
+            enabledCapabilities: [],
         });
         assert.strictEqual(withUrl.injection.instructions, 'plugin');
 
@@ -85,16 +82,16 @@ suite('Init Config Helpers', () => {
             compatibilityVersion: number;
             metadataRepos: Array<{ url?: string; capabilities?: Array<{ enabled?: boolean }> }>;
         };
-        assert.strictEqual(withoutUrl.compatibilityVersion, 2);
+        assert.strictEqual(withoutUrl.compatibilityVersion, 3);
         assert.strictEqual(withoutUrl.metadataRepos[0].url, undefined);
-        assert.strictEqual(withoutUrl.metadataRepos[0].capabilities?.[0].enabled, false);
+        assert.strictEqual(withoutUrl.metadataRepos[0].capabilities, undefined);
 
         const withoutLayers = buildConfig('.ai/empty-metadata', []) as {
             metadataRepos: Array<{ capabilities?: Array<{ path: string }> }>;
         };
         assert.deepStrictEqual(
             withoutLayers.metadataRepos[0].capabilities,
-            [],
+            undefined,
             'empty metadata directories should produce a valid zero-capability bootstrap config',
         );
     });

@@ -171,17 +171,16 @@ export function standardConfig(
     overrides?: Partial<Record<string, unknown>>,
 ): Record<string, unknown> {
     return {
-        metadataRepo: {
-            localPath: '.ai/ai-metadata',
-        },
-        layers: ['company/core'],
+        compatibilityVersion: 3,
+        metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata' }],
+        layerSources: [{ repoId: 'primary', path: 'company/core' }],
         filters: {
             include: ['**'],
             exclude: [],
         },
         profiles: {
-            default: { enable: ['**'] },
-            lean: { disable: ['agents/**'] },
+            default: { enabledCapabilities: ['primary:company/core'] },
+            lean: { enabledCapabilities: [] },
         },
         activeProfile: 'default',
         injection: {
