@@ -277,7 +277,7 @@ suite('Test Runner Entry', () => {
         assert.strictEqual(state.suppressMutexStack, true);
         assert.strictEqual(
             shouldSuppressKnownIntegrationOutputLine(
-                '    at ls.installMutex (file:///C:/Users/cyates/gitwork/AI/MetaFlow/src/.vscode-test/resources/app/out/main.js:550:23404)',
+                '    at ls.installMutex (file:///C:/workspace/MetaFlow/src/.vscode-test/resources/app/out/main.js:550:23404)',
                 state,
             ),
             true,
@@ -325,7 +325,7 @@ suite('Test Runner Entry', () => {
                         '[main 2026-03-11T19:04:07.434Z] Error: Error mutex already exists\r\n',
                     );
                     process.stdout.write(
-                        '    at ls.installMutex (file:///C:/Users/cyates/gitwork/AI/MetaFlow/src/.vscode-test/resources/app/out/main.js:550:23404)\r\n',
+                        '    at ls.installMutex (file:///C:/workspace/MetaFlow/src/.vscode-test/resources/app/out/main.js:550:23404)\r\n',
                     );
                     process.stdout.write('visible stdout line\r\n');
                     process.stderr.write('visible stderr remainder');

@@ -21,6 +21,4 @@ Last reviewed: 2026-05-22
 
 ## Repo-local research and design inputs
 
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\README.md`
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\codex.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`

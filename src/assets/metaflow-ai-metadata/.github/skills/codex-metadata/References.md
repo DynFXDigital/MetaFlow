@@ -14,6 +14,4 @@ Last reviewed: 2026-03-28
 - MCP: https://developers.openai.com/codex/mcp
 
 ## Repo-local research and design inputs
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\README.md`
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\codex.md`
 - `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`

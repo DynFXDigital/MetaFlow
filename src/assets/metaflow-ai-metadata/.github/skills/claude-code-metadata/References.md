@@ -13,7 +13,5 @@ Last reviewed: 2026-03-28
 - Documentation map: https://code.claude.com/docs/en/claude_code_docs_map.md
 
 ## Repo-local research and design inputs
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\README.md`
-- `C:\Users\cyates\gitwork\Solaroids\.ai\temp\research\ai-metadata-comparison\claude-code.md`
 - `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
 - `capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/CAPABILITY.md`
