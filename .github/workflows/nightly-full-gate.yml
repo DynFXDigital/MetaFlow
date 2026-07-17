@@ -42,4 +42,16 @@ jobs:
         run: xvfb-run -a npm run gate:full
 
       - name: GUI tests (headless)
+        env:
+          METAFLOW_GUI_READY_TIMEOUT_MS: '90000'
         run: xvfb-run -a npm -w metaflow-ai run test:gui
+
+      - name: Upload GUI diagnostics
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: nightly-gui-diagnostics-${{ github.run_id }}
+          path: |
+            src/.vscode-test/gui/screenshots/
+            src/.vscode-test/gui/**/*.log
+          if-no-files-found: ignore
