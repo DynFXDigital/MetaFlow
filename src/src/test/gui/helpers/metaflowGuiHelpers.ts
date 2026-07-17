@@ -19,11 +19,19 @@ import {
     Key,
 } from 'vscode-extension-tester';
 
+const IS_CI = process.env.CI === 'true';
 const WELCOME_OVERLAY_SELECTOR = '.onboarding-a-overlay, .welcomeOverlay, .getting-started';
 
-export const STARTUP_TIMEOUT = 90_000;
+export const STARTUP_TIMEOUT = IS_CI ? 120_000 : 90_000;
 export const WAIT_TIMEOUT = 30_000;
 export const INTERACTION_TIMEOUT = 15_000;
+const configuredGuiReadyTimeout = Number(process.env.METAFLOW_GUI_READY_TIMEOUT_MS);
+const GUI_READY_TIMEOUT =
+    Number.isFinite(configuredGuiReadyTimeout) && configuredGuiReadyTimeout > 0
+        ? configuredGuiReadyTimeout
+        : IS_CI
+          ? 90_000
+          : WAIT_TIMEOUT;
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
@@ -301,12 +309,33 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
     }, STARTUP_TIMEOUT);
     assert.ok(control, 'MetaFlow activity bar entry not found');
     try {
-        return (await control.openView()) as SideBarView;
+        const sideBar = (await control.openView()) as SideBarView;
+        const workbench = new Workbench();
+        // Explicitly refresh and reveal the contributed container on cold CI
+        // hosts, where the activity-bar control can exist before its providers
+        // have produced their first tree contents.
+        try {
+            await workbench.executeCommand('MetaFlow: Refresh');
+        } catch {
+            // Readiness polling below reports the resulting UI state.
+        }
+        try {
+            await workbench.executeCommand('workbench.view.extension.metaflow-container');
+        } catch {
+            // control.openView() already revealed the container on older builds.
+        }
+        return sideBar;
     } catch {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
         await dismissWelcomeOverlay();
         await sleep(300);
-        return (await control.openView()) as SideBarView;
+        const sideBar = (await control.openView()) as SideBarView;
+        try {
+            await new Workbench().executeCommand('MetaFlow: Refresh');
+        } catch {
+            // best-effort activation; readiness polling remains authoritative
+        }
+        return sideBar;
     }
 }
 
@@ -377,16 +406,61 @@ export async function waitForSectionReady(
     section: ViewSection,
     timeoutMs = WAIT_TIMEOUT,
 ): Promise<void> {
-    await expandSection(section);
-    await waitFor(async () => {
-        const texts = await getVisibleItemTexts(section);
-        return (
-            texts.length > 0 &&
-            texts.every((t) => t.length > 0 && !t.includes('Loading'))
-        );
-    }, timeoutMs);
-    // Reveal nested children (tree-mode capability groups) so all leaves are findable.
-    await expandAllItems(section);
+    const effectiveTimeoutMs = IS_CI ? Math.max(timeoutMs, GUI_READY_TIMEOUT) : timeoutMs;
+    const deadline = Date.now() + effectiveTimeoutMs;
+    let intervalMs = 250;
+    let lastState = 'unavailable';
+
+    while (Date.now() < deadline) {
+        try {
+            await expandSection(section);
+            const texts = await getVisibleItemTexts(section);
+            let notifications: string[] = [];
+            try {
+                notifications = await Promise.all(
+                    (await new Workbench().getNotifications()).map((notification) =>
+                        notification.getMessage().catch(() => ''),
+                    ),
+                );
+            } catch {
+                // Notification enumeration is diagnostic-only and must not
+                // prevent a ready tree from satisfying the condition.
+            }
+            const title = await section.getTitle().catch(() => 'unknown');
+            const expanded = await section.isExpanded().catch(() => false);
+            lastState = JSON.stringify({
+                title,
+                expanded,
+                itemCount: texts.length,
+                items: texts.slice(0, 12),
+                notifications: notifications.filter(Boolean).slice(0, 8),
+            });
+
+            if (
+                texts.length > 0 &&
+                texts.every((text) => text.length > 0 && !text.includes('Loading'))
+            ) {
+                // Reveal nested children (tree-mode capability groups) so all
+                // leaves are findable by the suites that follow.
+                await expandAllItems(section);
+                return;
+            }
+        } catch (error: unknown) {
+            lastState = `state-collect-error: ${String(error)}`;
+        }
+
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+            break;
+        }
+        await sleep(Math.min(intervalMs, remainingMs));
+        intervalMs = Math.min(1_000, intervalMs + 250);
+    }
+
+    throw new Error(
+        `MetaFlow section not ready after ${effectiveTimeoutMs}ms. ` +
+            `Last known UI state: ${lastState}`,
+    );
 }
 
 /**
