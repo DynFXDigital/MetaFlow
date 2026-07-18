@@ -41,8 +41,6 @@ export type LayersViewMode = 'flat' | 'tree';
 export const DEFAULT_FILES_VIEW_MODE: FilesViewMode = 'unified';
 export const DEFAULT_LAYERS_VIEW_MODE: LayersViewMode = 'tree';
 
-const RUNTIME_ONLY_CAPABILITY_REPO_IDS = new Set(['__metaflow_builtin__']);
-
 export interface ManagedViewsState {
     filesViewMode: FilesViewMode;
     layersViewMode: LayersViewMode;
@@ -310,9 +308,7 @@ export function projectConfigForProfile(
                 ? {
                       layerSources: config.layerSources.map((layerSource) => ({
                           ...layerSource,
-                          enabled: RUNTIME_ONLY_CAPABILITY_REPO_IDS.has(layerSource.repoId)
-                              ? layerSource.enabled
-                              : selected.has(
+                          enabled: selected.has(
                                     `${layerSource.repoId}:${normalizeLayerPath(layerSource.path)}`,
                                 ),
                       })),
@@ -415,6 +411,9 @@ export function cloneProfileConfig(profile?: ProfileConfig): ProfileConfig {
 
     return {
         ...(profile.displayName !== undefined ? { displayName: profile.displayName } : {}),
+        ...(profile.enabledCapabilities !== undefined
+            ? { enabledCapabilities: [...profile.enabledCapabilities] }
+            : {}),
         ...(profile.enable !== undefined ? { enable: [...profile.enable] } : {}),
         ...(profile.disable !== undefined ? { disable: [...profile.disable] } : {}),
         ...(profile.layerOverrides !== undefined

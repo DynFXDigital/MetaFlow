@@ -93,6 +93,7 @@ import {
     readManagedViewsState,
     normalizeAiMetadataAutoApplyMode,
     projectConfigForProfile,
+    updateProfileLayerOverride,
     type FilesViewMode,
     type LayersViewMode,
     type AiMetadataAutoApplyMode,
@@ -1801,7 +1802,6 @@ function applyLayerMutationToActiveProfile(
     if (!target) {
         return { scopedToProfile: false };
     }
-
     const reference = `${repoId}:${normalizeCommandLayerPath(layerPath)}`;
     const selected = new Set(target.profile.enabledCapabilities ?? []);
     if (mutation.enabled === false) {
@@ -2601,6 +2601,92 @@ function withBuiltInCapabilityProjected(
     projected.layerSources = multiRepo.layerSources;
 
     return projected;
+}
+
+/** Persist the bundled metadata source using the same authored config/profile model as any repo. */
+function persistBuiltInCapabilityConfig(
+    config: MetaFlowConfig,
+    builtInState: BuiltInCapabilityRuntimeState,
+): void {
+    if (!builtInState.sourceRoot) {
+        return;
+    }
+
+    const multiRepo = ensureMultiRepoConfig(config);
+    const builtInManifest = loadBuiltInRepoManifest(builtInState.sourceRoot);
+    const existingRepo = multiRepo.metadataRepos.find(
+        (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,
+    );
+    const builtInRepo = existingRepo ?? {
+        id: BUILT_IN_CAPABILITY_REPO_ID,
+        localPath: builtInState.sourceRoot,
+    };
+    builtInRepo.localPath = builtInState.sourceRoot;
+    builtInRepo.name = resolveBuiltInCapabilityDisplayName(
+        builtInManifest?.name,
+        builtInState.sourceDisplayName,
+    );
+    builtInRepo.enabled = resolveBuiltInRepoEnabled(builtInState);
+    builtInRepo.injection = builtInState.injection;
+    if (!existingRepo) {
+        multiRepo.metadataRepos.push(builtInRepo);
+    }
+
+    const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
+    const builtInLayerKeys = new Set(
+        builtInLayerPaths.map((layerPath) => normalizeBuiltInLayerPath(layerPath)),
+    );
+    const nextLayerSources = multiRepo.layerSources.filter(
+        (source) => source.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+    );
+    for (const layerPath of builtInLayerPaths) {
+        nextLayerSources.push({
+            repoId: BUILT_IN_CAPABILITY_REPO_ID,
+            path: layerPath,
+            enabled:
+                resolveBuiltInRepoEnabled(builtInState) &&
+                resolveBuiltInLayerEnabled(builtInState, layerPath),
+        });
+    }
+    config.layerSources = nextLayerSources;
+
+    const activeProfileId = config.activeProfile ?? DEFAULT_PROFILE_ID;
+    const activeProfile = config.profiles?.[activeProfileId];
+    if (!activeProfile) {
+        return;
+    }
+
+    if (activeProfile.enabledCapabilities !== undefined) {
+        const selected = new Set(activeProfile.enabledCapabilities);
+        for (const layerPath of builtInLayerKeys) {
+            const reference = `${BUILT_IN_CAPABILITY_REPO_ID}:${layerPath}`;
+            if (
+                resolveBuiltInRepoEnabled(builtInState) &&
+                resolveBuiltInLayerEnabled(builtInState, layerPath)
+            ) {
+                selected.add(reference);
+            } else {
+                selected.delete(reference);
+            }
+        }
+        activeProfile.enabledCapabilities = Array.from(selected).sort((left, right) =>
+            left.localeCompare(right),
+        );
+        return;
+    }
+
+    for (const layerPath of builtInLayerKeys) {
+        updateProfileLayerOverride(
+            activeProfile,
+            BUILT_IN_CAPABILITY_REPO_ID,
+            layerPath,
+            {
+                enabled:
+                    resolveBuiltInRepoEnabled(builtInState) &&
+                    resolveBuiltInLayerEnabled(builtInState, layerPath),
+            },
+        );
+    }
 }
 
 async function resolveBuiltInCapabilitySourceRoot(
@@ -5862,14 +5948,16 @@ export function registerCommands(
                             logWarn(warning.message);
                         }
                     }
+                    const configWarnings = [
+                        ...configLoadWarnings,
+                        ...configuredSourceDiagnosticWarnings,
+                    ];
                     publishConfigWarningDiagnostics(
                         diagnosticCollection,
                         result.configPath,
-                        configuredSourceDiagnosticWarnings,
+                        configWarnings,
                     );
-                    state.configWarnings = configuredSourceDiagnosticWarnings.map(
-                        formatConfigWarningMessage,
-                    );
+                    state.configWarnings = configWarnings.map(formatConfigWarningMessage);
                     state.capabilityDiagnosticFilePaths = replaceCapabilityWarningDiagnostics(
                         diagnosticCollection,
                         state.capabilityDiagnosticFilePaths,
@@ -6537,6 +6625,12 @@ export function registerCommands(
                                           layerStates: {},
                                       },
                                   );
+                        if (candidateConfig && state.configPath) {
+                            persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
+                            await persistConfig(state.configPath, candidateConfig, state);
+                            state.config = candidateConfig;
+                            state.activeProfile = candidateConfig.activeProfile;
+                        }
                     },
                 });
                 if (!applied) {
@@ -6841,6 +6935,7 @@ export function registerCommands(
                             updatedBuiltInLayerPaths,
                             requestedCheckedState,
                         );
+                        persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
                     }
                     if (state.configPath) {
                         await persistConfig(state.configPath, candidateConfig, state);
@@ -7425,6 +7520,12 @@ export function registerCommands(
                                 layerStates: {},
                             },
                         );
+                        if (candidateConfig && state.configPath) {
+                            persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
+                            await persistConfig(state.configPath, candidateConfig, state);
+                            state.config = candidateConfig;
+                            state.activeProfile = candidateConfig.activeProfile;
+                        }
                     },
                 });
                 if (!applied) {

@@ -461,9 +461,7 @@ class LayerRepoItem extends vscode.TreeItem {
     ) {
         super(
             label,
-            repoDisabled
-                ? vscode.TreeItemCollapsibleState.None
-                : vscode.TreeItemCollapsibleState.Collapsed,
+            vscode.TreeItemCollapsibleState.Collapsed,
         );
         this.id = buildLayerTreeItemId('repo', 'tree', repoId, '.');
         this.contextValue = 'layerRepo';
@@ -1726,7 +1724,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     private shouldShowFlatEntry(entry: LayerEntry, descendantKeySet: Set<string>): boolean {
         if (entry.repoDisabled) {
-            return false;
+            return true;
         }
 
         if (entry.capability) {
@@ -2334,17 +2332,6 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         }
 
         if (element instanceof LayerRepoItem) {
-            const configuredRepoEnabled =
-                projectedConfig?.metadataRepos?.find((repo) => repo.id === element.repoId)
-                    ?.enabled !== false;
-            const repoEnabled =
-                element.repoId === BUILT_IN_CAPABILITY_REPO_ID
-                    ? resolveBuiltInRepoEnabled(this.state.builtInCapability)
-                    : configuredRepoEnabled;
-            if (!this.resolvePendingRepoEnabled(element.repoId, repoEnabled)) {
-                return [];
-            }
-
             const repoEntries = entries.filter((entry) => entry.repoId === element.repoId);
             const repoChildren = this.getTreeChildrenForPrefix(
                 repoEntries,

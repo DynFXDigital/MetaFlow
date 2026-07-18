@@ -431,11 +431,12 @@ suite('LayersTreeView – artifact-type children', () => {
         const [repoItem] = provider.getChildren();
         assert.strictEqual(String(repoItem?.label), 'repo1');
         assert.strictEqual(repoItem?.checkboxState, 0);
-        assert.deepStrictEqual(
-            provider.getChildren(repoItem),
-            [],
-            'disabled repositories should remain collapsed and unchecked in the Capabilities view',
+        const children = provider.getChildren(repoItem);
+        assert.ok(
+            children.length > 0,
+            'disabled repositories should keep their descendants visible in the Capabilities view',
         );
+        assert.strictEqual(children[0]?.checkboxState, 0);
     });
 
     test('LTV-AT-03c: repo item tooltip includes repo manifest description when available', () => {
@@ -751,11 +752,9 @@ suite('LayersTreeView – artifact-type children', () => {
         const [repoItem] = provider.getChildren();
         assert.strictEqual(String(repoItem?.label), 'repo1');
         assert.strictEqual(repoItem?.checkboxState, 0);
-        assert.deepStrictEqual(
-            provider.getChildren(repoItem),
-            [],
-            'repo-disabled source should remain collapsed until re-enabled',
-        );
+        const children = provider.getChildren(repoItem);
+        assert.ok(children.length > 0, 'repo-disabled sources should keep descendants visible');
+        assert.strictEqual(children[0]?.checkboxState, 0);
     });
 
     test('LTV-AT-09: layer with no known-type files – no artifact-type children', () => {
@@ -1180,6 +1179,40 @@ suite('LayersTreeView – artifact-type children', () => {
             extractTooltipText(capabilitiesFolder?.tooltip).includes(
                 'Branch state: partially enabled (1/2)',
             ),
+        );
+    });
+
+    test('LTV-BR-03: unchecked capability folders keep disabled descendants visible', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/devtools', enabled: true },
+                { repoId: 'repo1', path: 'capabilities/comms', enabled: true },
+            ],
+            profiles: {
+                default: {
+                    layerOverrides: [
+                        { repoId: 'repo1', path: 'capabilities/devtools', enabled: false },
+                        { repoId: 'repo1', path: 'capabilities/comms', enabled: false },
+                    ],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const provider = new LayersTreeViewProvider(makeState(config, []), () => 'tree');
+        const repoItem = provider.getChildren()[0];
+        const capabilitiesFolder = provider
+            .getChildren(repoItem)
+            .find((child) => String(child.label) === 'capabilities');
+
+        assert.ok(capabilitiesFolder, 'expected capabilities folder');
+        assert.strictEqual(capabilitiesFolder?.checkboxState, 0);
+        assert.deepStrictEqual(
+            provider.getChildren(capabilitiesFolder).map((child) => String(child.label)),
+            ['comms', 'devtools'],
+            'unchecking a folder must not remove its descendant capability nodes',
         );
     });
 
@@ -2151,11 +2184,9 @@ suite('LayersTreeView – artifact-type children', () => {
             .find((item) => item.repoId === '__metaflow_builtin__');
         assert.ok(builtInRepo, 'disabled built-in repo should remain visible');
         assert.strictEqual(builtInRepo?.checkboxState, 0);
-        assert.deepStrictEqual(
-            provider.getChildren(builtInRepo),
-            [],
-            'disabled built-in repo should remain collapsed until re-enabled',
-        );
+        const children = provider.getChildren(builtInRepo);
+        assert.ok(children.length > 0, 'disabled built-in repo should keep descendants visible');
+        assert.strictEqual(children[0]?.checkboxState, 0);
     });
 
     test('LTV-NF-06: root layer shows capability name without path prefix in description', () => {
@@ -2185,7 +2216,7 @@ suite('LayersTreeView – artifact-type children', () => {
         );
     });
 
-    test('LTV-NF-07: flat mode omits repo-disabled capabilities', () => {
+    test('LTV-NF-07: flat mode keeps repo-disabled capabilities visible', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1', enabled: false }],
@@ -2199,11 +2230,9 @@ suite('LayersTreeView – artifact-type children', () => {
             () => 'flat',
         );
 
-        assert.deepStrictEqual(
-            provider.getChildren().map((item) => String(item.label)),
-            [],
-            'flat mode should treat a disabled repo as an override that hides its capabilities',
-        );
+        const children = provider.getChildren();
+        assert.deepStrictEqual(children.map((item) => String(item.label)), ['Developer Tools']);
+        assert.strictEqual(children[0]?.checkboxState, 0);
     });
 
     test('LTV-NF-08: tree mode keeps disabled repo roots unchecked', () => {
@@ -2223,10 +2252,12 @@ suite('LayersTreeView – artifact-type children', () => {
         const [repoItem] = provider.getChildren();
         assert.strictEqual(String(repoItem?.label), 'CoreMeta');
         assert.strictEqual(repoItem?.checkboxState, 0);
+        const children = provider.getChildren(repoItem);
+        assert.deepStrictEqual(children.map((item) => String(item.label)), ['capabilities']);
+        assert.strictEqual(children[0]?.checkboxState, 0);
         assert.deepStrictEqual(
-            provider.getChildren(repoItem),
-            [],
-            'tree mode should keep the disabled repo root visible but collapsed',
+            provider.getChildren(children[0]).map((item) => String(item.label)),
+            ['Developer Tools'],
         );
     });
 
@@ -2253,10 +2284,11 @@ suite('LayersTreeView – artifact-type children', () => {
             makeState(disabledConfig, [], capabilityByLayer),
             () => 'flat',
         );
+        const disabledLayers = disabledProvider.getChildren();
         assert.deepStrictEqual(
-            disabledProvider.getChildren().map((item) => String(item.label)),
-            [],
-            'disabled repo should temporarily hide all flat-mode capabilities',
+            disabledLayers.map((item) => `${String(item.label)}:${item.checkboxState}`),
+            ['Active Tooling:0', 'Inactive Tooling:0'],
+            'disabled repo should keep all flat-mode capabilities visible but unchecked',
         );
 
         const enabledProvider = new LayersTreeViewProvider(
@@ -2320,11 +2352,12 @@ suite('LayersTreeView – artifact-type children', () => {
             repoId: 'repo1',
             checked: false,
         });
-        assert.deepStrictEqual(
-            provider.getChildren(repoItem),
-            [],
-            'pending repo disable should hide capabilities from the existing root item',
+        const disabledChildren = provider.getChildren(repoItem);
+        assert.ok(
+            disabledChildren.length > 0,
+            'pending repo disable should keep capabilities visible from the existing root item',
         );
+        assert.strictEqual(disabledChildren[0]?.checkboxState, 0);
 
         provider.setPendingCapabilityCheckboxState({
             kind: 'repo',
