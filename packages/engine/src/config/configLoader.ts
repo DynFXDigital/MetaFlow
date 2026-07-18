@@ -90,9 +90,20 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
 
     // Validate authored/legacy schema before normalization so incomplete
     // legacy shapes still surface precise compatibility errors.
-    const validationErrors = validateConfig(parsed as MetaFlowConfig, workspaceRoot);
+    const validationDiagnostics = validateConfig(parsed as MetaFlowConfig, workspaceRoot);
+    const validationErrors = validationDiagnostics.filter(
+        (diagnostic) => diagnostic.severity !== 'warning',
+    );
+    const validationWarnings = validationDiagnostics.filter(
+        (diagnostic) => diagnostic.severity === 'warning',
+    );
     if (validationErrors.length > 0) {
-        return { ok: false, errors: validationErrors, configPath };
+        return {
+            ok: false,
+            errors: validationErrors,
+            ...(validationWarnings.length > 0 ? { warnings: validationWarnings } : {}),
+            configPath,
+        };
     }
 
     const normalized = normalizeConfigShape(parsed as MetaFlowConfig);
@@ -101,6 +112,7 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
         ok: true,
         config: normalized.config,
         configPath,
+        ...(validationWarnings.length > 0 ? { warnings: validationWarnings } : {}),
         ...(normalized.migrated
             ? {
                   migrated: true,
@@ -114,7 +126,7 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
  * Validate a parsed config object against the MetaFlow schema.
  *
  * @param config The parsed config.
- * @returns Array of validation errors (empty if valid).
+ * @returns Config validation errors and recoverable warnings.
  */
 export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): ConfigError[] {
     const errors: ConfigError[] = [];
@@ -274,7 +286,9 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                     errors.push({ message: 'Each "layerSources" entry must have a "repoId".' });
                 } else if (!uniqueIds.has(ls.repoId)) {
                     errors.push({
+                        code: 'CONFIG_LAYER_SOURCE_REPO_UNRESOLVED',
                         message: `"layerSources" repoId "${ls.repoId}" does not match any "metadataRepos" id.`,
+                        severity: 'warning',
                     });
                 }
                 if (!ls.path) {
@@ -336,7 +350,9 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 seen.add(reference);
                 if (config.metadataRepos && !repoIds.has(repoId)) {
                     errors.push({
+                        code: 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
                         message: `Profile "${profileId}" capability reference "${reference}" does not match a metadata repository.`,
+                        severity: 'warning',
                     });
                 }
             }

@@ -25,7 +25,8 @@ type ConfigDiagnosticsModule = {
         result: {
             ok: boolean;
             configPath?: string;
-            errors: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
+            errors?: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
+            warnings?: Array<{ message: string; code?: string; severity?: 'error' | 'warning'; line?: number; column?: number }>;
         },
     ) => void;
     publishConfigWarningDiagnostics: (
@@ -434,6 +435,57 @@ suite('Config Diagnostics', () => {
         assert.deepStrictEqual(collection.deleteCalls, [
             { fsPath: '/workspace/.metaflow/config.jsonc' },
         ]);
+    });
+
+    test('publishConfigDiagnostics keeps recoverable load warnings visible on a successful load', () => {
+        const module = loadConfigDiagnosticsWithMock({
+            Uri: { file: (value: string): { fsPath: string } => ({ fsPath: value }) },
+            Range: class Range {
+                constructor(
+                    public startLine: number,
+                    public startCol: number,
+                    public endLine: number,
+                    public endCol: number,
+                ) {}
+            },
+            Diagnostic: class Diagnostic {
+                public source?: string;
+                public code?: string;
+
+                constructor(
+                    public range: unknown,
+                    public message: string,
+                    public severity: unknown,
+                ) {}
+            },
+            DiagnosticSeverity: {
+                Error: 'error',
+                Warning: 'warning',
+            },
+        });
+
+        const collection = createCollectionMock();
+        module.publishConfigDiagnostics(collection, {
+            ok: true,
+            configPath: '/workspace/.metaflow/config.jsonc',
+            warnings: [
+                {
+                    code: 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
+                    severity: 'warning',
+                    message: 'unresolved capability repository',
+                    line: 4,
+                    column: 2,
+                },
+            ],
+        });
+
+        assert.strictEqual(collection.setCalls.length, 1);
+        assert.strictEqual(collection.setCalls[0].diagnostics.length, 1);
+        assert.strictEqual(collection.setCalls[0].diagnostics[0].severity, 'warning');
+        assert.strictEqual(
+            (collection.setCalls[0].diagnostics[0] as { code?: string }).code,
+            'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
+        );
     });
 
     test('publishConfigDiagnostics is no-op when config path is missing', () => {

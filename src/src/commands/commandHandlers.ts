@@ -66,6 +66,7 @@ import {
     publishGovernanceDiagnostics,
     clearDiagnostics,
 } from '../diagnostics/configDiagnostics';
+import type { SupplementalConfigDiagnostic } from '../diagnostics/configDiagnostics';
 import { buildDiagnosticsSnapshot } from '../diagnostics/diagnosticsSnapshot';
 import { logDebug, logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
@@ -760,6 +761,20 @@ function cloneConfigError(error: ConfigError): ConfigError {
         ...(error.severity !== undefined ? { severity: error.severity } : {}),
         ...(error.line !== undefined ? { line: error.line } : {}),
         ...(error.column !== undefined ? { column: error.column } : {}),
+    };
+}
+
+function toConfigWarningDiagnostic(
+    warning: ConfigError,
+    configPath: string | undefined,
+): SupplementalConfigDiagnostic {
+    return {
+        message: warning.message,
+        ...(warning.code !== undefined ? { code: warning.code } : {}),
+        severity: 'warning',
+        ...(configPath ? { file: configPath } : {}),
+        ...(warning.line !== undefined ? { startLine: warning.line } : {}),
+        ...(warning.column !== undefined ? { startColumn: warning.column } : {}),
     };
 }
 
@@ -5542,7 +5557,9 @@ export function registerCommands(
                     state.capabilityWarnings = [];
                     state.configWarnings = configMissing
                         ? []
-                        : result.errors.map(formatConfigWarningMessage);
+                        : [...result.errors, ...(result.warnings ?? [])].map(
+                              formatConfigWarningMessage,
+                          );
                     state.capabilityDiagnosticFilePaths = [];
                     state.agentPluginCatalog = [];
                     state.localGitRepoIds = new Set<string>();
@@ -5827,6 +5844,12 @@ export function registerCommands(
                     state.capabilityByLayer = overlay.capabilityByLayer;
                     state.capabilityWarnings = overlay.capabilityWarnings;
                     state.agentPluginCatalog = overlay.agentPluginCatalog;
+                    const configLoadWarnings = (result.warnings ?? []).map((warning) =>
+                        toConfigWarningDiagnostic(warning, result.configPath),
+                    );
+                    for (const warning of configLoadWarnings) {
+                        logWarn(formatConfigWarningMessage(warning));
+                    }
                     const configuredSourceDiagnosticWarnings =
                         collectEnabledConfiguredSourceDiagnosticWarnings(
                             activeProfileConfig,

@@ -209,13 +209,14 @@ export interface ConfigError {
     column?: number;
 }
 
-/** Result of config loading: either a valid config or errors. */
+/** Result of config loading: a usable config may still have recoverable warnings. */
 export type ConfigLoadResult =
     | {
           ok: true;
           config: MetaFlowConfig;
           configPath: string;
+          warnings?: ConfigError[];
           migrated?: boolean;
           migrationMessages?: string[];
       }
-    | { ok: false; errors: ConfigError[]; configPath?: string };
+    | { ok: false; errors: ConfigError[]; warnings?: ConfigError[]; configPath?: string };

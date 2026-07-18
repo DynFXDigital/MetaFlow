@@ -42,29 +42,30 @@ export function formatDiagnosticLocation(
 }
 
 /**
- * Publish config errors as VS Code diagnostics.
+ * Publish config errors and recoverable warnings as VS Code diagnostics.
  *
  * @param collection The diagnostic collection to publish to.
- * @param result     A failed ConfigLoadResult with errors and optional configPath.
+ * @param result     A ConfigLoadResult with optional errors, warnings, and configPath.
  */
 export function publishConfigDiagnostics(
     collection: vscode.DiagnosticCollection,
     result: ConfigLoadResult,
 ): void {
     const configPath = result.configPath;
-    if (result.ok) {
-        if (configPath) {
-            collection.delete(vscode.Uri.file(configPath));
-        }
-        return;
-    }
-
     if (!configPath) {
         // No file to attach diagnostics to — nothing to show in Problems panel.
         return;
     }
+
+    const errors = result.ok ? [] : result.errors;
+    const diagnosticsToPublish = [...errors, ...(result.warnings ?? [])];
+    if (diagnosticsToPublish.length === 0) {
+        collection.delete(vscode.Uri.file(configPath));
+        return;
+    }
+
     const configUri = vscode.Uri.file(configPath);
-    const diagnostics: vscode.Diagnostic[] = result.errors.map((err) => {
+    const diagnostics: vscode.Diagnostic[] = diagnosticsToPublish.map((err) => {
         const line = err.line ?? 0;
         const col = err.column ?? 0;
         const range = new vscode.Range(line, col, line, col + 1);

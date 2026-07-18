@@ -1629,7 +1629,7 @@ describe('Engine: config validation', () => {
         }
     });
 
-    it('validates multi-repo repoId references', () => {
+    it('loads unresolved layerSource repoId references with warnings', () => {
         const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
         fs.writeFileSync(
             configPath,
@@ -1641,8 +1641,44 @@ describe('Engine: config validation', () => {
         );
 
         const result = loadConfigFromPath(configPath);
-        assert.strictEqual(result.ok, false);
-        assert.ok(result.errors.some((e) => e.message.includes('does not match')));
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.ok(
+                result.warnings?.some(
+                    (warning) =>
+                        warning.code === 'CONFIG_LAYER_SOURCE_REPO_UNRESOLVED' &&
+                        warning.message.includes('does not match'),
+                ),
+            );
+        }
+    });
+
+    it('loads unresolved profile capability repoId references with warnings', () => {
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                metadataRepos: [{ id: 'primary', localPath: 'a' }],
+                profiles: {
+                    default: {
+                        enabledCapabilities: ['missing:capabilities/ghost'],
+                    },
+                },
+            }),
+            'utf-8',
+        );
+
+        const result = loadConfigFromPath(configPath);
+        assert.strictEqual(result.ok, true);
+        if (result.ok) {
+            assert.ok(
+                result.warnings?.some(
+                    (warning) =>
+                        warning.code === 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED' &&
+                        warning.message.includes('does not match'),
+                ),
+            );
+        }
     });
 
     it('validates multi-repo missing repo fields', () => {

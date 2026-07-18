@@ -250,13 +250,43 @@ suite('Config Loader', () => {
             assert.deepStrictEqual(validateConfig(config), []);
         });
 
-        test('layerSources with invalid repoId produces error', () => {
+        test('layerSources with unresolved repoId produces a warning without blocking load', () => {
             const config: MetaFlowConfig = {
                 metadataRepos: [{ id: 'primary', localPath: 'a' }],
                 layerSources: [{ repoId: 'missing', path: 'layer' }],
             };
-            const errors = validateConfig(config);
-            assert.ok(errors.some((e) => e.message.includes('"missing"')));
+            const diagnostics = validateConfig(config);
+            assert.ok(
+                diagnostics.some(
+                    (diagnostic) =>
+                        diagnostic.severity === 'warning' &&
+                        diagnostic.code === 'CONFIG_LAYER_SOURCE_REPO_UNRESOLVED' &&
+                        diagnostic.message.includes('"missing"'),
+                ),
+            );
+        });
+
+        test('profile capability with unresolved repoId produces a warning without blocking load', () => {
+            const result = parseAndValidate(
+                JSON.stringify({
+                    metadataRepos: [{ id: 'primary', localPath: 'a' }],
+                    profiles: {
+                        default: {
+                            enabledCapabilities: ['missing:capabilities/ghost'],
+                        },
+                    },
+                }),
+                'test.json',
+            );
+            assert.strictEqual(result.ok, true);
+            if (result.ok) {
+                assert.ok(
+                    result.warnings?.some(
+                        (warning) =>
+                            warning.code === 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
+                    ),
+                );
+            }
         });
 
         test('activeProfile referencing non-existent profile is non-fatal', () => {
