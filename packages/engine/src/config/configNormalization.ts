@@ -163,6 +163,7 @@ function cloneNamedRepo(
         ...(repo.url !== undefined ? { url: repo.url } : {}),
         localPath: repo.localPath,
         ...(repo.commit !== undefined ? { commit: repo.commit } : {}),
+        ...(repo.enabled === false ? { enabled: false } : {}),
         ...(repo.discover !== undefined
             ? { discover: orderRepoDiscoveryConfig(repo.discover) }
             : {}),

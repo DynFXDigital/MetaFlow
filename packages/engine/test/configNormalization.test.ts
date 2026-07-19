@@ -52,6 +52,21 @@ describe('config normalization: atomic capability selections', () => {
         assert.strictEqual(authored.layerSources, undefined);
     });
 
+    it('preserves an explicitly disabled repository during authored serialization', () => {
+        const authored = toAuthoredConfig({
+            metadataRepos: [
+                { id: 'enabled', localPath: 'repos/enabled', enabled: true },
+                { id: 'disabled', localPath: 'repos/disabled', enabled: false },
+            ],
+            profiles: { default: { enabledCapabilities: [] } },
+        });
+
+        assert.deepStrictEqual(authored.metadataRepos, [
+            { id: 'enabled', localPath: 'repos/enabled' },
+            { id: 'disabled', localPath: 'repos/disabled', enabled: false },
+        ]);
+    });
+
     it('preserves explicit canonical selections and removes legacy profile fields', () => {
         const authored = toAuthoredConfig({
             metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
