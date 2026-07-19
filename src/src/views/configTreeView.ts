@@ -746,7 +746,9 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
 
             if (config.metadataRepos) {
                 return [
-                    ...config.metadataRepos.map(
+                    ...config.metadataRepos.filter(
+                        (repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID,
+                    ).map(
                         (repo) =>
                             new RepoSourceItem(
                                 this.resolveRepoDisplayLabel(

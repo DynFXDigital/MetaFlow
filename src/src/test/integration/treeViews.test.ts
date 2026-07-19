@@ -170,6 +170,47 @@ suite('TreeView Providers', () => {
         );
     });
 
+    test('ConfigTreeView renders the built-in source only through its dedicated entry', () => {
+        state.config = {
+            metadataRepos: [
+                { id: 'primary', localPath: '.ai/ai-metadata', enabled: true },
+                {
+                    id: '__metaflow_builtin__',
+                    name: 'MetaFlow',
+                    localPath: 'globalStorage/bundled-metadata/metaflow-ai-metadata',
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core', enabled: true },
+                { repoId: '__metaflow_builtin__', path: '.', enabled: true },
+            ],
+        };
+        state.builtInCapability = {
+            enabled: true,
+            layerEnabled: true,
+            synchronizedFiles: [],
+            sourceRoot: path.join('/extension', 'assets', 'metaflow-ai-metadata'),
+            sourceId: 'dynfxdigital.metaflow-ai',
+            sourceDisplayName: 'MetaFlow',
+        };
+
+        const provider = new ConfigTreeViewProvider(state);
+        const rootItems = provider.getChildren();
+        const repoItems = provider.getChildren(rootItems[0] as never);
+
+        assert.deepStrictEqual(
+            repoItems.map((item) => String(item.label)),
+            ['ai-metadata', 'MetaFlow'],
+            'The built-in repo should appear only as the dedicated bundled source entry',
+        );
+        assert.strictEqual(
+            repoItems[1].description,
+            'bundled extension metadata (enabled)',
+            'The built-in entry should retain its bundled-source presentation',
+        );
+    });
+
     test('ConfigTreeView marks git-backed repositories and shows remote URL in tooltip', () => {
         state.treeSummaryCache = makeEmptyTreeSummaryCache();
         state.config = {
