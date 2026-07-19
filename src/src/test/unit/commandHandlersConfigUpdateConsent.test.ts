@@ -46,6 +46,17 @@ suite('Command handler config update consent', () => {
         assert.match(confirmHelper, /'Later'/);
     });
 
+    test('persistence removes the obsolete top-level filters property', () => {
+        const source = readCommandHandlersSource();
+        const persistenceBlock = sourceSlice(
+            source,
+            'const topLevelKeys = [',
+            'let existing: string | undefined;',
+        );
+
+        assert.match(persistenceBlock, /'filters',/);
+    });
+
     test('test-mode refresh accepts pending updates without opening modal dialogs', () => {
         const source = readCommandHandlersSource();
         const refreshOptionsBlock = sourceSlice(

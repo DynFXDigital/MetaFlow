@@ -3339,6 +3339,7 @@ async function persistConfig(
         'metadataRepos',
         'layerSources',
         'capabilityOverrides',
+        'filters',
         'profiles',
         'activeProfile',
         'injection',
