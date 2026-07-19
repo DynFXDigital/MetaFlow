@@ -658,6 +658,7 @@ export function toAuthoredConfig(config: MetaFlowConfig): MetaFlowConfig {
 
 export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigShape {
     const authoredConfig = toAuthoredConfig(config);
+    const hasLegacyFilters = Object.prototype.hasOwnProperty.call(config, 'filters');
     const catalogSources = allLegacyLayerSources(config);
     const sourceByReference = new Map(
         catalogSources.map((source) => [capabilityReference(source.repoId, source.path), source]),
@@ -734,6 +735,11 @@ export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigSh
     ))) {
         migrationMessages.push(
             'Migrated legacy profile activation fields to complete enabledCapabilities selections.',
+        );
+    }
+    if (hasLegacyFilters) {
+        migrationMessages.push(
+            'Removed unsupported top-level filters; capability selection is controlled by profiles.',
         );
     }
 

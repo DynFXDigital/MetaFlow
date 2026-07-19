@@ -3,6 +3,23 @@ import { normalizeConfigShape, toAuthoredConfig } from '../src/index';
 import type { MetaFlowConfig } from '../src/index';
 
 describe('config normalization: atomic capability selections', () => {
+    it('marks legacy top-level filters for persistence removal', () => {
+        const normalized = normalizeConfigShape({
+            metadataRepos: [{ id: 'primary', localPath: '.ai/metadata' }],
+            filters: { include: [], exclude: [] },
+            profiles: { default: { enabledCapabilities: [] } },
+        } as MetaFlowConfig & { filters: unknown });
+
+        assert.strictEqual(
+            Object.prototype.hasOwnProperty.call(normalized.authoredConfig, 'filters'),
+            false,
+        );
+        assert.strictEqual(normalized.migrated, true);
+        assert.ok(
+            normalized.migrationMessages.some((message) => message.includes('top-level filters')),
+        );
+    });
+
     it('writes repository descriptors and profile string references only', () => {
         const authored = toAuthoredConfig({
             compatibilityVersion: 2,
