@@ -24,7 +24,6 @@ import {
     resolveLayers,
     discoverLayersInRepo,
     buildEffectiveFileMap,
-    applyFilters,
     applyProfile,
     classifyFiles,
     classifySingle,
@@ -111,7 +110,6 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof resolveLayers, 'function');
         assert.strictEqual(typeof discoverLayersInRepo, 'function');
         assert.strictEqual(typeof buildEffectiveFileMap, 'function');
-        assert.strictEqual(typeof applyFilters, 'function');
         assert.strictEqual(typeof applyProfile, 'function');
         assert.strictEqual(typeof classifyFiles, 'function');
         assert.strictEqual(typeof classifySingle, 'function');
@@ -386,7 +384,7 @@ describe('Engine package: overlay pipeline', () => {
     });
     afterEach(() => cleanupDir(tmpDir));
 
-    it('full pipeline: resolve → build → filter → profile → classify', () => {
+    it('full pipeline: resolve → build → profile → classify', () => {
         // Set up metadata repo with a layer
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', 'skills'), { recursive: true });
@@ -397,7 +395,6 @@ describe('Engine package: overlay pipeline', () => {
         const config: MetaFlowConfig = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
             layers: ['core'],
-            filters: { include: ['**'], exclude: [] },
             injection: {
                 instructions: 'settings',
                 skills: 'synchronize',
@@ -413,15 +410,12 @@ describe('Engine package: overlay pipeline', () => {
         const fileMap = buildEffectiveFileMap(layers);
         assert.strictEqual(fileMap.size, 2);
 
-        // Step 3: apply filters
-        let files = applyFilters(Array.from(fileMap.values()), config.filters);
-        assert.strictEqual(files.length, 2);
-
-        // Step 4: apply profile (none)
+        // Step 3: apply profile (none)
+        let files = Array.from(fileMap.values());
         files = applyProfile(files, undefined);
         assert.strictEqual(files.length, 2);
 
-        // Step 5: classify
+        // Step 4: classify
         classifyFiles(files, config.injection);
         const skill = files.find((f) => f.relativePath.includes('skills'));
         const instr = files.find((f) => f.relativePath.includes('instructions'));
@@ -748,7 +742,7 @@ describe('Engine package: provenance header', () => {
     });
 });
 
-describe('Engine package: glob and filter', () => {
+describe('Engine package: glob matching', () => {
     it('matchesGlob works with patterns', () => {
         assert.ok(matchesGlob('skills/testing/SKILL.md', 'skills/**'));
         assert.ok(matchesGlob('agents/review.md', '**/*.md'));
@@ -758,26 +752,6 @@ describe('Engine package: glob and filter', () => {
     it('matchesAnyGlob checks multiple patterns', () => {
         assert.ok(matchesAnyGlob('skills/a.md', ['skills/**', 'agents/**']));
         assert.ok(!matchesAnyGlob('hooks/pre.sh', ['skills/**', 'agents/**']));
-    });
-
-    it('applyFilters excludes matching files', () => {
-        const files: EffectiveFile[] = [
-            {
-                relativePath: 'skills/a.md',
-                sourcePath: '/x',
-                sourceLayer: 'l',
-                classification: 'synchronized',
-            },
-            {
-                relativePath: 'agents/b.md',
-                sourcePath: '/x',
-                sourceLayer: 'l',
-                classification: 'synchronized',
-            },
-        ];
-        const result = applyFilters(files, { include: ['**'], exclude: ['agents/**'] });
-        assert.strictEqual(result.length, 1);
-        assert.strictEqual(result[0].relativePath, 'skills/a.md');
     });
 });
 

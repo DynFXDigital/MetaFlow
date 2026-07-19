@@ -174,10 +174,6 @@ export function standardConfig(
         compatibilityVersion: 3,
         metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata' }],
         layerSources: [{ repoId: 'primary', path: 'company/core' }],
-        filters: {
-            include: ['**'],
-            exclude: [],
-        },
         profiles: {
             default: { enabledCapabilities: ['primary:company/core'] },
             lean: { enabledCapabilities: [] },

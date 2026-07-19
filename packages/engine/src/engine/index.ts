@@ -21,7 +21,6 @@ export type {
 export { buildAgentPluginCatalog, buildCapabilityPluginMarketplaceManifest } from './pluginCatalog';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
-export { applyFilters } from './filterEngine';
 export { applyProfile } from './profileEngine';
 export { getArtifactType } from './artifactType';
 export type { ArtifactType } from './artifactType';

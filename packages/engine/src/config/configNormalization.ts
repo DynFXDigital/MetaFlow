@@ -1,6 +1,5 @@
 import {
     CapabilitySource,
-    FilterConfig,
     HooksConfig,
     InjectionConfig,
     LayerSource,
@@ -80,17 +79,6 @@ function orderRepoDiscoveryConfig(
 
     return {
         ...(config.enabled !== undefined ? { enabled: config.enabled } : {}),
-        ...(config.exclude !== undefined ? { exclude: cloneJson(config.exclude) } : {}),
-    };
-}
-
-function orderFilterConfig(config: FilterConfig | undefined): FilterConfig | undefined {
-    if (config === undefined) {
-        return undefined;
-    }
-
-    return {
-        ...(config.include !== undefined ? { include: cloneJson(config.include) } : {}),
         ...(config.exclude !== undefined ? { exclude: cloneJson(config.exclude) } : {}),
     };
 }
@@ -420,7 +408,10 @@ function legacyBaseReferences(config: MetaFlowConfig, sources: LayerSource[]): s
     );
 }
 
-function buildCanonicalProfiles(config: MetaFlowConfig, sources: LayerSource[]): Record<string, ProfileConfig> {
+function buildCanonicalProfiles(
+    config: MetaFlowConfig,
+    sources: LayerSource[],
+): Record<string, ProfileConfig> {
     const baseReferences = legacyBaseReferences(config, sources);
     const inputProfiles = config.profiles;
     if (!inputProfiles || Object.keys(inputProfiles).length === 0) {
@@ -501,16 +492,14 @@ function resolveCompatibilityVersion(config: MetaFlowConfig): {
     if (config.compatibilityVersion === undefined) {
         return {
             compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
-            migrationMessage:
-                `Migrated released config compatibilityVersion from implicit v${IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+            migrationMessage: `Migrated released config compatibilityVersion from implicit v${IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
         };
     }
 
     if (config.compatibilityVersion < CURRENT_CONFIG_COMPATIBILITY_VERSION) {
         return {
             compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
-            migrationMessage:
-                `Migrated config compatibilityVersion from v${config.compatibilityVersion} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+            migrationMessage: `Migrated config compatibilityVersion from v${config.compatibilityVersion} to v${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
         };
     }
 
@@ -551,7 +540,6 @@ function buildRestOfConfig(
 
     return {
         compatibilityVersion: compatibility.compatibilityVersion,
-        ...(config.filters !== undefined ? { filters: orderFilterConfig(config.filters) } : {}),
         profiles: orderProfiles(profiles) ?? {},
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
         ...(config.capabilityOverrides !== undefined

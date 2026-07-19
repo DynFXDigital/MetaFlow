@@ -51,7 +51,6 @@ export function buildConfig(
                 ...(metadataUrl ? { url: metadataUrl } : {}),
             },
         ],
-        filters: { include: [], exclude: [] },
         profiles: {
             default: {
                 displayName: 'Default',

@@ -5,10 +5,6 @@
     "commit": "abc1234"
   },
   "layers": ["company/core", "standards/sdlc"],
-  "filters": {
-    "include": ["**"],
-    "exclude": ["agents/experimental/**"]
-  },
   "profiles": {
     "baseline": {},
     "lean": {

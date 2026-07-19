@@ -24,7 +24,6 @@ export type {
     NamedMetadataRepo,
     CapabilitySource,
     LayerSource,
-    FilterConfig,
     ProfileConfig,
     ProfileLayerOverride,
     InjectionMode,

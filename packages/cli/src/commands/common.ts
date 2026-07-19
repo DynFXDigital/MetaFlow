@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import {
-    applyFilters,
     applyProfile,
     classifyFiles,
     buildEffectiveFileMap,
@@ -28,7 +27,6 @@ const CONFIG_ROOT_KEYS = new Set([
     'layers',
     'metadataRepos',
     'layerSources',
-    'filters',
     'profiles',
     'activeProfile',
     'capabilityOverrides',
@@ -95,7 +93,6 @@ export function resolveEffectiveFiles(
     const layers = resolveLayers(config, workspaceRoot);
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
-    files = applyFilters(files, config.filters);
 
     const profileName = config.activeProfile;
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
@@ -114,7 +111,6 @@ export function resolveSurfacedFileConflicts(
     const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
 
     return detectSurfacedFileConflicts(layers, {
-        filters: config.filters,
         layerSources: config.layerSources,
         profile,
     });

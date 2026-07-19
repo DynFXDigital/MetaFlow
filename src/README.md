@@ -6,7 +6,7 @@ AI metadata overlays for Copilot instructions, prompts, skills, and agents.
 
 - **Overlay Resolution**: Combine multiple repositories and enabled capabilities (instructions, prompts, skills, agents) into one effective workspace configuration.
 - **Synchronization with Provenance**: Write files to `.github/` with machine-readable provenance headers for traceability.
-- **Profile Management**: Switch between profiles to enable/disable artifact subsets.
+- **Profile Management**: Switch between profiles to select complete capability sets.
 - **Capability Management**: Toggle individual capabilities on/off, bulk-toggle folder branches in tree mode, browse artifact contents under each layer, and work across multiple repositories.
 - **Capability Details Webview**: Open a reusable capability-details panel that shows metadata, warnings, artifact inventory, and rendered `CAPABILITY.md` content.
 - **Drift Detection**: Detect locally-edited synchronized files; protect from overwrite.
@@ -73,13 +73,11 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
             ],
         },
     ],
-    "filters": {
-        "include": [],
-        "exclude": [],
-    },
     "profiles": {
-        "default": { "enable": ["**/*"], "disable": [] },
-        "lean": { "disable": ["agents/**"] },
+        "default": {
+            "enabledCapabilities": ["primary:company/core", "primary:standards/sdlc"],
+        },
+        "lean": { "enabledCapabilities": ["primary:company/core"] },
     },
     "activeProfile": "default",
     "injection": {
@@ -169,38 +167,38 @@ description: Shared repository-level metadata for this workspace.
 
 ## Commands
 
-| Command                                    | Description                                                                                                           | Keybinding     |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                  | `Ctrl+Shift+R` |
-| `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                |                |
-| `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                       |                |
-| `MetaFlow: Clean`                          | Remove synchronized files                                                                                             |                |
-| `MetaFlow: Status`                         | Show current status in output channel                                                                                 |                |
-| `MetaFlow: Switch Profile`                 | Select active profile                                                                                                 |                |
-| `MetaFlow: Toggle Capability`              | Enable/disable a capability                                                                                           |                |
-| `Select All`                               | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu             |                |
-| `Deselect All`                             | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu            |                |
-| `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                     |                |
-| `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                          |                |
-| `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                      |                |
-| `MetaFlow: Initialize MetaFlow Capability` | Enable the built-in MetaFlow capability with plugin-first defaults persisted in workspace state                       |                |
-| `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                            |                |
-| `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                               |                |
-| `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                        |                |
-| `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                               |                |
+| Command                                    | Description                                                                                                                | Keybinding     |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                       | `Ctrl+Shift+R` |
+| `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                     |                |
+| `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                            |                |
+| `MetaFlow: Clean`                          | Remove synchronized files                                                                                                  |                |
+| `MetaFlow: Status`                         | Show current status in output channel                                                                                      |                |
+| `MetaFlow: Switch Profile`                 | Select active profile                                                                                                      |                |
+| `MetaFlow: Toggle Capability`              | Enable/disable a capability                                                                                                |                |
+| `Select All`                               | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu                  |                |
+| `Deselect All`                             | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu                 |                |
+| `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                          |                |
+| `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                               |                |
+| `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                           |                |
+| `MetaFlow: Initialize MetaFlow Capability` | Enable the built-in MetaFlow capability with plugin-first defaults persisted in workspace state                            |                |
+| `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                                 |                |
+| `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                                    |                |
+| `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                             |                |
+| `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                                    |                |
 | `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability with plugin-first defaults |                |
-| `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                           |                |
+| `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                                |                |
 
 ## Settings
 
-| Setting                             | Default | Description                                                                                                                                  |
-| ----------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `metaflow.enabled`                  | `true`  | Enable/disable the extension                                                                                                                 |
-| `metaflow.autoApply`                | `true`  | Auto-apply on config change (recommended)                                                                                                    |
+| Setting                             | Default | Description                                                                                                                                                                  |
+| ----------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `metaflow.enabled`                  | `true`  | Enable/disable the extension                                                                                                                                                 |
+| `metaflow.autoApply`                | `true`  | Auto-apply on config change (recommended)                                                                                                                                    |
 | `metaflow.autoAcceptRefreshUpdates` | `false` | Skip refresh-time confirmation prompts and persist discovered config or built-in capability repair updates automatically; can also be enabled from the refresh prompt itself |
-| `metaflow.aiMetadataAutoApplyMode`  | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer` |
-| `metaflow.logLevel`                 | `info`  | Log verbosity (debug/info/warn/error)                                                                                                        |
-| `metaflow.repoUpdateCheckInterval`  | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                      |
+| `metaflow.aiMetadataAutoApplyMode`  | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer`                                 |
+| `metaflow.logLevel`                 | `info`  | Log verbosity (debug/info/warn/error)                                                                                                                                        |
+| `metaflow.repoUpdateCheckInterval`  | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                                                      |
 
 ## Managed State
 
@@ -226,8 +224,7 @@ MetaFlow persists local operational state in `.metaflow/state.json`.
 The extension uses a pure TypeScript engine (no VS Code imports) for overlay resolution, enabling fast unit testing. The engine modules live in the workspace package at `packages/engine/src/engine/` and handle:
 
 - Capability resolution and file-map building
-- Include/exclude filter evaluation
-- Profile enable/disable pattern application
+- Profile capability selection
 - Artifact classification (settings vs synchronized files)
 - Provenance header generation and drift detection
 - Synchronization with state tracking

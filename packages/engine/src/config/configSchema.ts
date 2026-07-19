@@ -73,16 +73,6 @@ export interface LayerSource {
     fileNamingStrategy?: SyncFileNamingStrategy;
 }
 
-// ── Filters ────────────────────────────────────────────────────────
-
-/** Path-based include/exclude filter configuration. */
-export interface FilterConfig {
-    /** Glob patterns for files to include. */
-    include?: string[];
-    /** Glob patterns for files to exclude (wins over include). */
-    exclude?: string[];
-}
-
 // ── Profiles ───────────────────────────────────────────────────────
 
 /** A named activation profile controlling which files are active. */
@@ -175,9 +165,7 @@ export interface MetaFlowConfig {
     /** Sparse capability settings keyed by `repoId:path`; omitted when unused. */
     capabilityOverrides?: Record<string, CapabilityOverride>;
 
-    // ── Filtering & profiles ───────────────────────────────────────
-    /** Path-based include/exclude filters. */
-    filters?: FilterConfig;
+    // ── Profiles ───────────────────────────────────────────────────
     /** Named activation profiles. */
     profiles?: Record<string, ProfileConfig>;
     /** Currently active profile name. */

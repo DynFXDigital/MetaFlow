@@ -309,8 +309,8 @@ export function projectConfigForProfile(
                       layerSources: config.layerSources.map((layerSource) => ({
                           ...layerSource,
                           enabled: selected.has(
-                                    `${layerSource.repoId}:${normalizeLayerPath(layerSource.path)}`,
-                                ),
+                              `${layerSource.repoId}:${normalizeLayerPath(layerSource.path)}`,
+                          ),
                       })),
                   }
                 : {}),
@@ -382,7 +382,6 @@ export function projectConfigForProfile(
         ...(metadataRepos !== undefined ? { metadataRepos } : {}),
         ...(layerSources !== undefined ? { layerSources } : {}),
         ...(config.profiles !== undefined ? { profiles: { ...config.profiles } } : {}),
-        ...(config.filters !== undefined ? { filters: { ...config.filters } } : {}),
         ...(config.injection !== undefined ? { injection: { ...config.injection } } : {}),
     };
 }

@@ -35,9 +35,6 @@
         "$ref": "#/definitions/layerSource"
       }
     },
-    "filters": {
-      "$ref": "#/definitions/filterConfig"
-    },
     "profiles": {
       "type": "object",
       "description": "Named activation profiles.",
@@ -189,24 +186,6 @@
         },
         "enabled": {
           "type": "boolean"
-        }
-      }
-    },
-    "filterConfig": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "include": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "exclude": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },

@@ -38,7 +38,6 @@ import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
     resolvePathFromWorkspace,
-    applyFilters,
     applyProfile,
     classifyFiles,
     EffectiveFile,
@@ -3197,7 +3196,6 @@ function resolveOverlay(
     }
 
     for (const conflict of detectSurfacedFileConflicts(layers, {
-        filters: config.filters,
         layerSources: config.layerSources,
         profile,
     })) {
@@ -3222,7 +3220,6 @@ function resolveOverlay(
 
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
-    files = applyFilters(files, config.filters);
 
     const baseProfileFiles = [...files];
     files = applyProfile(files, profile);
@@ -3342,7 +3339,6 @@ async function persistConfig(
         'metadataRepos',
         'layerSources',
         'capabilityOverrides',
-        'filters',
         'profiles',
         'activeProfile',
         'injection',

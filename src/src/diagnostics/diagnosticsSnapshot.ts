@@ -90,7 +90,7 @@ function capabilityWarningRemediationHint(message: string): string | undefined {
         return 'Add or enable the referenced metadata repo, or remove the layer source that points at it.';
     }
     if (message.includes('[SURFACED_FILE_CONFLICT]')) {
-        return 'Review duplicate surfaced file paths and adjust layer ordering, filters, or source content so the effective file is unambiguous.';
+        return 'Review duplicate surfaced file paths and adjust layer ordering or source content so the effective file is unambiguous.';
     }
 
     return undefined;

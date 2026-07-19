@@ -388,7 +388,6 @@ suite('Diagnostics Integration', () => {
                         enabled: true,
                     },
                 ],
-                filters: { include: ['**/*'], exclude: [] },
                 profiles: { default: { enable: ['**/*'] } },
                 activeProfile: 'default',
             },

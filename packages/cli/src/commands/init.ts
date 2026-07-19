@@ -28,7 +28,6 @@ export function registerInitCommand(program: Command): void {
                         url: 'https://github.com/your-org/your-metadata-repo.git',
                     },
                 ],
-                filters: { include: ['**'], exclude: [] },
                 profiles: { default: { displayName: 'Default', enabledCapabilities: [] } },
                 activeProfile: 'default',
                 injection: {

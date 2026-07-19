@@ -202,7 +202,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: ['primary:company/core', 'primary:standards/sdlc'],
@@ -238,7 +237,6 @@ suite('Command Execution', function () {
                     ],
                 },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: [`plugin-enable:${capabilityPath}`],
@@ -517,7 +515,6 @@ suite('Command Execution', function () {
                 { id: 'synchronized', localPath: '.ai/synchronized-only-repo', enabled: true },
             ],
             layerSources: [{ repoId: 'synchronized', path: 'synchronized-only', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -616,7 +613,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/sync-naming-repo',
             },
             layers: ['core'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -687,7 +683,6 @@ suite('Command Execution', function () {
         const settingsOnlyConfig = {
             metadataRepos: [{ id: 'settings', localPath: '.ai/settings-only-repo', enabled: true }],
             layerSources: [{ repoId: 'settings', path: 'settings-only', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -949,7 +944,6 @@ suite('Command Execution', function () {
                     capabilities: [{ path: 'company/core', enabled: false }],
                 },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1072,7 +1066,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1180,7 +1173,6 @@ suite('Command Execution', function () {
                     name: 'Primary',
                 },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: ['primary:company/core'],
@@ -1259,7 +1251,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1353,7 +1344,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1833,7 +1823,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1898,7 +1887,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'missing-meta', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -1970,7 +1958,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'refresh-name-repo', path: 'base' }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -2029,7 +2016,6 @@ suite('Command Execution', function () {
         const governedConfig = {
             metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata' }],
             layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: false }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: [],
@@ -2115,7 +2101,6 @@ suite('Command Execution', function () {
                     path: 'review/experimental-capability',
                 },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: ['experimental-details:review/experimental-capability'],
@@ -2217,7 +2202,6 @@ suite('Command Execution', function () {
         const config = {
             metadataRepos: [{ id: 'details-toggle', localPath: '.ai/ai-metadata' }],
             layerSources: [{ repoId: 'details-toggle', path: 'standards/sdlc', enabled: false }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: [],
@@ -2346,7 +2330,6 @@ suite('Command Execution', function () {
             layerSources: [
                 { repoId: 'manifest-open', path: 'review/capability-open', enabled: true },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
         };
@@ -2526,7 +2509,6 @@ suite('Command Execution', function () {
                     enabled: true,
                 },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
         };
@@ -2733,7 +2715,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: '.', enabled: false }],
-            filters: { include: [], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -2794,7 +2775,6 @@ suite('Command Execution', function () {
                 { repoId: 'ai-metadata', path: 'company/core', enabled: true },
                 { repoId: 'ai-metadata', path: 'standards/sdlc', enabled: true },
             ],
-            filters: { include: [], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -2860,7 +2840,6 @@ suite('Command Execution', function () {
                 { repoId: 'ai-metadata', path: 'company/core', enabled: true },
                 { repoId: 'ai-metadata', path: 'company/standards/sdlc', enabled: true },
             ],
-            filters: { include: [], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -2948,7 +2927,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'primary', path: 'standards/sdlc', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3017,7 +2995,6 @@ suite('Command Execution', function () {
                 { repoId: 'ai-metadata', path: 'company/core', enabled: true },
                 { repoId: 'ai-metadata', path: 'company/standards/sdlc', enabled: true },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3088,7 +3065,6 @@ suite('Command Execution', function () {
                 { repoId: 'primary', path: 'company/core', enabled: true },
                 { repoId: 'primary', path: 'standards/sdlc', enabled: true },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3223,7 +3199,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [],
-            filters: { include: ['**/*'], exclude: [] },
             profiles: {
                 default: {
                     displayName: 'Default',
@@ -3310,7 +3285,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3371,7 +3345,6 @@ suite('Command Execution', function () {
                         },
                     ],
                     layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-                    filters: { include: ['**'], exclude: [] },
                     profiles: {
                         default: {
                             enable: ['**/*'],
@@ -3470,7 +3443,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3522,7 +3494,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3572,7 +3543,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3644,7 +3614,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3710,7 +3679,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3793,7 +3761,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'ai-metadata', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -3891,7 +3858,6 @@ suite('Command Execution', function () {
                 { repoId: 'dynamic-a', path: 'base' },
                 { repoId: 'dynamic-b', path: 'base' },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -4026,7 +3992,6 @@ suite('Command Execution', function () {
                 { repoId: 'refresh-dynamic-a', path: 'base' },
                 { repoId: 'refresh-dynamic-b', path: 'base' },
             ],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: ['refresh-dynamic-a:base', 'refresh-dynamic-b:base'],
@@ -4129,7 +4094,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'dynamic', path: 'base' }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enabledCapabilities: ['dynamic:base'],
@@ -4223,7 +4187,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -4344,7 +4307,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -4451,7 +4413,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -4536,7 +4497,6 @@ suite('Command Execution', function () {
         const localOnlyConfig = {
             metadataRepos: [{ id: 'local', localPath: '.ai/ai-metadata', enabled: true }],
             layerSources: [{ repoId: 'local', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -4708,7 +4668,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
         };
@@ -4821,7 +4780,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
         };
@@ -4927,7 +4885,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'tracked-primary', path: 'company/core', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: { default: { enable: ['**/*'] } },
             activeProfile: 'default',
         };
@@ -5241,7 +5198,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'local-single', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5313,7 +5269,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'local-skip-cache', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5399,7 +5354,6 @@ suite('Command Execution', function () {
                 },
             ],
             layerSources: [{ repoId: 'local-multi', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5470,7 +5424,6 @@ suite('Command Execution', function () {
         const localOnlyConfig = {
             metadataRepos: [{ id: 'local', localPath: '.ai/ai-metadata', enabled: true }],
             layerSources: [{ repoId: 'local', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5546,7 +5499,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5599,7 +5551,6 @@ suite('Command Execution', function () {
         const localOnlyConfig = {
             metadataRepos: [{ id: 'local', localPath: '.ai/ai-metadata', enabled: true }],
             layerSources: [{ repoId: 'local', path: '.', enabled: true }],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5651,7 +5602,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],
@@ -5701,7 +5651,6 @@ suite('Command Execution', function () {
                 localPath: '.ai/ai-metadata',
             },
             layers: ['company/core', 'standards/sdlc'],
-            filters: { include: ['**'], exclude: [] },
             profiles: {
                 default: {
                     enable: ['**/*'],

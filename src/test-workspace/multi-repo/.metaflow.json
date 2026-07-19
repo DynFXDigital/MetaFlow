@@ -18,10 +18,6 @@
     { "repoId": "primary", "path": "standards/sdlc" },
     { "repoId": "team", "path": "overlays/team" }
   ],
-  "filters": {
-    "include": ["**"],
-    "exclude": []
-  },
   "profiles": {
     "baseline": {},
     "lean": {

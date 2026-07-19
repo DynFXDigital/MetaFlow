@@ -139,7 +139,6 @@ function createCommandHandlersHarness(initResult: boolean) {
         discoverLayersInRepo: () => [],
         buildEffectiveFileMap: () => new Map(),
         resolvePathFromWorkspace: (_root: string, localPath: string) => localPath,
-        applyFilters: (files: unknown[]) => files,
         applyProfile: (files: unknown[]) => files,
         classifyFiles: () => [],
         apply: () => ({ written: [], skipped: [], removed: [], warnings: [] }),
