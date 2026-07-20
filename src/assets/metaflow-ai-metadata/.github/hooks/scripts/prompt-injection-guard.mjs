@@ -99,11 +99,22 @@ const filePath = extractFirstString([
     toolArgs.file,
 ]);
 
-if (!isTargetPath(filePath)) {
-    process.exit(0);
+const candidateContents = [];
+if (isTargetPath(filePath)) {
+    const directContent = extractCandidateContent(toolArgs);
+    if (directContent) {
+        candidateContents.push(directContent);
+    }
 }
 
-const candidateContent = extractCandidateContent(toolArgs);
+candidateContents.push(
+    ...extractApplyPatchCandidates(toolArgs.input)
+        .filter((candidate) => isTargetPath(candidate.filePath))
+        .map((candidate) => candidate.content)
+        .filter(Boolean),
+);
+
+const candidateContent = candidateContents.join('\n');
 if (!candidateContent) {
     process.exit(0);
 }
@@ -163,6 +174,35 @@ function extractCandidateContent(toolArgs) {
     }
 
     return '';
+}
+
+function extractApplyPatchCandidates(input) {
+    if (typeof input !== 'string') {
+        return [];
+    }
+
+    const headerPattern = /^\*\*\* (?:Update|Add|Delete) File:\s*(.+?)\s*$/gm;
+    const headers = [...input.matchAll(headerPattern)];
+    const candidates = [];
+
+    for (const [index, header] of headers.entries()) {
+        if (!/^\*\*\* (?:Update|Add) File:/.test(header[0])) {
+            continue;
+        }
+
+        const sectionStart = (header.index ?? 0) + header[0].length;
+        const sectionEnd = headers[index + 1]?.index ?? input.length;
+        const content = input
+            .slice(sectionStart, sectionEnd)
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+            .map((line) => line.slice(1))
+            .join('\n');
+
+        candidates.push({ filePath: header[1], content });
+    }
+
+    return candidates;
 }
 
 function scan(content) {
