@@ -40,16 +40,39 @@ const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '6'));
 const codeVersion = process.env.GUI_VSCODE_VERSION ?? '1.110.0';
 const prefixes = process.argv.slice(2);
 
-function runExtest(args, label) {
+function parseTimeoutMs(value, fallbackMs) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(60_000, parsed) : fallbackMs;
+}
+
+const setupTimeoutMs = parseTimeoutMs(process.env.GUI_SETUP_TIMEOUT_MS, 10 * 60 * 1_000);
+const batchTimeoutMs = parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 5 * 60 * 1_000);
+
+function runExtest(args, label, timeoutMs) {
     console.log(`\n>>> extest ${args[0]} ${label ?? ''}`.trimEnd());
+    const startedAt = Date.now();
     const res = spawnSync(process.execPath, [extestCli, ...args], {
         cwd: srcRoot,
         encoding: 'utf-8',
         stdio: ['inherit', 'pipe', 'pipe'],
+        timeout: timeoutMs,
+        killSignal: 'SIGTERM',
     });
     const out = `${res.stdout ?? ''}${res.stderr ?? ''}`;
     process.stdout.write(out);
-    return { status: res.status ?? 1, out };
+    const elapsedMs = Date.now() - startedAt;
+    const timedOut = res.error?.code === 'ETIMEDOUT';
+    if (timedOut) {
+        console.error(
+            `\nExTester timed out after ${Math.round(elapsedMs / 1_000)}s ` +
+                `(${label ?? args[0]}).`,
+        );
+    }
+    return {
+        status: res.status ?? 1,
+        out,
+        timedOut,
+    };
 }
 
 // ── Setup: download VS Code + chromedriver (idempotent) and install the VSIX ──
@@ -62,9 +85,11 @@ const setupSteps = [
     [['install-vsix', '-s', STORAGE, '-e', EXTENSIONS, '-f', VSIX], 'install VSIX'],
 ];
 for (const [args, label] of setupSteps) {
-    const { status } = runExtest(args, label);
+    const { status, timedOut } = runExtest(args, label, setupTimeoutMs);
     if (status !== 0) {
-        console.error(`\nSetup step failed (${label}). Aborting.`);
+        console.error(
+            `\nSetup step ${timedOut ? 'timed out' : 'failed'} (${label}). Aborting.`,
+        );
         process.exit(1);
     }
 }
@@ -94,7 +119,7 @@ const failedBatches = [];
 for (const [idx, batch] of batches.entries()) {
     const files = batch.map((f) => path.posix.join('out/test/gui', f));
     const label = `batch ${idx + 1}/${batches.length}: ${batch.join(', ')}`;
-    const { status, out } = runExtest(
+    const { status, out, timedOut } = runExtest(
         [
             'run-tests',
             ...files,
@@ -112,13 +137,18 @@ for (const [idx, batch] of batches.entries()) {
             '.vscode-test-gui-settings.json',
         ],
         label,
+        batchTimeoutMs,
     );
     const pass = Number(out.match(/(\d+) passing/)?.[1] ?? '0');
     const fail = Number(out.match(/(\d+) failing/)?.[1] ?? '0');
     totalPass += pass;
     totalFail += fail;
-    if (fail > 0 || status !== 0) {
+    if (fail > 0 || status !== 0 || timedOut) {
         failedBatches.push(label);
+    }
+    if (timedOut) {
+        console.error('\nAborting remaining GUI batches after a timed-out host.');
+        break;
     }
 }
 
