@@ -87,9 +87,7 @@ const setupSteps = [
 for (const [args, label] of setupSteps) {
     const { status, timedOut } = runExtest(args, label, setupTimeoutMs);
     if (status !== 0) {
-        console.error(
-            `\nSetup step ${timedOut ? 'timed out' : 'failed'} (${label}). Aborting.`,
-        );
+        console.error(`\nSetup step ${timedOut ? 'timed out' : 'failed'} (${label}). Aborting.`);
         process.exit(1);
     }
 }

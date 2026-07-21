@@ -127,14 +127,14 @@ suite('Command handler config update consent', () => {
             'state.config = result.config;',
         );
 
-        assert.match(
-            maintenanceBlock,
-            /if \(!refreshOptions\.skipConfigMaintenance\) \{/,
-        );
+        assert.match(maintenanceBlock, /if \(!refreshOptions\.skipConfigMaintenance\) \{/);
         assert.match(maintenanceBlock, /normalizeAndDeduplicateLayerPaths\(result\.config\)/);
         assert.match(maintenanceBlock, /discoverAndPersistConfiguredRepoLayers\(/);
         assert.match(maintenanceBlock, /previewCapabilityIdentityDriftRepair\(/);
-        assert.match(maintenanceBlock, /await persistConfig\(result\.configPath, result\.config, state\)/);
+        assert.match(
+            maintenanceBlock,
+            /await persistConfig\(result\.configPath, result\.config, state\)/,
+        );
     });
 
     test('popup can persist auto-accept preference for future refreshes', () => {
@@ -260,7 +260,10 @@ suite('Command handler config update consent', () => {
             /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'skills',\s+'agents',\s+'hooks',\s+\];/m,
         );
         assert.match(candidateHelper, /injection\?\.\[key\] === 'settings'/);
-        assert.match(applyHelper, /if \(injection\[key\] === 'settings'\) \{\s+injection\[key\] = 'plugin';/m);
+        assert.match(
+            applyHelper,
+            /if \(injection\[key\] === 'settings'\) \{\s+injection\[key\] = 'plugin';/m,
+        );
         assert.doesNotMatch(applyHelper, /prompts/);
     });
 
