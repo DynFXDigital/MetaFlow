@@ -855,6 +855,46 @@ describe('Engine: settings injector', () => {
         assert.ok(locations['scripts/post.sh']);
     });
 
+    it('computeSettingsEntries omits standalone hooks owned by a registered plugin root', () => {
+        const capabilityRoot = path.join(tmpDir, 'repo', 'core');
+        const files: EffectiveFile[] = [
+            {
+                relativePath: '.plugin/plugin.json',
+                sourcePath: path.join(capabilityRoot, '.plugin', 'plugin.json'),
+                sourceLayer: 'core',
+                classification: 'synchronized',
+            },
+            {
+                relativePath: 'hooks/hooks.json',
+                sourcePath: path.join(capabilityRoot, 'hooks', 'hooks.json'),
+                sourceLayer: 'core',
+                classification: 'synchronized',
+            },
+            {
+                relativePath: '.github/hooks/scripts/prompt-injection-guard.mjs',
+                sourcePath: path.join(
+                    capabilityRoot,
+                    '.github',
+                    'hooks',
+                    'scripts',
+                    'prompt-injection-guard.mjs',
+                ),
+                sourceLayer: 'core',
+                classification: 'synchronized',
+            },
+        ];
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: 'repo' },
+            layers: ['core'],
+        };
+
+        classifyFiles(files, { hooks: 'settings' });
+        const entries = computeSettingsEntries(files, tmpDir, config);
+
+        assert.ok(entries.find((entry) => entry.key === 'chat.pluginLocations'));
+        assert.ok(!entries.find((entry) => entry.key === 'chat.hookFilesLocations'));
+    });
+
     it('computeSettingsEntries sorts object-map settings paths deterministically', () => {
         const files: EffectiveFile[] = [
             {
@@ -886,6 +926,8 @@ describe('Engine: settings injector', () => {
     });
 
     it('classifySingle treats Copilot plugin artifacts as plugin artifacts by default', () => {
+        assert.strictEqual(classifySingle('plugin.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.plugin/plugin.json', undefined), 'plugin');
         assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'plugin');
         assert.strictEqual(classifySingle('.github/hooks/session.json', undefined), 'plugin');
         assert.strictEqual(classifySingle('hooks.json', undefined), 'plugin');

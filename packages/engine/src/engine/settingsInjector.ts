@@ -95,6 +95,7 @@ export function computeSettingsEntries(
     const settingsDirs = new Map<string, Set<string>>();
     const settingsHookFiles = new Set<string>();
     const pluginRoots = computePluginRootPaths(effectiveFiles);
+    const pluginRootPaths = new Set(pluginRoots.map((pluginRoot) => path.resolve(pluginRoot)));
     for (const file of effectiveFiles) {
         if (file.classification === 'plugin') {
             continue;
@@ -111,6 +112,10 @@ export function computeSettingsEntries(
                 : rawSegments;
         const topDir = relativeSegments[0];
         if (topDir === 'hooks' || normalized === 'hooks.json') {
+            const hookPluginRoot = resolvePluginRoot(file);
+            if (hookPluginRoot && pluginRootPaths.has(path.resolve(hookPluginRoot))) {
+                continue;
+            }
             settingsHookFiles.add(toWorkspaceRelative(workspaceRoot, file.sourcePath));
             continue;
         }
