@@ -147,7 +147,7 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             refreshUpdateBlock,
-            /await decideConfigUpdate\(\s*result\.configPath,\s*pendingConfigUpdateReasons,\s*\)/m,
+            /await decideConfigUpdate\(\s*result\.configPath\s*,?\s*pendingConfigUpdateReasons\s*,?\s*\)/m,
         );
         assert.match(
             refreshUpdateBlock,
