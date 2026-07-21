@@ -610,7 +610,7 @@ suite('TreeView Providers', () => {
         assert.strictEqual(items[0].description, '(0/0)');
     });
 
-    test('LayersTreeView hides layers from disabled repos in flat mode', () => {
+    test('LayersTreeView keeps layers from disabled repos visible in flat mode', () => {
         state.config = {
             metadataRepos: [
                 { id: 'primary', name: 'CoreMeta', localPath: '.ai/core-meta', enabled: true },
@@ -625,12 +625,17 @@ suite('TreeView Providers', () => {
         const provider = new LayersTreeViewProvider(state, () => 'flat');
         const items = provider.getChildren();
 
-        assert.strictEqual(items.length, 1, 'Should return only enabled-repo layer rows');
+        assert.strictEqual(
+            items.length,
+            2,
+            'Should return both enabled and disabled-repo layer rows',
+        );
         assert.strictEqual(String(items[0].label), 'company/core');
         assert.strictEqual(items[0].description, '(0/0, CoreMeta)');
 
         const disabledLayer = items.find((i) => String(i.label) === 'team/social');
-        assert.strictEqual(disabledLayer, undefined, 'Should hide layers from disabled repos');
+        assert.ok(disabledLayer, 'Should keep layers from disabled repos visible');
+        assert.strictEqual(disabledLayer.description, '(0/0, TeamMeta, repo disabled)');
     });
 
     test('LayersTreeView displays root layer as repository name', () => {

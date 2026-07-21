@@ -147,15 +147,28 @@ function mergeRefreshCommandOptions(
     current: RefreshCommandOptions,
     next: RefreshCommandOptions,
 ): RefreshCommandOptions {
-    const mergeBoolean = (left: boolean | undefined, right: boolean | undefined): boolean | undefined =>
-        left === true || right === true ? true : left === false || right === false ? false : undefined;
+    const mergeBoolean = (
+        left: boolean | undefined,
+        right: boolean | undefined,
+    ): boolean | undefined =>
+        left === true || right === true
+            ? true
+            : left === false || right === false
+              ? false
+              : undefined;
 
     return {
         skipAutoApply: mergeBoolean(current.skipAutoApply, next.skipAutoApply),
         skipBuiltInAutoApply: mergeBoolean(current.skipBuiltInAutoApply, next.skipBuiltInAutoApply),
-        skipConfigMaintenance: mergeBoolean(current.skipConfigMaintenance, next.skipConfigMaintenance),
+        skipConfigMaintenance: mergeBoolean(
+            current.skipConfigMaintenance,
+            next.skipConfigMaintenance,
+        ),
         skipRepoSync: mergeBoolean(current.skipRepoSync, next.skipRepoSync),
-        skipSettingsInjection: mergeBoolean(current.skipSettingsInjection, next.skipSettingsInjection),
+        skipSettingsInjection: mergeBoolean(
+            current.skipSettingsInjection,
+            next.skipSettingsInjection,
+        ),
         skipLoadingState: mergeBoolean(current.skipLoadingState, next.skipLoadingState),
         skipStateChangeEvent: mergeBoolean(current.skipStateChangeEvent, next.skipStateChangeEvent),
         preferStateConfig: mergeBoolean(current.preferStateConfig, next.preferStateConfig),
@@ -1563,7 +1576,9 @@ async function applyBuiltInRepoInjectionMutation(
         return;
     }
 
-    logInfo(`Configured built-in capability injection defaults: ${describeInjectionConfig(nextInjection)}`);
+    logInfo(
+        `Configured built-in capability injection defaults: ${describeInjectionConfig(nextInjection)}`,
+    );
     void vscode.window.showInformationMessage(
         'MetaFlow: Updated injection defaults for built-in MetaFlow capability.',
     );
@@ -2579,6 +2594,11 @@ function withBuiltInCapabilityProjected(
         (layer) => layer.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
     );
 
+    const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
+    const builtInLayerKeys = new Set(
+        builtInLayerPaths.map((layerPath) => normalizeBuiltInLayerPath(layerPath)),
+    );
+
     if (!builtInRepoEnabled) {
         // Keep the built-in repo row visible in projected config, but do not
         // surface any built-in layers while the repo checkbox is off.
@@ -2586,7 +2606,6 @@ function withBuiltInCapabilityProjected(
         return projected;
     }
 
-    const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
     for (const layerPath of builtInLayerPaths) {
         multiRepo.layerSources.push({
             repoId: BUILT_IN_CAPABILITY_REPO_ID,
@@ -2598,6 +2617,23 @@ function withBuiltInCapabilityProjected(
     // ensureMultiRepoConfig returns references to config arrays, but
     // .filter() above created a new array — sync it back to the returned config.
     projected.layerSources = multiRepo.layerSources;
+
+    const activeProfile = projected.profiles?.[projected.activeProfile ?? DEFAULT_PROFILE_ID];
+    if (activeProfile?.enabledCapabilities !== undefined) {
+        const selected = new Set(activeProfile.enabledCapabilities);
+        for (const layerPath of builtInLayerKeys) {
+            selected.add(`${BUILT_IN_CAPABILITY_REPO_ID}:${layerPath}`);
+        }
+        activeProfile.enabledCapabilities = Array.from(selected).sort((left, right) =>
+            left.localeCompare(right),
+        );
+    } else if (activeProfile) {
+        for (const layerPath of builtInLayerKeys) {
+            updateProfileLayerOverride(activeProfile, BUILT_IN_CAPABILITY_REPO_ID, layerPath, {
+                enabled: resolveBuiltInLayerEnabled(builtInState, layerPath),
+            });
+        }
+    }
 
     return projected;
 }
@@ -2675,16 +2711,11 @@ function persistBuiltInCapabilityConfig(
     }
 
     for (const layerPath of builtInLayerKeys) {
-        updateProfileLayerOverride(
-            activeProfile,
-            BUILT_IN_CAPABILITY_REPO_ID,
-            layerPath,
-            {
-                enabled:
-                    resolveBuiltInRepoEnabled(builtInState) &&
-                    resolveBuiltInLayerEnabled(builtInState, layerPath),
-            },
-        );
+        updateProfileLayerOverride(activeProfile, BUILT_IN_CAPABILITY_REPO_ID, layerPath, {
+            enabled:
+                resolveBuiltInRepoEnabled(builtInState) &&
+                resolveBuiltInLayerEnabled(builtInState, layerPath),
+        });
     }
 }
 
@@ -5554,510 +5585,498 @@ export function registerCommands(
 
     // ── metaflow.refresh ───────────────────────────────────────────
     const runRefresh = async (requestOptions: RefreshCommandOptions): Promise<void> => {
-            const arg = requestOptions;
-            const refreshOptions = extractRefreshCommandOptions(arg);
-            const ws = getWorkspace();
-            if (!ws) {
-                return;
+        const arg = requestOptions;
+        const refreshOptions = extractRefreshCommandOptions(arg);
+        const ws = getWorkspace();
+        if (!ws) {
+            return;
+        }
+
+        const refreshTimer = createPerformanceTimer();
+        const flushRefreshTimings = (terminalLabel: string): void => {
+            refreshTimer.mark(terminalLabel);
+            for (const timing of refreshTimer.records()) {
+                logDebug(
+                    `MetaFlow refresh timing: ${timing.label} ${timing.durationMs.toFixed(1)}ms`,
+                );
             }
+        };
 
-            const refreshTimer = createPerformanceTimer();
-            const flushRefreshTimings = (terminalLabel: string): void => {
-                refreshTimer.mark(terminalLabel);
-                for (const timing of refreshTimer.records()) {
-                    logDebug(
-                        `MetaFlow refresh timing: ${timing.label} ${timing.durationMs.toFixed(1)}ms`,
-                    );
-                }
-            };
-
-            const notifyStateChanged = (): void => {
-                if (!refreshOptions.skipStateChangeEvent) {
-                    state.onDidChange.fire();
-                }
-            };
-            const autoAcceptRefreshUpdatesInTests =
-                context.extensionMode === vscode.ExtensionMode.Test;
-            const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
-            const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
-            let autoAcceptRefreshUpdates =
-                autoAcceptRefreshUpdatesInTests ||
-                workspaceConfig.get<boolean>(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false);
-            const suppressRefreshUpdatePrompts =
-                refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
-            const pendingCapabilityPluginMetadataDirtyVersion =
-                state.capabilityPluginMetadataDirtyVersion;
-            logInfo('Refreshing overlay...');
-            if (!refreshOptions.skipLoadingState) {
-                updateStatusBar('loading');
-                state.isLoading = true;
-                notifyStateChanged();
+        const notifyStateChanged = (): void => {
+            if (!refreshOptions.skipStateChangeEvent) {
+                state.onDidChange.fire();
             }
+        };
+        const autoAcceptRefreshUpdatesInTests = context.extensionMode === vscode.ExtensionMode.Test;
+        const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
+        const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
+        let autoAcceptRefreshUpdates =
+            autoAcceptRefreshUpdatesInTests ||
+            workspaceConfig.get<boolean>(AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY, false);
+        const suppressRefreshUpdatePrompts =
+            refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
+        const pendingCapabilityPluginMetadataDirtyVersion =
+            state.capabilityPluginMetadataDirtyVersion;
+        logInfo('Refreshing overlay...');
+        if (!refreshOptions.skipLoadingState) {
+            updateStatusBar('loading');
+            state.isLoading = true;
+            notifyStateChanged();
+        }
 
-            try {
-                const result =
-                    refreshOptions.preferStateConfig === true && state.config && state.configPath
-                        ? {
-                              ok: true as const,
-                              config: cloneConfig(state.config),
-                              configPath: state.configPath,
-                              migrated: false,
-                              migrationMessages: [],
-                          }
-                        : loadConfig(ws.uri.fsPath);
-                refreshTimer.mark('config-load');
-                if (!result.ok) {
-                    // A genuinely missing config (no configPath) is the first-run
-                    // state, not an error: the config tree's welcome view surfaces an
-                    // "Initialize Configuration" action. That welcome view only renders
-                    // when the tree is empty, so the missing case must not emit a
-                    // warning toast or a tree warning — otherwise the warning row
-                    // suppresses the Initialize action. Invalid configs (configPath set)
-                    // keep their warning surfaces.
-                    const configMissing = !result.configPath;
-                    logError(`Config errors: ${result.errors.map((e) => e.message).join('; ')}`);
-                    publishConfigDiagnostics(diagnosticCollection, result);
-                    await clearManagedWorkspaceSettings(ws, context);
-                    if (configMissing) {
-                        logWarn('MetaFlow: No .metaflow/config.jsonc found at workspace root.');
-                    } else {
-                        vscode.window.showWarningMessage(
-                            'MetaFlow: Found config file, but it is invalid. Check Problems for details.',
-                        );
-                    }
-                    updateStatusBar('error');
-                    state.config = undefined;
-                    state.configPath = undefined;
-                    state.activeProfile = undefined;
-                    state.baseProfileFiles = [];
-                    state.effectiveFiles = [];
-                    state.capabilityByLayer = {};
-                    state.repoMetadataById = {};
-                    state.governanceContract = undefined;
-                    state.governanceContractPath = undefined;
-                    state.governanceContractErrors = [];
-                    state.governanceCompliance = undefined;
-                    state.capabilityWarnings = [];
-                    state.configWarnings = configMissing
-                        ? []
-                        : [...result.errors, ...(result.warnings ?? [])].map(
-                              formatConfigWarningMessage,
-                          );
-                    state.capabilityDiagnosticFilePaths = [];
-                    state.agentPluginCatalog = [];
-                    state.localGitRepoIds = new Set<string>();
-                    state.treeSummaryCache = undefined;
-                    invalidateRepoSyncStatus(state);
-                    state.capabilityPluginMetadataSettledVersion = Math.max(
-                        state.capabilityPluginMetadataSettledVersion,
-                        pendingCapabilityPluginMetadataDirtyVersion,
-                    );
-                    state.isLoading = false;
-                    notifyStateChanged();
-                    flushRefreshTimings('refresh-invalid-config');
-                    return;
-                }
-
-                clearDiagnostics(diagnosticCollection);
-                state.configWarnings = [];
-                state.capabilityDiagnosticFilePaths = [];
-                const managedStateForCapabilityCatalog = loadManagedState(ws.uri.fsPath);
-                restoreCapabilityCatalog(
-                    result.config,
-                    managedStateForCapabilityCatalog.capabilityCatalog?.entries,
-                );
-                const governanceResult = loadGovernanceContract(ws.uri.fsPath);
-                publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
-                state.governanceContract = governanceResult.ok
-                    ? governanceResult.contract
-                    : undefined;
-                state.governanceContractPath = governanceResult.contractPath;
-                state.governanceContractErrors = governanceResult.ok
-                    ? []
-                    : governanceResult.errors.map(cloneConfigError);
-                state.governanceCompliance = undefined;
-                let shouldAdvanceCapabilityIdentitySnapshot = true;
-                if (!refreshOptions.skipConfigMaintenance) {
-                    const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
-                    const discoveryResult = discoverAndPersistConfiguredRepoLayers(
-                        result.config,
-                        ws.uri.fsPath,
-                        refreshOptions.forceDiscoveryRepoId,
-                        { enableDiscovery: true },
-                    );
-                    let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;
-                    try {
-                        capabilityRepairPreview = previewCapabilityIdentityDriftRepair(
-                            result.config,
-                            ws.uri.fsPath,
-                        );
-                    } catch (err: unknown) {
-                        const message = err instanceof Error ? err.message : String(err);
-                        logWarn(`Capability identity drift repair skipped: ${message}`);
-                    }
-                    if (
-                        (result.migrated ||
-                            configNormalized ||
-                            discoveryResult.totalAdded > 0 ||
-                            (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
-                        result.configPath
-                    ) {
-                        const pendingConfigUpdateReasons: string[] = [];
-                        if (result.migrated) {
-                            pendingConfigUpdateReasons.push(
-                                'Migrate existing config to the current MetaFlow format.',
-                            );
-                        }
-                        if (configNormalized) {
-                            pendingConfigUpdateReasons.push(
-                                'Normalize redundant layer path entries.',
-                            );
-                        }
-                        if (discoveryResult.totalAdded > 0) {
-                            pendingConfigUpdateReasons.push(
-                                `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
-                            );
-                        }
-                        const pendingRepairCount =
-                            capabilityRepairPreview?.repairResult.repaired.length ?? 0;
-                        if (pendingRepairCount > 0) {
-                            pendingConfigUpdateReasons.push(
-                                `Heal ${pendingRepairCount} stale capability reference(s) after metadata moved.`,
-                            );
-                        }
-
-                        const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
-                            ? { shouldPersist: true, rememberPreference: false }
-                            : suppressRefreshUpdatePrompts
-                              ? { shouldPersist: false, rememberPreference: false }
-                              : await decideConfigUpdate(
-                                    result.configPath,
-                                    pendingConfigUpdateReasons,
-                                );
-                        if (configUpdateDecision.rememberPreference) {
-                            await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
-                            autoAcceptRefreshUpdates = true;
-                        }
-                        const shouldPersistConfig = configUpdateDecision.shouldPersist;
-
-                        if (shouldPersistConfig && capabilityRepairPreview) {
-                            capabilityRepairPreview.repairResult =
-                                applyCapabilityIdentityDriftRepair(
-                                    result.config,
-                                    ws.uri.fsPath,
-                                    capabilityRepairPreview.managedState,
-                                );
-                        }
-
-                        if (shouldPersistConfig) {
-                            await persistConfig(result.configPath, result.config, state);
-                        } else {
-                            logInfo(
-                                'Skipped writing pending .metaflow/config.jsonc updates after user selection.',
-                            );
-                            if (pendingRepairCount > 0) {
-                                shouldAdvanceCapabilityIdentitySnapshot = false;
-                            }
-                        }
-
-                        if (shouldPersistConfig && result.migrated) {
-                            for (const message of result.migrationMessages ?? []) {
-                                logInfo(message);
-                            }
-                            void vscode.window.showInformationMessage(
-                                getConfigMigrationNoticeMessage(),
-                            );
-                        }
-                        if (shouldPersistConfig && configNormalized) {
-                            logInfo(
-                                'Normalized layer paths in config (removed redundant .github suffix entries).',
-                            );
-                        }
-                        if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
-                            const rescannedScope =
-                                discoveryResult.rescannedRepoIds.length > 1
-                                    ? `${discoveryResult.rescannedRepoIds.length} repositories`
-                                    : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
-                            logInfo(
-                                `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
-                            );
-                        }
-                        for (const repair of shouldPersistConfig
-                            ? (capabilityRepairPreview?.repairResult.repaired ?? [])
-                            : []) {
-                            const scope =
-                                repair.source === 'profiles.layerOverrides' && repair.profileId
-                                    ? `${repair.repoId}/${repair.oldPath} in profile ${repair.profileId}`
-                                    : `${repair.repoId}/${repair.oldPath}`;
-                            logInfo(
-                                `Repaired capability reference ${scope} -> ${repair.newPath} (${repair.matchReason}).`,
-                            );
-                        }
-                    }
-                }
-                refreshTimer.mark('config-maintenance');
-                const capabilityCatalogEntries = capabilityCatalogFromConfig(result.config);
-                managedStateForCapabilityCatalog.capabilityCatalog = {
-                    entries: capabilityCatalogEntries,
-                };
-                saveManagedState(ws.uri.fsPath, managedStateForCapabilityCatalog);
-                state.config = result.config;
-                state.configPath = result.configPath;
-                state.activeProfile = result.config.activeProfile;
-                state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
-                state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
-                    context,
-                    ws.uri.fsPath,
-                    state.builtInCapability,
-                );
-
-                const aiMetadataAutoApplyMode = normalizeAiMetadataAutoApplyMode(
-                    workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, 'off'),
-                );
-                if (!refreshOptions.skipBuiltInAutoApply) {
-                    state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
-                        context,
-                        ws.uri.fsPath,
-                        state.builtInCapability,
-                        aiMetadataAutoApplyMode,
-                    );
-                }
-
-                const projectedConfigForBuiltInRepair = withBuiltInCapabilityProjected(
-                    result.config,
-                    state.builtInCapability,
-                );
-                const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(
-                    state.builtInCapability,
-                    ws.uri.fsPath,
-                    projectedConfigForBuiltInRepair,
-                );
-                if (builtInRepairPreview.repairs.length > 0) {
-                    const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
-                        ? { shouldPersist: true, rememberPreference: false }
-                        : suppressRefreshUpdatePrompts
-                          ? { shouldPersist: false, rememberPreference: false }
-                          : await decideBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
-                    if (builtInUpdateDecision.rememberPreference) {
-                        await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
-                        autoAcceptRefreshUpdates = true;
-                    }
-                    const shouldUpdateBuiltInState = builtInUpdateDecision.shouldPersist;
-                    if (shouldUpdateBuiltInState) {
-                        state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                            context,
-                            state.builtInCapability,
-                            { layerStates: builtInRepairPreview.layerStates },
-                        );
-                        for (const repair of builtInRepairPreview.repairs) {
-                            logInfo(
-                                `Repaired built-in capability selection ${repair.oldPath} -> ${repair.newPath} (${repair.matchReason}).`,
-                            );
-                        }
-                    } else {
-                        logInfo(
-                            'Skipped writing pending built-in capability selection updates after user selection.',
-                        );
-                        shouldAdvanceCapabilityIdentitySnapshot = false;
-                    }
-                }
-
-                const gitRepos = resolveGitBackedRepoSources(result.config, ws.uri.fsPath);
-                state.localGitRepoIds = await discoverLocalGitRepoIds(result.config, ws.uri.fsPath);
-                if (refreshOptions.skipRepoSync === true) {
-                    pruneRepoSyncStatusToRepos(
-                        state,
-                        gitRepos.map((repo) => repo.repoId),
-                    );
+        try {
+            const result =
+                refreshOptions.preferStateConfig === true && state.config && state.configPath
+                    ? {
+                          ok: true as const,
+                          config: cloneConfig(state.config),
+                          configPath: state.configPath,
+                          migrated: false,
+                          migrationMessages: [],
+                      }
+                    : loadConfig(ws.uri.fsPath);
+            refreshTimer.mark('config-load');
+            if (!result.ok) {
+                // A genuinely missing config (no configPath) is the first-run
+                // state, not an error: the config tree's welcome view surfaces an
+                // "Initialize Configuration" action. That welcome view only renders
+                // when the tree is empty, so the missing case must not emit a
+                // warning toast or a tree warning — otherwise the warning row
+                // suppresses the Initialize action. Invalid configs (configPath set)
+                // keep their warning surfaces.
+                const configMissing = !result.configPath;
+                logError(`Config errors: ${result.errors.map((e) => e.message).join('; ')}`);
+                publishConfigDiagnostics(diagnosticCollection, result);
+                await clearManagedWorkspaceSettings(ws, context);
+                if (configMissing) {
+                    logWarn('MetaFlow: No .metaflow/config.jsonc found at workspace root.');
                 } else {
-                    await refreshRepoSyncStatusCache(state, gitRepos);
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: Found config file, but it is invalid. Check Problems for details.',
+                    );
                 }
-                refreshTimer.mark('repo-status');
-
-                let overlayResolved = false;
-                const layerResolutionCache: ResolveLayersCache = {
-                    layerContents: new Map(),
-                    discoveredLayerPaths: new Map(),
-                };
-
-                try {
-                    const injectionConfig = resolveInjectionConfig(ws, result.config);
-                    const shouldEnableDiscovery =
-                        autoApplyEnabled || refreshOptions.forceDiscovery === true;
-                    const activeProfileConfig = projectConfigForProfile(result.config);
-                    const projectedConfig = withBuiltInCapabilityProjected(
-                        result.config,
-                        state.builtInCapability,
-                    );
-                    if (shouldAdvanceCapabilityIdentitySnapshot) {
-                        saveCapabilityIdentitySnapshot(projectedConfig, ws.uri.fsPath);
-                    }
-                    const activeProfileProjectedConfig = projectConfigForProfile(projectedConfig);
-                    if (governanceResult.ok) {
-                        state.governanceCompliance = evaluateGovernanceCompliance(
-                            governanceResult.contract,
-                            activeProfileProjectedConfig,
-                        );
-                        publishGovernanceComplianceDiagnostics(
-                            diagnosticCollection,
-                            governanceResult.contractPath,
-                            state.governanceCompliance,
-                        );
-                    }
-                    state.repoMetadataById = collectConfiguredRepoMetadata(
-                        result.config,
-                        ws.uri.fsPath,
-                        state.builtInCapability,
-                    );
-                    const overlay = resolveOverlay(
-                        activeProfileProjectedConfig,
-                        ws.uri.fsPath,
-                        injectionConfig,
-                        {
-                            enableDiscovery: shouldEnableDiscovery,
-                            forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
-                                ? [refreshOptions.forceDiscoveryRepoId]
-                                : undefined,
-                            builtInCapability: state.builtInCapability,
-                            layerResolutionCache,
-                        },
-                    );
-                    state.baseProfileFiles = overlay.baseProfileFiles;
-                    state.effectiveFiles = overlay.effectiveFiles;
-                    state.capabilityByLayer = overlay.capabilityByLayer;
-                    state.capabilityWarnings = overlay.capabilityWarnings;
-                    state.agentPluginCatalog = overlay.agentPluginCatalog;
-                    const configLoadWarnings = (result.warnings ?? []).map((warning) =>
-                        toConfigWarningDiagnostic(warning, result.configPath),
-                    );
-                    for (const warning of configLoadWarnings) {
-                        logWarn(formatConfigWarningMessage(warning));
-                    }
-                    const configuredSourceDiagnosticWarnings =
-                        collectEnabledConfiguredSourceDiagnosticWarnings(
-                            activeProfileConfig,
-                            ws.uri.fsPath,
-                            result.configPath,
-                        );
-                    for (const warning of configuredSourceDiagnosticWarnings) {
-                        if (!state.capabilityWarnings.includes(warning.message)) {
-                            state.capabilityWarnings.push(warning.message);
-                            logWarn(warning.message);
-                        }
-                    }
-                    const configWarnings = [
-                        ...configLoadWarnings,
-                        ...configuredSourceDiagnosticWarnings,
-                    ];
-                    publishConfigWarningDiagnostics(
-                        diagnosticCollection,
-                        result.configPath,
-                        configWarnings,
-                    );
-                    state.configWarnings = configWarnings.map(formatConfigWarningMessage);
-                    state.capabilityDiagnosticFilePaths = replaceCapabilityWarningDiagnostics(
-                        diagnosticCollection,
-                        state.capabilityDiagnosticFilePaths,
-                        overlay.capabilityDiagnostics,
-                    );
-                    const profileEffectiveFilesByName = buildProfileEffectiveFilesLookup(
-                        projectedConfig,
-                        ws.uri.fsPath,
-                        injectionConfig,
-                        result.config.activeProfile,
-                        state.effectiveFiles,
-                        {
-                            enableDiscovery: shouldEnableDiscovery,
-                            forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
-                                ? [refreshOptions.forceDiscoveryRepoId]
-                                : undefined,
-                            builtInCapability: state.builtInCapability,
-                            layerResolutionCache,
-                        },
-                    );
-                    state.treeSummaryCache = await buildTreeSummaryCache(
-                        projectedConfig,
-                        ws.uri.fsPath,
-                        state.effectiveFiles,
-                        state.baseProfileFiles,
-                        state.builtInCapability,
-                        profileEffectiveFilesByName,
-                    );
-                    refreshTimer.mark('overlay-and-tree-summary');
-                    if (!refreshOptions.skipSettingsInjection) {
-                        await injectWorkspaceSettings(
-                            ws,
-                            result.config,
-                            state.effectiveFiles,
-                            context,
-                            state.builtInCapability,
-                        );
-                        refreshTimer.mark('settings-injection');
-                    }
-                    overlayResolved = true;
-                    logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
-                    updateStatusBar(
-                        'idle',
-                        resolveActiveProfileLabel(result.config),
-                        state.effectiveFiles.length,
-                    );
-                } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : String(err);
-                    logError(`Overlay resolution failed: ${msg}`);
-                    state.baseProfileFiles = [];
-                    state.effectiveFiles = [];
-                    state.capabilityByLayer = {};
-                    state.capabilityWarnings = [];
-                    state.configWarnings = [];
-                    state.localGitRepoIds = new Set<string>();
-                    state.treeSummaryCache = undefined;
-                    updateStatusBar('error');
-                    void vscode.window
-                        .showErrorMessage(
-                            `MetaFlow: Overlay resolution failed. ${msg}`,
-                            'Show Output',
-                        )
-                        .then((selection) => {
-                            if (selection === 'Show Output') {
-                                showOutputChannel();
-                            }
-                        });
-                }
-
+                updateStatusBar('error');
+                state.config = undefined;
+                state.configPath = undefined;
+                state.activeProfile = undefined;
+                state.baseProfileFiles = [];
+                state.effectiveFiles = [];
+                state.capabilityByLayer = {};
+                state.repoMetadataById = {};
+                state.governanceContract = undefined;
+                state.governanceContractPath = undefined;
+                state.governanceContractErrors = [];
+                state.governanceCompliance = undefined;
+                state.capabilityWarnings = [];
+                state.configWarnings = configMissing
+                    ? []
+                    : [...result.errors, ...(result.warnings ?? [])].map(
+                          formatConfigWarningMessage,
+                      );
+                state.capabilityDiagnosticFilePaths = [];
+                state.agentPluginCatalog = [];
+                state.localGitRepoIds = new Set<string>();
+                state.treeSummaryCache = undefined;
+                invalidateRepoSyncStatus(state);
                 state.capabilityPluginMetadataSettledVersion = Math.max(
                     state.capabilityPluginMetadataSettledVersion,
                     pendingCapabilityPluginMetadataDirtyVersion,
                 );
                 state.isLoading = false;
                 notifyStateChanged();
-                refreshTimer.mark('state-ready');
+                flushRefreshTimings('refresh-invalid-config');
+                return;
+            }
 
-                if (!refreshOptions.skipAutoApply && overlayResolved) {
-                    if (autoApplyEnabled) {
-                        logInfo('Auto-apply enabled; applying overlay after refresh.');
-                        await vscode.commands.executeCommand('metaflow.apply', {
-                            skipRefresh: true,
-                            markApply: result.migrated,
-                        });
+            clearDiagnostics(diagnosticCollection);
+            state.configWarnings = [];
+            state.capabilityDiagnosticFilePaths = [];
+            const managedStateForCapabilityCatalog = loadManagedState(ws.uri.fsPath);
+            restoreCapabilityCatalog(
+                result.config,
+                managedStateForCapabilityCatalog.capabilityCatalog?.entries,
+            );
+            const governanceResult = loadGovernanceContract(ws.uri.fsPath);
+            publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
+            state.governanceContract = governanceResult.ok ? governanceResult.contract : undefined;
+            state.governanceContractPath = governanceResult.contractPath;
+            state.governanceContractErrors = governanceResult.ok
+                ? []
+                : governanceResult.errors.map(cloneConfigError);
+            state.governanceCompliance = undefined;
+            let shouldAdvanceCapabilityIdentitySnapshot = true;
+            if (!refreshOptions.skipConfigMaintenance) {
+                const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
+                const discoveryResult = discoverAndPersistConfiguredRepoLayers(
+                    result.config,
+                    ws.uri.fsPath,
+                    refreshOptions.forceDiscoveryRepoId,
+                    { enableDiscovery: true },
+                );
+                let capabilityRepairPreview: CapabilityIdentityDriftRepairPreview | undefined;
+                try {
+                    capabilityRepairPreview = previewCapabilityIdentityDriftRepair(
+                        result.config,
+                        ws.uri.fsPath,
+                    );
+                } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    logWarn(`Capability identity drift repair skipped: ${message}`);
+                }
+                if (
+                    (result.migrated ||
+                        configNormalized ||
+                        discoveryResult.totalAdded > 0 ||
+                        (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
+                    result.configPath
+                ) {
+                    const pendingConfigUpdateReasons: string[] = [];
+                    if (result.migrated) {
+                        pendingConfigUpdateReasons.push(
+                            'Migrate existing config to the current MetaFlow format.',
+                        );
+                    }
+                    if (configNormalized) {
+                        pendingConfigUpdateReasons.push('Normalize redundant layer path entries.');
+                    }
+                    if (discoveryResult.totalAdded > 0) {
+                        pendingConfigUpdateReasons.push(
+                            `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
+                        );
+                    }
+                    const pendingRepairCount =
+                        capabilityRepairPreview?.repairResult.repaired.length ?? 0;
+                    if (pendingRepairCount > 0) {
+                        pendingConfigUpdateReasons.push(
+                            `Heal ${pendingRepairCount} stale capability reference(s) after metadata moved.`,
+                        );
+                    }
+
+                    const configUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
+                        ? { shouldPersist: true, rememberPreference: false }
+                        : suppressRefreshUpdatePrompts
+                          ? { shouldPersist: false, rememberPreference: false }
+                          : await decideConfigUpdate(result.configPath, pendingConfigUpdateReasons);
+                    if (configUpdateDecision.rememberPreference) {
+                        await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
+                        autoAcceptRefreshUpdates = true;
+                    }
+                    const shouldPersistConfig = configUpdateDecision.shouldPersist;
+
+                    if (shouldPersistConfig && capabilityRepairPreview) {
+                        capabilityRepairPreview.repairResult = applyCapabilityIdentityDriftRepair(
+                            result.config,
+                            ws.uri.fsPath,
+                            capabilityRepairPreview.managedState,
+                        );
+                    }
+
+                    if (shouldPersistConfig) {
+                        await persistConfig(result.configPath, result.config, state);
+                    } else {
+                        logInfo(
+                            'Skipped writing pending .metaflow/config.jsonc updates after user selection.',
+                        );
+                        if (pendingRepairCount > 0) {
+                            shouldAdvanceCapabilityIdentitySnapshot = false;
+                        }
+                    }
+
+                    if (shouldPersistConfig && result.migrated) {
+                        for (const message of result.migrationMessages ?? []) {
+                            logInfo(message);
+                        }
+                        void vscode.window.showInformationMessage(
+                            getConfigMigrationNoticeMessage(),
+                        );
+                    }
+                    if (shouldPersistConfig && configNormalized) {
+                        logInfo(
+                            'Normalized layer paths in config (removed redundant .github suffix entries).',
+                        );
+                    }
+                    if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
+                        const rescannedScope =
+                            discoveryResult.rescannedRepoIds.length > 1
+                                ? `${discoveryResult.rescannedRepoIds.length} repositories`
+                                : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
+                        logInfo(
+                            `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
+                        );
+                    }
+                    for (const repair of shouldPersistConfig
+                        ? (capabilityRepairPreview?.repairResult.repaired ?? [])
+                        : []) {
+                        const scope =
+                            repair.source === 'profiles.layerOverrides' && repair.profileId
+                                ? `${repair.repoId}/${repair.oldPath} in profile ${repair.profileId}`
+                                : `${repair.repoId}/${repair.oldPath}`;
+                        logInfo(
+                            `Repaired capability reference ${scope} -> ${repair.newPath} (${repair.matchReason}).`,
+                        );
                     }
                 }
-
-                await offerPluginInjectionUpgrade({
-                    context,
-                    state,
-                    workspaceRoot: ws.uri.fsPath,
-                    skipPrompt:
-                        refreshOptions.nonInteractive === true ||
-                        context.extensionMode === vscode.ExtensionMode.Test,
-                });
-                flushRefreshTimings('refresh-complete');
-            } catch (err: unknown) {
-                state.isLoading = false;
-                notifyStateChanged();
-                flushRefreshTimings('refresh-error');
-                throw err;
             }
-        };
+            refreshTimer.mark('config-maintenance');
+            const capabilityCatalogEntries = capabilityCatalogFromConfig(result.config);
+            managedStateForCapabilityCatalog.capabilityCatalog = {
+                entries: capabilityCatalogEntries,
+            };
+            saveManagedState(ws.uri.fsPath, managedStateForCapabilityCatalog);
+            state.config = result.config;
+            state.configPath = result.configPath;
+            state.activeProfile = result.config.activeProfile;
+            state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
+            state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
+                context,
+                ws.uri.fsPath,
+                state.builtInCapability,
+            );
+
+            const aiMetadataAutoApplyMode = normalizeAiMetadataAutoApplyMode(
+                workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, 'off'),
+            );
+            if (!refreshOptions.skipBuiltInAutoApply) {
+                state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
+                    context,
+                    ws.uri.fsPath,
+                    state.builtInCapability,
+                    aiMetadataAutoApplyMode,
+                );
+            }
+
+            const projectedConfigForBuiltInRepair = withBuiltInCapabilityProjected(
+                result.config,
+                state.builtInCapability,
+            );
+            const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(
+                state.builtInCapability,
+                ws.uri.fsPath,
+                projectedConfigForBuiltInRepair,
+            );
+            if (builtInRepairPreview.repairs.length > 0) {
+                const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
+                    ? { shouldPersist: true, rememberPreference: false }
+                    : suppressRefreshUpdatePrompts
+                      ? { shouldPersist: false, rememberPreference: false }
+                      : await decideBuiltInCapabilityStateUpdate(builtInRepairPreview.repairs);
+                if (builtInUpdateDecision.rememberPreference) {
+                    await persistAutoAcceptRefreshUpdatesPreference(workspaceConfig);
+                    autoAcceptRefreshUpdates = true;
+                }
+                const shouldUpdateBuiltInState = builtInUpdateDecision.shouldPersist;
+                if (shouldUpdateBuiltInState) {
+                    state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                        context,
+                        state.builtInCapability,
+                        { layerStates: builtInRepairPreview.layerStates },
+                    );
+                    for (const repair of builtInRepairPreview.repairs) {
+                        logInfo(
+                            `Repaired built-in capability selection ${repair.oldPath} -> ${repair.newPath} (${repair.matchReason}).`,
+                        );
+                    }
+                } else {
+                    logInfo(
+                        'Skipped writing pending built-in capability selection updates after user selection.',
+                    );
+                    shouldAdvanceCapabilityIdentitySnapshot = false;
+                }
+            }
+
+            const gitRepos = resolveGitBackedRepoSources(result.config, ws.uri.fsPath);
+            state.localGitRepoIds = await discoverLocalGitRepoIds(result.config, ws.uri.fsPath);
+            if (refreshOptions.skipRepoSync === true) {
+                pruneRepoSyncStatusToRepos(
+                    state,
+                    gitRepos.map((repo) => repo.repoId),
+                );
+            } else {
+                await refreshRepoSyncStatusCache(state, gitRepos);
+            }
+            refreshTimer.mark('repo-status');
+
+            let overlayResolved = false;
+            const layerResolutionCache: ResolveLayersCache = {
+                layerContents: new Map(),
+                discoveredLayerPaths: new Map(),
+            };
+
+            try {
+                const injectionConfig = resolveInjectionConfig(ws, result.config);
+                const shouldEnableDiscovery =
+                    autoApplyEnabled || refreshOptions.forceDiscovery === true;
+                const activeProfileConfig = projectConfigForProfile(result.config);
+                const projectedConfig = withBuiltInCapabilityProjected(
+                    result.config,
+                    state.builtInCapability,
+                );
+                if (shouldAdvanceCapabilityIdentitySnapshot) {
+                    saveCapabilityIdentitySnapshot(projectedConfig, ws.uri.fsPath);
+                }
+                const activeProfileProjectedConfig = projectConfigForProfile(projectedConfig);
+                if (governanceResult.ok) {
+                    state.governanceCompliance = evaluateGovernanceCompliance(
+                        governanceResult.contract,
+                        activeProfileProjectedConfig,
+                    );
+                    publishGovernanceComplianceDiagnostics(
+                        diagnosticCollection,
+                        governanceResult.contractPath,
+                        state.governanceCompliance,
+                    );
+                }
+                state.repoMetadataById = collectConfiguredRepoMetadata(
+                    result.config,
+                    ws.uri.fsPath,
+                    state.builtInCapability,
+                );
+                const overlay = resolveOverlay(
+                    activeProfileProjectedConfig,
+                    ws.uri.fsPath,
+                    injectionConfig,
+                    {
+                        enableDiscovery: shouldEnableDiscovery,
+                        forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
+                            ? [refreshOptions.forceDiscoveryRepoId]
+                            : undefined,
+                        builtInCapability: state.builtInCapability,
+                        layerResolutionCache,
+                    },
+                );
+                state.baseProfileFiles = overlay.baseProfileFiles;
+                state.effectiveFiles = overlay.effectiveFiles;
+                state.capabilityByLayer = overlay.capabilityByLayer;
+                state.capabilityWarnings = overlay.capabilityWarnings;
+                state.agentPluginCatalog = overlay.agentPluginCatalog;
+                const configLoadWarnings = (result.warnings ?? []).map((warning) =>
+                    toConfigWarningDiagnostic(warning, result.configPath),
+                );
+                for (const warning of configLoadWarnings) {
+                    logWarn(formatConfigWarningMessage(warning));
+                }
+                const configuredSourceDiagnosticWarnings =
+                    collectEnabledConfiguredSourceDiagnosticWarnings(
+                        activeProfileConfig,
+                        ws.uri.fsPath,
+                        result.configPath,
+                    );
+                for (const warning of configuredSourceDiagnosticWarnings) {
+                    if (!state.capabilityWarnings.includes(warning.message)) {
+                        state.capabilityWarnings.push(warning.message);
+                        logWarn(warning.message);
+                    }
+                }
+                const configWarnings = [
+                    ...configLoadWarnings,
+                    ...configuredSourceDiagnosticWarnings,
+                ];
+                publishConfigWarningDiagnostics(
+                    diagnosticCollection,
+                    result.configPath,
+                    configWarnings,
+                );
+                state.configWarnings = configWarnings.map(formatConfigWarningMessage);
+                state.capabilityDiagnosticFilePaths = replaceCapabilityWarningDiagnostics(
+                    diagnosticCollection,
+                    state.capabilityDiagnosticFilePaths,
+                    overlay.capabilityDiagnostics,
+                );
+                const profileEffectiveFilesByName = buildProfileEffectiveFilesLookup(
+                    projectedConfig,
+                    ws.uri.fsPath,
+                    injectionConfig,
+                    result.config.activeProfile,
+                    state.effectiveFiles,
+                    {
+                        enableDiscovery: shouldEnableDiscovery,
+                        forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
+                            ? [refreshOptions.forceDiscoveryRepoId]
+                            : undefined,
+                        builtInCapability: state.builtInCapability,
+                        layerResolutionCache,
+                    },
+                );
+                state.treeSummaryCache = await buildTreeSummaryCache(
+                    projectedConfig,
+                    ws.uri.fsPath,
+                    state.effectiveFiles,
+                    state.baseProfileFiles,
+                    state.builtInCapability,
+                    profileEffectiveFilesByName,
+                );
+                refreshTimer.mark('overlay-and-tree-summary');
+                if (!refreshOptions.skipSettingsInjection) {
+                    await injectWorkspaceSettings(
+                        ws,
+                        result.config,
+                        state.effectiveFiles,
+                        context,
+                        state.builtInCapability,
+                    );
+                    refreshTimer.mark('settings-injection');
+                }
+                overlayResolved = true;
+                logInfo(`Resolved ${state.effectiveFiles.length} effective files.`);
+                updateStatusBar(
+                    'idle',
+                    resolveActiveProfileLabel(result.config),
+                    state.effectiveFiles.length,
+                );
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                logError(`Overlay resolution failed: ${msg}`);
+                state.baseProfileFiles = [];
+                state.effectiveFiles = [];
+                state.capabilityByLayer = {};
+                state.capabilityWarnings = [];
+                state.configWarnings = [];
+                state.localGitRepoIds = new Set<string>();
+                state.treeSummaryCache = undefined;
+                updateStatusBar('error');
+                void vscode.window
+                    .showErrorMessage(`MetaFlow: Overlay resolution failed. ${msg}`, 'Show Output')
+                    .then((selection) => {
+                        if (selection === 'Show Output') {
+                            showOutputChannel();
+                        }
+                    });
+            }
+
+            state.capabilityPluginMetadataSettledVersion = Math.max(
+                state.capabilityPluginMetadataSettledVersion,
+                pendingCapabilityPluginMetadataDirtyVersion,
+            );
+            state.isLoading = false;
+            notifyStateChanged();
+            refreshTimer.mark('state-ready');
+
+            if (!refreshOptions.skipAutoApply && overlayResolved) {
+                if (autoApplyEnabled) {
+                    logInfo('Auto-apply enabled; applying overlay after refresh.');
+                    await vscode.commands.executeCommand('metaflow.apply', {
+                        skipRefresh: true,
+                        markApply: result.migrated,
+                    });
+                }
+            }
+
+            await offerPluginInjectionUpgrade({
+                context,
+                state,
+                workspaceRoot: ws.uri.fsPath,
+                skipPrompt:
+                    refreshOptions.nonInteractive === true ||
+                    context.extensionMode === vscode.ExtensionMode.Test,
+            });
+            flushRefreshTimings('refresh-complete');
+        } catch (err: unknown) {
+            state.isLoading = false;
+            notifyStateChanged();
+            flushRefreshTimings('refresh-error');
+            throw err;
+        }
+    };
 
     const refreshCoordinator = createRefreshCoordinator<RefreshCommandOptions>({
         execute: runRefresh,
@@ -6623,7 +6642,10 @@ export function registerCommands(
                                       },
                                   );
                         if (candidateConfig && state.configPath) {
-                            persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
+                            persistBuiltInCapabilityConfig(
+                                candidateConfig,
+                                state.builtInCapability,
+                            );
                             await persistConfig(state.configPath, candidateConfig, state);
                             state.config = candidateConfig;
                             state.activeProfile = candidateConfig.activeProfile;
@@ -7518,7 +7540,10 @@ export function registerCommands(
                             },
                         );
                         if (candidateConfig && state.configPath) {
-                            persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
+                            persistBuiltInCapabilityConfig(
+                                candidateConfig,
+                                state.builtInCapability,
+                            );
                             await persistConfig(state.configPath, candidateConfig, state);
                             state.config = candidateConfig;
                             state.activeProfile = candidateConfig.activeProfile;

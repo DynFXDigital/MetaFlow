@@ -2808,9 +2808,11 @@ suite('Command Execution', function () {
             };
 
             assert.strictEqual(updatedConfig.metadataRepos[0]?.capabilities, undefined);
-            assert.deepStrictEqual(updatedConfig.profiles?.default?.enabledCapabilities, [
-                'ai-metadata:company/core',
-            ], 'A stale index should not toggle the wrong layer');
+            assert.deepStrictEqual(
+                updatedConfig.profiles?.default?.enabledCapabilities,
+                ['ai-metadata:company/core'],
+                'A stale index should not toggle the wrong layer',
+            );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -2873,10 +2875,7 @@ suite('Command Execution', function () {
                 metadataRepos?: Array<{
                     capabilities?: Array<{ path: string; enabled?: boolean }>;
                 }>;
-                profiles?: Record<
-                    string,
-                    { enabledCapabilities?: string[] }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
             assert.deepStrictEqual(
@@ -2894,10 +2893,7 @@ suite('Command Execution', function () {
                 metadataRepos?: Array<{
                     capabilities?: Array<{ path: string; enabled?: boolean }>;
                 }>;
-                profiles?: Record<
-                    string,
-                    { enabledCapabilities?: string[] }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
             assert.deepStrictEqual(
@@ -3110,10 +3106,7 @@ suite('Command Execution', function () {
 
             const afterFocusedToggle = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 metadataRepos?: Array<{ capabilities?: unknown }>;
-                profiles?: Record<
-                    string,
-                    { enabledCapabilities?: string[] }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
                 activeProfile?: string;
             };
 
@@ -3136,10 +3129,7 @@ suite('Command Execution', function () {
             });
 
             const afterSwitchBack = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                profiles?: Record<
-                    string,
-                    { enabledCapabilities?: string[] }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
                 activeProfile?: string;
             };
 
@@ -3162,10 +3152,7 @@ suite('Command Execution', function () {
 
             const afterSwitchForward = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 activeProfile?: string;
-                profiles?: Record<
-                    string,
-                    { enabledCapabilities?: string[] }
-                >;
+                profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
             assert.strictEqual(
@@ -3314,15 +3301,11 @@ suite('Command Execution', function () {
             });
 
             let updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                capabilityOverrides?: Record<
-                    string,
-                    { injection?: Record<string, string> }
-                >;
+                capabilityOverrides?: Record<string, { injection?: Record<string, string> }>;
             };
 
             assert.strictEqual(
-                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
-                    ?.prompts,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection?.prompts,
                 'synchronize',
                 'Capability prompt injection override should persist',
             );
@@ -3574,8 +3557,7 @@ suite('Command Execution', function () {
             };
 
             assert.strictEqual(
-                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection
-                    ?.prompts,
+                updatedConfig.capabilityOverrides?.['ai-metadata:company/core']?.injection?.prompts,
                 'synchronize',
                 'Capability prompt synchronization override should persist',
             );
@@ -6160,7 +6142,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0318: toggleRepoSource toggles the built-in MetaFlow repo without mutating config', async function () {
+    test('TC-0318: toggleRepoSource persists built-in MetaFlow repo selection', async function () {
         this.timeout(25000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6231,11 +6213,12 @@ suite('Command Execution', function () {
             }, 20000);
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
-            assert.strictEqual(
+            assert.notStrictEqual(
                 afterToggleConfig,
                 originalConfig,
-                'Built-in repo toggling should not mutate .metaflow/config.jsonc in builtinLayer mode',
+                'Built-in repo toggling should persist the selected built-in source state',
             );
+            assert.match(afterToggleConfig, /__metaflow_builtin__/);
         } finally {
             await wsConfig.update(
                 'metaflow.aiMetadataAutoApplyMode',
@@ -6358,11 +6341,12 @@ suite('Command Execution', function () {
             );
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
-            assert.strictEqual(
+            assert.notStrictEqual(
                 afterToggleConfig,
                 originalConfig,
-                'Built-in remove/re-add should not mutate .metaflow/config.jsonc in builtinLayer mode',
+                'Built-in remove/re-add should preserve the persisted built-in source state',
             );
+            assert.match(afterToggleConfig, /__metaflow_builtin__/);
         } finally {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
