@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.3.7
+
+### Patch Changes
+
+- 592da89: Apply the configuration and repository-state fixes merged from develop.
+
 ## 0.3.6
 
 ### Patch Changes
