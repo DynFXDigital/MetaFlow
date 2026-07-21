@@ -167,7 +167,9 @@ suite('metaFlowAiMetadata', () => {
         try {
             const result = await scaffoldMetaFlowAiMetadata({ workspaceRoot, extensionPath });
             assert.ok(result, 'Expected scaffold result for nested capability assets');
-            assert.deepStrictEqual(result?.writtenFiles, ['.github/instructions/ai-metadata-agent.instructions.md']);
+            assert.deepStrictEqual(result?.writtenFiles, [
+                '.github/instructions/ai-metadata-agent.instructions.md',
+            ]);
             assert.strictEqual(
                 fs.readFileSync(
                     path.join(
@@ -266,8 +268,22 @@ suite('metaFlowAiMetadata', () => {
                 version: CACHE_VERSION,
             });
             assert.ok(refreshed, 'Expected same-version content change to refresh the cache');
-            assert.strictEqual(fs.readFileSync(targetInstruction, 'utf-8'), '# updated\n');
-            assert.strictEqual(fs.readFileSync(targetManifest, 'utf-8'), '# capability\n');
+            assert.strictEqual(
+                fs.readFileSync(
+                    path.join(
+                        refreshed!.targetRoot,
+                        '.github',
+                        'instructions',
+                        'starter.instructions.md',
+                    ),
+                    'utf-8',
+                ),
+                '# updated\n',
+            );
+            assert.strictEqual(
+                fs.readFileSync(path.join(refreshed!.targetRoot, 'CAPABILITY.md'), 'utf-8'),
+                '# capability\n',
+            );
 
             const updated = await ensureMetaFlowAiMetadataCache({
                 storageRoot,
@@ -275,8 +291,22 @@ suite('metaFlowAiMetadata', () => {
                 version: UPDATED_CACHE_VERSION,
             });
             assert.ok(updated, 'Expected version change to refresh the cache');
-            assert.strictEqual(fs.readFileSync(targetInstruction, 'utf-8'), '# updated\n');
-            assert.strictEqual(fs.readFileSync(targetManifest, 'utf-8'), '# capability\n');
+            assert.strictEqual(
+                fs.readFileSync(
+                    path.join(
+                        updated!.targetRoot,
+                        '.github',
+                        'instructions',
+                        'starter.instructions.md',
+                    ),
+                    'utf-8',
+                ),
+                '# updated\n',
+            );
+            assert.strictEqual(
+                fs.readFileSync(path.join(updated!.targetRoot, 'CAPABILITY.md'), 'utf-8'),
+                '# capability\n',
+            );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
@@ -286,7 +316,7 @@ suite('metaFlowAiMetadata', () => {
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-starter-legacy-cache-'));
         const extensionPath = path.join(tempRoot, 'extension');
         const storageRoot = path.join(tempRoot, 'storage');
-        const targetRoot = path.join(storageRoot, 'bundled-metadata', 'metaflow-ai-metadata');
+        const legacyTargetRoot = path.join(storageRoot, 'bundled-metadata', 'metaflow-ai-metadata');
 
         const sourceInstruction = path.join(
             extensionPath,
@@ -298,14 +328,14 @@ suite('metaFlowAiMetadata', () => {
         );
         fs.mkdirSync(path.dirname(sourceInstruction), { recursive: true });
         fs.writeFileSync(sourceInstruction, '# starter\n', 'utf-8');
-        fs.mkdirSync(path.join(targetRoot, '.github', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(legacyTargetRoot, '.github', 'instructions'), { recursive: true });
         fs.writeFileSync(
-            path.join(targetRoot, '.github', 'instructions', 'starter.instructions.md'),
+            path.join(legacyTargetRoot, '.github', 'instructions', 'starter.instructions.md'),
             '# stale\n',
             'utf-8',
         );
         fs.writeFileSync(
-            path.join(targetRoot, '.metaflow-bundle-version'),
+            path.join(legacyTargetRoot, '.metaflow-bundle-version'),
             `${CACHE_VERSION}\n`,
             'utf-8',
         );
@@ -320,10 +350,79 @@ suite('metaFlowAiMetadata', () => {
             assert.ok(cached, 'Expected legacy cache marker to be refreshed');
             assert.strictEqual(
                 fs.readFileSync(
-                    path.join(targetRoot, '.github', 'instructions', 'starter.instructions.md'),
+                    path.join(
+                        cached!.targetRoot,
+                        '.github',
+                        'instructions',
+                        'starter.instructions.md',
+                    ),
                     'utf-8',
                 ),
                 '# starter\n',
+            );
+            assert.ok(
+                !fs.existsSync(legacyTargetRoot),
+                'Refresh should remove the obsolete fixed cache root when it is not in use',
+            );
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('serializes concurrent cache refreshes and publishes one complete cache', async () => {
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-starter-concurrent-cache-'));
+        const extensionPath = path.join(tempRoot, 'extension');
+        const storageRoot = path.join(tempRoot, 'storage');
+        const sourceRoot = path.join(extensionPath, 'assets', 'metaflow-ai-metadata');
+        const sourceInstruction = path.join(
+            sourceRoot,
+            '.github',
+            'instructions',
+            'starter.instructions.md',
+        );
+        const sourceHook = path.join(sourceRoot, 'hooks', 'hooks.json');
+        fs.mkdirSync(path.dirname(sourceInstruction), { recursive: true });
+        fs.mkdirSync(path.dirname(sourceHook), { recursive: true });
+        fs.writeFileSync(sourceInstruction, '# starter\n', 'utf-8');
+        fs.writeFileSync(sourceHook, '{"hooks":{}}\n', 'utf-8');
+
+        let copyCount = 0;
+        const delayedCopy = async (sourceFile: string, destinationFile: string): Promise<void> => {
+            copyCount += 1;
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            await fs.promises.copyFile(sourceFile, destinationFile);
+        };
+
+        try {
+            const [first, second] = await Promise.all([
+                ensureMetaFlowAiMetadataCache({
+                    storageRoot,
+                    extensionPath,
+                    version: CACHE_VERSION,
+                    copyFile: delayedCopy,
+                }),
+                ensureMetaFlowAiMetadataCache({
+                    storageRoot,
+                    extensionPath,
+                    version: CACHE_VERSION,
+                    copyFile: delayedCopy,
+                }),
+            ]);
+
+            assert.ok(first && second, 'Both concurrent callers should resolve a cache root');
+            assert.strictEqual(copyCount, 2, 'Only one caller should copy the two source files');
+            assert.strictEqual(
+                fs.readFileSync(path.join(first!.targetRoot, 'hooks', 'hooks.json'), 'utf-8'),
+                '{"hooks":{}}\n',
+            );
+            assert.ok(
+                fs.existsSync(path.join(first!.targetRoot, '.metaflow-bundle-version')),
+                'Published cache should include its version marker',
+            );
+            assert.deepStrictEqual(
+                fs.readdirSync(path.join(storageRoot, 'bundled-metadata')).sort(),
+                [path.basename(first!.targetRoot)],
+                'Refresh should not leave staging, backup, or lock directories behind',
             );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });

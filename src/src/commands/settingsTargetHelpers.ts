@@ -150,6 +150,7 @@ const BUNDLED_METAFLOW_SETTING_SUFFIX_BY_KEY: Record<string, string> = {
     'chat.promptFilesLocations': '/.github/prompts',
     'chat.agentFilesLocations': '/.github/agents',
     'chat.agentSkillsLocations': '/.github/skills',
+    'chat.hookFilesLocations': '',
 };
 
 const LEGACY_SETTINGS_KEYS_BY_ARTIFACT_TYPE: Record<string, string[]> = {

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 export interface ScaffoldMetaFlowAiMetadataResult {
     sourceRoot: string;
@@ -16,6 +16,9 @@ export interface MetaFlowAiMetadataCacheResult extends ScaffoldMetaFlowAiMetadat
 const BUNDLED_METADATA_CACHE_DIR = 'bundled-metadata';
 const BUNDLED_METADATA_ROOT_NAME = 'metaflow-ai-metadata';
 const BUNDLED_METADATA_VERSION_MARKER = '.metaflow-bundle-version';
+const BUNDLED_METADATA_CACHE_LOCK = '.metaflow-ai-metadata.lock';
+const CACHE_LOCK_TIMEOUT_MS = 10000;
+const CACHE_LOCK_STALE_MS = 30000;
 const CAPABILITY_MANIFEST_FILE_NAME = 'CAPABILITY.md';
 
 interface BundledMetadataVersionMarker {
@@ -55,55 +58,143 @@ export async function ensureMetaFlowAiMetadataCache(options: {
         return undefined;
     }
 
-    const targetRoot = path.join(
-        options.storageRoot,
-        BUNDLED_METADATA_CACHE_DIR,
-        BUNDLED_METADATA_ROOT_NAME,
-    );
-    const versionMarkerPath = path.join(targetRoot, BUNDLED_METADATA_VERSION_MARKER);
     const sourceFingerprint = await computeBundledMetadataFingerprint(sourceRoot);
-    const versionMarker = readBundledMetadataVersionMarker(versionMarkerPath);
-
-    if (
-        fs.existsSync(targetRoot) &&
-        versionMarker?.version === options.version &&
-        versionMarker.fingerprint === sourceFingerprint
-    ) {
-        return {
-            sourceRoot,
-            targetRoot,
-            writtenFiles: [],
-            skippedFiles: [],
-        };
-    }
-
-    await fsp.rm(targetRoot, { recursive: true, force: true });
-
-    const result = await copyBundledMetaFlowAiMetadata({
-        sourceRoot,
-        destinationRoot: targetRoot,
-        overwriteExisting: true,
-        copyFile: options.copyFile,
-    });
-
-    await fsp.mkdir(targetRoot, { recursive: true });
-    await fsp.writeFile(
-        versionMarkerPath,
-        JSON.stringify(
-            {
-                version: options.version,
-                fingerprint: sourceFingerprint,
-            },
-            null,
-            2,
-        ) + '\n',
-        'utf-8',
+    const cacheRootName = `${BUNDLED_METADATA_ROOT_NAME}-${sanitizeCacheSegment(options.version)}-${sourceFingerprint.slice(0, 16)}`;
+    const targetRoot = path.join(options.storageRoot, BUNDLED_METADATA_CACHE_DIR, cacheRootName);
+    const cacheParent = path.dirname(targetRoot);
+    const releaseLock = await acquireBundledMetadataCacheLock(cacheParent);
+    const stagingRoot = path.join(
+        cacheParent,
+        `.${BUNDLED_METADATA_ROOT_NAME}.${randomUUID()}.tmp`,
     );
 
-    return {
-        ...result,
-        targetRoot,
-    };
+    try {
+        const versionMarkerPath = path.join(targetRoot, BUNDLED_METADATA_VERSION_MARKER);
+        const versionMarker = readBundledMetadataVersionMarker(versionMarkerPath);
+        if (
+            fs.existsSync(targetRoot) &&
+            versionMarker?.version === options.version &&
+            versionMarker.fingerprint === sourceFingerprint
+        ) {
+            return {
+                sourceRoot,
+                targetRoot,
+                writtenFiles: [],
+                skippedFiles: [],
+            };
+        }
+
+        const result = await copyBundledMetaFlowAiMetadata({
+            sourceRoot,
+            destinationRoot: stagingRoot,
+            overwriteExisting: true,
+            copyFile: options.copyFile,
+        });
+        await fsp.writeFile(
+            path.join(stagingRoot, BUNDLED_METADATA_VERSION_MARKER),
+            JSON.stringify(
+                {
+                    version: options.version,
+                    fingerprint: sourceFingerprint,
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+
+        await fsp.rename(stagingRoot, targetRoot);
+        await removeObsoleteBundledMetadataCaches(cacheParent, targetRoot);
+
+        return {
+            ...result,
+            targetRoot,
+        };
+    } finally {
+        await fsp.rm(stagingRoot, { recursive: true, force: true });
+        await releaseLock();
+    }
+}
+
+function sanitizeCacheSegment(value: string): string {
+    return value.replace(/[^A-Za-z0-9._-]+/g, '-');
+}
+
+async function removeObsoleteBundledMetadataCaches(
+    cacheParent: string,
+    retainedRoot: string,
+): Promise<void> {
+    const entries = await fsp.readdir(cacheParent, { withFileTypes: true });
+    for (const entry of entries) {
+        if (
+            !entry.isDirectory() ||
+            entry.name === path.basename(retainedRoot) ||
+            (entry.name !== BUNDLED_METADATA_ROOT_NAME &&
+                !entry.name.startsWith(`${BUNDLED_METADATA_ROOT_NAME}-`))
+        ) {
+            continue;
+        }
+
+        try {
+            await fsp.rm(path.join(cacheParent, entry.name), { recursive: true, force: true });
+        } catch (error) {
+            if (
+                !['EPERM', 'EBUSY', 'ENOTEMPTY'].includes(
+                    (error as NodeJS.ErrnoException).code ?? '',
+                )
+            ) {
+                throw error;
+            }
+        }
+    }
+}
+
+async function acquireBundledMetadataCacheLock(cacheParent: string): Promise<() => Promise<void>> {
+    await fsp.mkdir(cacheParent, { recursive: true });
+    const lockRoot = path.join(cacheParent, BUNDLED_METADATA_CACHE_LOCK);
+    const ownerPath = path.join(lockRoot, 'owner');
+    const owner = randomUUID();
+    const deadline = Date.now() + CACHE_LOCK_TIMEOUT_MS;
+
+    while (true) {
+        try {
+            await fsp.mkdir(lockRoot);
+            await fsp.writeFile(ownerPath, owner, 'utf-8');
+            return async () => {
+                try {
+                    if ((await fsp.readFile(ownerPath, 'utf-8')) === owner) {
+                        await fsp.rm(lockRoot, { recursive: true, force: true });
+                    }
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                        throw error;
+                    }
+                }
+            };
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+                throw error;
+            }
+
+            try {
+                const lockStat = await fsp.stat(lockRoot);
+                if (Date.now() - lockStat.mtimeMs > CACHE_LOCK_STALE_MS) {
+                    await fsp.rm(lockRoot, { recursive: true, force: true });
+                    continue;
+                }
+            } catch (statError) {
+                if ((statError as NodeJS.ErrnoException).code === 'ENOENT') {
+                    continue;
+                }
+                throw statError;
+            }
+
+            if (Date.now() >= deadline) {
+                throw new Error(`Timed out waiting for bundled metadata cache lock: ${lockRoot}`);
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+    }
 }
 
 function resolveBundledMetaFlowAiMetadataSourceRoot(extensionPath: string): string {

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs\"",
+        "timeout": 2
+      }
+    ]
+  }
+}

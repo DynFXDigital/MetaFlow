@@ -7,8 +7,8 @@ import { getArtifactType } from '@metaflow/engine';
 const ASSET_ROOT = path.resolve(__dirname, '../../../assets/metaflow-ai-metadata');
 const GITHUB_ROOT = path.join(ASSET_ROOT, '.github');
 const PROMPT_INJECTION_HOOK = path.join(
-    GITHUB_ROOT,
-    'hooks/scripts/prompt-injection-guard.mjs',
+    ASSET_ROOT,
+    'scripts/prompt-injection-guard.mjs',
 );
 
 function runPromptInjectionHook(event: unknown): string {
@@ -78,7 +78,6 @@ suite('bundled metadata assets', () => {
             'instructions/ai-metadata-hooks.instructions.md',
             'instructions/ai-metadata-prompts.instructions.md',
             'instructions/metaflow-prompt-injection-defense.instructions.md',
-            'hooks/prompt-injection-guard.json',
             'hooks/scripts/prompt-injection-guard.mjs',
         ];
 
@@ -103,6 +102,22 @@ suite('bundled metadata assets', () => {
                 `Bundled metadata-authoring instruction must not use exact global applyTo scope: ${relativePath}`,
             );
         }
+
+        for (const relativePath of [
+            'plugin.json',
+            '.plugin/plugin.json',
+            'hooks/hooks.json',
+            'scripts/prompt-injection-guard.mjs',
+        ]) {
+            assert.ok(
+                fs.existsSync(path.join(ASSET_ROOT, relativePath)),
+                `Expected bundled plugin asset: ${relativePath}`,
+            );
+        }
+        assert.ok(
+            !fs.existsSync(path.join(GITHUB_ROOT, 'hooks/prompt-injection-guard.json')),
+            'Expected the workspace-relative hook config to be absent from the plugin package.',
+        );
     });
 
     test('bundled root MetaFlow capability includes prompt-injection guidance for agent metadata', () => {
@@ -324,19 +339,27 @@ suite('bundled metadata assets', () => {
     });
 
     test('bundled prompt-injection hook guard is wired to the shipped script', () => {
-        const hookConfigPath = path.join(GITHUB_ROOT, 'hooks/prompt-injection-guard.json');
+        const hookConfigPath = path.join(ASSET_ROOT, 'hooks/hooks.json');
         const hookScriptPath = path.join(GITHUB_ROOT, 'hooks/scripts/prompt-injection-guard.mjs');
+        const pluginScriptPath = path.join(ASSET_ROOT, 'scripts/prompt-injection-guard.mjs');
 
         const hookConfig = JSON.parse(fs.readFileSync(hookConfigPath, 'utf-8')) as {
-            version?: number;
-            hooks?: { preToolUse?: Array<{ command?: string; timeoutSec?: number }> };
+            hooks?: { PreToolUse?: Array<{ command?: string; timeout?: number }> };
         };
+        const pluginManifest = JSON.parse(
+            fs.readFileSync(path.join(ASSET_ROOT, '.plugin/plugin.json'), 'utf-8'),
+        ) as { name?: string };
         const hookScript = fs.readFileSync(hookScriptPath, 'utf-8');
+        const pluginScript = fs.readFileSync(pluginScriptPath, 'utf-8');
 
-        assert.strictEqual(hookConfig.version, 1);
+        assert.strictEqual(pluginManifest.name, 'metaflow-ai-metadata');
         assert.strictEqual(
-            hookConfig.hooks?.preToolUse?.[0]?.command,
-            'node .github/hooks/scripts/prompt-injection-guard.mjs',
+            hookConfig.hooks?.PreToolUse?.[0]?.command,
+            'node "${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs"',
+        );
+        assert.ok(
+            pluginScript.includes("../.github/hooks/scripts/prompt-injection-guard.mjs"),
+            'Expected the plugin entry point to delegate to the shipped hook implementation.',
         );
         assert.ok(
             hookScript.includes('permissionDecision'),

@@ -393,10 +393,12 @@ suite('settingsTargetHelpers', () => {
             ]);
         });
 
-        test('SIT-PB-04 leaves unrelated settings keys unchanged', () => {
+        test('SIT-PB-04 prunes stale bundled hooks while retaining unrelated hooks', () => {
             const existing = {
-                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/prompts': true,
-                'user/path': true,
+                '../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/hooks/prompt-injection-guard.json': true,
+                '../../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/.github/hooks/scripts/prompt-injection-guard.mjs': true,
+                '../../AppData/Roaming/Code/User/globalStorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/hooks.json': true,
+                '../AI/DFX-AI-Metadata/capabilities/version-control/protected-branch-guard/hooks/hooks.json': true,
             };
 
             const result = pruneBundledMetaFlowSettingsEntries(
@@ -405,7 +407,9 @@ suite('settingsTargetHelpers', () => {
                 undefined,
             );
 
-            assert.deepStrictEqual(result, existing);
+            assert.deepStrictEqual(result, {
+                '../AI/DFX-AI-Metadata/capabilities/version-control/protected-branch-guard/hooks/hooks.json': true,
+            });
         });
     });
 });
