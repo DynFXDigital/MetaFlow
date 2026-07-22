@@ -270,10 +270,14 @@ suite('Command Execution', function () {
         const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
         return candidates.some((location) => {
             const normalized = location.replace(/\\/g, '/').toLowerCase();
+            const bundledRootMarker =
+                '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata';
+            const markerIndex = normalized.indexOf(bundledRootMarker);
+            const markerEnd = markerIndex + bundledRootMarker.length;
+            const nextCharacter = markerIndex >= 0 ? normalized[markerEnd] : undefined;
             return (
-                normalized.includes(
-                    '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/',
-                ) &&
+                markerIndex >= 0 &&
+                (nextCharacter === undefined || nextCharacter === '/' || nextCharacter === '-') &&
                 (!suffix || normalized.endsWith(suffix))
             );
         });

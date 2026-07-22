@@ -65,10 +65,15 @@ suite('Governance command enforcement', () => {
         const candidates = Array.isArray(locations) ? locations : Object.keys(locations);
         return candidates.some((location) => {
             const normalized = location.replace(/\\/g, '/').toLowerCase();
+            const bundledRootMarker =
+                '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata';
+            const markerIndex = normalized.indexOf(bundledRootMarker);
+            const markerEnd = markerIndex + bundledRootMarker.length;
+            const nextCharacter = markerIndex >= 0 ? normalized[markerEnd] : undefined;
             return (
-                normalized.includes(
-                    '/globalstorage/dynfxdigital.metaflow-ai/bundled-metadata/metaflow-ai-metadata/',
-                ) && normalized.endsWith('/.github/instructions')
+                markerIndex >= 0 &&
+                (nextCharacter === undefined || nextCharacter === '/' || nextCharacter === '-') &&
+                normalized.endsWith('/.github/instructions')
             );
         });
     }
