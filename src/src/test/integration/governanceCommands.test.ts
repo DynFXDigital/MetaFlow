@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = process.env.CI ? 30000 : 10000;
+const GOVERNANCE_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
 
 suite('Governance command enforcement', () => {
     let workspaceRoot: string;
@@ -11,8 +13,9 @@ suite('Governance command enforcement', () => {
 
     async function waitFor(
         predicate: () => boolean | Promise<boolean>,
-        timeoutMs = 10000,
+        timeoutMs = DEFAULT_WAIT_FOR_TIMEOUT_MS,
         intervalMs = 100,
+        getState?: () => unknown,
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
@@ -21,7 +24,17 @@ suite('Governance command enforcement', () => {
             }
             await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
-        assert.fail(`Condition not met within ${timeoutMs}ms`);
+        let state = 'unavailable';
+        if (getState) {
+            try {
+                state = JSON.stringify(getState()) ?? 'undefined';
+            } catch {
+                state = 'unserializable';
+            }
+        }
+        assert.fail(
+            `Condition not met within ${timeoutMs}ms (predicate=${predicate.name || 'anonymous'}; state=${state})`,
+        );
     }
 
     async function updateConfigAndWait(
@@ -76,6 +89,16 @@ suite('Governance command enforcement', () => {
                 normalized.endsWith('/.github/instructions')
             );
         });
+    }
+
+    function getBuiltInInstructionState(wsConfig: vscode.WorkspaceConfiguration) {
+        const locations = getInjectedLocationValue(
+            wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
+        );
+        return {
+            hasBuiltInInstructionPath: hasBuiltInInstructionPath(locations),
+            locations,
+        };
     }
 
     async function resetBuiltInCapabilityState(): Promise<void> {
@@ -164,7 +187,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('blocks disallowed profile switches under error governance without persisting config writes', async function () {
-        this.timeout(15000);
+        this.timeout(process.env.CI ? 30000 : 15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -244,7 +267,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('warns but persists single-layer toggles under warning governance', async function () {
-        this.timeout(15000);
+        this.timeout(process.env.CI ? 30000 : 15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -347,7 +370,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('blocks branch toggles under error governance without persisting candidate overrides', async function () {
-        this.timeout(15000);
+        this.timeout(process.env.CI ? 30000 : 15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -436,7 +459,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('blocks deselectAllLayers under error governance without persisting bulk writes', async function () {
-        this.timeout(15000);
+        this.timeout(process.env.CI ? 30000 : 15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -524,7 +547,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('blocks built-in repo toggles under error governance without persisting workspace-state writes', async function () {
-        this.timeout(30000);
+        this.timeout(GOVERNANCE_TEST_TIMEOUT_MS);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
@@ -585,12 +608,12 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            });
+            await waitFor(
+                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                undefined,
+                100,
+                () => getBuiltInInstructionState(wsConfig),
+            );
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
@@ -598,12 +621,12 @@ suite('Governance command enforcement', () => {
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            });
+            await waitFor(
+                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                undefined,
+                100,
+                () => getBuiltInInstructionState(wsConfig),
+            );
 
             assert.ok(
                 messages.errors.some((message) =>
@@ -649,7 +672,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('blocks built-in layer toggles under error governance without persisting workspace-state writes', async function () {
-        this.timeout(30000);
+        this.timeout(GOVERNANCE_TEST_TIMEOUT_MS);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
@@ -710,12 +733,12 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            });
+            await waitFor(
+                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                undefined,
+                100,
+                () => getBuiltInInstructionState(wsConfig),
+            );
 
             await vscode.commands.executeCommand('metaflow.toggleLayer', {
                 repoId: '__metaflow_builtin__',
@@ -724,12 +747,12 @@ suite('Governance command enforcement', () => {
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            });
+            await waitFor(
+                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                undefined,
+                100,
+                () => getBuiltInInstructionState(wsConfig),
+            );
 
             assert.ok(
                 messages.errors.some((message) =>
@@ -775,7 +798,7 @@ suite('Governance command enforcement', () => {
     });
 
     test('selectAllLayers restores governed bulk-enable state and runtime compliance', async function () {
-        this.timeout(15000);
+        this.timeout(process.env.CI ? 30000 : 15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');

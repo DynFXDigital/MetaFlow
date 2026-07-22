@@ -11,8 +11,8 @@ import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
-const COMPLEX_COMMAND_TEST_TIMEOUT_MS = 30000;
-const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10000;
+const COMPLEX_COMMAND_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
+const DEFAULT_WAIT_FOR_TIMEOUT_MS = process.env.CI ? 30000 : 10000;
 
 suite('Command Execution', function () {
     this.timeout(COMPLEX_COMMAND_TEST_TIMEOUT_MS);
@@ -53,6 +53,7 @@ suite('Command Execution', function () {
         predicate: () => boolean | Promise<boolean>,
         timeoutMs = DEFAULT_WAIT_FOR_TIMEOUT_MS,
         intervalMs = 100,
+        getState?: () => unknown,
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
@@ -61,7 +62,17 @@ suite('Command Execution', function () {
             }
             await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
-        assert.fail(`Condition not met within ${timeoutMs}ms`);
+        let state = 'unavailable';
+        if (getState) {
+            try {
+                state = JSON.stringify(getState()) ?? 'undefined';
+            } catch {
+                state = 'unserializable';
+            }
+        }
+        assert.fail(
+            `Condition not met within ${timeoutMs}ms (predicate=${predicate.name || 'anonymous'}; state=${state})`,
+        );
     }
 
     function summarizeCapabilityDetailsHtml(html: string | undefined): string {
