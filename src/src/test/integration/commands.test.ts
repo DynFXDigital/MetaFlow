@@ -671,7 +671,7 @@ suite('Command Execution', function () {
     });
 
     test('apply suppresses completion toast when no Synchronized files are written', async function () {
-        this.timeout(20000);
+        this.timeout(process.env.CI ? 45000 : 20000);
 
         await resetBuiltInCapabilityState();
 

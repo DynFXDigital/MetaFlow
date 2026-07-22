@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 const DEFAULT_WAIT_FOR_TIMEOUT_MS = process.env.CI ? 30000 : 10000;
-const GOVERNANCE_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
+const GOVERNANCE_TEST_TIMEOUT_MS = process.env.CI ? 90000 : 30000;
 
 suite('Governance command enforcement', () => {
     let workspaceRoot: string;
