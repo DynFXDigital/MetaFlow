@@ -211,30 +211,19 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
     await vscode.commands.executeCommand('list.find');
 }
 
-function waitForTreeViewRefresh(): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, 150));
-}
+type LayersFilterSession = {
+    input: vscode.InputBox;
+    previousMode: LayersViewMode | undefined;
+    disposables: vscode.Disposable[];
+    cleanupPromise?: Promise<void>;
+};
 
-async function focusFirstTreeItem<T extends vscode.TreeItem>(
-    treeView: vscode.TreeView<T>,
-    provider: SearchPreparedTreeProvider<T>,
-): Promise<void> {
-    const firstItem = provider.getChildren()[0];
-    if (!firstItem) {
-        return;
-    }
-
-    await treeView.reveal(firstItem, { focus: true, select: false, expand: false });
-}
-
-let layersNativeFilterPreviousMode: LayersViewMode | undefined;
+let layersFilterSession: LayersFilterSession | undefined;
 
 async function restoreLayersViewModeAfterFilter(
     provider: LayersTreeViewProvider,
+    previousMode: LayersViewMode | undefined,
 ): Promise<void> {
-    const previousMode = layersNativeFilterPreviousMode;
-    layersNativeFilterPreviousMode = undefined;
-
     if (!previousMode) {
         return;
     }
@@ -254,75 +243,112 @@ async function restoreLayersViewModeAfterFilter(
     provider.refresh();
 }
 
-async function openLayersTreeFilter<T extends vscode.TreeItem>(
-    treeView: vscode.TreeView<T>,
-    provider: LayersTreeViewProvider & SearchPreparedTreeProvider<T>,
+function closeLayersFilterSession(
+    session: LayersFilterSession,
+    provider: LayersTreeViewProvider,
 ): Promise<void> {
+    session.cleanupPromise ??= (async () => {
+        if (layersFilterSession === session) {
+            layersFilterSession = undefined;
+        }
+
+        provider.setSearchQuery(undefined);
+        try {
+            await restoreLayersViewModeAfterFilter(provider, session.previousMode);
+        } finally {
+            await vscode.commands.executeCommand(
+                'setContext',
+                'metaflow.layersNativeFilterActive',
+                false,
+            );
+            for (const disposable of session.disposables) {
+                disposable.dispose();
+            }
+            session.input.dispose();
+        }
+    })();
+
+    return session.cleanupPromise;
+}
+
+async function openLayersTreeFilter(provider: LayersTreeViewProvider): Promise<void> {
+    if (layersFilterSession) {
+        layersFilterSession.input.show();
+        return;
+    }
+
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (workspaceRoot) {
-        const currentMode = readManagedViewsState(workspaceRoot).layersViewMode;
-        layersNativeFilterPreviousMode ??= currentMode;
-        if (currentMode !== 'flat') {
+    const previousMode = workspaceRoot
+        ? readManagedViewsState(workspaceRoot).layersViewMode
+        : undefined;
+    const input = vscode.window.createInputBox();
+    const session: LayersFilterSession = {
+        input,
+        previousMode,
+        disposables: [],
+    };
+    layersFilterSession = session;
+
+    input.title = 'Filter Capabilities';
+    input.placeholder = 'Type to filter capabilities';
+    input.value = provider.getSearchQuery() ?? '';
+    input.ignoreFocusOut = true;
+    input.buttons = [
+        {
+            iconPath: new vscode.ThemeIcon('close'),
+            tooltip: 'Close',
+        },
+    ];
+    session.disposables.push(
+        input.onDidChangeValue((value) => provider.setSearchQuery(value)),
+        input.onDidAccept(() => input.hide()),
+        input.onDidTriggerButton(() => input.hide()),
+        input.onDidHide(() => {
+            void closeLayersFilterSession(session, provider);
+        }),
+    );
+
+    try {
+        if (workspaceRoot && previousMode !== 'flat') {
             writeManagedViewsState(workspaceRoot, { layersViewMode: 'flat' });
             await vscode.commands.executeCommand('setContext', 'metaflow.layersViewMode', 'flat');
             provider.refresh();
         }
-    }
 
-    await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+        await vscode.commands.executeCommand('workbench.view.extension.metaflow-container');
+        try {
+            await vscode.commands.executeCommand('metaflow-layers.focus');
+        } catch {
+            // Fall back to the current sidebar focus when the generated focus command is unavailable.
+        }
 
-    try {
-        await vscode.commands.executeCommand('metaflow-layers.focus');
-    } catch {
-        // Fall back to the current sidebar focus when the generated focus command is unavailable.
-    }
-
-    await waitForTreeViewRefresh();
-
-    try {
-        await vscode.commands.executeCommand('workbench.actions.treeView.metaflow-layers.collapseAll');
-    } catch {
-        // Some VS Code hosts may not expose generated collapse-all commands.
-    }
-
-    await waitForTreeViewRefresh();
-    await focusFirstTreeItem(treeView, provider).catch((error: unknown) => {
-        logWarn(`MetaFlow: Tree search focus failed: ${String(error)}`);
-    });
-    await waitForTreeViewRefresh();
-    await vscode.commands.executeCommand('list.focusFirst');
-    await waitForTreeViewRefresh();
-
-    await vscode.commands.executeCommand('setContext', 'metaflow.layersNativeFilterActive', true);
-    try {
-        await vscode.commands.executeCommand('list.find');
-    } catch (error: unknown) {
-        await restoreLayersViewModeAfterFilter(provider);
+        provider.setSearchQuery(input.value);
         await vscode.commands.executeCommand(
             'setContext',
             'metaflow.layersNativeFilterActive',
-            false,
+            true,
         );
+        input.show();
+    } catch (error: unknown) {
+        await closeLayersFilterSession(session, provider);
         throw error;
     }
 }
 
 async function clearLayersTreeFilter(provider: LayersTreeViewProvider): Promise<void> {
-    try {
-        await vscode.commands.executeCommand('list.closeFind');
-    } catch {
-        // Some hosts may not have a focused list find widget when clearing from the title action.
+    const session = layersFilterSession;
+    if (session) {
+        session.input.hide();
+        await closeLayersFilterSession(session, provider);
+        return;
     }
 
-    try {
-        await restoreLayersViewModeAfterFilter(provider);
-    } finally {
-        await vscode.commands.executeCommand(
-            'setContext',
-            'metaflow.layersNativeFilterActive',
-            false,
-        );
-    }
+    provider.setSearchQuery(undefined);
+    await vscode.commands.executeCommand(
+        'setContext',
+        'metaflow.layersNativeFilterActive',
+        false,
+    );
 
     try {
         await vscode.commands.executeCommand('metaflow-layers.focus');
@@ -503,7 +529,7 @@ export function activate(context: vscode.ExtensionContext): void {
             await revealAll(filesTreeView, filesTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.openLayersFilter', async () => {
-            await openLayersTreeFilter(layersTreeView, layersTreeViewProvider);
+            await openLayersTreeFilter(layersTreeViewProvider);
         }),
         vscode.commands.registerCommand('metaflow.clearLayersFilter', async () => {
             await clearLayersTreeFilter(layersTreeViewProvider);
@@ -906,6 +932,14 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
+    const activeLayersFilter = layersFilterSession;
+    layersFilterSession = undefined;
+    if (activeLayersFilter) {
+        for (const disposable of activeLayersFilter.disposables) {
+            disposable.dispose();
+        }
+        activeLayersFilter.input.dispose();
+    }
     disposeStatusBar();
     disposeDiagnostics();
     disposeOutputChannel();

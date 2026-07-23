@@ -12,6 +12,7 @@ type ExtensionPackageJson = {
             title?: string;
             category?: string;
             icon?: string;
+            enablement?: string;
         }>;
         menus?: {
             'view/title'?: Array<{
@@ -386,7 +387,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('Capabilities and Effective Files contribute native filter commands and focused keybindings', () => {
+    test('Capabilities and Effective Files contribute filter commands and focused keybindings', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -412,6 +413,19 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(clearLayersFilterCommand?.icon, '$(clear-all)');
         assert.ok(filesFilterCommand, 'Expected metaflow.openFilesFilter command contribution');
         assert.strictEqual(filesFilterCommand?.icon, '$(search)');
+
+        for (const commandId of [
+            'metaflow.toggleLayersViewMode',
+            'metaflow.showLayersTreeMode',
+            'metaflow.showLayersFlatMode',
+        ]) {
+            const command = commands.find((entry) => entry.command === commandId);
+            assert.strictEqual(
+                command?.enablement,
+                '!metaflow.layersNativeFilterActive',
+                `Expected ${commandId} to be disabled while filtering Capabilities`,
+            );
+        }
 
         const titleMenuEntries = packageJson.contributes?.menus?.['view/title'] ?? [];
         assert.ok(
@@ -457,7 +471,7 @@ suite('Extension Packaging Regression Guards', () => {
                     entry.command === 'metaflow.clearLayersFilter' &&
                     entry.key === 'escape' &&
                     entry.when ===
-                        "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive && treeFindOpen",
+                        "focusedView == 'metaflow-layers' && metaflow.layersNativeFilterActive",
             ),
             'Expected Escape binding to restore the Capabilities view after filtering',
         );
