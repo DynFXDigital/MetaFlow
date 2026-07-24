@@ -4535,7 +4535,11 @@ suite('Command Execution', function () {
     test('addRepoSource immediately offers promotion for existing local git repositories', async function () {
         this.timeout(25000);
 
-        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-add-repo-source');
+        const repoPath = path.join(
+            path.dirname(workspaceRoot),
+            '.tmp-git-promotion-add-repo-source',
+        );
+        const expectedLocalPath = path.relative(workspaceRoot, repoPath).replace(/\\/g, '/');
         removeDirectoryRecursive(repoPath);
         fs.mkdirSync(path.join(repoPath, '.github', 'instructions'), { recursive: true });
         fs.writeFileSync(
@@ -4607,6 +4611,11 @@ suite('Command Execution', function () {
 
             assert.ok(addedRepo, 'Add repo source should add the selected existing directory');
             assert.strictEqual(
+                addedRepo?.localPath,
+                expectedLocalPath,
+                'Add repo source should persist sibling repositories relative to the workspace',
+            );
+            assert.strictEqual(
                 addedRepo?.url,
                 'https://example.com/meta-add-repo.git',
                 'Add repo source should immediately promote local git repositories with remotes',
@@ -4636,6 +4645,71 @@ suite('Command Execution', function () {
                 15000,
                 100,
             );
+        }
+    });
+
+    test('addRepoSource uses dot for the workspace root without deriving a dot repo id', async function () {
+        this.timeout(25000);
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        const windowAny = vscode.window as unknown as {
+            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
+            showOpenDialog: (...items: unknown[]) => Thenable<vscode.Uri[] | undefined>;
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalQuickPick = windowAny.showQuickPick;
+        const originalOpenDialog = windowAny.showOpenDialog;
+        const originalInfo = windowAny.showInformationMessage;
+
+        windowAny.showQuickPick = async (items: unknown) => {
+            if (!Array.isArray(items)) {
+                return undefined;
+            }
+
+            const picks = items as Array<{ mode?: string }>;
+            if (picks.some((pick) => pick.mode === 'existing')) {
+                return picks.find((pick) => pick.mode === 'existing') ?? picks[0];
+            }
+
+            return picks[0];
+        };
+
+        windowAny.showOpenDialog = async () => [vscode.Uri.file(workspaceRoot)];
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('is not a git repository. Initialize it')
+            ) {
+                return 'Skip';
+            }
+            return undefined;
+        };
+
+        try {
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.addRepoSource');
+
+            const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                metadataRepos?: Array<{ id: string; localPath: string }>;
+            };
+            const addedRepo = updatedConfig.metadataRepos?.find(
+                (candidate) => candidate.localPath === '.',
+            );
+
+            assert.ok(addedRepo, 'Add repo source should serialize the workspace root as dot');
+            assert.strictEqual(
+                addedRepo?.id,
+                path.basename(workspaceRoot).toLowerCase(),
+                'Repository id should be derived from the selected directory, not the dot path',
+            );
+        } finally {
+            windowAny.showQuickPick = originalQuickPick;
+            windowAny.showOpenDialog = originalOpenDialog;
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 
@@ -4970,7 +5044,11 @@ suite('Command Execution', function () {
     test('initConfig immediately offers promotion for existing local git repositories', async function () {
         this.timeout(30000);
 
-        const repoPath = path.join(workspaceRoot, '.tmp-git-promotion-init-config');
+        const repoPath = path.join(
+            path.dirname(workspaceRoot),
+            '.tmp-git-promotion-init-config',
+        );
+        const expectedLocalPath = path.relative(workspaceRoot, repoPath).replace(/\\/g, '/');
         removeDirectoryRecursive(repoPath);
         fs.mkdirSync(path.join(repoPath, '.github', 'prompts'), { recursive: true });
         fs.writeFileSync(
@@ -5050,17 +5128,26 @@ suite('Command Execution', function () {
                 metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
             };
 
-            const promotedPrimaryUrl = updatedConfig.metadataRepo?.url;
-            const promotedMultiRepoUrl = updatedConfig.metadataRepos?.find(
-                (candidate) =>
-                    path.normalize(candidate.localPath) ===
-                        path.normalize(path.relative(workspaceRoot, repoPath)) ||
-                    path.normalize(candidate.localPath) ===
-                        path.normalize(path.relative(workspaceRoot, repoPath)).replace(/\\/g, '/'),
-            )?.url;
+            const promotedRepo =
+                updatedConfig.metadataRepo ??
+                updatedConfig.metadataRepos?.find(
+                    (candidate) =>
+                        path.normalize(candidate.localPath) ===
+                            path.normalize(path.relative(workspaceRoot, repoPath)) ||
+                        path.normalize(candidate.localPath) ===
+                            path
+                                .normalize(path.relative(workspaceRoot, repoPath))
+                                .replace(/\\/g, '/'),
+                );
 
             assert.strictEqual(
-                promotedPrimaryUrl ?? promotedMultiRepoUrl,
+                promotedRepo?.localPath,
+                expectedLocalPath,
+                'Initialize configuration should persist sibling repositories relative to the workspace',
+            );
+
+            assert.strictEqual(
+                promotedRepo?.url,
                 'https://example.com/meta-init-config.git',
                 'Initialize configuration should immediately promote local git repositories with remotes',
             );

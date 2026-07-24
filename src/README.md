@@ -89,6 +89,12 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
 }
 ```
 
+Repository `localPath` values are resolved from the workspace root. MetaFlow-generated
+configuration prefers portable relative paths, including sibling paths such as
+`../my-ai-metadata`; absolute paths remain supported and are retained when the workspace
+and repository do not share a compatible filesystem root, such as different Windows drives
+or UNC shares.
+
 Supported injection modes are:
 
 - `settings`: inject alternate-path settings such as `chat.instructionsFilesLocations`
