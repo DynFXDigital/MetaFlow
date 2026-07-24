@@ -70,7 +70,11 @@ import { buildDiagnosticsSnapshot } from '../diagnostics/diagnosticsSnapshot';
 import { logDebug, logInfo, logWarn, logError, showOutputChannel } from '../views/outputChannel';
 import { updateStatusBar } from '../views/statusBar';
 import { initConfig, resolveSourceSelection, InitSourceMode } from './initConfig';
-import { detectMetaflowGitIgnoreMode, ensureMetaflowGitIgnoreEntry } from './initConfigHelpers';
+import {
+    detectMetaflowGitIgnoreMode,
+    ensureMetaflowGitIgnoreEntry,
+    toConfigLocalPath,
+} from './initConfigHelpers';
 import { pickWorkspaceFolder } from './workspaceSelection';
 import { formatCapabilityWarningMessage } from './capabilityWarnings';
 import {
@@ -3302,18 +3306,6 @@ function buildProfileEffectiveFilesLookup(
     }
 
     return profileEffectiveFilesByName;
-}
-
-function toPosixPath(value: string): string {
-    return value.replace(/\\/g, '/');
-}
-
-function toConfigLocalPath(workspaceFolder: vscode.WorkspaceFolder, targetFsPath: string): string {
-    const relative = toPosixPath(path.relative(workspaceFolder.uri.fsPath, targetFsPath));
-    if (relative && !relative.startsWith('../') && !path.isAbsolute(relative)) {
-        return relative;
-    }
-    return targetFsPath;
 }
 
 function resolveInjectionConfig(
@@ -8199,8 +8191,15 @@ export function registerCommands(
 
             const multiRepoConfig = ensureMultiRepoConfig(state.config);
             const existingIds = new Set(multiRepoConfig.metadataRepos.map((repo) => repo.id));
-            const sourceLocalPath = toConfigLocalPath(ws, selection.metadataRoot.fsPath);
-            const repoId = deriveRepoId(sourceLocalPath, selection.metadataUrl, existingIds);
+            const sourceLocalPath = toConfigLocalPath(
+                ws.uri.fsPath,
+                selection.metadataRoot.fsPath,
+            );
+            const repoId = deriveRepoId(
+                selection.metadataRoot.fsPath,
+                selection.metadataUrl,
+                existingIds,
+            );
 
             multiRepoConfig.metadataRepos.push({
                 id: repoId,

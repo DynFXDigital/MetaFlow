@@ -26,12 +26,42 @@ export function sanitizeRepoName(url: string): string {
     return slug || 'metadata';
 }
 
-export function toConfigLocalPath(workspaceRoot: string, targetFsPath: string): string {
-    const relative = toPosixPath(path.relative(workspaceRoot, targetFsPath));
-    if (relative && !relative.startsWith('../') && !path.isAbsolute(relative)) {
-        return relative;
+function pathImplementationFor(...values: string[]): typeof path.win32 {
+    const usesWindowsPathSyntax = values.some((value) =>
+        /^(?:[A-Za-z]:[\\/]|[/\\]{2}[^/\\]+[/\\][^/\\]+)/.test(value),
+    );
+    return usesWindowsPathSyntax ? path.win32 : path.posix;
+}
+
+function pathsEqual(
+    pathImplementation: typeof path.win32,
+    left: string,
+    right: string,
+): boolean {
+    const normalizedLeft = pathImplementation.normalize(left);
+    const normalizedRight = pathImplementation.normalize(right);
+    if (pathImplementation === path.win32) {
+        return normalizedLeft.toLowerCase() === normalizedRight.toLowerCase();
     }
-    return targetFsPath;
+    return normalizedLeft === normalizedRight;
+}
+
+/**
+ * Serialize a local repository path relative to the workspace whenever both
+ * locations share a compatible filesystem root. Config paths always use
+ * forward slashes so they remain portable across operating systems.
+ */
+export function toConfigLocalPath(workspaceRoot: string, targetFsPath: string): string {
+    const pathImplementation = pathImplementationFor(workspaceRoot, targetFsPath);
+    const relative = pathImplementation.relative(workspaceRoot, targetFsPath);
+    if (pathImplementation.isAbsolute(relative)) {
+        return targetFsPath;
+    }
+    const resolvedRelative = pathImplementation.resolve(workspaceRoot, relative || '.');
+    if (!pathsEqual(pathImplementation, resolvedRelative, targetFsPath)) {
+        return targetFsPath;
+    }
+    return relative ? toPosixPath(relative) : '.';
 }
 
 export function buildConfig(

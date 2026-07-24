@@ -38,9 +38,45 @@ suite('Init Config Helpers', () => {
         assert.strictEqual(value, '.ai/metadata');
     });
 
-    test('toConfigLocalPath returns absolute path when outside workspace', () => {
+    test('toConfigLocalPath returns relative path for a Windows sibling repository', () => {
+        const sibling = toConfigLocalPath(
+            'C:\\workspace\\project',
+            'C:\\workspace\\ai-metadata',
+        );
+        assert.strictEqual(sibling, '../ai-metadata');
+    });
+
+    test('toConfigLocalPath returns relative path for a POSIX sibling repository', () => {
+        const sibling = toConfigLocalPath('/workspace/project', '/workspace/ai-metadata');
+        assert.strictEqual(sibling, '../ai-metadata');
+    });
+
+    test('toConfigLocalPath returns dot when the repository is the workspace root', () => {
+        assert.strictEqual(
+            toConfigLocalPath('/workspace/project', '/workspace/project'),
+            '.',
+        );
+    });
+
+    test('toConfigLocalPath returns absolute path when Windows drives differ', () => {
         const outside = toConfigLocalPath('C:/workspace/project', 'D:/other/location');
         assert.strictEqual(outside, 'D:/other/location');
+    });
+
+    test('toConfigLocalPath returns absolute UNC path when shares differ', () => {
+        const outside = toConfigLocalPath(
+            '\\\\server\\workspace\\project',
+            '\\\\server\\metadata\\repo',
+        );
+        assert.strictEqual(outside, '\\\\server\\metadata\\repo');
+    });
+
+    test('toConfigLocalPath returns relative path within one UNC share', () => {
+        const sibling = toConfigLocalPath(
+            '\\\\server\\workspace\\project',
+            '\\\\server\\workspace\\ai-metadata',
+        );
+        assert.strictEqual(sibling, '../ai-metadata');
     });
 
     test('buildConfig includes required defaults and optional URL', () => {
