@@ -3820,7 +3820,10 @@ function resolveUntrackedLocalRepoSources(
 ): UntrackedLocalRepoSource[] {
     if (config.metadataRepos) {
         return config.metadataRepos
-            .filter((repo) => !isGitRemoteUrl(repo.url))
+            .filter(
+                (repo) =>
+                    repo.id !== BUILT_IN_CAPABILITY_REPO_ID && !isGitRemoteUrl(repo.url),
+            )
             .map((repo) => {
                 const localPath = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
                 return {
