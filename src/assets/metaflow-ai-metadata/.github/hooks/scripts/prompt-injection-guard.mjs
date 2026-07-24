@@ -88,7 +88,7 @@ const RULES = [
 
 const stdin = await readStdin();
 const event = parseJson(stdin) ?? {};
-const toolArgs = parseToolArgs(event.toolArgs);
+const toolArgs = parseToolArgs(event.toolArgs ?? event.tool_input);
 const filePath = extractFirstString([
     toolArgs.filePath,
     toolArgs.path,
@@ -125,10 +125,15 @@ if (denyFindings.length === 0) {
     process.exit(0);
 }
 
+const permissionDecisionReason = denyFindings.map((finding) => finding.message).join('; ');
 process.stdout.write(
     JSON.stringify({
         permissionDecision: 'deny',
-        permissionDecisionReason: denyFindings.map((finding) => finding.message).join('; '),
+        permissionDecisionReason,
+        hookSpecificOutput: {
+            permissionDecision: 'deny',
+            permissionDecisionReason,
+        },
     }),
 );
 

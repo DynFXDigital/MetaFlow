@@ -1,6 +1,6 @@
 ---
 name: ai-metadata
-description: Consolidated guidance for authoring Copilot instructions, prompt files, custom agents, agent skills, and hooks with current compatibility caveats.
+description: Consolidated guidance for authoring Copilot instructions, prompt files, custom agents, agent skills, hooks, and agent plugins with current compatibility caveats.
 ---
 
 # AI metadata skill
@@ -11,6 +11,7 @@ Use this skill when creating or updating:
 - Custom agents
 - Agent skills
 - Hooks
+- Agent plugins and plugin-local MCP/LSP configuration
 
 ## Scope
 This skill consolidates current best practices and compatibility notes across GitHub Copilot and VS Code. It is intentionally redundant with the repo’s instruction files so guidance is available both as instructions and as a loadable skill, while still favoring thin hot-path metadata and progressive discovery of detail.
@@ -23,6 +24,10 @@ This skill consolidates current best practices and compatibility notes across Gi
 5. Keep repo-specific instruction files authoritative for enforcement and scoping.
 6. When editing metadata files, proactively offer to fix non-compliant patterns.
 7. Prefer metadata that puts trigger conditions, scope, and must-follow rules in the main file, then moves extended examples, edge cases, and long procedures into support docs.
+8. Resolve skill resources from the directory containing `SKILL.md`; validate plugin resources
+   against the selected manifest format and emitted plugin root.
+9. Read `../../instructions/ai-metadata-plugins.instructions.md` before authoring plugin
+   manifests, hooks, MCP/LSP config, or plugin-local script paths.
 
 ## Files
 - `References.md`
@@ -31,4 +36,4 @@ This skill consolidates current best practices and compatibility notes across Gi
 - `Compatibility.md`
 
 ## Versioning
-- Last reviewed: 2026-03-26
+- Last reviewed: 2026-07-23

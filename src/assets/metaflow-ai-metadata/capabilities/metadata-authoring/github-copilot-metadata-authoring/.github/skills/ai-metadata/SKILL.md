@@ -16,6 +16,7 @@ Use it when creating or updating:
 - Custom agents
 - Agent skills
 - Hooks
+- Agent plugins and plugin-local MCP/LSP configuration
 
 ## Core workflow
 
@@ -29,7 +30,10 @@ Use it when creating or updating:
 3. Review scope and context cost. Prefer the narrowest `applyTo` or invocation boundary, avoid duplicate rules, and move examples and procedures into progressively loaded support files.
 4. Review execution risk. Check agent tools, subagent access, hook commands, input handling, secrets, filesystem effects, and whether a human decision is required.
 5. Review host compatibility. State meaningful differences between VS Code, GitHub.com, and Copilot CLI, and label preview-only behavior. Do not infer portability from matching filenames.
-6. Validate frontmatter, paths, references, and any executable behavior. Run a representative task when the metadata changes user-visible agent behavior.
+6. Validate frontmatter, path bases, references, and any executable behavior. Resolve skill
+   resources from the directory containing `SKILL.md`; validate plugin resources against the
+   selected manifest format and emitted plugin root. Run a representative task when the metadata
+   changes user-visible agent behavior.
 7. Report unresolved assumptions and promotion readiness. Do not promote a draft merely because its syntax is valid.
 
 ## Decision rules
@@ -47,9 +51,12 @@ Use it when creating or updating:
 - Read [References.md](./References.md) when source freshness matters.
 - Apply [BestPractices.md](./BestPractices.md) for the detailed review checklist.
 - Check [Compatibility.md](./Compatibility.md) for host-specific behavior and preview status.
+- Read
+  [ai-metadata-plugins.instructions.md](../../instructions/ai-metadata-plugins.instructions.md)
+  before authoring plugin manifests, hooks, MCP/LSP config, or plugin-local script paths.
 - Use [ReflectionReinforcement.md](./ReflectionReinforcement.md) when converting observed outcomes
   into durable policy.
 
 ## Versioning
 
-- Last reviewed: 2026-07-11
+- Last reviewed: 2026-07-23

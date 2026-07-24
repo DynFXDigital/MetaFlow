@@ -3,7 +3,7 @@
 Use this file to check host differences before claiming that metadata is portable. Matching
 filenames do not guarantee matching behavior.
 
-Last reviewed: 2026-07-11
+Last reviewed: 2026-07-23
 
 ## Custom instructions
 
@@ -51,9 +51,25 @@ Sources: [GitHub about agent skills](https://docs.github.com/en/copilot/concepts
 - Project locations include `.github/skills/`, `.claude/skills/`, and `.agents/skills/`; personal locations are host-specific.
 - In VS Code, the `name` field must match the parent directory and must use lowercase letters, numbers, and hyphens. Plugin packaging supplies namespaces; do not add them manually.
 
+## Agent plugins
+
+Sources: [VS Code agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins), [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)
+
+- VS Code checks `.plugin/plugin.json`, root `plugin.json`, `.github/plugin/plugin.json`, then
+  `.claude-plugin/plugin.json`; the first match selects the format and its path semantics.
+- OpenPlugin supplies `${PLUGIN_ROOT}`, Claude format supplies `${CLAUDE_PLUGIN_ROOT}`, and VS Code
+  supplies no plugin-root token for root Copilot format.
+- OpenPlugin and Claude default to `hooks/hooks.json`; root Copilot format uses root `hooks.json`.
+  Honor an explicit `hooks` manifest field when present.
+- Copilot CLI's exported plugin-root environment variables are runtime and shell-specific. Do not
+  infer cross-host hook interpolation from `${PLUGIN_ROOT}` support in Copilot LSP fields.
+- Hook commands run from session/repository working directories unless `cwd` says otherwise.
+  Resolve bundled plugin scripts from the selected format's root contract and validate the emitted
+  package tree.
+
 ## Hooks
 
-Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-configuration), [VS Code hooks](https://code.visualstudio.com/docs/copilot/customization/hooks)
+Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), [VS Code hooks](https://code.visualstudio.com/docs/agent-customization/hooks)
 
 - Repository hook files under `.github/hooks/*.json` are the shared baseline for Copilot cloud agent and Copilot CLI.
 - VS Code also reads `.github/hooks/*.json`, but its hook support is currently in preview and uses PascalCase event names such as `PreToolUse` and `PostToolUse`.

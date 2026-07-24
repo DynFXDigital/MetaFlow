@@ -91,15 +91,23 @@ Sources: [GitHub about agent skills](https://docs.github.com/en/copilot/concepts
 - Keep `SKILL.md` front-loaded with trigger conditions, scope, and the core workflow.
 - Include scripts or examples only when needed and keep them deterministic.
 - Use `user-invocable` and `disable-model-invocation` in skill frontmatter when you need explicit slash-command visibility or auto-load control.
+- Resolve referenced resources relative to the directory containing `SKILL.md`.
+- Before invoking file or shell tools, resolve bundled skill resources to absolute paths from that
+  skill root; do not interpret them from the consuming repository or current shell directory.
 
 ## Hooks
 
-Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub Copilot CLI hooks tutorial](https://docs.github.com/en/copilot/tutorials/copilot-cli-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-configuration)
+Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub Copilot CLI hooks tutorial](https://docs.github.com/en/copilot/tutorials/copilot-cli-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)
 
 - Store hook configuration files directly under `.github/hooks/*.json`.
+- Distinguish repository hooks from plugin hooks. A repository-relative bundled-script path is
+  unsafe after a capability is registered as an external plugin.
+- For plugin delivery, verify the selected manifest's hook discovery path, supported root token,
+  emitted script location, and working-directory behavior as one contract.
 - Treat `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, and `errorOccurred` as the portability baseline.
 - Start with logging-first rollouts, then introduce narrow deny rules after observing real usage.
-- Keep hooks synchronous, deterministic, and under 5 seconds when practical.
+- Keep blocking and lifecycle command hooks fast, deterministic, and under 5 seconds when practical.
+  Notification-style hooks may be asynchronous when the target host documents that behavior.
 - Redact prompts, commands, and tool arguments before logging.
 
 ## Proactive metadata hygiene
@@ -110,4 +118,4 @@ Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents
 
 ## Versioning
 
-- Last reviewed: 2026-03-26
+- Last reviewed: 2026-07-23

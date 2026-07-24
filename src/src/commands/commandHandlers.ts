@@ -37,6 +37,7 @@ import {
     buildEffectiveFileMap,
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    collectAgentPluginHookWarnings,
     resolvePathFromWorkspace,
     applyProfile,
     classifyFiles,
@@ -3260,6 +3261,9 @@ function resolveOverlay(
     files = applyProfile(files, profile);
 
     classifyFiles(files, injection, config.layerSources);
+    for (const warning of collectAgentPluginHookWarnings(files)) {
+        appendCapabilityWarning(warning);
+    }
     return {
         baseProfileFiles,
         effectiveFiles: files,
