@@ -50,17 +50,35 @@ Sources: [GitHub about agent skills](https://docs.github.com/en/copilot/concepts
 - VS Code supports `argument-hint`, `user-invocable`, and `disable-model-invocation` in `SKILL.md` frontmatter.
 - Project skill locations include `.github/skills/`, `.claude/skills/`, and `.agents/skills/`; personal locations are user-profile scoped.
 
+## Agent plugins
+
+Sources: [VS Code agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins), [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)
+
+- VS Code checks `.plugin/plugin.json`, root `plugin.json`, `.github/plugin/plugin.json`, then
+  `.claude-plugin/plugin.json`; the first match selects the format and its path semantics.
+- OpenPlugin supplies `${PLUGIN_ROOT}`, Claude format supplies `${CLAUDE_PLUGIN_ROOT}`, and VS Code
+  supplies no plugin-root token for root Copilot format.
+- OpenPlugin and Claude default to `hooks/hooks.json`; root Copilot format uses root `hooks.json`.
+  Honor an explicit `hooks` manifest field when present.
+- Copilot CLI's exported plugin-root environment variables are runtime and shell-specific. Do not
+  infer cross-host hook interpolation from `${PLUGIN_ROOT}` support in Copilot LSP fields.
+- Hook commands run from session/repository working directories unless `cwd` says otherwise.
+  Resolve bundled plugin scripts from the selected format's root contract and validate the emitted
+  package tree.
+
 ## Hooks
 
-Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-configuration), [VS Code hooks](https://code.visualstudio.com/docs/copilot/customization/hooks)
+Sources: [GitHub about hooks](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [GitHub hooks how-to](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks), [GitHub hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), [VS Code hooks](https://code.visualstudio.com/docs/agent-customization/hooks)
 
 - Hooks are repository-scoped JSON configuration files under `.github/hooks/*.json`.
 - Copilot coding agent reads hooks from the default branch; Copilot CLI reads hooks from the current working directory.
 - The stable cross-doc baseline hook events for Copilot CLI and coding agent are `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, and `errorOccurred`.
 - VS Code uses PascalCase event names and supports additional events such as `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`.
-- `preToolUse` is the only CLI or coding-agent hook that can deny execution.
-- VS Code supports richer hook outputs such as `allow`, `deny`, `ask`, and `additionalContext`.
+- Hook payloads, output fields, available events, and blocking behavior differ by host. Current
+  Copilot CLI and cloud-agent pre-tool hooks support `allow`, `deny`, and `ask`; post-tool hooks
+  can add context. VS Code uses its own event-specific output envelope.
+- Validate the exact event and host contract before sharing a hook.
 
 ## Versioning
 
-- Last reviewed: 2026-03-26
+- Last reviewed: 2026-07-23

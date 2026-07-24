@@ -35,7 +35,7 @@ function toLocationMap(paths: string[]): LocationMap {
     return Object.fromEntries(entries);
 }
 
-function resolvePluginRoot(file: EffectiveFile): string | undefined {
+export function resolvePluginRootPath(file: EffectiveFile): string | undefined {
     const normalized = file.relativePath.replace(/\\/g, '/');
     const rawSegments = normalized.split('/').filter((segment) => segment.length > 0);
     if (rawSegments.length === 0) {
@@ -67,7 +67,7 @@ export function computePluginRootPaths(effectiveFiles: EffectiveFile[]): string[
             continue;
         }
 
-        const pluginRoot = resolvePluginRoot(file);
+        const pluginRoot = resolvePluginRootPath(file);
         if (pluginRoot) {
             pluginRoots.add(pluginRoot);
         }
@@ -112,7 +112,7 @@ export function computeSettingsEntries(
                 : rawSegments;
         const topDir = relativeSegments[0];
         if (topDir === 'hooks' || normalized === 'hooks.json') {
-            const hookPluginRoot = resolvePluginRoot(file);
+            const hookPluginRoot = resolvePluginRootPath(file);
             if (hookPluginRoot && pluginRootPaths.has(path.resolve(hookPluginRoot))) {
                 continue;
             }

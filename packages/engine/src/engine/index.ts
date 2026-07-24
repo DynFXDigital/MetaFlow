@@ -19,6 +19,7 @@ export type {
     ConfiguredCapabilityReference,
 } from './capabilityIdentity';
 export { buildAgentPluginCatalog, buildCapabilityPluginMarketplaceManifest } from './pluginCatalog';
+export { collectAgentPluginHookWarnings } from './agentPluginHookValidator';
 export { detectSurfacedFileConflicts, formatSurfacedFileConflictMessage } from './conflictDetector';
 export type { DetectSurfacedFileConflictsOptions } from './conflictDetector';
 export { applyProfile } from './profileEngine';

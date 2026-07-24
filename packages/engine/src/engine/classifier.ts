@@ -33,7 +33,12 @@ const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
 const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents', 'hooks']);
 const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
 const ROOT_PLUGIN_HOOK_CONFIGURATION_PATH = 'hooks.json';
-const AGENT_PLUGIN_MANIFEST_PATHS = new Set(['plugin.json', '.plugin/plugin.json']);
+const AGENT_PLUGIN_MANIFEST_PATHS = new Set([
+    'plugin.json',
+    '.plugin/plugin.json',
+    'plugin/plugin.json',
+    '.claude-plugin/plugin.json',
+]);
 
 /**
  * Build a lookup key matching the layerId format used by the overlay engine.

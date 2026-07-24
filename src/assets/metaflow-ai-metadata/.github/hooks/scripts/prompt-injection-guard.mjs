@@ -88,9 +88,10 @@ const RULES = [
 
 const stdin = await readStdin();
 const event = parseJson(stdin) ?? {};
-const toolArgs = parseToolArgs(event.toolArgs);
+const toolArgs = parseToolArgs(event.toolArgs ?? event.tool_input);
 const filePath = extractFirstString([
     toolArgs.filePath,
+    toolArgs.file_path,
     toolArgs.path,
     toolArgs.uri,
     toolArgs.targetFile,
@@ -125,10 +126,15 @@ if (denyFindings.length === 0) {
     process.exit(0);
 }
 
+const permissionDecisionReason = denyFindings.map((finding) => finding.message).join('; ');
 process.stdout.write(
     JSON.stringify({
         permissionDecision: 'deny',
-        permissionDecisionReason: denyFindings.map((finding) => finding.message).join('; '),
+        permissionDecisionReason,
+        hookSpecificOutput: {
+            permissionDecision: 'deny',
+            permissionDecisionReason,
+        },
     }),
 );
 
@@ -155,6 +161,7 @@ function extractCandidateContent(toolArgs) {
         toolArgs.text,
         toolArgs.body,
         toolArgs.new_str,
+        toolArgs.new_string,
         toolArgs.newText,
         toolArgs.replacement,
         toolArgs.insert_text,
@@ -167,7 +174,13 @@ function extractCandidateContent(toolArgs) {
     if (Array.isArray(toolArgs.edits)) {
         return toolArgs.edits
             .map((edit) =>
-                extractFirstString([edit?.newText, edit?.text, edit?.content, edit?.replacement]),
+                extractFirstString([
+                    edit?.newText,
+                    edit?.new_string,
+                    edit?.text,
+                    edit?.content,
+                    edit?.replacement,
+                ]),
             )
             .filter(Boolean)
             .join('\n');

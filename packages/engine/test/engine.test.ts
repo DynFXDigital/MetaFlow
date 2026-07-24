@@ -928,6 +928,10 @@ describe('Engine: settings injector', () => {
     it('classifySingle treats Copilot plugin artifacts as plugin artifacts by default', () => {
         assert.strictEqual(classifySingle('plugin.json', undefined), 'plugin');
         assert.strictEqual(classifySingle('.plugin/plugin.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.github/plugin/plugin.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.claude-plugin/plugin.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.github\\plugin\\plugin.json', undefined), 'plugin');
+        assert.strictEqual(classifySingle('.claude-plugin\\plugin.json', undefined), 'plugin');
         assert.strictEqual(classifySingle('.github/instructions/coding.md', undefined), 'plugin');
         assert.strictEqual(classifySingle('.github/hooks/session.json', undefined), 'plugin');
         assert.strictEqual(classifySingle('hooks.json', undefined), 'plugin');

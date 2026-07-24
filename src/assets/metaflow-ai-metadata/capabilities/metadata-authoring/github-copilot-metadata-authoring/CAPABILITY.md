@@ -34,6 +34,7 @@ capability when the draft needs judgment beyond file syntax or when it will be s
 - Interactive-decision patterns for prompts, agents, and instructions that collect high-impact user input consistently
 - Progressive-discovery patterns that keep hot-path metadata concise and move detail into support docs
 - GitHub Copilot and VS Code compatibility guidance for current metadata constructs
+- Agent plugin manifest precedence, hook discovery, and plugin-local path/root-token requirements
 - AGENTS.md scope and precedence conventions
 - Review, validation, refresh, and promotion workflows for reusable metadata
 
@@ -58,6 +59,8 @@ capability when the draft needs judgment beyond file syntax or when it will be s
 ## Load For Detail
 
 - Load `.github/skills/ai-metadata/SKILL.md` for the full authoring workflow.
+- Apply `.github/instructions/ai-metadata-plugins.instructions.md` when packaging hooks, scripts,
+  MCP servers, LSP servers, agents, or skills as an external plugin.
 - Use `.github/skills/ai-metadata/BestPractices.md`, `Compatibility.md`, `References.md`, and `ReflectionReinforcement.md` for second-layer detail.
 - Use `.github/agents/github-copilot-metadata-authoring-steward.agent.md` for source-backed refresh or review passes.
 - Use the local metadata-authoring prompts when the task is prompt-shaped instead of capability-shaped.

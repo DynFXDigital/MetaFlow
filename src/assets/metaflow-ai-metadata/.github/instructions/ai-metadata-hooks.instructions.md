@@ -8,23 +8,30 @@ applyTo: '.github/hooks/*.json'
 Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run custom shell commands at key points during agent execution.
 
 ## Sources and versioning
-- Last reviewed: 2026-03-26
+- Last reviewed: 2026-07-24
 - Sources:
   - https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
   - https://docs.github.com/en/copilot/how-tos/copilot-cli/use-hooks
   - https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/use-hooks
   - https://docs.github.com/en/copilot/tutorials/copilot-cli-hooks
-  - https://docs.github.com/en/copilot/reference/hooks-configuration
-  - https://code.visualstudio.com/docs/copilot/customization/hooks
+  - https://docs.github.com/en/copilot/reference/hooks-reference
+  - https://code.visualstudio.com/docs/agent-customization/hooks
 
 ## Scope
 - Hook configuration files belong directly under `.github/hooks/*.json`.
 - Supporting scripts and assets can live in subdirectories such as `.github/hooks/scripts/` and `.github/hooks/logs/`.
 - Copilot coding agent uses hooks from the repository default branch; Copilot CLI loads hooks from the current working directory.
+- These are repository-hook paths. Do not copy them unchanged into an agent plugin: MetaFlow
+  plugin injection registers the capability outside the consuming workspace, so a command such as
+  `./.github/hooks/scripts/guard.ps1` resolves from the wrong working directory.
+- For plugin-delivered hooks, follow
+  [ai-metadata-plugins.instructions.md](./ai-metadata-plugins.instructions.md): select the
+  manifest format first, use its discoverable hook location or explicit `hooks` field, and locate
+  bundled scripts from that format's plugin-root contract.
 
 ## Required structure
 - The config must be valid JSON and include `version: 1` (required for Copilot CLI and Copilot coding agent; not required for VS Code).
-- The portability baseline CLI/coding-agent format:
+- A minimal CLI/coding-agent starting structure:
 
 ```json
 {
@@ -40,8 +47,14 @@ Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run c
 }
 ```
 
-- VS Code uses PascalCase event names and supports eight events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. VS Code parses the CLI camelCase format automatically, converting event names and mapping `bash` → `linux`/`osx`, `powershell` → `windows`. Use native PascalCase and `command`/`windows`/`linux`/`osx` properties for cross-environment hook files.
-- GitHub's hooks concepts documentation also describes `agentStop` and `subagentStop` lifecycle hooks. Use them only after confirming support in the target runtime; current how-to and reference templates still emphasize the six-event baseline above.
+- The GitHub hooks reference supports additional CLI/cloud events such as `agentStop`,
+  `subagentStart`, `subagentStop`, `postToolUseFailure`, and `preCompact`. Add only events supported
+  by every target host; event names and payload fields differ between camelCase CLI form and
+  PascalCase VS Code-compatible form.
+- VS Code uses PascalCase event names such as `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+  `PostToolUse`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. VS Code parses the CLI
+  camelCase format automatically, converting event names and mapping `bash` → `linux`/`osx`,
+  `powershell` → `windows`.
 
 - Each hook entry is an object with:
   - `type`: `command`
@@ -55,16 +68,30 @@ Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run c
 
 ## Hook behavior
 - Hooks receive JSON input on stdin.
-- Hooks run synchronously and block agent execution; keep them fast and deterministic, and aim to stay under 5 seconds when practical.
-- Copilot CLI / coding agent: `preToolUse` is the only hook that can block execution. Return `{"permissionDecision":"deny","permissionDecisionReason":"<reason>"}`. Only `deny` is processed; `allow` and `ask` are not.
-- VS Code `PreToolUse`: supports `allow`, `deny`, and `ask` via `hookSpecificOutput`. Exit code 2 blocks processing on any event; other non-zero exit codes show a non-blocking warning.
-- VS Code richer output: `Stop` and `SubagentStop` can return `{"decision":"block","reason":"..."}` to prevent the agent from stopping. `SessionStart`, `SubagentStart`, and `PostToolUse` can inject `additionalContext` via `hookSpecificOutput`.
-- Copilot CLI / coding agent: hooks other than `preToolUse` ignore output. Do not rely on modifying prompts or tool results in the CLI context.
+- Most lifecycle command hooks run synchronously and block agent execution; keep them fast and
+  deterministic, and aim to stay under 5 seconds when practical. `notification` and other
+  host-specific events can be asynchronous or fire-and-forget, so verify the selected event.
+- Copilot CLI/cloud `preToolUse` accepts `allow`, `deny`, or `ask` plus optional `modifiedArgs`;
+  cloud treats `ask` as `deny` because no user is present.
+- `agentStop` and `subagentStop` can return `{"decision":"block","reason":"..."}` to force a
+  continuation, subject to the runtime's runaway guard.
+- `postToolUse` can return `modifiedResult` and/or `additionalContext`; `sessionStart`,
+  `subagentStart`, failure, notification, and permission events have their own documented output
+  contracts. Do not assume that non-`preToolUse` output is ignored.
+- VS Code-compatible PascalCase payloads and outputs use different field names from camelCase
+  CLI payloads. Validate the exact event form used by each target.
 
 ## Script guidance
 - Ensure scripts are executable and have a valid shebang when using Bash.
-- Output JSON must be on a single line; use `jq -c` or `ConvertTo-Json -Compress`.
-- Parse `toolArgs` as JSON (it is a JSON string).
+- Repository hooks MAY use repository-root-relative script paths only when the script is also
+  present in the consuming repository. Plugin hooks MUST resolve bundled scripts from the selected
+  plugin root or set an explicit plugin-root `cwd`; they MUST NOT assume the hook starts in the
+  plugin directory.
+- Emit exactly one final JSON value. CLI progress messages must each be single-line JSON; the final
+  result may span lines but compact JSON is easier to validate.
+- In camelCase CLI payloads, `toolArgs` is already a parsed JSON value. PascalCase
+  VS Code-compatible payloads use `tool_input`. Do not parse either again unless a specific tool
+  field is itself documented as a JSON string.
 - Validate and sanitize untrusted input before acting on it.
 - Redact secrets and sensitive prompt/tool data before logging.
 - Prefer local ignored logs or controlled observability sinks; do not commit local audit logs.
