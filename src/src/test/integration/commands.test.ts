@@ -5171,6 +5171,81 @@ suite('Command Execution', function () {
         }
     });
 
+    test('offerGitRemotePromotion excludes built-in metadata from git initialization suggestions', async function () {
+        this.timeout(20000);
+
+        const builtInRepoPath = path.join(workspaceRoot, '.tmp-builtin-git-promotion');
+        const localRepoPath = path.join(workspaceRoot, '.tmp-local-git-promotion');
+        removeDirectoryRecursive(builtInRepoPath);
+        removeDirectoryRecursive(localRepoPath);
+        fs.mkdirSync(builtInRepoPath, { recursive: true });
+        fs.mkdirSync(localRepoPath, { recursive: true });
+
+        const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const localOnlyConfig = {
+            metadataRepos: [
+                {
+                    id: '__metaflow_builtin__',
+                    localPath: path.relative(workspaceRoot, builtInRepoPath),
+                    enabled: true,
+                },
+                {
+                    id: 'local-user-owned',
+                    localPath: path.relative(workspaceRoot, localRepoPath),
+                    enabled: true,
+                },
+            ],
+            layerSources: [
+                { repoId: '__metaflow_builtin__', path: '.', enabled: true },
+                { repoId: 'local-user-owned', path: '.', enabled: true },
+            ],
+            profiles: {
+                default: {
+                    enable: ['**/*'],
+                },
+            },
+            activeProfile: 'default',
+        };
+
+        const windowAny = vscode.window as unknown as {
+            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalInfo = windowAny.showInformationMessage;
+        const gitInitializationPrompts: string[] = [];
+
+        windowAny.showInformationMessage = async (message: unknown) => {
+            if (
+                typeof message === 'string' &&
+                message.includes('is not a git repository. Initialize it')
+            ) {
+                gitInitializationPrompts.push(message);
+                return 'Skip';
+            }
+            return undefined;
+        };
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(localOnlyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+
+            assert.deepStrictEqual(
+                gitInitializationPrompts,
+                [
+                    'MetaFlow: Repository source "local-user-owned" is not a git repository. Initialize it for local promotion workflows?',
+                ],
+                'Only user-owned local metadata should be offered for git initialization',
+            );
+        } finally {
+            windowAny.showInformationMessage = originalInfo;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            removeDirectoryRecursive(builtInRepoPath);
+            removeDirectoryRecursive(localRepoPath);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     test('offerGitRemotePromotion promotes local repo with a single remote URL', async function () {
         this.timeout(20000);
 
