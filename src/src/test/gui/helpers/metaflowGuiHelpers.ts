@@ -308,31 +308,8 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         return Boolean(control);
     }, STARTUP_TIMEOUT);
     assert.ok(control, 'MetaFlow activity bar entry not found');
-
-    const refreshMetaFlow = async (): Promise<void> => {
-        const deadline = Date.now() + STARTUP_TIMEOUT;
-        let lastError: unknown;
-        while (Date.now() < deadline) {
-            try {
-                await dismissTransientChrome();
-                await new Workbench().executeCommand('MetaFlow: Refresh');
-                return;
-            } catch (error: unknown) {
-                lastError = error;
-                await sleep(500);
-            }
-        }
-        throw new Error(
-            `MetaFlow: Refresh was not executable during startup: ${String(lastError)}`,
-        );
-    };
-
     try {
         const sideBar = (await control.openView()) as SideBarView;
-        // Explicitly refresh and reveal the contributed container on cold CI
-        // hosts, where the activity-bar control can exist before its providers
-        // have produced their first tree contents.
-        await refreshMetaFlow();
         try {
             await new Workbench().executeCommand('workbench.view.extension.metaflow-container');
         } catch {
@@ -343,9 +320,7 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
         await dismissWelcomeOverlay();
         await sleep(300);
-        const sideBar = (await control.openView()) as SideBarView;
-        await refreshMetaFlow();
-        return sideBar;
+        return (await control.openView()) as SideBarView;
     }
 }
 

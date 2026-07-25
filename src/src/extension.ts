@@ -205,6 +205,7 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
+    const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -289,6 +290,17 @@ export function activate(context: vscode.ExtensionContext): void {
         treeDataProvider: filesTreeViewProvider,
     });
 
+    let testModeVisibilityRefreshStarted = false;
+    const refreshVisibleTestTree = (visible: boolean): void => {
+        if (!isTestMode || !visible || testModeVisibilityRefreshStarted || state.config) {
+            return;
+        }
+        testModeVisibilityRefreshStarted = true;
+        void vscode.commands.executeCommand('metaflow.refresh').catch((error: unknown) => {
+            logError(`Test-mode tree bootstrap refresh failed: ${String(error)}`);
+        });
+    };
+
     const layersExpandController = new StagedTreeExpandController(
         layersTreeView,
         layersTreeViewProvider,
@@ -305,6 +317,15 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
         filesTreeView,
+        configTreeView.onDidChangeVisibility((event) => {
+            refreshVisibleTestTree(event.visible);
+        }),
+        layersTreeView.onDidChangeVisibility((event) => {
+            refreshVisibleTestTree(event.visible);
+        }),
+        filesTreeView.onDidChangeVisibility((event) => {
+            refreshVisibleTestTree(event.visible);
+        }),
         layersExpandController,
         filesExpandController,
     );
@@ -535,7 +556,6 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
-    const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
     let syncRepoUpdateSchedulerLifecycle = (): void => {};
 
     // Watch config file create/change/delete and auto-refresh state/UI.
