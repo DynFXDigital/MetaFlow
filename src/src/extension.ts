@@ -203,7 +203,7 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 
 // ── Activation ─────────────────────────────────────────────────────
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     logInfo('MetaFlow extension activating...');
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
 
@@ -616,7 +616,16 @@ export function activate(context: vscode.ExtensionContext): void {
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
-    if (!isTestMode) {
+    if (isTestMode) {
+        await vscode.commands.executeCommand('metaflow.refresh', {
+            readOnly: true,
+            skipAutoApply: true,
+            skipBuiltInAutoApply: true,
+            skipRepoSync: true,
+            skipSettingsInjection: true,
+            nonInteractive: true,
+        });
+    } else {
         // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.
         void (async () => {
             await vscode.commands.executeCommand('metaflow.refresh');

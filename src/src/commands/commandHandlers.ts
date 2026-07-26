@@ -5057,9 +5057,12 @@ export function registerCommands(
             }
 
             const refreshOptions = extractRefreshCommandOptions(arg);
-            const autoAcceptRefreshUpdates = context.extensionMode === vscode.ExtensionMode.Test;
+            const autoAcceptRefreshUpdates =
+                context.extensionMode === vscode.ExtensionMode.Test &&
+                refreshOptions.readOnly !== true;
             const suppressRefreshUpdatePrompts =
-                refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates;
+                refreshOptions.readOnly === true ||
+                (refreshOptions.nonInteractive === true && !autoAcceptRefreshUpdates);
             const pendingCapabilityPluginMetadataDirtyVersion =
                 state.capabilityPluginMetadataDirtyVersion;
             logInfo('Refreshing overlay...');
@@ -5089,7 +5092,9 @@ export function registerCommands(
                     const configMissing = !result.configPath;
                     logError(`Config errors: ${result.errors.map((e) => e.message).join('; ')}`);
                     publishConfigDiagnostics(diagnosticCollection, result);
-                    await clearManagedWorkspaceSettings(ws, context);
+                    if (refreshOptions.readOnly !== true) {
+                        await clearManagedWorkspaceSettings(ws, context);
+                    }
                     if (configMissing) {
                         logWarn('MetaFlow: No .metaflow/config.jsonc found at workspace root.');
                     } else {
@@ -5159,7 +5164,7 @@ export function registerCommands(
                     const message = err instanceof Error ? err.message : String(err);
                     logWarn(`Capability identity drift repair skipped: ${message}`);
                 }
-                let shouldAdvanceCapabilityIdentitySnapshot = true;
+                let shouldAdvanceCapabilityIdentitySnapshot = refreshOptions.readOnly !== true;
                 if (
                     (result.migrated ||
                         configNormalized ||
@@ -5255,11 +5260,13 @@ export function registerCommands(
                 state.configPath = result.configPath;
                 state.activeProfile = result.config.activeProfile;
                 state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
-                state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
-                    context,
-                    ws.uri.fsPath,
-                    state.builtInCapability,
-                );
+                if (refreshOptions.readOnly !== true) {
+                    state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
+                        context,
+                        ws.uri.fsPath,
+                        state.builtInCapability,
+                    );
+                }
 
                 const aiMetadataAutoApplyMode = normalizeAiMetadataAutoApplyMode(
                     workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, 'off'),

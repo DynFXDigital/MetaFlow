@@ -73,11 +73,36 @@ suite('Command handler config update consent', () => {
         assert.match(builtInRepairBlock, /suppressRefreshUpdatePrompts\s+\? false/);
     });
 
+    test('read-only refresh suppresses persistent mutations', () => {
+        const source = readCommandHandlersSource();
+
+        assert.match(
+            source,
+            /context\.extensionMode === vscode\.ExtensionMode\.Test &&\s+refreshOptions\.readOnly !== true/,
+        );
+        assert.match(
+            source,
+            /refreshOptions\.readOnly === true \|\|\s+\(refreshOptions\.nonInteractive === true/,
+        );
+        assert.match(
+            source,
+            /if \(refreshOptions\.readOnly !== true\) \{\s+await clearManagedWorkspaceSettings/,
+        );
+        assert.match(
+            source,
+            /let shouldAdvanceCapabilityIdentitySnapshot = refreshOptions\.readOnly !== true;/,
+        );
+        assert.match(
+            source,
+            /if \(refreshOptions\.readOnly !== true\) \{\s+state\.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles/,
+        );
+    });
+
     test('declining capability repair preserves the previous identity snapshot', () => {
         const source = readCommandHandlersSource();
         const refreshUpdateBlock = sourceSlice(
             source,
-            'let shouldAdvanceCapabilityIdentitySnapshot = true;',
+            'let shouldAdvanceCapabilityIdentitySnapshot = refreshOptions.readOnly !== true;',
             'const gitRepos = resolveGitBackedRepoSources',
         );
 

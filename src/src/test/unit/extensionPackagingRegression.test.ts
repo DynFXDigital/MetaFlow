@@ -136,26 +136,19 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('GUI sidebar setup explicitly refreshes each ExTester host', () => {
+    test('test-host activation awaits a read-only tree bootstrap', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
-        const guiHelpersPath = path.join(
-            EXTENSION_ROOT,
-            'src',
-            'test',
-            'gui',
-            'helpers',
-            'metaflowGuiHelpers.ts',
-        );
-        const guiHelpersSource = fs.readFileSync(guiHelpersPath, 'utf-8');
 
         assert.ok(
-            !extensionSource.includes('testModeVisibilityRefreshStarted'),
-            'Expected production activation to remain independent of GUI harness setup',
+            extensionSource.includes(
+                "await vscode.commands.executeCommand('metaflow.refresh', {",
+            ),
+            'Expected test activation to await initial overlay loading',
         );
         assert.ok(
-            guiHelpersSource.includes('triggerInitialOverlayRefresh()'),
-            'Expected shared GUI setup to initialize overlay state explicitly',
+            extensionSource.includes('readOnly: true'),
+            'Expected test activation bootstrap to suppress persistent mutations',
         );
     });
 

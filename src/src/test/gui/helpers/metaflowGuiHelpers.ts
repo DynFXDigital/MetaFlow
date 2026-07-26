@@ -32,19 +32,6 @@ const GUI_READY_TIMEOUT =
         : IS_CI
           ? 90_000
           : WAIT_TIMEOUT;
-let initialOverlayRefresh: Promise<void> | undefined;
-
-function triggerInitialOverlayRefresh(): Promise<void> {
-    initialOverlayRefresh ??= Promise.resolve().then(() => {
-        const configPath = path.resolve(
-            __dirname,
-            '../../../../test-workspace/.metaflow/config.jsonc',
-        );
-        const config = fs.readFileSync(configPath, 'utf-8');
-        fs.writeFileSync(configPath, config, 'utf-8');
-    });
-    return initialOverlayRefresh;
-}
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
@@ -335,7 +322,6 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         await sleep(300);
         sideBar = (await control.openView()) as SideBarView;
     }
-    await triggerInitialOverlayRefresh();
     return sideBar;
 }
 

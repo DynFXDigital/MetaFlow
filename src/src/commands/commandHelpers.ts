@@ -4,6 +4,7 @@ import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@m
 import type { MetaFlowConfig, ProfileConfig, ProfileLayerOverride } from '@metaflow/engine';
 
 export interface RefreshCommandOptions {
+    readOnly?: boolean;
     skipAutoApply?: boolean;
     skipBuiltInAutoApply?: boolean;
     skipRepoSync?: boolean;
@@ -454,6 +455,7 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
         return {};
     }
 
+    const readOnly = (arg as { readOnly?: unknown }).readOnly;
     const skipAutoApply = (arg as { skipAutoApply?: unknown }).skipAutoApply;
     const skipBuiltInAutoApply = (arg as { skipBuiltInAutoApply?: unknown }).skipBuiltInAutoApply;
     const skipRepoSync = (arg as { skipRepoSync?: unknown }).skipRepoSync;
@@ -464,6 +466,7 @@ export function extractRefreshCommandOptions(arg: unknown): RefreshCommandOption
     const forceDiscovery = (arg as { forceDiscovery?: unknown }).forceDiscovery;
     const forceDiscoveryRepoId = (arg as { forceDiscoveryRepoId?: unknown }).forceDiscoveryRepoId;
     return {
+        readOnly: typeof readOnly === 'boolean' ? readOnly : undefined,
         skipAutoApply: typeof skipAutoApply === 'boolean' ? skipAutoApply : undefined,
         skipBuiltInAutoApply:
             typeof skipBuiltInAutoApply === 'boolean' ? skipBuiltInAutoApply : undefined,
