@@ -331,6 +331,9 @@ export function activate(context: vscode.ExtensionContext): void {
         layersExpandController,
         filesExpandController,
     );
+    refreshVisibleTestTree(
+        configTreeView.visible || layersTreeView.visible || filesTreeView.visible,
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.collapseAllLayers', async () => {

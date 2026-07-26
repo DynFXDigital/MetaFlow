@@ -136,6 +136,21 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('test-mode tree bootstrap handles already-visible and later-visible views', () => {
+        const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
+        const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+
+        assert.ok(extensionSource.includes('configTreeView.onDidChangeVisibility'));
+        assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));
+        assert.ok(extensionSource.includes('filesTreeView.onDidChangeVisibility'));
+        assert.ok(
+            /filesTreeView\.onDidChangeVisibility[\s\S]+refreshVisibleTestTree\(\s*configTreeView\.visible \|\| layersTreeView\.visible \|\| filesTreeView\.visible,?\s*\);/.test(
+                extensionSource,
+            ),
+            'Expected activation to evaluate tree visibility after listeners are attached',
+        );
+    });
+
     test('config schema accepts profile layerOverrides', () => {
         const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
         const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
