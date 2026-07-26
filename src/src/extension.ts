@@ -624,29 +624,24 @@ export function activate(context: vscode.ExtensionContext): void {
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
-    const activationRefreshTimer = setTimeout(() => {
-        void (async () => {
-            await commandHandlers.refresh(
-                isTestHost
-                    ? {
-                          readOnly: true,
-                          skipAutoApply: true,
-                          skipBuiltInAutoApply: true,
-                          skipRepoSync: true,
-                          skipSettingsInjection: true,
-                          nonInteractive: true,
-                      }
-                    : undefined,
-            );
-            if (!isTestHost) {
-                await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
-                await vscode.commands.executeCommand('metaflow.offerGitIgnoreStateConfiguration');
-            }
-        })();
-    }, 0);
-    context.subscriptions.push({
-        dispose: () => clearTimeout(activationRefreshTimer),
-    });
+    void (async () => {
+        await commandHandlers.refresh(
+            isTestHost
+                ? {
+                      readOnly: true,
+                      skipAutoApply: true,
+                      skipBuiltInAutoApply: true,
+                      skipRepoSync: true,
+                      skipSettingsInjection: true,
+                      nonInteractive: true,
+                  }
+                : undefined,
+        );
+        if (!isTestHost) {
+            await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+            await vscode.commands.executeCommand('metaflow.offerGitIgnoreStateConfiguration');
+        }
+    })();
 
     if (!isTestHost) {
         // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.

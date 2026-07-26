@@ -136,7 +136,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('test-host activation schedules a read-only tree bootstrap', () => {
+    test('test-host activation starts a read-only tree bootstrap directly', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
@@ -163,14 +163,10 @@ suite('Extension Packaging Regression Guards', () => {
             extensionSource.includes("get<boolean>('guiTestMode', false)"),
             'Expected installed GUI test hosts to recognize the explicit settings marker',
         );
-        assert.ok(
-            extensionSource.includes('const activationRefreshTimer = setTimeout(() => {'),
-            'Expected activation refresh to run after extension activation resolves',
-        );
         assert.match(
             extensionSource,
             /commandHandlers\.refresh\(\s*isTestHost/,
-            'Expected test activation to schedule initial overlay loading',
+            'Expected test activation to start initial overlay loading directly',
         );
         assert.ok(
             extensionSource.includes('readOnly: true'),
