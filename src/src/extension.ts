@@ -206,11 +206,6 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
-    const isGuiTestMode =
-        isTestMode &&
-        context.extension.extensionPath
-            .replace(/\\/g, '/')
-            .includes('/.vscode-test/gui/extensions/');
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -295,19 +290,6 @@ export function activate(context: vscode.ExtensionContext): void {
         treeDataProvider: filesTreeViewProvider,
     });
 
-    let testModeVisibilityRefreshStarted = false;
-    const refreshVisibleTestTree = (visible: boolean): void => {
-        if (!isGuiTestMode || !visible || testModeVisibilityRefreshStarted || state.config) {
-            return;
-        }
-        testModeVisibilityRefreshStarted = true;
-        void Promise.resolve(vscode.commands.executeCommand('metaflow.refresh')).catch(
-            (error: unknown) => {
-                logWarn(`Test-mode tree bootstrap refresh failed: ${String(error)}`);
-            },
-        );
-    };
-
     const layersExpandController = new StagedTreeExpandController(
         layersTreeView,
         layersTreeViewProvider,
@@ -324,28 +306,9 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.registerTreeDataProvider('metaflow-profiles', profilesTreeViewProvider),
         layersTreeView,
         filesTreeView,
-        configTreeView.onDidChangeVisibility((event) => {
-            refreshVisibleTestTree(event.visible);
-        }),
-        layersTreeView.onDidChangeVisibility((event) => {
-            refreshVisibleTestTree(event.visible);
-        }),
-        filesTreeView.onDidChangeVisibility((event) => {
-            refreshVisibleTestTree(event.visible);
-        }),
         layersExpandController,
         filesExpandController,
     );
-    const initialTestTreeRefresh = isGuiTestMode
-        ? setTimeout(() => {
-              refreshVisibleTestTree(true);
-          }, 0)
-        : undefined;
-    if (initialTestTreeRefresh) {
-        context.subscriptions.push({
-            dispose: () => clearTimeout(initialTestTreeRefresh),
-        });
-    }
 
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.collapseAllLayers', async () => {

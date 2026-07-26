@@ -136,22 +136,26 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('GUI tree bootstrap is deferred, harness-scoped, and visibility-aware', () => {
+    test('GUI sidebar setup explicitly refreshes each ExTester host', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+        const guiHelpersPath = path.join(
+            EXTENSION_ROOT,
+            'src',
+            'test',
+            'gui',
+            'helpers',
+            'metaflowGuiHelpers.ts',
+        );
+        const guiHelpersSource = fs.readFileSync(guiHelpersPath, 'utf-8');
 
         assert.ok(
-            extensionSource.includes(".includes('/.vscode-test/gui/extensions/')"),
-            'Expected the bootstrap to distinguish the installed GUI extension path',
+            !extensionSource.includes('testModeVisibilityRefreshStarted'),
+            'Expected production activation to remain independent of GUI harness setup',
         );
-        assert.ok(extensionSource.includes('configTreeView.onDidChangeVisibility'));
-        assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));
-        assert.ok(extensionSource.includes('filesTreeView.onDidChangeVisibility'));
         assert.ok(
-            /filesTreeView\.onDidChangeVisibility[\s\S]+setTimeout\(\(\) => \{\s*refreshVisibleTestTree\(true\);/.test(
-                extensionSource,
-            ),
-            'Expected the packaged host to bootstrap after activation despite stale visibility state',
+            guiHelpersSource.includes("executeCommand('MetaFlow: Refresh')"),
+            'Expected shared GUI setup to initialize overlay state explicitly',
         );
     });
 

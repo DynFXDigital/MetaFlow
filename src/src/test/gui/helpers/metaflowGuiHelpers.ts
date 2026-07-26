@@ -32,6 +32,7 @@ const GUI_READY_TIMEOUT =
         : IS_CI
           ? 90_000
           : WAIT_TIMEOUT;
+let initialOverlayRefreshComplete = false;
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
@@ -308,20 +309,25 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         return Boolean(control);
     }, STARTUP_TIMEOUT);
     assert.ok(control, 'MetaFlow activity bar entry not found');
+    let sideBar: SideBarView;
     try {
-        const sideBar = (await control.openView()) as SideBarView;
+        sideBar = (await control.openView()) as SideBarView;
         try {
             await new Workbench().executeCommand('workbench.view.extension.metaflow-container');
         } catch {
             // control.openView() already revealed the container on older builds.
         }
-        return sideBar;
     } catch {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
         await dismissWelcomeOverlay();
         await sleep(300);
-        return (await control.openView()) as SideBarView;
+        sideBar = (await control.openView()) as SideBarView;
     }
+    if (!initialOverlayRefreshComplete) {
+        await new Workbench().executeCommand('MetaFlow: Refresh');
+        initialOverlayRefreshComplete = true;
+    }
+    return sideBar;
 }
 
 /**
