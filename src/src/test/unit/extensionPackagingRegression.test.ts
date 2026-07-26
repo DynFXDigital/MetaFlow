@@ -148,10 +148,10 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));
         assert.ok(extensionSource.includes('filesTreeView.onDidChangeVisibility'));
         assert.ok(
-            /filesTreeView\.onDidChangeVisibility[\s\S]+setTimeout\(\(\) => \{\s*refreshVisibleTestTree\(\s*configTreeView\.visible \|\| layersTreeView\.visible \|\| filesTreeView\.visible,?\s*\);/.test(
+            /filesTreeView\.onDidChangeVisibility[\s\S]+setTimeout\(\(\) => \{\s*refreshVisibleTestTree\(true\);/.test(
                 extensionSource,
             ),
-            'Expected activation to evaluate initial visibility after activation returns',
+            'Expected the packaged host to bootstrap after activation despite stale visibility state',
         );
     });
 

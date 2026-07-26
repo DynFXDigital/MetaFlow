@@ -338,9 +338,7 @@ export function activate(context: vscode.ExtensionContext): void {
     );
     const initialTestTreeRefresh = isGuiTestMode
         ? setTimeout(() => {
-              refreshVisibleTestTree(
-                  configTreeView.visible || layersTreeView.visible || filesTreeView.visible,
-              );
+              refreshVisibleTestTree(true);
           }, 0)
         : undefined;
     if (initialTestTreeRefresh) {
