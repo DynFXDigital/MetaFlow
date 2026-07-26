@@ -154,7 +154,7 @@ suite('Extension Packaging Regression Guards', () => {
             'Expected production activation to remain independent of GUI harness setup',
         );
         assert.ok(
-            guiHelpersSource.includes("executeCommand('MetaFlow: Refresh')"),
+            guiHelpersSource.includes('/refresh/i.test(label)'),
             'Expected shared GUI setup to initialize overlay state explicitly',
         );
     });

@@ -324,7 +324,18 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         sideBar = (await control.openView()) as SideBarView;
     }
     if (!initialOverlayRefreshComplete) {
-        await new Workbench().executeCommand('MetaFlow: Refresh');
+        const configSection = await getSection(sideBar, 'AI Metadata');
+        const actions = await configSection.getActions();
+        const actionLabels = await Promise.all(actions.map((action) => action.getLabel()));
+        const refreshAction = actions[actionLabels.findIndex((label) => /refresh/i.test(label))];
+        assert.ok(
+            refreshAction,
+            `MetaFlow Refresh view action not found. Actions: ${actionLabels.join(', ')}`,
+        );
+        await VSBrowser.instance.driver.executeScript(
+            'arguments[0].click();',
+            refreshAction,
+        );
         initialOverlayRefreshComplete = true;
     }
     return sideBar;
