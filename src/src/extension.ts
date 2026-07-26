@@ -206,11 +206,7 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
-    const isGuiTestMode =
-        isTestMode &&
-        vscode.workspace
-            .getConfiguration('metaflow')
-            .inspect<boolean>('autoApply')?.globalValue === false;
+    const isGuiTestMode = isTestMode && process.env.METAFLOW_GUI_TEST === '1';
 
     // Read log level from settings
     const logLevel = vscode.workspace

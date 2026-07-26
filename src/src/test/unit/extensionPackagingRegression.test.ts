@@ -139,10 +139,16 @@ suite('Extension Packaging Regression Guards', () => {
     test('GUI tree bootstrap is deferred, harness-scoped, and visibility-aware', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+        const guiRunnerPath = path.join(EXTENSION_ROOT, 'scripts', 'run-gui-batched.mjs');
+        const guiRunnerSource = fs.readFileSync(guiRunnerPath, 'utf-8');
 
         assert.ok(
-            extensionSource.includes(".inspect<boolean>('autoApply')?.globalValue === false"),
-            'Expected the bootstrap to distinguish the packaged GUI harness from integration tests',
+            extensionSource.includes("process.env.METAFLOW_GUI_TEST === '1'"),
+            'Expected the bootstrap to require the packaged GUI harness marker',
+        );
+        assert.ok(
+            guiRunnerSource.includes("env: { ...process.env, METAFLOW_GUI_TEST: '1' }"),
+            'Expected ExTester and its extension host to inherit the GUI harness marker',
         );
         assert.ok(extensionSource.includes('configTreeView.onDidChangeVisibility'));
         assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));
