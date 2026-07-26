@@ -232,7 +232,12 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(capabilityDetailsPanel);
 
     // Register commands (wires engine + synchronization pipeline)
-    registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
+    const commandHandlers = registerCommands(
+        context,
+        state,
+        diagnosticCollection,
+        capabilityDetailsPanel,
+    );
 
     registerDiagnosticsTool(
         context,
@@ -621,8 +626,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const activationRefreshTimer = setTimeout(() => {
         void (async () => {
-            await vscode.commands.executeCommand(
-                'metaflow.refresh',
+            await commandHandlers.refresh(
                 isTestHost
                     ? {
                           readOnly: true,

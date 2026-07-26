@@ -4915,12 +4915,16 @@ export async function clearManagedWorkspaceSettings(
 /**
  * Register all MetaFlow command handlers.
  */
+export interface RegisteredCommandHandlers {
+    refresh: (arg?: unknown) => Promise<void>;
+}
+
 export function registerCommands(
     context: vscode.ExtensionContext,
     state: ExtensionState,
     diagnosticCollection: vscode.DiagnosticCollection,
     capabilityDetailsPanel: CapabilityDetailsPanelManager,
-): void {
+): RegisteredCommandHandlers {
     const extensionDisplayName = getExtensionDisplayName(context);
 
     state.builtInCapability = readBuiltInCapabilityRuntimeState(
@@ -5049,8 +5053,11 @@ export function registerCommands(
     };
 
     // ── metaflow.refresh ───────────────────────────────────────────
+    let refresh!: RegisteredCommandHandlers['refresh'];
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
+        vscode.commands.registerCommand(
+            'metaflow.refresh',
+            (refresh = async (arg?: unknown) => {
             const ws = getWorkspace();
             if (!ws) {
                 return;
@@ -5479,7 +5486,8 @@ export function registerCommands(
                 state.onDidChange.fire();
                 throw err;
             }
-        }),
+            }),
+        ),
     );
 
     // ── metaflow.preview ───────────────────────────────────────────
@@ -8497,4 +8505,6 @@ export function registerCommands(
             };
         }),
     );
+
+    return { refresh };
 }

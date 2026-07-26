@@ -155,8 +155,7 @@ suite('Extension Packaging Regression Guards', () => {
             'Expected ExTester settings to carry an explicit GUI test-host marker',
         );
         assert.strictEqual(
-            packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']
-                ?.default,
+            packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']?.default,
             false,
             'Expected the packaged extension to register the GUI test-host marker',
         );
@@ -170,7 +169,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
         assert.match(
             extensionSource,
-            /executeCommand\(\s*'metaflow\.refresh',\s*isTestHost/,
+            /commandHandlers\.refresh\(\s*isTestHost/,
             'Expected test activation to schedule initial overlay loading',
         );
         assert.ok(
