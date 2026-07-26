@@ -155,6 +155,11 @@ suite('Extension Packaging Regression Guards', () => {
             'Expected ExTester settings to carry an explicit GUI test-host marker',
         );
         assert.strictEqual(
+            guiSettings['window.openFoldersInNewWindow'],
+            'off',
+            'Expected ExTester to open the test workspace in its instrumented window',
+        );
+        assert.strictEqual(
             packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']?.default,
             false,
             'Expected the packaged extension to register the GUI test-host marker',
