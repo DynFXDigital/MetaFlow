@@ -139,7 +139,17 @@ suite('Extension Packaging Regression Guards', () => {
     test('test-host activation awaits a read-only tree bootstrap', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+        const guiRunnerPath = path.join(EXTENSION_ROOT, 'scripts', 'run-gui-batched.mjs');
+        const guiRunnerSource = fs.readFileSync(guiRunnerPath, 'utf-8');
 
+        assert.ok(
+            guiRunnerSource.includes("METAFLOW_GUI_TEST_MODE: '1'"),
+            'Expected ExTester child processes to carry an explicit GUI test-host marker',
+        );
+        assert.ok(
+            extensionSource.includes("process.env.METAFLOW_GUI_TEST_MODE === '1'"),
+            'Expected installed GUI test hosts to recognize the explicit runner marker',
+        );
         assert.ok(
             extensionSource.includes(
                 "await vscode.commands.executeCommand('metaflow.refresh', {",
