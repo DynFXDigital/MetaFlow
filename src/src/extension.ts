@@ -203,7 +203,7 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 
 // ── Activation ─────────────────────────────────────────────────────
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
     const isTestHost =
@@ -619,23 +619,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Set context for keybindings/menus
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
-    if (isTestHost) {
-        await vscode.commands.executeCommand('metaflow.refresh', {
-            readOnly: true,
-            skipAutoApply: true,
-            skipBuiltInAutoApply: true,
-            skipRepoSync: true,
-            skipSettingsInjection: true,
-            nonInteractive: true,
-        });
-    } else {
-        // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.
+    const activationRefreshTimer = setTimeout(() => {
         void (async () => {
-            await vscode.commands.executeCommand('metaflow.refresh');
-            await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
-            await vscode.commands.executeCommand('metaflow.offerGitIgnoreStateConfiguration');
+            await vscode.commands.executeCommand(
+                'metaflow.refresh',
+                isTestHost
+                    ? {
+                          readOnly: true,
+                          skipAutoApply: true,
+                          skipBuiltInAutoApply: true,
+                          skipRepoSync: true,
+                          skipSettingsInjection: true,
+                          nonInteractive: true,
+                      }
+                    : undefined,
+            );
+            if (!isTestHost) {
+                await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
+                await vscode.commands.executeCommand('metaflow.offerGitIgnoreStateConfiguration');
+            }
         })();
+    }, 0);
+    context.subscriptions.push({
+        dispose: () => clearTimeout(activationRefreshTimer),
+    });
 
+    if (!isTestHost) {
+        // Auto-refresh on activation, then offer promotion for local git repos missing remote URLs.
         const schedulerLifecycle = createRepoUpdateSchedulerLifecycleController({
             workspaceHasConfig: workspaceHasMetaFlowConfig,
             createScheduler: () => {

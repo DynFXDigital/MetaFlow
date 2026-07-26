@@ -136,7 +136,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('test-host activation awaits a read-only tree bootstrap', () => {
+    test('test-host activation schedules a read-only tree bootstrap', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
@@ -165,10 +165,13 @@ suite('Extension Packaging Regression Guards', () => {
             'Expected installed GUI test hosts to recognize the explicit settings marker',
         );
         assert.ok(
-            extensionSource.includes(
-                "await vscode.commands.executeCommand('metaflow.refresh', {",
-            ),
-            'Expected test activation to await initial overlay loading',
+            extensionSource.includes('const activationRefreshTimer = setTimeout(() => {'),
+            'Expected activation refresh to run after extension activation resolves',
+        );
+        assert.match(
+            extensionSource,
+            /executeCommand\(\s*'metaflow\.refresh',\s*isTestHost/,
+            'Expected test activation to schedule initial overlay loading',
         );
         assert.ok(
             extensionSource.includes('readOnly: true'),
