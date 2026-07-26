@@ -139,6 +139,10 @@ suite('Extension Packaging Regression Guards', () => {
     test('test-host activation awaits a read-only tree bootstrap', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
         const guiSettingsPath = path.join(EXTENSION_ROOT, '.vscode-test-gui-settings.json');
         const guiSettings = JSON.parse(fs.readFileSync(guiSettingsPath, 'utf-8')) as Record<
             string,
@@ -149,6 +153,12 @@ suite('Extension Packaging Regression Guards', () => {
             guiSettings['metaflow.guiTestMode'],
             true,
             'Expected ExTester settings to carry an explicit GUI test-host marker',
+        );
+        assert.strictEqual(
+            packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']
+                ?.default,
+            false,
+            'Expected the packaged extension to register the GUI test-host marker',
         );
         assert.ok(
             extensionSource.includes("get<boolean>('guiTestMode', false)"),

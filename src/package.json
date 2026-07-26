@@ -687,6 +687,14 @@
           "order": 2,
           "description": "Automatically apply overlay when configuration changes"
         },
+        "metaflow.guiTestMode": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "ignoreSync": true,
+          "order": 99,
+          "description": "Internal test harness setting that enables deterministic read-only activation for packaged GUI tests."
+        },
         "metaflow.aiMetadataAutoApplyMode": {
           "type": "string",
           "default": "off",
