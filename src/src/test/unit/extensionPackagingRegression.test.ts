@@ -165,6 +165,11 @@ suite('Extension Packaging Regression Guards', () => {
         );
         assert.match(
             extensionSource,
+            /if \(!\(await waitForWorkspaceFolder\(\)\)\)/,
+            'Expected test activation to wait for workspace folder hydration',
+        );
+        assert.match(
+            extensionSource,
             /commandHandlers\.refresh\(\s*isTestHost/,
             'Expected test activation to start initial overlay loading directly',
         );

@@ -46,6 +46,14 @@ type SearchPreparedTreeProvider<T extends vscode.TreeItem> = {
     getChildren(element?: T): T[];
 };
 
+async function waitForWorkspaceFolder(timeoutMs = 10_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (!vscode.workspace.workspaceFolders?.length && Date.now() < deadline) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    }
+    return Boolean(vscode.workspace.workspaceFolders?.length);
+}
+
 function getContextValue(item: vscode.TreeItem): string {
     return typeof item.contextValue === 'string' ? item.contextValue : '';
 }
@@ -625,6 +633,10 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.executeCommand('setContext', 'metaflow.active', true);
 
     void (async () => {
+        if (!(await waitForWorkspaceFolder())) {
+            logWarn('MetaFlow activation refresh skipped: workspace folders were not ready.');
+            return;
+        }
         await commandHandlers.refresh(
             isTestHost
                 ? {
