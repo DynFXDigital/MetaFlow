@@ -15,5 +15,6 @@
     "git.enabled": false,
     "git.autoRepositoryDetection": false,
     "terminal.integrated.gpuAcceleration": "off",
+    "metaflow.guiTestMode": true,
     "metaflow.autoApply": false
 }

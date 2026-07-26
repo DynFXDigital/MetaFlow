@@ -53,10 +53,6 @@ function runExtest(args, label, timeoutMs) {
     const startedAt = Date.now();
     const res = spawnSync(process.execPath, [extestCli, ...args], {
         cwd: srcRoot,
-        env: {
-            ...process.env,
-            METAFLOW_GUI_TEST_MODE: '1',
-        },
         encoding: 'utf-8',
         stdio: ['inherit', 'pipe', 'pipe'],
         timeout: timeoutMs,
