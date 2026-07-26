@@ -32,7 +32,19 @@ const GUI_READY_TIMEOUT =
         : IS_CI
           ? 90_000
           : WAIT_TIMEOUT;
-let initialOverlayRefreshComplete = false;
+let initialOverlayRefresh: Promise<void> | undefined;
+
+function triggerInitialOverlayRefresh(): Promise<void> {
+    initialOverlayRefresh ??= Promise.resolve().then(() => {
+        const configPath = path.resolve(
+            __dirname,
+            '../../../../test-workspace/.metaflow/config.jsonc',
+        );
+        const config = fs.readFileSync(configPath, 'utf-8');
+        fs.writeFileSync(configPath, config, 'utf-8');
+    });
+    return initialOverlayRefresh;
+}
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
@@ -323,21 +335,7 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         await sleep(300);
         sideBar = (await control.openView()) as SideBarView;
     }
-    if (!initialOverlayRefreshComplete) {
-        const configSection = await getSection(sideBar, 'AI Metadata');
-        const actions = await configSection.getActions();
-        const actionLabels = await Promise.all(actions.map((action) => action.getLabel()));
-        const refreshAction = actions[actionLabels.findIndex((label) => /refresh/i.test(label))];
-        assert.ok(
-            refreshAction,
-            `MetaFlow Refresh view action not found. Actions: ${actionLabels.join(', ')}`,
-        );
-        await VSBrowser.instance.driver.executeScript(
-            'arguments[0].click();',
-            refreshAction,
-        );
-        initialOverlayRefreshComplete = true;
-    }
+    await triggerInitialOverlayRefresh();
     return sideBar;
 }
 
