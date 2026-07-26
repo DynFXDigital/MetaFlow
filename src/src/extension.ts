@@ -296,9 +296,11 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
         }
         testModeVisibilityRefreshStarted = true;
-        void vscode.commands.executeCommand('metaflow.refresh').catch((error: unknown) => {
-            logError(`Test-mode tree bootstrap refresh failed: ${String(error)}`);
-        });
+        void Promise.resolve(vscode.commands.executeCommand('metaflow.refresh')).catch(
+            (error: unknown) => {
+                logWarn(`Test-mode tree bootstrap refresh failed: ${String(error)}`);
+            },
+        );
     };
 
     const layersExpandController = new StagedTreeExpandController(
