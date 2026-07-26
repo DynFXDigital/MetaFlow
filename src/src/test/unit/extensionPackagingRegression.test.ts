@@ -141,8 +141,8 @@ suite('Extension Packaging Regression Guards', () => {
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
 
         assert.ok(
-            extensionSource.includes(".get<boolean>('autoApply', true) === false"),
-            'Expected the bootstrap to use the GUI harness effective configuration',
+            extensionSource.includes(".includes('/.vscode-test/gui/extensions/')"),
+            'Expected the bootstrap to distinguish the installed GUI extension path',
         );
         assert.ok(extensionSource.includes('configTreeView.onDidChangeVisibility'));
         assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));

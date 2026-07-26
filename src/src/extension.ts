@@ -208,7 +208,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
     const isGuiTestMode =
         isTestMode &&
-        vscode.workspace.getConfiguration('metaflow').get<boolean>('autoApply', true) === false;
+        context.extension.extensionPath
+            .replace(/\\/g, '/')
+            .includes('/.vscode-test/gui/extensions/');
 
     // Read log level from settings
     const logLevel = vscode.workspace
