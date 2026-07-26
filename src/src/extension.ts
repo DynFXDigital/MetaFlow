@@ -206,6 +206,11 @@ async function openTreeViewFilter<T extends vscode.TreeItem>(
 export function activate(context: vscode.ExtensionContext): void {
     logInfo('MetaFlow extension activating...');
     const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
+    const isGuiTestMode =
+        isTestMode &&
+        vscode.workspace
+            .getConfiguration('metaflow')
+            .inspect<boolean>('autoApply')?.globalValue === false;
 
     // Read log level from settings
     const logLevel = vscode.workspace
@@ -292,7 +297,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     let testModeVisibilityRefreshStarted = false;
     const refreshVisibleTestTree = (visible: boolean): void => {
-        if (!isTestMode || !visible || testModeVisibilityRefreshStarted || state.config) {
+        if (!isGuiTestMode || !visible || testModeVisibilityRefreshStarted || state.config) {
             return;
         }
         testModeVisibilityRefreshStarted = true;
@@ -331,9 +336,18 @@ export function activate(context: vscode.ExtensionContext): void {
         layersExpandController,
         filesExpandController,
     );
-    refreshVisibleTestTree(
-        configTreeView.visible || layersTreeView.visible || filesTreeView.visible,
-    );
+    const initialTestTreeRefresh = isGuiTestMode
+        ? setTimeout(() => {
+              refreshVisibleTestTree(
+                  configTreeView.visible || layersTreeView.visible || filesTreeView.visible,
+              );
+          }, 0)
+        : undefined;
+    if (initialTestTreeRefresh) {
+        context.subscriptions.push({
+            dispose: () => clearTimeout(initialTestTreeRefresh),
+        });
+    }
 
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.collapseAllLayers', async () => {

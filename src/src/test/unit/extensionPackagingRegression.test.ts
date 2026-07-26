@@ -136,18 +136,22 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('test-mode tree bootstrap handles already-visible and later-visible views', () => {
+    test('GUI tree bootstrap is deferred, harness-scoped, and visibility-aware', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
 
+        assert.ok(
+            extensionSource.includes(".inspect<boolean>('autoApply')?.globalValue === false"),
+            'Expected the bootstrap to distinguish the packaged GUI harness from integration tests',
+        );
         assert.ok(extensionSource.includes('configTreeView.onDidChangeVisibility'));
         assert.ok(extensionSource.includes('layersTreeView.onDidChangeVisibility'));
         assert.ok(extensionSource.includes('filesTreeView.onDidChangeVisibility'));
         assert.ok(
-            /filesTreeView\.onDidChangeVisibility[\s\S]+refreshVisibleTestTree\(\s*configTreeView\.visible \|\| layersTreeView\.visible \|\| filesTreeView\.visible,?\s*\);/.test(
+            /filesTreeView\.onDidChangeVisibility[\s\S]+setTimeout\(\(\) => \{\s*refreshVisibleTestTree\(\s*configTreeView\.visible \|\| layersTreeView\.visible \|\| filesTreeView\.visible,?\s*\);/.test(
                 extensionSource,
             ),
-            'Expected activation to evaluate tree visibility after listeners are attached',
+            'Expected activation to evaluate initial visibility after activation returns',
         );
     });
 
