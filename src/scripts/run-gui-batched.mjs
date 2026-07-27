@@ -7,11 +7,11 @@
  * "element not visible" / click-intercepted timeouts as workbench state (stray
  * notifications, modal backdrops) accumulates. Running ~6 suites per fresh host
  * keeps each session short enough to stay stable while still exercising the
- * whole suite. Four suites per host keeps slower mutation-heavy groups within
+ * whole suite. Three suites per host keeps slower mutation-heavy groups within
  * the five-minute host timeout.
  *
  * Usage:
- *   node ./scripts/run-gui-batched.mjs            # all suites, batches of 4
+ *   node ./scripts/run-gui-batched.mjs            # all suites, batches of 3
  *   GUI_BATCH_SIZE=4 node ./scripts/run-gui-batched.mjs
  *   GUI_VSCODE_VERSION=1.110.0 node ./scripts/run-gui-batched.mjs
  *   node ./scripts/run-gui-batched.mjs 12 19 22   # only suites whose basename
@@ -39,7 +39,7 @@ const STORAGE = '.vscode-test/gui';
 const EXTENSIONS = '.vscode-test/gui/extensions';
 const VSIX = 'metaflow-test.vsix';
 
-const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '4'));
+const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '3'));
 const codeVersion = process.env.GUI_VSCODE_VERSION ?? '1.110.0';
 const prefixes = process.argv.slice(2);
 
