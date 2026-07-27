@@ -164,6 +164,17 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('GUI runner opens the test workspace by absolute path', () => {
+        const runnerPath = path.join(EXTENSION_ROOT, 'scripts', 'run-gui-batched.mjs');
+        const runnerSource = fs.readFileSync(runnerPath, 'utf-8');
+
+        assert.ok(
+            runnerSource.includes("const testWorkspace = path.join(srcRoot, 'test-workspace');"),
+        );
+        assert.match(runnerSource, /'-r',\s+testWorkspace,/);
+        assert.doesNotMatch(runnerSource, /'-r',\s+'test-workspace',/);
+    });
+
     test('config schema accepts profile layerOverrides', () => {
         const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
         const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
@@ -259,9 +270,11 @@ suite('Extension Packaging Regression Guards', () => {
         const injectionModes =
             packageJson.contributes?.configuration?.properties?.['metaflow.injection.modes'];
         const hooks = (
-            injectionModes as {
-                properties?: Record<string, { enum?: string[]; default?: unknown }>;
-            } | undefined
+            injectionModes as
+                | {
+                      properties?: Record<string, { enum?: string[]; default?: unknown }>;
+                  }
+                | undefined
         )?.properties?.hooks;
         assert.ok(hooks, 'Expected hooks injection mode setting to be contributed');
         assert.deepStrictEqual(hooks?.enum, ['settings', 'synchronize', 'plugin']);
@@ -418,8 +431,7 @@ suite('Extension Packaging Regression Guards', () => {
             titleMenuEntries.some(
                 (entry) =>
                     entry.command === 'metaflow.openLayersFilter' &&
-                    entry.when ===
-                        'view == metaflow-layers && !metaflow.layersNativeFilterActive',
+                    entry.when === 'view == metaflow-layers && !metaflow.layersNativeFilterActive',
             ),
             'Expected filter action in the Capabilities view title menu',
         );

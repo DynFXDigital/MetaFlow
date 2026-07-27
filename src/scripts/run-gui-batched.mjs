@@ -30,6 +30,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(here, '..'); // .../src
 const guiRel = path.join('out', 'test', 'gui');
 const guiDir = path.join(srcRoot, guiRel);
+const testWorkspace = path.join(srcRoot, 'test-workspace');
 const extestCli = require.resolve('vscode-extension-tester/out/cli.js');
 
 const STORAGE = '.vscode-test/gui';
@@ -128,7 +129,7 @@ for (const [idx, batch] of batches.entries()) {
             '-c',
             codeVersion,
             '-r',
-            'test-workspace',
+            testWorkspace,
             '-m',
             '.mocharc-gui.js',
             '-o',
