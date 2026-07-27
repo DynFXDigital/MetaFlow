@@ -604,6 +604,31 @@ export async function waitForNotification(
     return found;
 }
 
+export async function takeNotificationAction(
+    workbench: Workbench,
+    messageFragment: string,
+    actionTitle: string,
+    timeoutMs = INTERACTION_TIMEOUT,
+): Promise<void> {
+    await waitFor(async () => {
+        const notifications = await workbench.getNotifications();
+        for (const notification of notifications) {
+            const message = await notification.getMessage().catch(() => '');
+            if (!message.toLowerCase().includes(messageFragment.toLowerCase())) {
+                continue;
+            }
+            const actions = await notification.getActions();
+            for (const action of actions) {
+                if ((await action.getTitle()) === actionTitle && (await action.isDisplayed())) {
+                    await action.click();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }, timeoutMs);
+}
+
 /**
  * Dismisses all currently visible notifications, ignoring errors.
  */
