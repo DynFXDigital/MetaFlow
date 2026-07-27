@@ -5608,6 +5608,7 @@ export function registerCommands(
         };
         const autoAcceptRefreshUpdatesInTests = context.extensionMode === vscode.ExtensionMode.Test;
         const workspaceConfig = vscode.workspace.getConfiguration('metaflow', ws.uri);
+        const guiTestMode = workspaceConfig.get<boolean>('guiTestMode', false);
         const autoApplyEnabled = workspaceConfig.get<boolean>('autoApply', true);
         let autoAcceptRefreshUpdates =
             autoAcceptRefreshUpdatesInTests ||
@@ -6066,8 +6067,16 @@ export function registerCommands(
                 workspaceRoot: ws.uri.fsPath,
                 skipPrompt:
                     refreshOptions.nonInteractive === true ||
-                    context.extensionMode === vscode.ExtensionMode.Test,
+                    context.extensionMode === vscode.ExtensionMode.Test ||
+                    guiTestMode,
             });
+            if (guiTestMode) {
+                fs.writeFileSync(
+                    path.join(ws.uri.fsPath, '.metaflow', 'gui-test-completion.json'),
+                    JSON.stringify({ operation: 'refresh', token: randomUUID() }),
+                    'utf-8',
+                );
+            }
             flushRefreshTimings('refresh-complete');
         } catch (err: unknown) {
             state.isLoading = false;
@@ -6137,6 +6146,9 @@ export function registerCommands(
 
             const applyOptions = extractApplyCommandOptions(arg);
             const config = state.config;
+            const guiTestMode = vscode.workspace
+                .getConfiguration('metaflow')
+                .get<boolean>('guiTestMode', false);
 
             state.isApplying = true;
             try {
@@ -6189,10 +6201,22 @@ export function registerCommands(
                         }
 
                         // Refresh views
-                        if (!applyOptions.skipRefresh) {
+                        if (!applyOptions.skipRefresh && !guiTestMode) {
                             await vscode.commands.executeCommand('metaflow.refresh', {
                                 skipAutoApply: true,
                             });
+                        }
+
+                        if (guiTestMode) {
+                            fs.writeFileSync(
+                                path.join(
+                                    ws.uri.fsPath,
+                                    '.metaflow',
+                                    'gui-test-completion.json',
+                                ),
+                                JSON.stringify({ operation: 'apply', token: randomUUID() }),
+                                'utf-8',
+                            );
                         }
                     },
                 );

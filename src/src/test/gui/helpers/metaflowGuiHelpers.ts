@@ -33,10 +33,33 @@ const GUI_READY_TIMEOUT =
           ? 90_000
           : WAIT_TIMEOUT;
 
+function readGuiCompletionToken(
+    workspaceRoot: string,
+    operation: 'refresh' | 'apply',
+): string | undefined {
+    try {
+        const parsed = JSON.parse(
+            fs.readFileSync(
+                path.join(workspaceRoot, '.metaflow', 'gui-test-completion.json'),
+                'utf-8',
+            ),
+        ) as { operation?: string; token?: string };
+        return parsed.operation === operation ? parsed.token : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 Workbench.prototype.openCommandPrompt = async function (): Promise<InputBox> {
     await dismissBlockingUi();
-    await this.getTitleBar().select('View', 'Command Palette...');
-    return InputBox.create(INTERACTION_TIMEOUT);
+    await VSBrowser.instance.driver.actions().sendKeys(Key.F1).perform();
+    try {
+        return await InputBox.create(3_000);
+    } catch {
+        await dismissBlockingUi();
+        await this.getTitleBar().select('View', 'Command Palette...');
+        return InputBox.create(INTERACTION_TIMEOUT);
+    }
 };
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
@@ -54,6 +77,36 @@ Workbench.prototype.openCommandPrompt = async function (): Promise<InputBox> {
  */
 function goldenPathFor(configPath: string): string {
     return path.join(path.dirname(configPath), 'config.golden.jsonc');
+}
+
+export async function applyOverlayAndWait(
+    workspaceRoot: string,
+    workbench = new Workbench(),
+): Promise<void> {
+    const previousToken = readGuiCompletionToken(workspaceRoot, 'apply');
+    await workbench.executeCommand('MetaFlow: Apply Overlay');
+    await waitFor(
+        async () => {
+            const token = readGuiCompletionToken(workspaceRoot, 'apply');
+            return token !== undefined && token !== previousToken;
+        },
+        WAIT_TIMEOUT,
+    );
+}
+
+export async function refreshOverlayAndWait(
+    workspaceRoot: string,
+    workbench = new Workbench(),
+): Promise<void> {
+    const previousToken = readGuiCompletionToken(workspaceRoot, 'refresh');
+    await workbench.executeCommand('MetaFlow: Refresh');
+    await waitFor(
+        async () => {
+            const token = readGuiCompletionToken(workspaceRoot, 'refresh');
+            return token !== undefined && token !== previousToken;
+        },
+        WAIT_TIMEOUT,
+    );
 }
 
 /** Derives the workspace `.vscode/settings.json` path from the live config path. */
