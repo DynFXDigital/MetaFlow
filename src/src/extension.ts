@@ -771,7 +771,9 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
-    const isTestMode = context.extensionMode === vscode.ExtensionMode.Test;
+    const isTestMode =
+        context.extensionMode === vscode.ExtensionMode.Test ||
+        vscode.workspace.getConfiguration('metaflow').get<boolean>('guiTestMode', false);
     let syncRepoUpdateSchedulerLifecycle = (): void => {};
 
     // Watch config file create/change/delete and auto-refresh state/UI.

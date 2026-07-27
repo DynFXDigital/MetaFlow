@@ -33,6 +33,12 @@ const GUI_READY_TIMEOUT =
           ? 90_000
           : WAIT_TIMEOUT;
 
+Workbench.prototype.openCommandPrompt = async function (): Promise<InputBox> {
+    await dismissBlockingUi();
+    await this.getTitleBar().select('View', 'Command Palette...');
+    return InputBox.create(INTERACTION_TIMEOUT);
+};
+
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
 /**
@@ -324,10 +330,12 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         } catch {
             // control.openView() already revealed the container on older builds.
         }
+        await sleep(300);
+        await dismissBlockingUi();
         return sideBar;
     } catch {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
-        await dismissWelcomeOverlay();
+        await dismissBlockingUi();
         await sleep(300);
         const sideBar = (await control.openView()) as SideBarView;
         try {
@@ -335,6 +343,8 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         } catch {
             // best-effort activation; readiness polling remains authoritative
         }
+        await sleep(300);
+        await dismissBlockingUi();
         return sideBar;
     }
 }

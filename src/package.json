@@ -720,6 +720,14 @@
           "order": 2,
           "description": "Automatically apply overlay when configuration changes"
         },
+        "metaflow.guiTestMode": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine",
+          "ignoreSync": true,
+          "order": 99,
+          "description": "Internal test harness setting that suppresses interactive activation prompts in packaged GUI tests."
+        },
         "metaflow.autoAcceptRefreshUpdates": {
           "type": "boolean",
           "default": false,

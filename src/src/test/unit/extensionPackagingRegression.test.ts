@@ -164,15 +164,41 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('GUI runner opens the test workspace by absolute path', () => {
+    test('GUI runner opens the test workspace in the initial VS Code process', () => {
         const runnerPath = path.join(EXTENSION_ROOT, 'scripts', 'run-gui-batched.mjs');
         const runnerSource = fs.readFileSync(runnerPath, 'utf-8');
+        const launchHookPath = path.join(EXTENSION_ROOT, 'scripts', 'extest-workspace-launch.cjs');
+        const launchHookSource = fs.readFileSync(launchHookPath, 'utf-8');
+        const guiSettingsPath = path.join(EXTENSION_ROOT, '.vscode-test-gui-settings.json');
+        const guiSettings = JSON.parse(fs.readFileSync(guiSettingsPath, 'utf-8')) as Record<
+            string,
+            unknown
+        >;
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+        const extensionSource = fs.readFileSync(
+            path.join(EXTENSION_ROOT, 'src', 'extension.ts'),
+            'utf-8',
+        );
 
         assert.ok(
             runnerSource.includes("const testWorkspace = path.join(srcRoot, 'test-workspace');"),
         );
-        assert.match(runnerSource, /'-r',\s+testWorkspace,/);
-        assert.doesNotMatch(runnerSource, /'-r',\s+'test-workspace',/);
+        assert.ok(runnerSource.includes('METAFLOW_GUI_WORKSPACE: testWorkspace'));
+        assert.ok(runnerSource.includes('extest-workspace-launch.cjs'));
+        assert.doesNotMatch(runnerSource, /'-r',\s+(?:testWorkspace|'test-workspace'),/);
+        assert.ok(launchHookSource.includes('chrome.Options.prototype.addArguments'));
+        assert.ok(launchHookSource.includes('--folder-uri='));
+        assert.ok(launchHookSource.includes('pathToFileURL(workspacePath).href'));
+        assert.strictEqual(guiSettings['metaflow.guiTestMode'], true);
+        assert.strictEqual(guiSettings['metaflow.autoAcceptRefreshUpdates'], true);
+        assert.strictEqual(
+            packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']?.default,
+            false,
+        );
+        assert.ok(extensionSource.includes("get<boolean>('guiTestMode', false)"));
     });
 
     test('config schema accepts profile layerOverrides', () => {

@@ -32,6 +32,7 @@ const guiRel = path.join('out', 'test', 'gui');
 const guiDir = path.join(srcRoot, guiRel);
 const testWorkspace = path.join(srcRoot, 'test-workspace');
 const extestCli = require.resolve('vscode-extension-tester/out/cli.js');
+const workspaceLaunchHook = path.join(here, 'extest-workspace-launch.cjs');
 
 const STORAGE = '.vscode-test/gui';
 const EXTENSIONS = '.vscode-test/gui/extensions';
@@ -58,6 +59,16 @@ function runExtest(args, label, timeoutMs) {
         stdio: ['inherit', 'pipe', 'pipe'],
         timeout: timeoutMs,
         killSignal: 'SIGTERM',
+        env: {
+            ...process.env,
+            METAFLOW_GUI_WORKSPACE: testWorkspace,
+            NODE_OPTIONS: [
+                process.env.NODE_OPTIONS,
+                `--require=${JSON.stringify(workspaceLaunchHook)}`,
+            ]
+                .filter(Boolean)
+                .join(' '),
+        },
     });
     const out = `${res.stdout ?? ''}${res.stderr ?? ''}`;
     process.stdout.write(out);
@@ -128,8 +139,6 @@ for (const [idx, batch] of batches.entries()) {
             EXTENSIONS,
             '-c',
             codeVersion,
-            '-r',
-            testWorkspace,
             '-m',
             '.mocharc-gui.js',
             '-o',
