@@ -188,6 +188,12 @@ suite('Extension Packaging Regression Guards', () => {
         );
         assert.ok(runnerSource.includes('METAFLOW_GUI_WORKSPACE: testWorkspace'));
         assert.ok(runnerSource.includes('extest-workspace-launch.cjs'));
+        assert.ok(runnerSource.includes("process.env.GUI_BATCH_SIZE ?? '1'"));
+        assert.ok(
+            runnerSource.includes(
+                'parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 10 * 60 * 1_000)',
+            ),
+        );
         assert.doesNotMatch(runnerSource, /'-r',\s+(?:testWorkspace|'test-workspace'),/);
         assert.ok(launchHookSource.includes('chrome.Options.prototype.addArguments'));
         assert.ok(launchHookSource.includes('--folder-uri='));
