@@ -32,6 +32,12 @@ const GUI_READY_TIMEOUT =
         : IS_CI
           ? 90_000
           : WAIT_TIMEOUT;
+let initialOverlayRefresh: Promise<void> | undefined;
+
+function refreshInitialOverlay(): Promise<void> {
+    initialOverlayRefresh ??= new Workbench().executeCommand('MetaFlow: Refresh');
+    return initialOverlayRefresh;
+}
 
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
@@ -322,6 +328,7 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         await sleep(300);
         sideBar = (await control.openView()) as SideBarView;
     }
+    await refreshInitialOverlay();
     return sideBar;
 }
 

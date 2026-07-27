@@ -139,6 +139,15 @@ suite('Extension Packaging Regression Guards', () => {
     test('test-host activation starts a read-only tree bootstrap directly', () => {
         const extensionPath = path.join(EXTENSION_ROOT, 'src', 'extension.ts');
         const extensionSource = fs.readFileSync(extensionPath, 'utf-8');
+        const guiHelperPath = path.join(
+            EXTENSION_ROOT,
+            'src',
+            'test',
+            'gui',
+            'helpers',
+            'metaflowGuiHelpers.ts',
+        );
+        const guiHelperSource = fs.readFileSync(guiHelperPath, 'utf-8');
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -153,11 +162,6 @@ suite('Extension Packaging Regression Guards', () => {
             guiSettings['metaflow.guiTestMode'],
             true,
             'Expected ExTester settings to carry an explicit GUI test-host marker',
-        );
-        assert.strictEqual(
-            guiSettings['window.openFoldersInNewWindow'],
-            'off',
-            'Expected ExTester to open the test workspace in its instrumented window',
         );
         assert.strictEqual(
             packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']?.default,
@@ -181,6 +185,10 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(
             extensionSource.includes('readOnly: true'),
             'Expected test activation bootstrap to suppress persistent mutations',
+        );
+        assert.ok(
+            guiHelperSource.includes("executeCommand('MetaFlow: Refresh')"),
+            'Expected packaged GUI startup to refresh through the public command',
         );
     });
 

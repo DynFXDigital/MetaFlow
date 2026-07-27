@@ -4,7 +4,6 @@
     "security.workspace.trust.banner": "never",
     "security.workspace.trust.emptyWindow": false,
     "window.dialogStyle": "custom",
-    "window.openFoldersInNewWindow": "off",
     "workbench.startupEditor": "none",
     "workbench.welcomePage.walkthroughs.openOnInstall": false,
     "workbench.enableExperiments": false,
