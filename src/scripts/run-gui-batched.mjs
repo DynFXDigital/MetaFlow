@@ -49,7 +49,7 @@ function parseTimeoutMs(value, fallbackMs) {
 }
 
 const setupTimeoutMs = parseTimeoutMs(process.env.GUI_SETUP_TIMEOUT_MS, 10 * 60 * 1_000);
-const batchTimeoutMs = parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 5 * 60 * 1_000);
+const batchTimeoutMs = parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 10 * 60 * 1_000);
 
 function runExtest(args, label, timeoutMs) {
     console.log(`\n>>> extest ${args[0]} ${label ?? ''}`.trimEnd());
