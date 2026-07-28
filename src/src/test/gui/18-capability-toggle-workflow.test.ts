@@ -33,6 +33,8 @@ import {
     effectiveFilesContains,
     waitForEffectiveFiles,
     dismissAllNotifications,
+    applyOverlayAndWait,
+    refreshOverlayAndWait,
     restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
 
@@ -64,21 +66,25 @@ function configWith(opts: {
     useSettingsInjection?: boolean;
 }): string {
     const { coreEnabled = false, sdlcEnabled = true, useSettingsInjection = true } = opts;
+    const enabledCapabilities = [
+        ...(coreEnabled ? ['primary:company/core'] : []),
+        ...(sdlcEnabled ? ['primary:standards/sdlc'] : []),
+    ];
     const base: Record<string, unknown> = {
         metadataRepos: [{
             id: 'primary',
             localPath: '.ai/ai-metadata',
             capabilities: [
-                { path: 'company/core',   enabled: coreEnabled },
-                { path: 'standards/sdlc', enabled: sdlcEnabled },
+                { path: 'company/core' },
+                { path: 'standards/sdlc' },
             ],
         }],
         profiles: {
-            default: { enable: ['**/*'] },
-            review:  { enable: ['**/*'] },
+            default: { enabledCapabilities, enable: ['**/*'] },
+            review:  { enabledCapabilities, enable: ['**/*'] },
         },
         activeProfile: 'default',
-        compatibilityVersion: 2,
+        compatibilityVersion: 3,
     };
     if (useSettingsInjection) {
         base['injection'] = {
@@ -89,6 +95,12 @@ function configWith(opts: {
         };
     }
     return JSON.stringify(base, null, 2);
+}
+
+async function reapplyFromDisk(): Promise<void> {
+    await sleep(1_000);
+    await refreshOverlayAndWait(WORKSPACE_ROOT);
+    await applyOverlayAndWait(WORKSPACE_ROOT);
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
@@ -112,9 +124,8 @@ suite('End-to-End Capability Toggle Workflow', function () {
 
     afterEach(async function () {
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
-        await sleep(1_000);
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await sleep(3_000);
+        await reapplyFromDisk();
+        await applyOverlayAndWait(WORKSPACE_ROOT);
         await dismissAllNotifications(new Workbench());
     });
 
@@ -125,7 +136,7 @@ suite('End-to-End Capability Toggle Workflow', function () {
 
         // Start: core disabled, sdlc enabled — core artifacts must be absent
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitForEffectiveFiles(sideBar, 'coding', false);
 
         assert.ok(
@@ -135,7 +146,7 @@ suite('End-to-End Capability Toggle Workflow', function () {
 
         // Enable company/core and apply
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitForEffectiveFiles(sideBar, 'coding');
         assert.ok(
@@ -149,12 +160,12 @@ suite('End-to-End Capability Toggle Workflow', function () {
 
         // Start: sdlc enabled — establish baseline
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: true }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitForEffectiveFiles(sideBar, 'testing');
 
         // Disable sdlc and apply
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: false }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitForEffectiveFiles(sideBar, 'testing', false);
         assert.ok(
@@ -168,12 +179,12 @@ suite('End-to-End Capability Toggle Workflow', function () {
 
         // Step 1: disable sdlc
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: false }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitForEffectiveFiles(sideBar, 'testing', false);
 
         // Step 2: re-enable sdlc
         fs.writeFileSync(CONFIG_PATH, configWith({ sdlcEnabled: true }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitForEffectiveFiles(sideBar, 'testing');
 
         assert.ok(
@@ -188,13 +199,12 @@ suite('End-to-End Capability Toggle Workflow', function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({}), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await waitForEffectiveFiles(sideBar, 'testing');
 
         const afterFirst = (await presentArtifacts(sideBar)).join(',');
 
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-        await sleep(3_000);
+        await applyOverlayAndWait(WORKSPACE_ROOT);
 
         const afterSecond = (await presentArtifacts(sideBar)).join(',');
 
@@ -218,7 +228,7 @@ suite('End-to-End Capability Toggle Workflow', function () {
         fs.writeFileSync(CONFIG_PATH, configWith({ useSettingsInjection: false }), 'utf-8');
 
         const workbench = new Workbench();
-        await workbench.executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
         await sleep(3_000);
         await dismissAllNotifications(workbench);
 
@@ -235,7 +245,7 @@ suite('End-to-End Capability Toggle Workflow', function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: true, sdlcEnabled: true }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitForEffectiveFiles(sideBar, 'coding');
         assert.ok(
@@ -258,7 +268,7 @@ suite('End-to-End Capability Toggle Workflow', function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
         fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false, sdlcEnabled: true }), 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
+        await reapplyFromDisk();
 
         await waitForEffectiveFiles(sideBar, 'testing');
         assert.ok(

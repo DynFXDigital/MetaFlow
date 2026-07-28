@@ -462,7 +462,8 @@ function buildCapabilityOverrides(
         const injection = source.injection
             ? Object.fromEntries(
                   Object.entries(source.injection).filter(
-                      ([artifactType, mode]) => repoInjection?.[artifactType as keyof typeof repoInjection] !== mode,
+                      ([artifactType, mode]) =>
+                          repoInjection?.[artifactType as keyof typeof repoInjection] !== mode,
                   ),
               )
             : undefined;
@@ -606,8 +607,7 @@ function flattenCapabilities(repos: NamedMetadataRepo[] | undefined): LayerSourc
                 capability.fileNamingStrategy !== undefined ||
                 repo.fileNamingStrategy !== undefined
             ) {
-                layer.fileNamingStrategy =
-                    capability.fileNamingStrategy ?? repo.fileNamingStrategy;
+                layer.fileNamingStrategy = capability.fileNamingStrategy ?? repo.fileNamingStrategy;
             }
             sources.push(layer);
         }
@@ -686,10 +686,9 @@ export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigSh
 
     const activeProfileId =
         config.activeProfile ?? (authoredConfig.profiles?.default ? 'default' : undefined);
+    const activeProfile = activeProfileId ? authoredConfig.profiles?.[activeProfileId] : undefined;
     const activeSelection = new Set(
-        activeProfileId
-            ? authoredConfig.profiles?.[activeProfileId]?.enabledCapabilities ?? []
-            : legacyBaseReferences(config, catalogSources),
+        activeProfile?.enabledCapabilities ?? legacyBaseReferences(config, catalogSources),
     );
     const runtimeLayerSources = catalogSources.map((source) => {
         const reference = capabilityReference(source.repoId, source.path);
@@ -731,9 +730,15 @@ export function normalizeConfigShape(config: MetaFlowConfig): NormalizedConfigSh
             'Migrated legacy capability entries to profile enabledCapabilities selections.',
         );
     }
-    if ((config.profiles && Object.values(config.profiles).some((profile) =>
-        profile.enable !== undefined || profile.disable !== undefined || profile.layerOverrides !== undefined,
-    ))) {
+    if (
+        config.profiles &&
+        Object.values(config.profiles).some(
+            (profile) =>
+                profile.enable !== undefined ||
+                profile.disable !== undefined ||
+                profile.layerOverrides !== undefined,
+        )
+    ) {
         migrationMessages.push(
             'Migrated legacy profile activation fields to complete enabledCapabilities selections.',
         );

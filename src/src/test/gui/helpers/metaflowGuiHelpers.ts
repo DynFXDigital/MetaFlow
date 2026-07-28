@@ -33,6 +33,64 @@ const GUI_READY_TIMEOUT =
           ? 90_000
           : WAIT_TIMEOUT;
 
+function readGuiCompletionToken(
+    workspaceRoot: string,
+    operation: 'refresh' | 'apply',
+): string | undefined {
+    try {
+        const parsed = JSON.parse(
+            fs.readFileSync(
+                path.join(workspaceRoot, '.metaflow', 'gui-test-completion.json'),
+                'utf-8',
+            ),
+        ) as { operation?: string; token?: string };
+        return parsed.operation === operation ? parsed.token : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+Workbench.prototype.openCommandPrompt = async function (): Promise<InputBox> {
+    await dismissBlockingUi();
+    await VSBrowser.instance.driver.actions().sendKeys(Key.F1).perform();
+    try {
+        return await InputBox.create(3_000);
+    } catch {
+        await dismissBlockingUi();
+        await this.getTitleBar().select('View', 'Command Palette...');
+        return InputBox.create(INTERACTION_TIMEOUT);
+    }
+};
+
+const executeCommandWithoutCompletionWait = Workbench.prototype.executeCommand;
+const guiWorkspaceRoot = path.resolve(__dirname, '../../../../test-workspace');
+
+async function executeMetadataCommandAndWait(
+    workbench: Workbench,
+    command: string,
+    operation: 'refresh' | 'apply',
+): Promise<void> {
+    const previousToken = readGuiCompletionToken(guiWorkspaceRoot, operation);
+    await executeCommandWithoutCompletionWait.call(workbench, command);
+    await waitFor(async () => {
+        const token = readGuiCompletionToken(guiWorkspaceRoot, operation);
+        return token !== undefined && token !== previousToken;
+    }, WAIT_TIMEOUT);
+}
+
+Workbench.prototype.executeCommand = async function (command: string): Promise<void> {
+    if (command === 'MetaFlow: Refresh') {
+        await executeMetadataCommandAndWait(this, command, 'refresh');
+        return;
+    }
+    if (command === 'MetaFlow: Apply Overlay') {
+        await executeMetadataCommandAndWait(this, 'MetaFlow: Refresh', 'refresh');
+        await executeMetadataCommandAndWait(this, command, 'apply');
+        return;
+    }
+    await executeCommandWithoutCompletionWait.call(this, command);
+};
+
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
 /**
@@ -48,6 +106,22 @@ const GUI_READY_TIMEOUT =
  */
 function goldenPathFor(configPath: string): string {
     return path.join(path.dirname(configPath), 'config.golden.jsonc');
+}
+
+export async function applyOverlayAndWait(
+    workspaceRoot: string,
+    workbench = new Workbench(),
+): Promise<void> {
+    void workspaceRoot;
+    await workbench.executeCommand('MetaFlow: Apply Overlay');
+}
+
+export async function refreshOverlayAndWait(
+    workspaceRoot: string,
+    workbench = new Workbench(),
+): Promise<void> {
+    void workspaceRoot;
+    await workbench.executeCommand('MetaFlow: Refresh');
 }
 
 /** Derives the workspace `.vscode/settings.json` path from the live config path. */
@@ -324,10 +398,12 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         } catch {
             // control.openView() already revealed the container on older builds.
         }
+        await sleep(300);
+        await dismissBlockingUi();
         return sideBar;
     } catch {
         // A modal backdrop likely intercepted the click — dismiss and retry once.
-        await dismissWelcomeOverlay();
+        await dismissBlockingUi();
         await sleep(300);
         const sideBar = (await control.openView()) as SideBarView;
         try {
@@ -335,6 +411,8 @@ export async function openMetaFlowSidebar(): Promise<SideBarView> {
         } catch {
             // best-effort activation; readiness polling remains authoritative
         }
+        await sleep(300);
+        await dismissBlockingUi();
         return sideBar;
     }
 }
@@ -360,13 +438,18 @@ export async function expandSection(section: ViewSection): Promise<void> {
  */
 export async function getVisibleItemTexts(section: ViewSection): Promise<string[]> {
     const items = await section.getVisibleItems();
-    return Promise.all(
-        items.map((item) =>
-            (item as TreeItem)
-                .getText()
-                .catch(() => ''),
-        ),
-    );
+    return Promise.all(items.map((item) => getTreeItemText(item as TreeItem)));
+}
+
+async function getTreeItemText(item: TreeItem): Promise<string> {
+    const [label, description, ariaLabel, textContent, renderedText] = await Promise.all([
+        item.getLabel().catch(() => ''),
+        item.getDescription().catch(() => ''),
+        item.getAttribute('aria-label').catch(() => ''),
+        item.getAttribute('textContent').catch(() => ''),
+        item.getText().catch(() => ''),
+    ]);
+    return [label, description, ariaLabel, textContent, renderedText].filter(Boolean).join(' ');
 }
 
 /**
@@ -476,7 +559,7 @@ export async function findItemByText(
         await expandAllItems(section);
         const items = await section.getVisibleItems();
         for (const item of items) {
-            const text = await (item as TreeItem).getText().catch(() => '');
+            const text = await getTreeItemText(item as TreeItem);
             if (text.toLowerCase().includes(textFragment.toLowerCase())) {
                 found = item as TreeItem;
                 return true;
@@ -594,6 +677,31 @@ export async function waitForNotification(
     return found;
 }
 
+export async function takeNotificationAction(
+    workbench: Workbench,
+    messageFragment: string,
+    actionTitle: string,
+    timeoutMs = INTERACTION_TIMEOUT,
+): Promise<void> {
+    await waitFor(async () => {
+        const notifications = await workbench.getNotifications();
+        for (const notification of notifications) {
+            const message = await notification.getMessage().catch(() => '');
+            if (!message.toLowerCase().includes(messageFragment.toLowerCase())) {
+                continue;
+            }
+            const actions = await notification.getActions();
+            for (const action of actions) {
+                if ((await action.getTitle()) === actionTitle && (await action.isDisplayed())) {
+                    await action.click();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }, timeoutMs);
+}
+
 /**
  * Dismisses all currently visible notifications, ignoring errors.
  */
@@ -613,10 +721,7 @@ export async function dismissAllNotifications(workbench: Workbench): Promise<voi
 /**
  * Returns true if any currently visible notification message includes `fragment`.
  */
-export async function hasNotification(
-    workbench: Workbench,
-    fragment: string,
-): Promise<boolean> {
+export async function hasNotification(workbench: Workbench, fragment: string): Promise<boolean> {
     try {
         const notes = await workbench.getNotifications();
         for (const n of notes) {

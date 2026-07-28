@@ -21,6 +21,7 @@ import {
     sectionContainsText,
     waitFor,
     waitForNotification,
+    takeNotificationAction,
     dismissActiveInput,
     restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
@@ -156,7 +157,7 @@ suite('Profile Management', function () {
         // Confirm deletion in the warning notification (Delete / Cancel buttons).
         const confirm = await waitForNotification(workbench, 'Delete profile');
         assert.ok(confirm, 'Delete confirmation notification did not appear');
-        await confirm.takeAction('Delete');
+        await takeNotificationAction(workbench, 'Delete profile', 'Delete');
 
         // Verify it's gone
         await waitFor(async () => {

@@ -7,10 +7,11 @@
  * "element not visible" / click-intercepted timeouts as workbench state (stray
  * notifications, modal backdrops) accumulates. Running ~6 suites per fresh host
  * keeps each session short enough to stay stable while still exercising the
- * whole suite.
+ * whole suite. One suite per host prevents cross-suite workbench state and
+ * teardown delays from hiding otherwise successful assertions.
  *
  * Usage:
- *   node ./scripts/run-gui-batched.mjs            # all suites, batches of 6
+ *   node ./scripts/run-gui-batched.mjs            # all suites, one per host
  *   GUI_BATCH_SIZE=4 node ./scripts/run-gui-batched.mjs
  *   GUI_VSCODE_VERSION=1.110.0 node ./scripts/run-gui-batched.mjs
  *   node ./scripts/run-gui-batched.mjs 12 19 22   # only suites whose basename
@@ -30,13 +31,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const srcRoot = path.resolve(here, '..'); // .../src
 const guiRel = path.join('out', 'test', 'gui');
 const guiDir = path.join(srcRoot, guiRel);
+const testWorkspace = path.join(srcRoot, 'test-workspace');
 const extestCli = require.resolve('vscode-extension-tester/out/cli.js');
+const workspaceLaunchHook = path.join(here, 'extest-workspace-launch.cjs');
 
 const STORAGE = '.vscode-test/gui';
 const EXTENSIONS = '.vscode-test/gui/extensions';
 const VSIX = 'metaflow-test.vsix';
 
-const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '6'));
+const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '1'));
 const codeVersion = process.env.GUI_VSCODE_VERSION ?? '1.110.0';
 const prefixes = process.argv.slice(2);
 
@@ -46,7 +49,7 @@ function parseTimeoutMs(value, fallbackMs) {
 }
 
 const setupTimeoutMs = parseTimeoutMs(process.env.GUI_SETUP_TIMEOUT_MS, 10 * 60 * 1_000);
-const batchTimeoutMs = parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 5 * 60 * 1_000);
+const batchTimeoutMs = parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 10 * 60 * 1_000);
 
 function runExtest(args, label, timeoutMs) {
     console.log(`\n>>> extest ${args[0]} ${label ?? ''}`.trimEnd());
@@ -57,6 +60,16 @@ function runExtest(args, label, timeoutMs) {
         stdio: ['inherit', 'pipe', 'pipe'],
         timeout: timeoutMs,
         killSignal: 'SIGTERM',
+        env: {
+            ...process.env,
+            METAFLOW_GUI_WORKSPACE: testWorkspace,
+            NODE_OPTIONS: [
+                process.env.NODE_OPTIONS,
+                `--require=${JSON.stringify(workspaceLaunchHook)}`,
+            ]
+                .filter(Boolean)
+                .join(' '),
+        },
     });
     const out = `${res.stdout ?? ''}${res.stderr ?? ''}`;
     process.stdout.write(out);
@@ -127,8 +140,6 @@ for (const [idx, batch] of batches.entries()) {
             EXTENSIONS,
             '-c',
             codeVersion,
-            '-r',
-            'test-workspace',
             '-m',
             '.mocharc-gui.js',
             '-o',

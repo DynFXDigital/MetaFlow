@@ -137,6 +137,7 @@ suite('synchronization engine', () => {
     test('initial empty apply records lastApply once', () => {
         const first = apply({ workspaceRoot: tmpDir, outputDir, effectiveFiles: [] });
         assert.strictEqual(first.written.length, 0);
+        assert.ok(fs.existsSync(path.join(tmpDir, '.metaflow', 'state.json')));
         const firstLastApply = loadManagedState(tmpDir).lastApply;
         assert.ok(firstLastApply);
 

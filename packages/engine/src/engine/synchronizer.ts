@@ -447,6 +447,9 @@ export interface ApplyResult {
  * Apply synchronization: write classified files with provenance.
  */
 export function apply(options: ApplyOptions): ApplyResult {
+    const stateFileExisted = fs.existsSync(
+        path.join(options.workspaceRoot, '.metaflow', 'state.json'),
+    );
     const plan = loadSynchronizationPlan(options);
     const outPath = path.join(options.workspaceRoot, plan.outputDir);
     const state = plan.state;
@@ -548,7 +551,7 @@ export function apply(options: ApplyOptions): ApplyResult {
     // Preserve the observable first-apply marker even when the overlay has no
     // synchronized files. Subsequent unchanged applies still avoid touching
     // managed state because lastApply is already initialized.
-    if (managedStateChanged || state.lastApply === undefined) {
+    if (managedStateChanged || !stateFileExisted || state.lastApply === undefined) {
         state.lastApply = new Date().toISOString();
         saveManagedState(options.workspaceRoot, state);
     }

@@ -164,6 +164,49 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
+    test('GUI runner opens the test workspace in the initial VS Code process', () => {
+        const runnerPath = path.join(EXTENSION_ROOT, 'scripts', 'run-gui-batched.mjs');
+        const runnerSource = fs.readFileSync(runnerPath, 'utf-8');
+        const launchHookPath = path.join(EXTENSION_ROOT, 'scripts', 'extest-workspace-launch.cjs');
+        const launchHookSource = fs.readFileSync(launchHookPath, 'utf-8');
+        const guiSettingsPath = path.join(EXTENSION_ROOT, '.vscode-test-gui-settings.json');
+        const guiSettings = JSON.parse(fs.readFileSync(guiSettingsPath, 'utf-8')) as Record<
+            string,
+            unknown
+        >;
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+        const extensionSource = fs.readFileSync(
+            path.join(EXTENSION_ROOT, 'src', 'extension.ts'),
+            'utf-8',
+        );
+
+        assert.ok(
+            runnerSource.includes("const testWorkspace = path.join(srcRoot, 'test-workspace');"),
+        );
+        assert.ok(runnerSource.includes('METAFLOW_GUI_WORKSPACE: testWorkspace'));
+        assert.ok(runnerSource.includes('extest-workspace-launch.cjs'));
+        assert.ok(runnerSource.includes("process.env.GUI_BATCH_SIZE ?? '1'"));
+        assert.ok(
+            runnerSource.includes(
+                'parseTimeoutMs(process.env.GUI_BATCH_TIMEOUT_MS, 10 * 60 * 1_000)',
+            ),
+        );
+        assert.doesNotMatch(runnerSource, /'-r',\s+(?:testWorkspace|'test-workspace'),/);
+        assert.ok(launchHookSource.includes('chrome.Options.prototype.addArguments'));
+        assert.ok(launchHookSource.includes('--folder-uri='));
+        assert.ok(launchHookSource.includes('pathToFileURL(workspacePath).href'));
+        assert.strictEqual(guiSettings['metaflow.guiTestMode'], true);
+        assert.strictEqual(guiSettings['metaflow.autoAcceptRefreshUpdates'], true);
+        assert.strictEqual(
+            packageJson.contributes?.configuration?.properties?.['metaflow.guiTestMode']?.default,
+            false,
+        );
+        assert.ok(extensionSource.includes("get<boolean>('guiTestMode', false)"));
+    });
+
     test('config schema accepts profile layerOverrides', () => {
         const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
         const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
@@ -259,9 +302,11 @@ suite('Extension Packaging Regression Guards', () => {
         const injectionModes =
             packageJson.contributes?.configuration?.properties?.['metaflow.injection.modes'];
         const hooks = (
-            injectionModes as {
-                properties?: Record<string, { enum?: string[]; default?: unknown }>;
-            } | undefined
+            injectionModes as
+                | {
+                      properties?: Record<string, { enum?: string[]; default?: unknown }>;
+                  }
+                | undefined
         )?.properties?.hooks;
         assert.ok(hooks, 'Expected hooks injection mode setting to be contributed');
         assert.deepStrictEqual(hooks?.enum, ['settings', 'synchronize', 'plugin']);
@@ -418,8 +463,7 @@ suite('Extension Packaging Regression Guards', () => {
             titleMenuEntries.some(
                 (entry) =>
                     entry.command === 'metaflow.openLayersFilter' &&
-                    entry.when ===
-                        'view == metaflow-layers && !metaflow.layersNativeFilterActive',
+                    entry.when === 'view == metaflow-layers && !metaflow.layersNativeFilterActive',
             ),
             'Expected filter action in the Capabilities view title menu',
         );

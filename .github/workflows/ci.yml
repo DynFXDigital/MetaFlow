@@ -96,7 +96,7 @@ jobs:
     name: GUI tests (vscode-extension-tester)
     runs-on: ubuntu-latest
     needs: build-and-unit
-    timeout-minutes: 30
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
@@ -118,11 +118,30 @@ jobs:
       - name: Build, bundle, and package for GUI tests
         run: npm -w metaflow-ai run pretest:gui
 
-      - name: Run GUI tests (headless, advisory)
+      - name: Run GUI tests (headless, blocking on release branches)
+        if: >
+          (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
+          (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
+        run: xvfb-run -a node src/scripts/run-gui-batched.mjs
+
+      - name: Run GUI tests (headless, advisory on develop)
         id: gui_advisory
+        if: >
+          (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
+          (github.event_name == 'push' && github.ref_name == 'develop')
         continue-on-error: true
-        run: xvfb-run -a npm -w metaflow-ai run test:gui
+        run: xvfb-run -a node src/scripts/run-gui-batched.mjs
 
       - name: GUI advisory notice
         if: steps.gui_advisory.outcome == 'failure'
-        run: echo "::warning::GUI test issues detected. This is non-blocking until the GUI harness is stable enough for branch protection."
+        run: echo "::warning::GUI test issues detected on develop. This is non-blocking on develop but blocks on release branches."
+
+      - name: Upload GUI diagnostics
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-gui-diagnostics-${{ github.run_id }}
+          path: |
+            src/.vscode-test/gui/screenshots/
+            src/.vscode-test/gui/**/*.log
+          if-no-files-found: ignore

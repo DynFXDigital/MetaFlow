@@ -33,8 +33,11 @@ import {
     waitForSectionReady,
     sectionContainsText,
     waitFor,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     hasNotification,
     waitForNotification,
+    takeNotificationAction,
     dismissAllNotifications,
     dismissActiveInput,
     restoreGoldenConfig,
@@ -43,7 +46,7 @@ import {
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
-const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const CONFIG_PATH = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
 
 // ── Config builders ───────────────────────────────────────────────────────────
 
@@ -51,17 +54,19 @@ function validConfig(opts: { coreEnabled?: boolean; sdlcEnabled?: boolean } = {}
     const { coreEnabled = false, sdlcEnabled = true } = opts;
     return JSON.stringify(
         {
-            metadataRepos: [{
-                id: 'primary',
-                localPath: '.ai/ai-metadata',
-                capabilities: [
-                    { path: 'company/core',   enabled: coreEnabled },
-                    { path: 'standards/sdlc', enabled: sdlcEnabled },
-                ],
-            }],
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                    capabilities: [
+                        { path: 'company/core', enabled: coreEnabled },
+                        { path: 'standards/sdlc', enabled: sdlcEnabled },
+                    ],
+                },
+            ],
             profiles: {
                 default: { enable: ['**/*'] },
-                review:  { enable: ['**/*'] },
+                review: { enable: ['**/*'] },
             },
             activeProfile: 'default',
             compatibilityVersion: 2,
@@ -107,10 +112,16 @@ suite('Extension Error and Warning States', function () {
 
         // Extension must not crash — sidebar sections should still be accessible
         const capSection = await getSection(sideBar, 'Capabilities');
-        assert.ok(capSection, 'Capabilities section disappeared after Refresh with malformed config');
+        assert.ok(
+            capSection,
+            'Capabilities section disappeared after Refresh with malformed config',
+        );
 
         const filesSection = await getSection(sideBar, 'Effective Files');
-        assert.ok(filesSection, 'Effective Files section disappeared after Refresh with malformed config');
+        assert.ok(
+            filesSection,
+            'Effective Files section disappeared after Refresh with malformed config',
+        );
     });
 
     test('Refresh with malformed config does not produce normal capability items', async function () {
@@ -220,9 +231,7 @@ suite('Extension Error and Warning States', function () {
             'Expected welcome content in the AI Metadata view when config is missing',
         );
         const buttons = await welcome.getButtons();
-        const buttonTitles = await Promise.all(
-            buttons.map((b) => b.getTitle().catch(() => '')),
-        );
+        const buttonTitles = await Promise.all(buttons.map((b) => b.getTitle().catch(() => '')));
         assert.ok(
             buttonTitles.some((title) => title.includes('Initialize Configuration')),
             `Expected an "Initialize Configuration" welcome button, got: [${buttonTitles.join(', ')}]`,
@@ -241,7 +250,11 @@ suite('Extension Error and Warning States', function () {
     test('Refresh with all capabilities disabled empties Effective Files', async function () {
         this.timeout(WAIT_TIMEOUT + 15_000);
 
-        fs.writeFileSync(CONFIG_PATH, validConfig({ sdlcEnabled: false, coreEnabled: false }), 'utf-8');
+        fs.writeFileSync(
+            CONFIG_PATH,
+            validConfig({ sdlcEnabled: false, coreEnabled: false }),
+            'utf-8',
+        );
         await new Workbench().executeCommand('MetaFlow: Refresh');
 
         await waitFor(async () => {
@@ -264,7 +277,11 @@ suite('Extension Error and Warning States', function () {
     test('Capabilities section survives when all capabilities are disabled', async function () {
         this.timeout(WAIT_TIMEOUT + 15_000);
 
-        fs.writeFileSync(CONFIG_PATH, validConfig({ sdlcEnabled: false, coreEnabled: false }), 'utf-8');
+        fs.writeFileSync(
+            CONFIG_PATH,
+            validConfig({ sdlcEnabled: false, coreEnabled: false }),
+            'utf-8',
+        );
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(3_000);
 
@@ -282,14 +299,16 @@ suite('Extension Error and Warning States', function () {
 
         const configWithMissingPath = JSON.stringify(
             {
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    capabilities: [
-                        { path: 'company/nonexistent', enabled: true },
-                        { path: 'standards/sdlc',      enabled: true },
-                    ],
-                }],
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [
+                            { path: 'company/nonexistent', enabled: true },
+                            { path: 'standards/sdlc', enabled: true },
+                        ],
+                    },
+                ],
                 profiles: { default: { enable: ['**/*'] } },
                 activeProfile: 'default',
                 compatibilityVersion: 2,
@@ -304,7 +323,10 @@ suite('Extension Error and Warning States', function () {
 
         // Extension must remain functional
         const capSection = await getSection(sideBar, 'Capabilities');
-        assert.ok(capSection, 'Capabilities section missing after referencing non-existent capability path');
+        assert.ok(
+            capSection,
+            'Capabilities section missing after referencing non-existent capability path',
+        );
     });
 
     test('Valid capabilities still populate Effective Files when one capability path is missing', async function () {
@@ -312,14 +334,16 @@ suite('Extension Error and Warning States', function () {
 
         const configWithMissingPath = JSON.stringify(
             {
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    capabilities: [
-                        { path: 'company/nonexistent', enabled: true },
-                        { path: 'standards/sdlc',      enabled: true },
-                    ],
-                }],
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [
+                            { path: 'company/nonexistent', enabled: true },
+                            { path: 'standards/sdlc', enabled: true },
+                        ],
+                    },
+                ],
                 profiles: { default: { enable: ['**/*'] } },
                 activeProfile: 'default',
                 compatibilityVersion: 2,
@@ -395,9 +419,9 @@ suite('Extension Error and Warning States', function () {
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(3_000);
 
-        const capSection  = await getSection(sideBar, 'Capabilities');
+        const capSection = await getSection(sideBar, 'Capabilities');
         const filesSection = await getSection(sideBar, 'Effective Files');
-        assert.ok(capSection,   'Capabilities section missing after empty metadataRepos config');
+        assert.ok(capSection, 'Capabilities section missing after empty metadataRepos config');
         assert.ok(filesSection, 'Effective Files section missing after empty metadataRepos config');
     });
 
@@ -410,13 +434,13 @@ suite('Extension Error and Warning States', function () {
         // referenced a non-existent profile. Now it emits a capability warning.
         const missingProfileConfig = JSON.stringify(
             {
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    capabilities: [
-                        { path: 'standards/sdlc', enabled: true },
-                    ],
-                }],
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        capabilities: [{ path: 'standards/sdlc', enabled: true }],
+                    },
+                ],
                 profiles: { default: { enable: ['**/*'] } },
                 activeProfile: 'nonexistent-profile',
                 compatibilityVersion: 2,
@@ -435,21 +459,19 @@ suite('Extension Error and Warning States', function () {
 
         // Extension must not crash — sidebar sections should still be accessible
         const capSection = await getSection(sideBar, 'Capabilities');
-        assert.ok(capSection, 'Capabilities section missing after referencing non-existent activeProfile');
+        assert.ok(
+            capSection,
+            'Capabilities section missing after referencing non-existent activeProfile',
+        );
 
         // A non-existent activeProfile is non-fatal: the overlay falls back to
         // surfacing ALL files (no profile filtering) and emits an
         // ACTIVE_PROFILE_NOT_FOUND warning. Assert on the Effective Files tree —
         // testing.md from standards/sdlc must still appear under the fallback.
         // (The doubled wait budget absorbs host-load spikes on the virtualized tree.)
-        await waitFor(async () => {
-            const filesSection = await getSection(sideBar, 'Effective Files');
-            await expandSection(filesSection);
-            return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT * 2);
-        const filesSection = await getSection(sideBar, 'Effective Files');
+        await waitForEffectiveFiles(sideBar, 'testing', true, WAIT_TIMEOUT * 2);
         assert.ok(
-            await sectionContainsText(filesSection, 'testing'),
+            await effectiveFilesContains(sideBar, 'testing'),
             'Expected testing.md surfaced even when activeProfile is not found (fallback to all-files)',
         );
     });
@@ -465,9 +487,13 @@ suite('Extension Error and Warning States', function () {
 
         // First Clean: confirm if prompted, so subsequent state is empty
         await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        const firstNotif = await waitForNotification(workbench, 'Remove all synchronized files', INTERACTION_TIMEOUT);
+        const firstNotif = await waitForNotification(
+            workbench,
+            'Remove all synchronized files',
+            INTERACTION_TIMEOUT,
+        );
         if (firstNotif) {
-            await firstNotif.takeAction('Remove');
+            await takeNotificationAction(workbench, 'Remove all synchronized files', 'Remove');
             await sleep(2_000);
         }
         await dismissAllNotifications(workbench);
@@ -475,14 +501,22 @@ suite('Extension Error and Warning States', function () {
 
         // Second Clean: now there's nothing to clean — should show "Nothing to clean"
         await workbench.executeCommand('MetaFlow: Clean Synchronized Files');
-        const nothingToClean = await waitForNotification(workbench, 'Nothing to clean', INTERACTION_TIMEOUT);
+        const nothingToClean = await waitForNotification(
+            workbench,
+            'Nothing to clean',
+            INTERACTION_TIMEOUT,
+        );
         assert.ok(
             nothingToClean,
             'Expected "Nothing to clean" info message when Clean is run with no managed state',
         );
 
         // Must NOT show the confirmation dialog
-        const removeDialog = await waitForNotification(workbench, 'Remove all synchronized files', 2_000);
+        const removeDialog = await waitForNotification(
+            workbench,
+            'Remove all synchronized files',
+            2_000,
+        );
         assert.ok(
             !removeDialog,
             'Expected no "Remove all synchronized files?" dialog when there is nothing to clean',

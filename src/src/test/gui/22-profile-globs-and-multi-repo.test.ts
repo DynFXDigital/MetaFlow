@@ -1,14 +1,12 @@
-// GUI tests — Partial profile glob filtering and multi-repo overlay (v0.2.0).
+// GUI tests — Atomic capability selection and multi-repo overlay.
 //
-// Closes coverage gaps left by suite 19 (which only tests enable: ["all"] and
-// enable: []) and by all prior suites (which only test single-repo configs).
+// Verifies the canonical compatibilityVersion 3 model: metadataRepos contains
+// repository descriptors, while the active profile atomically selects complete
+// capabilities through repo-qualified enabledCapabilities references.
 //
-// Partial profile globs let users narrow the overlay to a specific artifact
-// type, e.g. enable: ["instructions/<glob>"] surfaces only instruction files.
-// Each artifact TYPE has a distinct fixture basename in the Effective Files
-// tree, so partial-glob filtering is directly observable there:
-//   instructions → testing / coding   agents → test-agent
-//   skills       → test-skill          prompts → review.prompt
+// Each selected capability contributes all of its artifact types:
+//   primary:standards/sdlc → testing, test-agent, test-skill
+//   primary:company/core   → coding, review.prompt
 //
 // Multi-repo configs allow combining several metadata sources. The test
 // workspace has two local metadata directories (.ai/ai-metadata and
@@ -18,9 +16,8 @@
 // Signal: the Effective Files and AI Metadata trees (host-independent). The
 // derived `chat.*` settings keys are NOT asserted here — VS Code's config
 // editing service in the ExTester host rejects those programmatic writes (see
-// 15-settings-injection.test.ts); the exact settings key→path mapping (incl.
-// which key a given glob populates) is covered by the engine unit tests for
-// `computeSettingsEntries`.
+// 15-settings-injection.test.ts); the exact settings key→path mapping is covered
+// by the engine unit tests for `computeSettingsEntries`.
 //
 // Test workspace artifacts used:
 //   - standards/sdlc/instructions/testing.md      → tree: testing
@@ -52,31 +49,35 @@ import {
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
-const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const CONFIG_PATH = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
 
-// ── Config builders ───────────────────────────────────────────────────────────
+// ── Atomic capability fixtures ───────────────────────────────────────────────
 
-function configWithProfile(enable: string[]): string {
+const CORE_CAPABILITY = 'primary:company/core';
+const SDLC_CAPABILITY = 'primary:standards/sdlc';
+const CORE_ARTIFACTS = ['coding', 'review.prompt'] as const;
+const SDLC_ARTIFACTS = ['testing', 'test-agent', 'test-skill'] as const;
+const ALL_ARTIFACTS = [...SDLC_ARTIFACTS, ...CORE_ARTIFACTS] as const;
+
+function configWithCapabilities(enabledCapabilities: readonly string[]): string {
     return JSON.stringify(
         {
-            metadataRepos: [{
-                id: 'primary',
-                localPath: '.ai/ai-metadata',
-                capabilities: [
-                    { path: 'company/core',   enabled: true },
-                    { path: 'standards/sdlc', enabled: true },
-                ],
-            }],
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                },
+            ],
             profiles: {
-                narrow: { enable },
+                selected: { enabledCapabilities: [...enabledCapabilities] },
             },
-            activeProfile: 'narrow',
-            compatibilityVersion: 2,
+            activeProfile: 'selected',
+            compatibilityVersion: 3,
             injection: {
                 instructions: 'settings',
-                agents:        'settings',
-                skills:        'settings',
-                prompts:       'settings',
+                agents: 'settings',
+                skills: 'settings',
+                prompts: 'settings',
             },
         },
         null,
@@ -84,10 +85,30 @@ function configWithProfile(enable: string[]): string {
     );
 }
 
-function multiRepoConfig(opts: {
-    primaryEnabled?: boolean;
-    secondaryEnabled?: boolean;
-}): string {
+async function expectEffectiveArtifacts(
+    sideBar: SideBarView,
+    present: readonly string[],
+    absent: readonly string[],
+): Promise<void> {
+    for (const artifact of present) {
+        await waitForEffectiveFiles(sideBar, artifact);
+        assert.ok(
+            await effectiveFilesContains(sideBar, artifact),
+            `Expected "${artifact}" in Effective Files`,
+        );
+    }
+    for (const artifact of absent) {
+        await waitForEffectiveFiles(sideBar, artifact, false);
+        assert.ok(
+            !(await effectiveFilesContains(sideBar, artifact)),
+            `Expected "${artifact}" to be absent from Effective Files`,
+        );
+    }
+}
+
+// ── Multi-repo config builder ─────────────────────────────────────────────────
+
+function multiRepoConfig(opts: { primaryEnabled?: boolean; secondaryEnabled?: boolean }): string {
     const { primaryEnabled = true, secondaryEnabled = true } = opts;
     return JSON.stringify(
         {
@@ -97,8 +118,8 @@ function multiRepoConfig(opts: {
                     localPath: '.ai/ai-metadata',
                     enabled: primaryEnabled,
                     capabilities: [
-                        { path: 'company/core',   enabled: false },
-                        { path: 'standards/sdlc', enabled: true  },
+                        { path: 'company/core', enabled: false },
+                        { path: 'standards/sdlc', enabled: true },
                     ],
                 },
                 {
@@ -109,9 +130,7 @@ function multiRepoConfig(opts: {
                     id: 'secondary',
                     localPath: '.ai/secondary-metadata',
                     enabled: secondaryEnabled,
-                    capabilities: [
-                        { path: 'company/core', enabled: true },
-                    ],
+                    capabilities: [{ path: 'company/core', enabled: true }],
                 },
             ],
             profiles: {
@@ -121,9 +140,9 @@ function multiRepoConfig(opts: {
             compatibilityVersion: 2,
             injection: {
                 instructions: 'settings',
-                agents:        'settings',
-                skills:        'settings',
-                prompts:       'settings',
+                agents: 'settings',
+                skills: 'settings',
+                prompts: 'settings',
             },
         },
         null,
@@ -133,7 +152,7 @@ function multiRepoConfig(opts: {
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
-suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
+suite('Atomic Capability Selection and Multi-Repo Overlay', function () {
     this.timeout(STARTUP_TIMEOUT);
 
     let sideBar: SideBarView;
@@ -157,121 +176,46 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
         await dismissAllNotifications(workbench);
     });
 
-    // ── Partial profile globs ────────────────────────────────────────────────
+    // ── Atomic capability selection ─────────────────────────────────────────
 
-    test('Profile enable [instructions/**] surfaces instruction files', async function () {
+    test('Selecting only standards/sdlc surfaces all SDLC artifacts and no core artifacts', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**']), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWithCapabilities([SDLC_CAPABILITY]), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitForEffectiveFiles(sideBar, 'testing');
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'testing'),
-            'Expected testing.md (an instruction file) to appear under enable: [instructions/**]',
-        );
+        await expectEffectiveArtifacts(sideBar, SDLC_ARTIFACTS, CORE_ARTIFACTS);
     });
 
-    test('Profile enable [instructions/**] surfaces only instruction artifacts, not agents or skills', async function () {
+    test('Selecting only company/core surfaces all core artifacts and no SDLC artifacts', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**']), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWithCapabilities([CORE_CAPABILITY]), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitForEffectiveFiles(sideBar, 'testing');
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'testing'),
-            'Expected sdlc instruction artifact (testing) under enable: [instructions/**]',
-        );
-        assert.ok(
-            !(await effectiveFilesContains(sideBar, 'test-agent')),
-            'Expected NO sdlc agent artifact (test-agent) under enable: [instructions/**]',
-        );
-        assert.ok(
-            !(await effectiveFilesContains(sideBar, 'test-skill')),
-            'Expected NO sdlc skills artifact (test-skill) under enable: [instructions/**]',
-        );
+        await expectEffectiveArtifacts(sideBar, CORE_ARTIFACTS, SDLC_ARTIFACTS);
     });
 
-    test('Profile enable [agents/**] only surfaces agent files', async function () {
+    test('Selecting both capabilities surfaces all five fixture artifacts', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWithProfile(['agents/**']), 'utf-8');
+        fs.writeFileSync(
+            CONFIG_PATH,
+            configWithCapabilities([CORE_CAPABILITY, SDLC_CAPABILITY]),
+            'utf-8',
+        );
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitForEffectiveFiles(sideBar, 'test-agent');
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'test-agent'),
-            'Expected sdlc agent artifact (test-agent) under enable: [agents/**]',
-        );
-        assert.ok(
-            !(await effectiveFilesContains(sideBar, 'testing')),
-            'Expected NO sdlc instruction artifact (testing) under enable: [agents/**]',
-        );
+        await expectEffectiveArtifacts(sideBar, ALL_ARTIFACTS, []);
     });
 
-    test('Profile enable [instructions/**, agents/**] surfaces both but not skills', async function () {
+    test('Selecting no capabilities surfaces none of the fixture artifacts', async function () {
         this.timeout(WAIT_TIMEOUT * 2 + 20_000);
 
-        fs.writeFileSync(CONFIG_PATH, configWithProfile(['instructions/**', 'agents/**']), 'utf-8');
+        fs.writeFileSync(CONFIG_PATH, configWithCapabilities([]), 'utf-8');
         await new Workbench().executeCommand('MetaFlow: Apply Overlay');
 
-        await waitForEffectiveFiles(sideBar, 'test-agent');
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'testing'),
-            'Expected sdlc instruction artifact (testing) under enable: [instructions/**, agents/**]',
-        );
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'test-agent'),
-            'Expected sdlc agent artifact (test-agent) under enable: [instructions/**, agents/**]',
-        );
-        assert.ok(
-            !(await effectiveFilesContains(sideBar, 'test-skill')),
-            'Expected NO sdlc skills artifact (test-skill) under enable: [instructions/**, agents/**]',
-        );
-    });
-
-    test('Profile enable [prompts/**] only surfaces prompts when a capability with prompts is enabled', async function () {
-        this.timeout(WAIT_TIMEOUT * 2 + 20_000);
-
-        // company/core has prompts/review.prompt.md; we must enable core for this to surface
-        const config = JSON.stringify(
-            {
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    capabilities: [
-                        { path: 'company/core',   enabled: true },
-                        { path: 'standards/sdlc', enabled: true },
-                    ],
-                }],
-                profiles: {
-                    narrow: { enable: ['prompts/**'] },
-                },
-                activeProfile: 'narrow',
-                compatibilityVersion: 2,
-                injection: {
-                    instructions: 'settings',
-                    agents:        'settings',
-                    skills:        'settings',
-                    prompts:       'settings',
-                },
-            },
-            null,
-            2,
-        );
-        fs.writeFileSync(CONFIG_PATH, config, 'utf-8');
-        await new Workbench().executeCommand('MetaFlow: Apply Overlay');
-
-        await waitForEffectiveFiles(sideBar, 'review.prompt');
-        assert.ok(
-            await effectiveFilesContains(sideBar, 'review.prompt'),
-            'Expected core prompt artifact (review.prompt) under enable: [prompts/**]',
-        );
-        assert.ok(
-            !(await effectiveFilesContains(sideBar, 'testing')),
-            'Expected NO sdlc instruction artifact (testing) under enable: [prompts/**]',
-        );
+        await expectEffectiveArtifacts(sideBar, [], ALL_ARTIFACTS);
     });
 
     // ── Multi-repo overlay ───────────────────────────────────────────────────
@@ -284,11 +228,11 @@ suite('Profile Glob Filtering and Multi-Repo Overlay', function () {
         await sleep(3_000);
 
         // Extension must remain functional
-        const capSection   = await getSection(sideBar, 'Capabilities');
+        const capSection = await getSection(sideBar, 'Capabilities');
         const filesSection = await getSection(sideBar, 'Effective Files');
         const aiMetaSection = await getSection(sideBar, 'AI Metadata');
-        assert.ok(capSection,    'Capabilities section missing after applying multi-repo config');
-        assert.ok(filesSection,  'Effective Files section missing after applying multi-repo config');
+        assert.ok(capSection, 'Capabilities section missing after applying multi-repo config');
+        assert.ok(filesSection, 'Effective Files section missing after applying multi-repo config');
         assert.ok(aiMetaSection, 'AI Metadata section missing after applying multi-repo config');
     });
 

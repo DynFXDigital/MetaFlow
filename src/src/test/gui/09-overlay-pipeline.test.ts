@@ -22,6 +22,7 @@ import {
     getSection,
     waitForSectionReady,
     waitForNotification,
+    takeNotificationAction,
     dismissAllNotifications,
     hasNotification,
     dismissActiveInput,
@@ -172,7 +173,7 @@ suite('Overlay Pipeline (Preview, Apply, Clean)', function () {
         }
 
         // Cancel the operation
-        await notification.takeAction('Cancel');
+        await takeNotificationAction(workbench, 'Remove all synchronized files', 'Cancel');
         await sleep(1_000);
 
         // No "Cleaned N files" completion notification should appear
@@ -199,7 +200,7 @@ suite('Overlay Pipeline (Preview, Apply, Clean)', function () {
             return;
         }
 
-        await notification.takeAction('Remove');
+        await takeNotificationAction(workbench, 'Remove all synchronized files', 'Remove');
         await sleep(2_000);
 
         // Completion message: "MetaFlow: Cleaned N files."
@@ -225,7 +226,7 @@ suite('Overlay Pipeline (Preview, Apply, Clean)', function () {
         );
 
         if (notification) {
-            await notification.takeAction('Remove');
+            await takeNotificationAction(workbench, 'Remove all synchronized files', 'Remove');
             await sleep(2_000);
         }
 
