@@ -134,6 +134,26 @@ describe('config normalization: atomic capability selections', () => {
         ]);
     });
 
+    it('surfaces every catalog capability when activeProfile names no profile', () => {
+        const normalized = normalizeConfigShape({
+            metadataRepos: [{ id: 'r1', localPath: 'repos/r1' }],
+            profiles: {
+                default: {
+                    enabledCapabilities: ['r1:core'],
+                },
+                review: {
+                    enabledCapabilities: ['r1:optional'],
+                },
+            },
+            activeProfile: 'missing',
+        });
+
+        assert.deepStrictEqual(normalized.config.layerSources, [
+            { repoId: 'r1', path: 'core', enabled: true },
+            { repoId: 'r1', path: 'optional', enabled: true },
+        ]);
+    });
+
     it('migrates legacy disabled inventory without selecting it', () => {
         const normalized = normalizeConfigShape({
             metadataRepos: [
@@ -152,7 +172,9 @@ describe('config normalization: atomic capability selections', () => {
             default: { enabledCapabilities: ['r1:core'] },
         });
         assert.strictEqual(normalized.authoredConfig.metadataRepos?.[0].capabilities, undefined);
-        assert.ok(normalized.migrationMessages.some((message) => message.includes('enabledCapabilities')));
+        assert.ok(
+            normalized.migrationMessages.some((message) => message.includes('enabledCapabilities')),
+        );
     });
 
     it('is idempotent after canonical migration', () => {
