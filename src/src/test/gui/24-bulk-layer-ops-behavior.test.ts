@@ -8,9 +8,9 @@
  *
  * Both commands operate on the entire capability set when no item arg is
  * provided. Because the fixture has an active profile, the commands persist
- * enablement as profile-scoped `layerOverrides` rather than mutating the base
- * `enabled` fields under metadataRepos[]; these tests assert the *effective*
- * enablement (base merged with the active profile's overrides).
+ * repo-qualified capability references in that profile's
+ * `enabledCapabilities`; metadataRepos[] remains a list of repository
+ * descriptors.
  */
 
 import * as assert from 'assert';
@@ -23,9 +23,9 @@ import {
     sleep,
     openMetaFlowSidebar,
     getSection,
-    expandSection,
     waitForSectionReady,
-    sectionContainsText,
+    effectiveFilesContains,
+    waitForEffectiveFiles,
     waitFor,
     dismissAllNotifications,
     restoreGoldenConfig,
@@ -34,79 +34,65 @@ import {
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
-const CONFIG_PATH    = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const CONFIG_PATH = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
 
 // ── Config helpers ────────────────────────────────────────────────────────────
 
-interface CapabilityEntry {
-    path: string;
-    enabled?: boolean;
+const CORE_CAPABILITY = 'primary:company/core';
+const SDLC_CAPABILITY = 'primary:standards/sdlc';
+const ALL_CAPABILITIES = [CORE_CAPABILITY, SDLC_CAPABILITY] as const;
+
+interface ProfileEntry {
+    enabledCapabilities?: string[];
 }
 
-function readConfig(): Record<string, unknown> {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as Record<string, unknown>;
+interface ConfigShape {
+    activeProfile?: string;
+    profiles?: Record<string, ProfileEntry>;
 }
 
-function readCapabilities(): CapabilityEntry[] {
+function readConfig(): ConfigShape {
+    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as ConfigShape;
+}
+
+/** Canonical capability selections recorded on the currently active profile. */
+function readActiveProfileEnabledCapabilities(): string[] | undefined {
     const cfg = readConfig();
-    const repos = cfg['metadataRepos'] as Array<{ capabilities?: CapabilityEntry[] }> | undefined;
-    if (!repos || repos.length === 0) { return []; }
-    return repos[0].capabilities ?? [];
+    if (!cfg.activeProfile) {
+        return undefined;
+    }
+    return cfg.profiles?.[cfg.activeProfile]?.enabledCapabilities;
 }
 
-interface LayerOverride {
-    repoId?: string;
-    path?: string;
-    enabled?: boolean;
-}
-
-const normalizeCapPath = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '');
-
-/** Layer overrides recorded on the currently active profile, if any. */
-function readActiveProfileOverrides(): LayerOverride[] {
-    const cfg = readConfig();
-    const activeProfile = cfg['activeProfile'] as string | undefined;
-    const profiles = cfg['profiles'] as
-        | Record<string, { layerOverrides?: LayerOverride[] }>
-        | undefined;
-    if (!activeProfile || !profiles?.[activeProfile]) { return []; }
-    return profiles[activeProfile].layerOverrides ?? [];
-}
-
-/**
- * Effective enablement for each base capability: the active profile's
- * layerOverride wins when present, otherwise the base `enabled` flag. This
- * mirrors how the extension resolves enablement when a profile is active, so
- * bulk Select/Deselect (which write profile overrides) are observable here.
- */
-function readEffectiveCapabilities(): CapabilityEntry[] {
-    const overrides = readActiveProfileOverrides();
-    return readCapabilities().map((cap) => {
-        const override = overrides.find(
-            (o) => o.path !== undefined && normalizeCapPath(o.path) === normalizeCapPath(cap.path),
-        );
-        return { path: cap.path, enabled: override?.enabled ?? cap.enabled };
-    });
+function activeProfileHasExactly(expected: readonly string[]): boolean {
+    const actual = readActiveProfileEnabledCapabilities();
+    return (
+        actual !== undefined &&
+        actual.length === expected.length &&
+        expected.every((reference) => actual.includes(reference))
+    );
 }
 
 function configWith(opts: { coreEnabled?: boolean; sdlcEnabled?: boolean }): string {
     const { coreEnabled = false, sdlcEnabled = true } = opts;
+    const enabledCapabilities = [
+        ...(coreEnabled ? [CORE_CAPABILITY] : []),
+        ...(sdlcEnabled ? [SDLC_CAPABILITY] : []),
+    ];
     return JSON.stringify(
         {
-            metadataRepos: [{
-                id: 'primary',
-                localPath: '.ai/ai-metadata',
-                capabilities: [
-                    { path: 'company/core',   enabled: coreEnabled },
-                    { path: 'standards/sdlc', enabled: sdlcEnabled },
-                ],
-            }],
+            metadataRepos: [
+                {
+                    id: 'primary',
+                    localPath: '.ai/ai-metadata',
+                },
+            ],
             profiles: {
-                default: { enable: ['**/*'] },
-                review:  { enable: ['**/*'] },
+                default: { enabledCapabilities },
+                review: { enabledCapabilities: [...enabledCapabilities] },
             },
             activeProfile: 'default',
-            compatibilityVersion: 2,
+            compatibilityVersion: 3,
         },
         null,
         2,
@@ -136,9 +122,9 @@ suite('Bulk Layer Operations — Behavior', function () {
         await dismissAllNotifications(new Workbench());
     });
 
-    // ── Deselect All clears capability enabled flags ─────────────────────────
+    // ── Deselect All clears the active profile selection ─────────────────────
 
-    test('Deselect All writes enabled: false for every capability in config.jsonc', async function () {
+    test('Deselect All clears active profile enabledCapabilities in config.jsonc', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         // Baseline: sdlc enabled, core disabled
@@ -148,26 +134,21 @@ suite('Bulk Layer Operations — Behavior', function () {
         await sleep(2_000);
 
         // Confirm precondition
-        const before = readCapabilities();
-        const hasEnabledCap = before.some(c => c.enabled === true);
-        assert.ok(hasEnabledCap, 'Precondition: at least one capability should be enabled before Deselect All');
+        const before = readActiveProfileEnabledCapabilities();
+        assert.ok(
+            before?.includes(SDLC_CAPABILITY),
+            `Precondition: ${SDLC_CAPABILITY} should be selected before Deselect All`,
+        );
 
         await new Workbench().executeCommand('MetaFlow: Deselect All');
 
-        await waitFor(async () => {
-            const caps = readEffectiveCapabilities();
-            return caps.length > 0 && caps.every(c => c.enabled === false);
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => activeProfileHasExactly([]), WAIT_TIMEOUT);
 
-        const after = readEffectiveCapabilities();
-        assert.ok(after.length >= 2, 'Capabilities array should still have all entries after Deselect All');
-        for (const cap of after) {
-            assert.strictEqual(
-                cap.enabled,
-                false,
-                `Capability "${cap.path}" should be disabled after Deselect All, got enabled=${cap.enabled}`,
-            );
-        }
+        assert.deepStrictEqual(
+            readActiveProfileEnabledCapabilities(),
+            [],
+            'Deselect All should leave the active profile with no enabled capabilities',
+        );
     });
 
     test('Deselect All empties the Effective Files tree', async function () {
@@ -178,92 +159,72 @@ suite('Bulk Layer Operations — Behavior', function () {
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(2_000);
 
-        // Precondition: testing.md visible. The Effective Files tree is virtualized,
-        // so a refresh+render can occasionally exceed the 30s default under host load —
-        // give the poll a doubled budget (see harness flakiness notes).
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return sectionContainsText(filesSection, 'testing');
-        }, WAIT_TIMEOUT * 2);
+        // Precondition: testing.md visible.
+        await waitForEffectiveFiles(sideBar, 'testing');
 
         await new Workbench().executeCommand('MetaFlow: Deselect All');
 
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return !(await sectionContainsText(filesSection, 'testing'));
-        }, WAIT_TIMEOUT * 2);
+        await waitForEffectiveFiles(sideBar, 'testing', false);
 
         assert.ok(
-            !(await sectionContainsText(filesSection, 'testing')),
+            !(await effectiveFilesContains(sideBar, 'testing')),
             'Effective Files should be empty after Deselect All',
         );
     });
 
-    // ── Select All flips capability enabled flags to true ────────────────────
+    // ── Select All fills the active profile selection ────────────────────────
 
-    test('Select All writes enabled: true for every capability in config.jsonc', async function () {
+    test('Select All writes every capability to active profile enabledCapabilities', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         // Start with everything disabled
-        fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false, sdlcEnabled: false }), 'utf-8');
+        fs.writeFileSync(
+            CONFIG_PATH,
+            configWith({ coreEnabled: false, sdlcEnabled: false }),
+            'utf-8',
+        );
         await sleep(1_500);
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(2_000);
 
-        const before = readCapabilities();
         assert.ok(
-            before.every(c => c.enabled === false),
-            'Precondition: every capability must be disabled before Select All',
+            activeProfileHasExactly([]),
+            'Precondition: active profile enabledCapabilities must be empty before Select All',
         );
 
         await new Workbench().executeCommand('MetaFlow: Select All');
 
-        await waitFor(async () => {
-            const caps = readEffectiveCapabilities();
-            return caps.length > 0 && caps.every(c => c.enabled === true);
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => activeProfileHasExactly(ALL_CAPABILITIES), WAIT_TIMEOUT);
 
-        const after = readEffectiveCapabilities();
-        assert.ok(after.length >= 2, 'Capabilities array should be preserved');
-        for (const cap of after) {
-            assert.strictEqual(
-                cap.enabled,
-                true,
-                `Capability "${cap.path}" should be enabled after Select All`,
-            );
-        }
+        assert.deepStrictEqual(
+            readActiveProfileEnabledCapabilities(),
+            [...ALL_CAPABILITIES],
+            'Select All should select both repo-qualified capabilities on the active profile',
+        );
     });
 
     test('Select All from empty state restores files to Effective Files', async function () {
         this.timeout(WAIT_TIMEOUT + 20_000);
 
         // Start with everything disabled
-        fs.writeFileSync(CONFIG_PATH, configWith({ coreEnabled: false, sdlcEnabled: false }), 'utf-8');
+        fs.writeFileSync(
+            CONFIG_PATH,
+            configWith({ coreEnabled: false, sdlcEnabled: false }),
+            'utf-8',
+        );
         await sleep(1_500);
         await new Workbench().executeCommand('MetaFlow: Refresh');
         await sleep(2_000);
 
         // Precondition: empty Effective Files
-        const filesSection = await getSection(sideBar, 'Effective Files');
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return !(await sectionContainsText(filesSection, 'testing'));
-        }, WAIT_TIMEOUT);
+        await waitForEffectiveFiles(sideBar, 'testing', false);
 
         await new Workbench().executeCommand('MetaFlow: Select All');
 
-        await waitFor(async () => {
-            await expandSection(filesSection);
-            return (
-                (await sectionContainsText(filesSection, 'testing')) ||
-                (await sectionContainsText(filesSection, 'coding'))
-            );
-        }, WAIT_TIMEOUT);
+        await waitForEffectiveFiles(sideBar, 'testing');
 
         assert.ok(
-            (await sectionContainsText(filesSection, 'testing')) ||
-            (await sectionContainsText(filesSection, 'coding')),
+            await effectiveFilesContains(sideBar, 'testing'),
             'Effective Files should show files from at least one capability after Select All',
         );
     });
@@ -281,24 +242,15 @@ suite('Bulk Layer Operations — Behavior', function () {
         const workbench = new Workbench();
 
         await workbench.executeCommand('MetaFlow: Deselect All');
-        await waitFor(async () => {
-            const caps = readEffectiveCapabilities();
-            return caps.length > 0 && caps.every(c => c.enabled === false);
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => activeProfileHasExactly([]), WAIT_TIMEOUT);
 
         await workbench.executeCommand('MetaFlow: Select All');
-        await waitFor(async () => {
-            const caps = readEffectiveCapabilities();
-            return caps.length > 0 && caps.every(c => c.enabled === true);
-        }, WAIT_TIMEOUT);
+        await waitFor(async () => activeProfileHasExactly(ALL_CAPABILITIES), WAIT_TIMEOUT);
 
-        const final = readEffectiveCapabilities();
-        for (const cap of final) {
-            assert.strictEqual(
-                cap.enabled,
-                true,
-                `Round trip should end with "${cap.path}" enabled`,
-            );
-        }
+        assert.deepStrictEqual(
+            readActiveProfileEnabledCapabilities(),
+            [...ALL_CAPABILITIES],
+            'Round trip should end with both repo-qualified capabilities selected',
+        );
     });
 });

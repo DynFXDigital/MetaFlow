@@ -148,6 +148,14 @@ function getConfigMigrationNoticeMessage(): string {
     return 'MetaFlow: Configuration was automatically migrated. Check the output channel for details.';
 }
 
+function writeGuiTestCompletionToken(workspaceRoot: string, operation: 'refresh' | 'apply'): void {
+    fs.writeFileSync(
+        path.join(workspaceRoot, '.metaflow', 'gui-test-completion.json'),
+        JSON.stringify({ operation, token: randomUUID() }),
+        'utf-8',
+    );
+}
+
 function mergeRefreshCommandOptions(
     current: RefreshCommandOptions,
     next: RefreshCommandOptions,
@@ -3816,10 +3824,7 @@ function resolveUntrackedLocalRepoSources(
 ): UntrackedLocalRepoSource[] {
     if (config.metadataRepos) {
         return config.metadataRepos
-            .filter(
-                (repo) =>
-                    repo.id !== BUILT_IN_CAPABILITY_REPO_ID && !isGitRemoteUrl(repo.url),
-            )
+            .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID && !isGitRemoteUrl(repo.url))
             .map((repo) => {
                 const localPath = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
                 return {
@@ -6070,13 +6075,6 @@ export function registerCommands(
                     context.extensionMode === vscode.ExtensionMode.Test ||
                     guiTestMode,
             });
-            if (guiTestMode) {
-                fs.writeFileSync(
-                    path.join(ws.uri.fsPath, '.metaflow', 'gui-test-completion.json'),
-                    JSON.stringify({ operation: 'refresh', token: randomUUID() }),
-                    'utf-8',
-                );
-            }
             flushRefreshTimings('refresh-complete');
         } catch (err: unknown) {
             state.isLoading = false;
@@ -6092,9 +6090,21 @@ export function registerCommands(
     });
     context.subscriptions.push({ dispose: () => refreshCoordinator.dispose() });
     context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refresh', (arg?: unknown) =>
-            refreshCoordinator.request(extractRefreshCommandOptions(arg)),
-        ),
+        vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
+            const commandWorkspace = getWorkspace();
+            const commandGuiTestMode = commandWorkspace
+                ? vscode.workspace
+                      .getConfiguration('metaflow', commandWorkspace.uri)
+                      .get<boolean>('guiTestMode', false)
+                : false;
+            try {
+                await refreshCoordinator.request(extractRefreshCommandOptions(arg));
+            } finally {
+                if (commandGuiTestMode && commandWorkspace) {
+                    writeGuiTestCompletionToken(commandWorkspace.uri.fsPath, 'refresh');
+                }
+            }
+        }),
     );
 
     // ── metaflow.preview ───────────────────────────────────────────
@@ -6206,18 +6216,6 @@ export function registerCommands(
                                 skipAutoApply: true,
                             });
                         }
-
-                        if (guiTestMode) {
-                            fs.writeFileSync(
-                                path.join(
-                                    ws.uri.fsPath,
-                                    '.metaflow',
-                                    'gui-test-completion.json',
-                                ),
-                                JSON.stringify({ operation: 'apply', token: randomUUID() }),
-                                'utf-8',
-                            );
-                        }
                     },
                 );
             } catch (err: unknown) {
@@ -6227,6 +6225,9 @@ export function registerCommands(
                 vscode.window.showErrorMessage(`MetaFlow: ${message}`);
             } finally {
                 state.isApplying = false;
+                if (guiTestMode) {
+                    writeGuiTestCompletionToken(ws.uri.fsPath, 'apply');
+                }
             }
         }),
     );
@@ -8219,10 +8220,7 @@ export function registerCommands(
 
             const multiRepoConfig = ensureMultiRepoConfig(state.config);
             const existingIds = new Set(multiRepoConfig.metadataRepos.map((repo) => repo.id));
-            const sourceLocalPath = toConfigLocalPath(
-                ws.uri.fsPath,
-                selection.metadataRoot.fsPath,
-            );
+            const sourceLocalPath = toConfigLocalPath(ws.uri.fsPath, selection.metadataRoot.fsPath);
             const repoId = deriveRepoId(
                 selection.metadataRoot.fsPath,
                 selection.metadataUrl,

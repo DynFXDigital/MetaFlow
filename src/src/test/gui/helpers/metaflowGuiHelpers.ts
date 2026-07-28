@@ -62,6 +62,35 @@ Workbench.prototype.openCommandPrompt = async function (): Promise<InputBox> {
     }
 };
 
+const executeCommandWithoutCompletionWait = Workbench.prototype.executeCommand;
+const guiWorkspaceRoot = path.resolve(__dirname, '../../../../test-workspace');
+
+async function executeMetadataCommandAndWait(
+    workbench: Workbench,
+    command: string,
+    operation: 'refresh' | 'apply',
+): Promise<void> {
+    const previousToken = readGuiCompletionToken(guiWorkspaceRoot, operation);
+    await executeCommandWithoutCompletionWait.call(workbench, command);
+    await waitFor(async () => {
+        const token = readGuiCompletionToken(guiWorkspaceRoot, operation);
+        return token !== undefined && token !== previousToken;
+    }, WAIT_TIMEOUT);
+}
+
+Workbench.prototype.executeCommand = async function (command: string): Promise<void> {
+    if (command === 'MetaFlow: Refresh') {
+        await executeMetadataCommandAndWait(this, command, 'refresh');
+        return;
+    }
+    if (command === 'MetaFlow: Apply Overlay') {
+        await executeMetadataCommandAndWait(this, 'MetaFlow: Refresh', 'refresh');
+        await executeMetadataCommandAndWait(this, command, 'apply');
+        return;
+    }
+    await executeCommandWithoutCompletionWait.call(this, command);
+};
+
 // ── Golden config (cross-suite contamination guard) ────────────────────────────
 
 /**
@@ -83,30 +112,16 @@ export async function applyOverlayAndWait(
     workspaceRoot: string,
     workbench = new Workbench(),
 ): Promise<void> {
-    const previousToken = readGuiCompletionToken(workspaceRoot, 'apply');
+    void workspaceRoot;
     await workbench.executeCommand('MetaFlow: Apply Overlay');
-    await waitFor(
-        async () => {
-            const token = readGuiCompletionToken(workspaceRoot, 'apply');
-            return token !== undefined && token !== previousToken;
-        },
-        WAIT_TIMEOUT,
-    );
 }
 
 export async function refreshOverlayAndWait(
     workspaceRoot: string,
     workbench = new Workbench(),
 ): Promise<void> {
-    const previousToken = readGuiCompletionToken(workspaceRoot, 'refresh');
+    void workspaceRoot;
     await workbench.executeCommand('MetaFlow: Refresh');
-    await waitFor(
-        async () => {
-            const token = readGuiCompletionToken(workspaceRoot, 'refresh');
-            return token !== undefined && token !== previousToken;
-        },
-        WAIT_TIMEOUT,
-    );
 }
 
 /** Derives the workspace `.vscode/settings.json` path from the live config path. */
@@ -423,13 +438,18 @@ export async function expandSection(section: ViewSection): Promise<void> {
  */
 export async function getVisibleItemTexts(section: ViewSection): Promise<string[]> {
     const items = await section.getVisibleItems();
-    return Promise.all(
-        items.map((item) =>
-            (item as TreeItem)
-                .getText()
-                .catch(() => ''),
-        ),
-    );
+    return Promise.all(items.map((item) => getTreeItemText(item as TreeItem)));
+}
+
+async function getTreeItemText(item: TreeItem): Promise<string> {
+    const [label, description, ariaLabel, textContent, renderedText] = await Promise.all([
+        item.getLabel().catch(() => ''),
+        item.getDescription().catch(() => ''),
+        item.getAttribute('aria-label').catch(() => ''),
+        item.getAttribute('textContent').catch(() => ''),
+        item.getText().catch(() => ''),
+    ]);
+    return [label, description, ariaLabel, textContent, renderedText].filter(Boolean).join(' ');
 }
 
 /**
@@ -539,7 +559,7 @@ export async function findItemByText(
         await expandAllItems(section);
         const items = await section.getVisibleItems();
         for (const item of items) {
-            const text = await (item as TreeItem).getText().catch(() => '');
+            const text = await getTreeItemText(item as TreeItem);
             if (text.toLowerCase().includes(textFragment.toLowerCase())) {
                 found = item as TreeItem;
                 return true;
@@ -701,10 +721,7 @@ export async function dismissAllNotifications(workbench: Workbench): Promise<voi
 /**
  * Returns true if any currently visible notification message includes `fragment`.
  */
-export async function hasNotification(
-    workbench: Workbench,
-    fragment: string,
-): Promise<boolean> {
+export async function hasNotification(workbench: Workbench, fragment: string): Promise<boolean> {
     try {
         const notes = await workbench.getNotifications();
         for (const n of notes) {
