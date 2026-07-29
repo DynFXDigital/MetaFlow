@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8
+
+### Patch Changes
+
+- 278c58d: Improve prerelease reliability by validating plugin hook script paths, preserving initial empty applies and missing-profile fallbacks, preferring portable relative repository paths, excluding bundled metadata from Git setup prompts, and refreshing dependencies with current security fixes.
+
 ## 0.3.7
 
 ### Patch Changes
