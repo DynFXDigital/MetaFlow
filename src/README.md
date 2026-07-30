@@ -121,9 +121,11 @@ Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSo
 
 If enabled capabilities surface the same effective relative path, MetaFlow reports a warning in the Capabilities view, `Preview`, `Status`, and the apply summary. Apply remains non-blocking and uses the later-wins result selected by the engine.
 
-### Optional `CAPABILITY.md` per layer
+### Capability units and organizational containers
 
-Layer roots may include `CAPABILITY.md` to provide capability metadata consumed by MetaFlow.
+A capability unit is a folder that contains both a `.github/` subdirectory with capability metadata and a required `CAPABILITY.md` contract at the folder root.
+
+An organizational container only groups related descendant capabilities and has no `.github/` subdirectory of its own. It does not require `CAPABILITY.md`; it may include an optional `README.md` when human-oriented discovery or navigation would help.
 
 ```md
 ---
@@ -137,7 +139,7 @@ license: MIT
 - `license` is optional (`MIT`, `Apache-2.0`, `MIT OR Apache-2.0`, or `SEE-LICENSE-IN-REPO`).
 - Unknown fields are tolerated with warning diagnostics.
 
-This metadata is shown in `metaflow status`, in the Capabilities/Effective Files views, and in the capability details webview.
+Classify each folder independently at every nesting level: descendant capabilities do not make their parent a capability unit. Capability-unit metadata is shown in `metaflow status`, in the Capabilities/Effective Files views, and in the capability details webview.
 
 ### Capabilities tree branch toggles
 
