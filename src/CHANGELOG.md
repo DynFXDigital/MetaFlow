@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9
+
+### Patch Changes
+
+- 34bb1fb: Clarify capability-unit documentation requirements and refresh compatible workspace dependencies for beta testing.
+
 ## 0.3.8
 
 ### Patch Changes
