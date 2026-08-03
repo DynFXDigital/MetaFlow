@@ -921,7 +921,7 @@
     "@metaflow/engine": "file:../packages/engine",
     "flatted": "^3.4.2",
     "jsonc-parser": "^3.3.1",
-    "markdown-it": "^14.1.1"
+    "markdown-it": "^15.0.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
