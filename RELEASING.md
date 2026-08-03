@@ -117,6 +117,10 @@ The workflow:
 5. Creates the git tag `vX.Y.Z`
 6. Creates the GitHub Release with the VSIX attached
 
+If Release Drafter has already created a draft for the version, the workflow
+uploads the VSIX and publishes that draft; a successful upload alone is not
+treated as a completed release.
+
 The tag is created **after** publish succeeds, so a failed gate never leaves a dangling tag.
 
 ## Branch invariants enforced by automation

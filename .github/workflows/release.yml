@@ -334,6 +334,9 @@ jobs:
 
           if [ "$status" = "exists" ]; then
             run_with_retry gh release upload "$TAG" "$VSIX_PATH" --clobber
+            if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = "true" ]; then
+              run_with_retry gh release edit "$TAG" --draft=false
+            fi
           elif [ "$status" = "missing" ]; then
             run_with_retry gh release create "$TAG" \
               "$VSIX_PATH" \
