@@ -94,6 +94,10 @@ jobs:
             fi
           fi
 
+      - name: Verify stable changelog normalization
+        if: inputs.channel == 'stable'
+        run: npm run release:check-stable -- --version "${{ steps.version.outputs.version }}"
+
       - name: Verify required CI passed for release SHA
         env:
           GH_TOKEN: ${{ github.token }}

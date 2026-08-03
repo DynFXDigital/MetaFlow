@@ -4,7 +4,13 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
-## [Unreleased]
+## 0.4.1
+
+### Fixed
+
+- Normalize the stable changelog after the v0.4.0 promotion.
+
+## 0.4.0
 
 ### Added
 
@@ -32,7 +38,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - Plugin maintenance now avoids disturbing unrelated Copilot repository configuration, cleans up stale plugin roots during apply, and lets warning rows open the source file that needs attention.
 - Capability discovery and details refreshes are more stable for missing paths, CAPABILITY-only folders, built-in capability ordering, and toggle-driven updates.
 
-## [0.1.0] - 2026-03-03
+## 0.1.0
 
 ### Added
 
@@ -68,7 +74,7 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 - CLI: `packages/cli/CHANGELOG.md`
 - Engine: `packages/engine/CHANGELOG.md`
 
-## [0.1.0] - 2026-02-07
+## 0.1.0
 
 ### Added
 

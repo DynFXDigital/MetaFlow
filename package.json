@@ -20,7 +20,9 @@
     "test:integration": "npm -w metaflow-ai run test:integration",
     "test": "npm run test:engine && npm run test:cli && npm run test:unit",
     "changeset": "changeset",
-    "version-packages": "changeset version && npm install --package-lock-only"
+    "version-packages": "changeset version && npm install --package-lock-only",
+    "release:prepare-stable": "node scripts/prepare-stable-release.mjs",
+    "release:check-stable": "node scripts/check-stable-changelog.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",

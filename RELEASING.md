@@ -52,7 +52,9 @@ when no preview cycle is active, the **Version Packages** workflow
 `chore(release): version packages`.
 
 Review and merge that PR. It bumps `src/package.json`, `packages/engine/package.json`,
-and `packages/cli/package.json` in lockstep, and updates `CHANGELOG.md`.
+and `packages/cli/package.json` in lockstep and creates provisional package changelog
+entries. It does **not** own the root `CHANGELOG.md` and does not create the final stable
+release notes.
 
 ### 4. Publish prereleases from `prerelease`
 
@@ -73,11 +75,22 @@ publishes from any other branch and also verifies that the version has an odd mi
 
 When the preview cycle is ready to ship as a stable release:
 
-1. Prepare the final even-minor version on `prerelease`.
-2. Merge `prerelease` back into `main`.
-3. Confirm `main` and `prerelease` point at the same release commit.
-4. Publish the stable release from `main`.
-5. Delete `prerelease` after the stable release ships.
+1. Run the stable-promotion command on `prerelease` with the even-minor target:
+
+    ```powershell
+    npm run release:prepare-stable -- --promote-version 0.6.0
+    ```
+
+    The command moves `Unreleased` notes and the preceding odd-minor package
+    changelog entries into the stable `0.6.0` entry, aligns all workspace package
+    versions and lock entries, and leaves no `Unreleased` heading on the stable
+    candidate. Review the generated changelog as part of the release PR.
+
+2. Run `npm run release:check-stable -- --version 0.6.0` and the full release gate.
+3. Merge `prerelease` back into `main`.
+4. Confirm `main` and `prerelease` point at the same release commit.
+5. Publish the stable release from `main`.
+6. Delete `prerelease` after the stable release ships.
 
 Stable publishes run from `main` only. The workflow rejects stable publishes from `prerelease`
 and verifies that the version has an even minor number.
@@ -96,7 +109,8 @@ Inputs:
 
 The workflow:
 
-1. Runs the full gate (quick + integration)
+1. Rejects a stable release if its changelogs retain `Unreleased` or preceding
+   prerelease-version headings
 2. Packages the VSIX with the appropriate channel flag
 3. Waits for manual approval via the GitHub Environment (`production` or `prerelease`)
 4. Publishes to VS Code Marketplace and Open VSX
