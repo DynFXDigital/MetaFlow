@@ -81,10 +81,14 @@ When the preview cycle is ready to ship as a stable release:
     npm run release:prepare-stable -- --promote-version 0.6.0
     ```
 
-    The command moves `Unreleased` notes and the preceding odd-minor package
-    changelog entries into the stable `0.6.0` entry, aligns all workspace package
-    versions and lock entries, and leaves no `Unreleased` heading on the stable
-    candidate. Review the generated changelog as part of the release PR.
+The command moves `Unreleased` notes and the preceding odd-minor package
+changelog entries into the stable `0.6.0` entry, aligns all workspace package
+versions and lock entries, and leaves no `Unreleased` heading on the stable
+candidate. Rewrite the root `CHANGELOG.md` entry as concise, user-facing
+release notes before merging: lead with what users can do, then notable
+workflow improvements and reliability fixes; keep implementation details in
+package changelogs and commit history. Review the curated root entry as part
+of the release PR.
 
 2. Run `npm run release:check-stable -- --version 0.6.0` and the full release gate.
 3. Merge `prerelease` back into `main`.
@@ -120,6 +124,10 @@ The workflow:
 If Release Drafter has already created a draft for the version, the workflow
 uploads the VSIX and publishes that draft; a successful upload alone is not
 treated as a completed release.
+
+For stable releases, the workflow uses the matching root `CHANGELOG.md` entry
+as the GitHub Release body. Do not rely on generated commit notes for a
+user-facing release announcement.
 
 The tag is created **after** publish succeeds, so a failed gate never leaves a dangling tag.
 

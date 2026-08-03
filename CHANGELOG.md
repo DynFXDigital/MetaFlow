@@ -6,37 +6,46 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 
 ## 0.4.1
 
-### Fixed
+### Release notes
 
-- Normalize the stable changelog after the v0.4.0 promotion.
+This maintenance release makes the 0.4 release notes clearer and improves how
+future updates are presented. It does not change how MetaFlow works in your
+workspace.
+
+- The 0.4 release history is now grouped into a single, easier-to-read stable
+  update instead of a sequence of preview-only entries.
+- Future stable releases will publish the same curated notes you see in this
+  changelog.
 
 ## 0.4.0
 
-### Added
+### Highlights
 
-- Plugin-based capability delivery for instructions, skills, and agents, so teams can package shared metadata as discoverable Copilot plugins instead of relying only on settings paths or synchronized files.
-- Guided capability authoring and plugin manifest maintenance, including commands to scaffold capability metadata, repair plugin manifests, and sweep a metadata repository for packaging issues.
-- Governance and diagnostics visibility for required capabilities, profile constraints, missing metadata sources, duplicate effective files, and plugin metadata problems, including a discoverable agent tool for reading the diagnostics snapshot.
-- Smoother metadata repository setup, including automatic migration for older preview configs and better support for local git-backed metadata repositories.
-- Richer tree exploration with folder branch toggles, browse-only artifact folders and files, native filtering, safer expand-all behavior, and direct opening of raw capability manifests.
-- Bundled GitHub Copilot metadata-authoring guidance in the built-in MetaFlow capability.
+- Package and share instructions, skills, and agents as discoverable Copilot
+  plugins instead of managing each file path by hand.
+- Create and maintain capabilities with guided commands that help scaffold
+  metadata and keep plugin manifests in shape.
+- Find and understand your capabilities more easily with improved navigation,
+  filtering, folder controls, and direct access to their source manifests.
+- Start new workspaces with useful built-in MetaFlow authoring guidance already
+  available.
 
-### Changed
+### More control over your metadata
 
-- New workspaces start with plugin-first defaults for instructions, skills, and agents, while prompts and hooks continue to use the delivery modes currently supported by the host.
-- Initializing MetaFlow now enables the bundled MetaFlow guidance automatically, so a fresh workspace has useful authoring guidance immediately after setup.
-- Injection choices can now be set globally, per metadata repository, or per capability, with workspace/user scope choices for settings-backed metadata.
-- Synchronized files can keep their original source-relative names when there is no naming conflict.
-- Capabilities tree folder rows now report deterministic mixed-branch state: checked means all descendants enabled, while unchecked covers partial and fully disabled branches.
-- Capabilities now enable or disable atomically; artifact folders under a capability are browse-only instead of partial activation toggles.
-- Capabilities and Effective Files view layouts now persist in `.metaflow/state.json` instead of VS Code settings, with hierarchical Capabilities and flat Effective Files as the defaults.
-- Built-in and configured repositories now behave more consistently in hierarchy, checkbox, refresh, and details workflows.
+- Choose how metadata is delivered globally, per repository, or per capability,
+  including where settings-backed metadata is stored.
+- Keep familiar source-relative filenames when MetaFlow can do so safely.
+- Turn whole capabilities on or off with predictable folder states, while still
+  browsing the files they contain.
 
-### Fixed
+### Smoother day-to-day use
 
-- Tree search and filtering are more reliable in large capability and effective-file trees.
-- Plugin maintenance now avoids disturbing unrelated Copilot repository configuration, cleans up stale plugin roots during apply, and lets warning rows open the source file that needs attention.
-- Capability discovery and details refreshes are more stable for missing paths, CAPABILITY-only folders, built-in capability ordering, and toggle-driven updates.
+- Search and filtering are more reliable in larger capability and effective-file
+  trees.
+- Plugin maintenance avoids disturbing unrelated Copilot configuration and
+  makes it easier to open the source of a warning.
+- Capability discovery, refresh, and details remain dependable when metadata is
+  incomplete or changes while you work.
 
 ## 0.1.0
 

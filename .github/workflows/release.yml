@@ -187,6 +187,12 @@ jobs:
           name: ${{ needs.verify.outputs.vsix_name }}
           path: artifacts
 
+      - name: Prepare curated stable release notes
+        if: inputs.channel == 'stable'
+        run: >
+          npm run release:notes -- --version "${{ needs.verify.outputs.version }}"
+          --output "$RUNNER_TEMP/release-notes.md"
+
       - name: Resolve downloaded VSIX path
         id: downloaded_vsix
         shell: bash
@@ -334,15 +340,22 @@ jobs:
 
           if [ "$status" = "exists" ]; then
             run_with_retry gh release upload "$TAG" "$VSIX_PATH" --clobber
+            if [ "${{ inputs.channel }}" = "stable" ]; then
+              run_with_retry gh release edit "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+            fi
             if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = "true" ]; then
               run_with_retry gh release edit "$TAG" --draft=false
             fi
           elif [ "$status" = "missing" ]; then
+            NOTES_ARGS=(--generate-notes)
+            if [ "${{ inputs.channel }}" = "stable" ]; then
+              NOTES_ARGS=(--notes-file "$RUNNER_TEMP/release-notes.md")
+            fi
             run_with_retry gh release create "$TAG" \
               "$VSIX_PATH" \
               --verify-tag \
               --title "$TAG" \
-              --generate-notes \
+              "${NOTES_ARGS[@]}" \
               $EXTRA
           else
             echo "::error::Unexpected release status for $TAG: $status"

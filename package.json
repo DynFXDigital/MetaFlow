@@ -22,7 +22,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version && npm install --package-lock-only",
     "release:prepare-stable": "node scripts/prepare-stable-release.mjs",
-    "release:check-stable": "node scripts/check-stable-changelog.mjs"
+    "release:check-stable": "node scripts/check-stable-changelog.mjs",
+    "release:notes": "node scripts/extract-release-notes.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
