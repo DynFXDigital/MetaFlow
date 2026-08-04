@@ -6,16 +6,9 @@ This project is currently in `v0.x` preview. Expect iterative changes while publ
 
 ## 0.4.1
 
-### Release notes
+### Documentation
 
-This maintenance release makes the 0.4 release notes clearer and improves how
-future updates are presented. It does not change how MetaFlow works in your
-workspace.
-
-- The 0.4 release history is now grouped into a single, easier-to-read stable
-  update instead of a sequence of preview-only entries.
-- Future stable releases will publish the same curated notes you see in this
-  changelog.
+- Clarified the user-facing release notes for MetaFlow 0.4. Extension behavior is unchanged.
 
 ## 0.4.0
 
@@ -46,6 +39,8 @@ workspace.
   makes it easier to open the source of a warning.
 - Capability discovery, refresh, and details remain dependable when metadata is
   incomplete or changes while you work.
+
+See the [MetaFlow 0.4.0 release notes](docs/releases/v0.4.0.md) for the concise update summary.
 
 ## 0.1.0
 

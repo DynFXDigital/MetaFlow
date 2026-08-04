@@ -84,11 +84,9 @@ When the preview cycle is ready to ship as a stable release:
 The command moves `Unreleased` notes and the preceding odd-minor package
 changelog entries into the stable `0.6.0` entry, aligns all workspace package
 versions and lock entries, and leaves no `Unreleased` heading on the stable
-candidate. Rewrite the root `CHANGELOG.md` entry as concise, user-facing
-release notes before merging: lead with what users can do, then notable
-workflow improvements and reliability fixes; keep implementation details in
-package changelogs and commit history. Review the curated root entry as part
-of the release PR.
+candidate. Update the root `CHANGELOG.md` with the complete, readable change
+history and add the curated user-facing release notes described below. Review
+both as part of the release PR.
 
 2. Run `npm run release:check-stable -- --version 0.6.0` and the full release gate.
 3. Merge `prerelease` back into `main`.
@@ -125,11 +123,38 @@ If Release Drafter has already created a draft for the version, the workflow
 uploads the VSIX and publishes that draft; a successful upload alone is not
 treated as a completed release.
 
-For stable releases, the workflow uses the matching root `CHANGELOG.md` entry
+For stable releases, the workflow uses the matching curated release-note file
 as the GitHub Release body. Do not rely on generated commit notes for a
 user-facing release announcement.
 
 The tag is created **after** publish succeeds, so a failed gate never leaves a dangling tag.
+
+## Release-note policy
+
+Release notes and changelogs serve different readers:
+
+- `CHANGELOG.md` is the complete, human-readable history. It may group changes by Added,
+  Changed, and Fixed and link to package-level detail.
+- `docs/releases/vX.Y.Z.md` is the canonical GitHub Release body for a stable version. It is
+  a short product update for people deciding whether to install or update.
+
+Create the release-note file before running a stable publish. `npm run release:check-stable`
+requires it, and `npm run release:notes -- --version X.Y.Z --output <path>` copies it into the
+GitHub Release workflow.
+
+Write release notes in this order:
+
+1. A one-sentence plain-language summary of the release's value.
+2. `## Highlights` with three to five outcome-oriented bullets for the most important new or
+   changed user capabilities.
+3. `## Improvements` or `## Fixes` only when they contain meaningful user-visible changes.
+4. `## Before you update` only for required actions, compatibility changes, migrations, or
+   known limitations.
+
+Use active, concrete language: “Package shared guidance as a Copilot plugin,” not an internal
+implementation description. Keep one user-visible outcome per bullet. Avoid commit IDs, CI,
+release mechanics, exhaustive implementation detail, and empty sections. A documentation-only
+release should say that behavior is unchanged and direct readers to the corrected feature release.
 
 ## Branch invariants enforced by automation
 

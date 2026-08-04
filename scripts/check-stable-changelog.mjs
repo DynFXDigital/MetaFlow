@@ -31,4 +31,9 @@ for (const relativePath of changelogFiles) {
     }
 }
 
+const releaseNotesPath = path.join('docs', 'releases', `v${version}.md`);
+if (!fs.existsSync(path.join(process.cwd(), releaseNotesPath))) {
+    throw new Error(`${releaseNotesPath} is required for a stable release.`);
+}
+
 console.log(`Stable changelog checks passed for ${version}.`);
