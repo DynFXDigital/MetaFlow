@@ -3637,6 +3637,7 @@ suite('Command Execution', function () {
                 {
                     instructions: 'synchronize',
                     prompts: 'synchronize',
+                    commands: 'synchronize',
                     skills: 'synchronize',
                     agents: 'synchronize',
                     hooks: 'synchronize',
@@ -3711,6 +3712,7 @@ suite('Command Execution', function () {
                 {
                     instructions: 'synchronize',
                     prompts: 'synchronize',
+                    commands: 'synchronize',
                     skills: 'synchronize',
                     agents: 'synchronize',
                     hooks: 'synchronize',

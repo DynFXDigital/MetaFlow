@@ -391,6 +391,7 @@ suite('bundled metadata assets', () => {
 
         const instructionFiles = artifactFiles.filter((f) => getArtifactType(f) === 'instructions');
         const promptFiles = artifactFiles.filter((f) => getArtifactType(f) === 'prompts');
+        const commandFiles = artifactFiles.filter((f) => getArtifactType(f) === 'commands');
         const agentFiles = artifactFiles.filter((f) => getArtifactType(f) === 'agents');
         const skillFiles = artifactFiles.filter((f) => getArtifactType(f) === 'skills');
         const hookFiles = artifactFiles.filter((f) => getArtifactType(f) === 'hooks');
@@ -400,6 +401,7 @@ suite('bundled metadata assets', () => {
             'Expected at least one instructions artifact in .github',
         );
         assert.ok(promptFiles.length > 0, 'Expected at least one prompts artifact in .github');
+        assert.ok(commandFiles.length > 0, 'Expected at least one commands artifact in .github');
         assert.ok(agentFiles.length > 0, 'Expected at least one agents artifact in .github');
         assert.ok(skillFiles.length > 0, 'Expected at least one skills artifact in .github');
         assert.ok(hookFiles.length > 0, 'Expected at least one hooks artifact in .github');
@@ -414,6 +416,12 @@ suite('bundled metadata assets', () => {
             assert.ok(
                 filePath.startsWith('.github/prompts/'),
                 `Expected prompts artifact under .github/prompts/: ${filePath}`,
+            );
+        }
+        for (const filePath of commandFiles) {
+            assert.ok(
+                filePath.startsWith('.github/commands/'),
+                `Expected commands artifact under .github/commands/: ${filePath}`,
             );
         }
         for (const filePath of agentFiles) {

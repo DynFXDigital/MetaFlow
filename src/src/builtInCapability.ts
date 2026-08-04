@@ -7,7 +7,14 @@ export const BUILT_IN_CAPABILITY_REPO_ID = '__metaflow_builtin__';
 export const BUILT_IN_CAPABILITY_LAYER_PATH = '.';
 export const BUILT_IN_CAPABILITY_LAYER_LABEL = 'MetaFlow';
 
-const BUILT_IN_INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
+const BUILT_IN_INJECTION_KEYS = [
+    'instructions',
+    'prompts',
+    'commands',
+    'skills',
+    'agents',
+    'hooks',
+] as const;
 
 export interface BuiltInCapabilityWorkspaceState {
     enabled?: boolean;

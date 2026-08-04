@@ -114,6 +114,7 @@ export type SyncFileNamingStrategy = 'prefixed' | 'original-unless-conflict';
 export interface InjectionConfig {
     instructions?: InjectionMode;
     prompts?: InjectionMode;
+    commands?: InjectionMode;
     skills?: InjectionMode;
     agents?: InjectionMode;
     hooks?: InjectionMode;

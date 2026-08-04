@@ -20,6 +20,17 @@ suite('classifier', () => {
             assert.strictEqual(classifySingle('prompts/gen.prompt.md', undefined), 'settings');
         });
 
+        test('commands → plugin', () => {
+            assert.strictEqual(classifySingle('commands/review-metadata.md', undefined), 'plugin');
+        });
+
+        test('provider command paths → plugin', () => {
+            assert.strictEqual(
+                classifySingle('.claude/commands/review-metadata.md', undefined),
+                'plugin',
+            );
+        });
+
         test('skills → plugin (default)', () => {
             assert.strictEqual(classifySingle('skills/build/SKILL.md', undefined), 'plugin');
         });
@@ -71,6 +82,20 @@ suite('classifier', () => {
             assert.strictEqual(
                 classifySingle('agents/coder.agent.md', { agents: 'settings' }),
                 'settings',
+            );
+        });
+
+        test('commands remain plugin-backed when settings is requested', () => {
+            assert.strictEqual(
+                classifySingle('commands/review-metadata.md', { commands: 'settings' }),
+                'plugin',
+            );
+        });
+
+        test('commands can explicitly synchronize', () => {
+            assert.strictEqual(
+                classifySingle('commands/review-metadata.md', { commands: 'synchronize' }),
+                'synchronized',
             );
         });
 

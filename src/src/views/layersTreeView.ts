@@ -64,6 +64,7 @@ export type PendingCapabilityCheckboxState =
 const KNOWN_ARTIFACT_TYPES = new Set<CapabilityArtifactType>([
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',
@@ -282,6 +283,7 @@ const DEFAULT_ARTIFACT_INJECTION_MODE: Record<
 > = {
     instructions: 'plugin',
     prompts: 'settings',
+    commands: 'plugin',
     agents: 'plugin',
     skills: 'plugin',
     hooks: 'plugin',
@@ -710,6 +712,7 @@ class LayerItem extends vscode.TreeItem {
 const ARTIFACT_TYPE_ORDER: CapabilityArtifactType[] = [
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',

@@ -276,6 +276,10 @@
         "prompts": {
           "$ref": "#/definitions/injectionMode"
         },
+        "commands": {
+          "$ref": "#/definitions/injectionMode",
+          "description": "First-class agent-plugin slash commands. Defaults to plugin discovery; synchronize is supported for hosts without plugin installation."
+        },
         "skills": {
           "$ref": "#/definitions/injectionMode"
         },

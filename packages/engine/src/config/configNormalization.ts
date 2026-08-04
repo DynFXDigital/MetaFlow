@@ -33,6 +33,7 @@ function cloneJson<T>(value: T): T {
 const INJECTION_KEY_ORDER: readonly (keyof InjectionConfig)[] = [
     'instructions',
     'prompts',
+    'commands',
     'skills',
     'agents',
     'hooks',

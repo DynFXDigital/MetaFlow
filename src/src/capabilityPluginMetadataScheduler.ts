@@ -24,6 +24,8 @@ const WATCH_PATTERNS = [
     '**/plugin.json',
     '**/instructions/**',
     '**/.github/instructions/**',
+    '**/commands/**',
+    '**/.github/commands/**',
     '**/skills/**',
     '**/.github/skills/**',
     '**/agents/**',

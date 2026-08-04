@@ -796,6 +796,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
             version?: string;
             keywords?: string[];
             agents?: string;
+            commands?: string;
             skills?: string;
             rules?: string;
             metaflow?: { pluginHosts?: string[]; minimumMetaflowVersion?: string };
@@ -805,6 +806,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.version, '0.1.0');
         assert.deepStrictEqual(parsed.keywords, ['metaflow', 'agent-plugin', 'capability']);
         assert.strictEqual(parsed.agents, '.github/agents');
+        assert.strictEqual(parsed.commands, '.github/commands');
         assert.strictEqual(parsed.skills, '.github/skills');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
@@ -835,6 +837,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
             version?: string;
             keywords?: string[];
             agents?: string;
+            commands?: string;
             skills?: string;
             rules?: string;
             metaflow?: { pluginHosts?: string[]; minimumMetaflowVersion?: string };
@@ -849,6 +852,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
             'capability',
         ]);
         assert.strictEqual(parsed.agents, 'agents');
+        assert.strictEqual(parsed.commands, '.github/commands');
         assert.strictEqual(parsed.skills, '.github/skills');
         assert.strictEqual(parsed.rules, '.github/instructions');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot', 'claude-code']);
@@ -884,11 +888,13 @@ suite('Command handler capability plugin maintenance helpers', () => {
             ) as {
                 name?: string;
                 agents?: string;
+                commands?: string;
                 rules?: string;
                 metaflow?: { pluginHosts?: string[] };
             };
             assert.ok(pluginJson.name?.startsWith('metaflow-plugin-maintain-'));
             assert.strictEqual(pluginJson.agents, '.github/agents');
+            assert.strictEqual(pluginJson.commands, '.github/commands');
             assert.strictEqual(pluginJson.rules, '.github/instructions');
             assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
         } finally {
@@ -920,6 +926,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                         description: 'Demo capability plugin',
                         keywords: ['metaflow', 'agent-plugin', 'capability'],
                         agents: '.github/agents',
+                        commands: '.github/commands',
                         skills: '.github/skills',
                         rules: '.github/instructions',
                         metaflow: {

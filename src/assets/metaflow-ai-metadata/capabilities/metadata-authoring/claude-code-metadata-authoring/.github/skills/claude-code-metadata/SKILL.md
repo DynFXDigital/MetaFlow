@@ -13,6 +13,7 @@ Use this skill when creating or updating:
 - `.claude/agents/**/*.md`
 - `.claude/settings.json` and `.claude/settings.local.json`
 - `.mcp.json`
+- Claude-compatible plugin command files when the selected plugin format supports them
 
 ## Scope
 
@@ -24,6 +25,13 @@ This skill consolidates current best practices and compatibility notes for Anthr
 2. Apply `BestPractices.md` when authoring or reviewing Claude Code metadata files.
 3. Use `Compatibility.md` to avoid assuming parity with GitHub Copilot or Codex-specific constructs.
 4. Use `ReflectionReinforcement.md` when promoting repeated findings into durable guidance.
+
+## Command compatibility
+
+Keep slash-command entry points explicit and user-invoked where possible. Treat a command as a
+host/plugin component with its own filename and frontmatter; keep reusable procedures in a skill.
+Verify the selected Claude plugin manifest and command directory before assuming parity with
+Copilot or Codex, and never infer portability from a matching command filename alone.
 
 ## Files
 

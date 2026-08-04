@@ -22,6 +22,15 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/prompts/p.prompt.md'), 'prompts');
     });
 
+    it('ATF-01ca: commands path returns commands', () => {
+        assert.strictEqual(getArtifactType('.github/commands/review-metadata.md'), 'commands');
+    });
+
+    it('ATF-01cb: provider command paths return commands', () => {
+        assert.strictEqual(getArtifactType('.claude/commands/review-metadata.md'), 'commands');
+        assert.strictEqual(getArtifactType('.codex/commands/review-metadata.md'), 'commands');
+    });
+
     it('ATF-01d: agents path returns agents', () => {
         assert.strictEqual(getArtifactType('.github/agents/a.agent.md'), 'agents');
     });

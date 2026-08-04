@@ -25,6 +25,7 @@ function makeEmptyTreeSummaryCache(): TreeSummaryCache {
         byType: {
             instructions: { active: 0, available: 0 },
             prompts: { active: 0, available: 0 },
+            commands: { active: 0, available: 0 },
             agents: { active: 0, available: 0 },
             skills: { active: 0, available: 0 },
             hooks: { active: 0, available: 0 },

@@ -198,11 +198,23 @@
         "title": "Synchronize"
       },
       {
-        "command": "metaflow.synchronization.prompts.inherit",
-        "title": "Inherit"
-      },
-      {
-        "command": "metaflow.synchronization.skills.settings",
+          "command": "metaflow.synchronization.prompts.inherit",
+          "title": "Inherit"
+        },
+        {
+          "command": "metaflow.synchronization.commands.plugin",
+          "title": "Plugin"
+        },
+        {
+          "command": "metaflow.synchronization.commands.synchronize",
+          "title": "Synchronize"
+        },
+        {
+          "command": "metaflow.synchronization.commands.inherit",
+          "title": "Inherit"
+        },
+        {
+          "command": "metaflow.synchronization.skills.settings",
         "title": "Settings"
       },
       {
@@ -556,7 +568,7 @@
         },
         {
           "submenu": "metaflow.synchronization",
-          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
+          "when": "(view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead || viewItem == configRepoSourceBuiltin)) || (view == metaflow-layers && (viewItem == layerRepo || viewItem == layer || viewItem == layerArtifactType:instructions || viewItem == layerArtifactType:prompts || viewItem == layerArtifactType:commands || viewItem == layerArtifactType:skills || viewItem == layerArtifactType:agents || viewItem == layerArtifactType:hooks))",
           "group": "3_configure@1"
         },
         {
@@ -656,6 +668,18 @@
         {
           "command": "metaflow.synchronization.prompts.inherit",
           "when": "viewItem == layerArtifactType:prompts"
+        },
+        {
+          "command": "metaflow.synchronization.commands.plugin",
+          "when": "viewItem == layerArtifactType:commands"
+        },
+        {
+          "command": "metaflow.synchronization.commands.synchronize",
+          "when": "viewItem == layerArtifactType:commands"
+        },
+        {
+          "command": "metaflow.synchronization.commands.inherit",
+          "when": "viewItem == layerArtifactType:commands"
         },
         {
           "command": "metaflow.synchronization.skills.settings",

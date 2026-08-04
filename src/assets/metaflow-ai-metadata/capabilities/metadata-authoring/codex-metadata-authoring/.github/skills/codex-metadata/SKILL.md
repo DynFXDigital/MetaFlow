@@ -13,6 +13,7 @@ Use this skill when creating or updating:
 - `.codex/agents/*.toml`
 - `.codex/hooks.json`
 - `.codex/rules/*.rules`
+- Agent-plugin command files when the selected host/plugin format supports them
 
 ## Scope
 
@@ -24,6 +25,14 @@ This skill consolidates current best practices and compatibility notes for OpenA
 2. Apply `BestPractices.md` when authoring or reviewing Codex metadata files.
 3. Use `Compatibility.md` to avoid assuming parity with Copilot or Claude-specific constructs.
 4. Use `ReflectionReinforcement.md` when promoting repeated findings into durable guidance.
+
+## Command compatibility
+
+Codex-native plugins currently center on skills, agents, hooks, and MCP rather than exposing a
+separate portable `commands` primitive. When a capability also targets a host with first-class
+plugin commands, author the command in that host's manifest-defined `commands` directory and
+keep the reusable workflow in a Codex skill. Do not assume that a Copilot or Claude slash command
+automatically becomes a Codex slash command.
 
 ## Files
 

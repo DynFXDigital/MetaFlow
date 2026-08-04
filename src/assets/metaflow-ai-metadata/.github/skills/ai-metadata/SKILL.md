@@ -1,6 +1,6 @@
 ---
 name: ai-metadata
-description: Consolidated guidance for authoring Copilot instructions, prompt files, custom agents, agent skills, hooks, and agent plugins with current compatibility caveats.
+description: Consolidated guidance for authoring Copilot instructions, prompt files, slash commands, custom agents, agent skills, hooks, and agent plugins with current compatibility caveats.
 ---
 
 # AI metadata skill
@@ -8,6 +8,7 @@ description: Consolidated guidance for authoring Copilot instructions, prompt fi
 Use this skill when creating or updating:
 - Repository custom instructions
 - Prompt files
+- User-invoked agent-plugin commands
 - Custom agents
 - Agent skills
 - Hooks
@@ -26,7 +27,15 @@ This skill consolidates current best practices and compatibility notes across Gi
 7. Prefer metadata that puts trigger conditions, scope, and must-follow rules in the main file, then moves extended examples, edge cases, and long procedures into support docs.
 8. Resolve skill resources from the directory containing `SKILL.md`; validate plugin resources
    against the selected manifest format and emitted plugin root.
-9. Read `../../instructions/ai-metadata-plugins.instructions.md` before authoring plugin
+9. Choose commands for named, user-invoked plugin entry points; choose skills for reusable
+   workflows that may also be model-discovered; choose prompts for hosts that only support
+   prompt-file injection. A command is an individual Markdown file under the manifest's
+   `commands` directory, not a prompt renamed by convention.
+10. Keep command names plain kebab-case. Plugin hosts may add a namespace such as
+    `/plugin-name:command-name`; do not put that namespace in the filename or frontmatter.
+11. Use `disable-model-invocation: true` when a command should be explicitly user-run, and
+    document `argument-hint` plus the expected input boundary when arguments are accepted.
+12. Read `../../instructions/ai-metadata-plugins.instructions.md` before authoring plugin
    manifests, hooks, MCP/LSP config, or plugin-local script paths.
 
 ## Files

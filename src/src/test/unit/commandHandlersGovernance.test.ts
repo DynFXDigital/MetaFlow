@@ -82,6 +82,31 @@ function createBuiltInState(overrides?: Partial<{
 }
 
 suite('Governed mutation preview decisions', () => {
+    test('all-synchronize injection preset includes every supported artifact type', () => {
+        const { applyInjectionMutation } = loadCommandHandlers();
+
+        assert.deepStrictEqual(applyInjectionMutation(undefined, { preset: 'all-synchronize' }), {
+            instructions: 'synchronize',
+            prompts: 'synchronize',
+            commands: 'synchronize',
+            skills: 'synchronize',
+            agents: 'synchronize',
+            hooks: 'synchronize',
+        });
+    });
+
+    test('all-settings injection preset excludes plugin-only commands', () => {
+        const { applyInjectionMutation } = loadCommandHandlers();
+
+        assert.deepStrictEqual(applyInjectionMutation(undefined, { preset: 'all-settings' }), {
+            instructions: 'settings',
+            prompts: 'settings',
+            skills: 'settings',
+            agents: 'settings',
+            hooks: 'settings',
+        });
+    });
+
     test('allows mutations when the governance contract is absent', () => {
         const { previewGovernedMutationDecision } = loadCommandHandlers();
 

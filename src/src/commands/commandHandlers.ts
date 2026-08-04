@@ -193,12 +193,20 @@ function mergeRefreshCommandOptions(
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 import { buildTreeSummaryCache, TreeSummaryCache } from '../treeSummary';
 
-const INJECTION_KEYS = ['instructions', 'prompts', 'skills', 'agents', 'hooks'] as const;
+const INJECTION_KEYS = [
+    'instructions',
+    'prompts',
+    'commands',
+    'skills',
+    'agents',
+    'hooks',
+] as const;
 type InjectionKey = (typeof INJECTION_KEYS)[number];
 
 const DEFAULT_INJECTION_MODE: Record<InjectionKey, 'settings' | 'synchronize' | 'plugin'> = {
     instructions: 'plugin',
     prompts: 'settings',
+    commands: 'plugin',
     skills: 'plugin',
     agents: 'plugin',
     hooks: 'plugin',
@@ -218,6 +226,7 @@ const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
 const LEGACY_INJECTION_SETTING_KEYS: Record<InjectionKey, string> = {
     instructions: 'metaflow.injection.instructionsMode',
     prompts: 'metaflow.injection.promptsMode',
+    commands: 'metaflow.injection.commandsMode',
     skills: 'metaflow.injection.skillsMode',
     agents: 'metaflow.injection.agentsMode',
     hooks: 'metaflow.injection.hooksMode',
@@ -1112,6 +1121,7 @@ const PLUGIN_INJECTION_UPGRADE_REVIEW_ACTION = 'Review Injection Defaults';
 const PLUGIN_INJECTION_UPGRADE_DISMISS_ACTION = "Don't Show Again";
 const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey[] = [
     'instructions',
+    'commands',
     'skills',
     'agents',
     'hooks',
@@ -1296,10 +1306,15 @@ function formatInjectionModeOptionLabel(mode: 'settings' | 'synchronize' | 'plug
 function supportsPluginInjection(artifactType: InjectionKey): boolean {
     return (
         artifactType === 'instructions' ||
+        artifactType === 'commands' ||
         artifactType === 'skills' ||
         artifactType === 'agents' ||
         artifactType === 'hooks'
     );
+}
+
+function supportsSettingsInjection(artifactType: InjectionKey): boolean {
+    return artifactType !== 'commands';
 }
 
 function formatInheritedInjectionSourceLabel(source: InheritedInjectionSource): string {
@@ -1348,7 +1363,7 @@ function buildInheritedInjectionDescription(
     return `Remove the explicit override. Effective value: ${formatInjectionModeOptionLabel(resolved.mode)} (${formatInheritedInjectionSourceLabel(resolved.source)})`;
 }
 
-function applyInjectionMutation(
+export function applyInjectionMutation(
     current: InjectionConfig | undefined,
     mutation: InjectionMutationSelection,
 ): InjectionConfig | undefined {
@@ -1366,6 +1381,7 @@ function applyInjectionMutation(
                 return sanitizeInjectionConfig({
                     instructions: 'synchronize',
                     prompts: 'synchronize',
+                    commands: 'synchronize',
                     skills: 'synchronize',
                     agents: 'synchronize',
                     hooks: 'synchronize',
@@ -1658,12 +1674,16 @@ async function promptForInjectionMutation(
                 description: buildInheritedInjectionDescription(inheritedMode),
                 mode: 'inherit',
             },
-            {
-                label: 'Settings',
-                description:
-                    'Inject alternate-path settings instead of synchronizing files into .github',
-                mode: 'settings',
-            },
+            ...(supportsSettingsInjection(selection.artifactType)
+                ? [
+                      {
+                          label: 'Settings',
+                          description:
+                              'Inject alternate-path settings instead of synchronizing files into .github',
+                          mode: 'settings' as const,
+                      },
+                  ]
+                : []),
             {
                 label: 'Synchronize',
                 description: 'Synchronize files into .github output',
@@ -4616,6 +4636,7 @@ function buildCapabilityPluginManifestStarterTemplate(
             description: `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`,
             keywords: ['metaflow', 'agent-plugin', 'capability'],
             agents: '.github/agents',
+            commands: '.github/commands',
             skills: '.github/skills',
             rules: '.github/instructions',
             metaflow: {
@@ -4766,6 +4787,12 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
             ? packageObject.agents.trim()
             : undefined;
     packageObject.agents = currentAgents ?? '.github/agents';
+
+    const currentCommands =
+        typeof packageObject.commands === 'string' && packageObject.commands.trim().length > 0
+            ? packageObject.commands.trim()
+            : undefined;
+    packageObject.commands = currentCommands ?? '.github/commands';
 
     const currentSkills =
         typeof packageObject.skills === 'string' && packageObject.skills.trim().length > 0
@@ -7440,7 +7467,11 @@ export function registerCommands(
     );
 
     for (const artifactType of INJECTION_KEYS) {
-        const modes: InjectionEditMode[] = ['settings', 'synchronize', 'inherit'];
+        const modes: InjectionEditMode[] = [
+            ...(supportsSettingsInjection(artifactType) ? ['settings' as const] : []),
+            'synchronize',
+            'inherit',
+        ];
         if (supportsPluginInjection(artifactType)) {
             modes.push('plugin');
         }

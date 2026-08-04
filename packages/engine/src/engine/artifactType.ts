@@ -7,9 +7,23 @@
  * Pure TypeScript — no VS Code imports.
  */
 
-export type ArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
+export type ArtifactType =
+    | 'instructions'
+    | 'prompts'
+    | 'commands'
+    | 'agents'
+    | 'skills'
+    | 'hooks'
+    | 'other';
 
-const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skills', 'hooks']);
+const KNOWN_TYPES = new Set<string>([
+    'instructions',
+    'prompts',
+    'commands',
+    'agents',
+    'skills',
+    'hooks',
+]);
 
 /**
  * Classify a relative file path into an artifact-type bucket.
@@ -20,6 +34,16 @@ const KNOWN_TYPES = new Set<string>(['instructions', 'prompts', 'agents', 'skill
  */
 export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
+    const segments = posix.split('/').filter((segment) => segment.length > 0);
+    const commandSegmentIndex = segments.findIndex(
+        (segment, index) =>
+            segment === 'commands' &&
+            (index === 0 || ['.github', '.claude', '.codex'].includes(segments[index - 1])),
+    );
+    if (commandSegmentIndex !== -1) {
+        return 'commands';
+    }
+
     if (posix === 'copilot-instructions.md') {
         return 'instructions';
     }

@@ -7,6 +7,7 @@
  * Default rules:
  * - instructions/** → plugin
  * - prompts/** → settings
+ * - commands/** → plugin
  * - skills/** → plugin
  * - agents/** → plugin
  * - hooks/** and hooks.json → plugin
@@ -19,18 +20,26 @@
 import { InjectionConfig, LayerSource } from '../config/configSchema';
 import { normalizeInputPath } from '../config/configPathUtils';
 import { ArtifactClassification, EffectiveFile } from './types';
+import { getArtifactType } from './artifactType';
 
 /** Default classification rules per artifact type directory prefix. */
 const DEFAULT_CLASSIFICATION: Record<string, ArtifactClassification> = {
     instructions: 'plugin',
     prompts: 'settings',
+    commands: 'plugin',
     skills: 'plugin',
     agents: 'plugin',
     hooks: 'plugin',
     chatmodes: 'synchronized',
 };
 
-const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set(['instructions', 'skills', 'agents', 'hooks']);
+const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set([
+    'instructions',
+    'commands',
+    'skills',
+    'agents',
+    'hooks',
+]);
 const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
 const ROOT_PLUGIN_HOOK_CONFIGURATION_PATH = 'hooks.json';
 const AGENT_PLUGIN_MANIFEST_PATHS = new Set([
@@ -125,7 +134,9 @@ export function classifySingle(
     const effectivePath = normalized.startsWith('.github/')
         ? normalized.slice('.github/'.length)
         : normalized;
-    const topDir = effectivePath.split('/')[0];
+    const detectedArtifactType = getArtifactType(normalized);
+    const topDir =
+        detectedArtifactType === 'other' ? effectivePath.split('/')[0] : detectedArtifactType;
 
     if (effectivePath === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH) {
         return 'synchronized';
@@ -151,7 +162,10 @@ export function classifySingle(
     // Check injection override first
     if (injection) {
         const mode = (injection as Record<string, string | undefined>)[topDir];
-        if (mode === 'settings') {
+        // Hosts do not expose a command-files settings location. Keep commands
+        // plugin-backed even if an old or generic config asks for settings so
+        // they remain invocable slash commands instead of silently disappearing.
+        if (mode === 'settings' && topDir !== 'commands') {
             return 'settings';
         }
         if (mode === 'plugin' && PLUGIN_CAPABLE_ARTIFACT_TYPES.has(topDir)) {

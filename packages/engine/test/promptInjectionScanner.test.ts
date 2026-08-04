@@ -22,6 +22,14 @@ describe('promptInjectionScanner', () => {
             isPromptInjectionTargetPath('.github/hooks/prompt-injection-guard.json'),
             true,
         );
+        assert.strictEqual(
+            isPromptInjectionTargetPath('.github/commands/review-metadata.md'),
+            true,
+        );
+        assert.strictEqual(
+            isPromptInjectionTargetPath('.claude/commands/review-metadata.md'),
+            true,
+        );
         assert.strictEqual(isPromptInjectionTargetPath('README.md'), false);
     });
 

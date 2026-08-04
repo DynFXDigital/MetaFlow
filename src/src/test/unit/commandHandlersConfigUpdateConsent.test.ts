@@ -257,7 +257,7 @@ suite('Command handler config update consent', () => {
 
         assert.match(
             source,
-            /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'skills',\s+'agents',\s+'hooks',\s+\];/m,
+            /const PLUGIN_INJECTION_RECOMMENDED_KEYS: readonly InjectionKey\[\] = \[\s+'instructions',\s+'commands',\s+'skills',\s+'agents',\s+'hooks',\s+\];/m,
         );
         assert.match(candidateHelper, /injection\?\.\[key\] === 'settings'/);
         assert.match(

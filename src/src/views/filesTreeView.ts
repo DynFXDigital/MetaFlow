@@ -83,6 +83,7 @@ export type { ArtifactType } from '@metaflow/engine';
 const KNOWN_TYPES: ReadonlySet<string> = new Set([
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',
@@ -90,6 +91,7 @@ const KNOWN_TYPES: ReadonlySet<string> = new Set([
 const TYPE_ORDER: ArtifactType[] = [
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',

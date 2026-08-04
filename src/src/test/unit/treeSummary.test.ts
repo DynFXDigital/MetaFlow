@@ -474,6 +474,7 @@ suite('treeSummary', () => {
             byType: {
                 instructions: { active: 1, available: 2 },
                 prompts: { active: 0, available: 1 },
+                commands: { active: 0, available: 0 },
                 agents: { active: 0, available: 1 },
                 skills: { active: 1, available: 1 },
                 hooks: { active: 0, available: 0 },

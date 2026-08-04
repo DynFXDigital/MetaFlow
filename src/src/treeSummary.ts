@@ -16,6 +16,7 @@ export type SummaryArtifactType = Exclude<ArtifactType, 'other'>;
 export const SUMMARY_ARTIFACT_ORDER: SummaryArtifactType[] = [
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',
@@ -118,6 +119,7 @@ function createEmptySummary(): ArtifactSummary {
         byType: {
             instructions: EMPTY_SUMMARY_COUNTS(),
             prompts: EMPTY_SUMMARY_COUNTS(),
+            commands: EMPTY_SUMMARY_COUNTS(),
             agents: EMPTY_SUMMARY_COUNTS(),
             skills: EMPTY_SUMMARY_COUNTS(),
             hooks: EMPTY_SUMMARY_COUNTS(),
@@ -147,6 +149,7 @@ function cloneSummary(summary: ArtifactSummary): ArtifactSummary {
         byType: {
             instructions: { ...summary.byType.instructions },
             prompts: { ...summary.byType.prompts },
+            commands: { ...summary.byType.commands },
             agents: { ...summary.byType.agents },
             skills: { ...summary.byType.skills },
             hooks: { ...summary.byType.hooks },
@@ -1054,7 +1057,12 @@ export function formatSummaryDescription(
 }
 
 export function getSummaryTooltipLines(summary: ArtifactSummary): string[] {
-    return SUMMARY_ARTIFACT_ORDER.map(
+    return SUMMARY_ARTIFACT_ORDER.filter((type) => {
+        // Keep existing tooltips compact for repositories that predate the
+        // first-class command artifact while still surfacing commands when a
+        // capability actually contains them.
+        return type !== 'commands' || summary.byType[type].active > 0 || summary.byType[type].available > 0;
+    }).map(
         (type) =>
             `${titleCaseArtifactType(type)}: ${summary.byType[type].active}/${summary.byType[type].available} active`,
     );

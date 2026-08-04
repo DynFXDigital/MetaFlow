@@ -25,11 +25,19 @@ import { projectConfigForProfile } from './commandHelpers';
 import { buildCapabilityGovernanceProjection, type GovernanceUiState } from '../governanceSignals';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
 
-type DetailArtifactType = 'instructions' | 'prompts' | 'agents' | 'skills' | 'hooks' | 'other';
+type DetailArtifactType =
+    | 'instructions'
+    | 'prompts'
+    | 'commands'
+    | 'agents'
+    | 'skills'
+    | 'hooks'
+    | 'other';
 
 const DETAIL_ARTIFACT_ORDER: DetailArtifactType[] = [
     'instructions',
     'prompts',
+    'commands',
     'agents',
     'skills',
     'hooks',

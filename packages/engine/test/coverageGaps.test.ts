@@ -635,6 +635,15 @@ describe('Engine gaps: settingsInjector plugin roots', () => {
         const roots = computePluginRootPaths([file]);
         assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
     });
+
+    it('computePluginRootPaths discovers a command-only plugin artifact', () => {
+        const file = pluginFile(
+            '.github/commands/review-metadata.md',
+            path.join(workspaceRoot, 'repo', 'cap', '.github', 'commands', 'review-metadata.md'),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
     it('computePluginRootPaths ignores non-plugin files', () => {
         const settingsFile: EffectiveFile = {
             relativePath: '.github/instructions/x.md',

@@ -39,6 +39,9 @@ const BASE64_TOKEN_PATTERN = /(?:^|[^A-Za-z0-9+/=])([A-Za-z0-9+/]{16,}={0,2})(?=
 const TARGETABLE_PATH_SEGMENTS = [
     '.github/instructions/',
     '.github/prompts/',
+    '.github/commands/',
+    '.claude/commands/',
+    '.codex/commands/',
     '.github/agents/',
     '.github/skills/',
     '.github/hooks/',
