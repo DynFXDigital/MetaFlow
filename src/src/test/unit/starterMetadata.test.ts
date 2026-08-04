@@ -133,11 +133,19 @@ suite('metaFlowAiMetadata', () => {
         }
     });
 
-    test('flattens nested bundled capability .github assets when scaffolding into a workspace', async () => {
+    test('projects only root metadata when scaffolding into a workspace', async () => {
         const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-starter-nested-cap-'));
         const workspaceRoot = path.join(tempRoot, 'workspace');
         const extensionPath = path.join(tempRoot, 'extension');
 
+        const rootInstruction = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            '.github',
+            'instructions',
+            'root.instructions.md',
+        );
         const nestedInstruction = path.join(
             extensionPath,
             'assets',
@@ -158,41 +166,61 @@ suite('metaFlowAiMetadata', () => {
             'github-copilot-metadata-authoring',
             'CAPABILITY.md',
         );
+        const nestedPlugin = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            'capabilities',
+            'metadata-authoring',
+            'github-copilot-metadata-authoring',
+            'plugin.json',
+        );
+        const nestedCodexConfig = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            'capabilities',
+            'metadata-authoring',
+            'github-copilot-metadata-authoring',
+            '.codex',
+            'config.toml',
+        );
 
+        fs.mkdirSync(path.dirname(rootInstruction), { recursive: true });
         fs.mkdirSync(path.dirname(nestedInstruction), { recursive: true });
+        fs.mkdirSync(path.dirname(nestedCodexConfig), { recursive: true });
+        fs.writeFileSync(rootInstruction, '# root metadata\n', 'utf-8');
         fs.writeFileSync(nestedInstruction, '# nested authoring\n', 'utf-8');
         fs.writeFileSync(nestedManifest, '# nested capability\n', 'utf-8');
+        fs.writeFileSync(nestedPlugin, '{"name":"nested"}\n', 'utf-8');
+        fs.writeFileSync(nestedCodexConfig, 'model = "nested"\n', 'utf-8');
         fs.mkdirSync(workspaceRoot, { recursive: true });
 
         try {
             const result = await scaffoldMetaFlowAiMetadata({ workspaceRoot, extensionPath });
-            assert.ok(result, 'Expected scaffold result for nested capability assets');
-            assert.deepStrictEqual(result?.writtenFiles, [
-                '.github/instructions/ai-metadata-agent.instructions.md',
-            ]);
+            assert.ok(result, 'Expected scaffold result for bundled metadata assets');
+            assert.deepStrictEqual(result?.writtenFiles, ['.github/instructions/root.instructions.md']);
             assert.strictEqual(
                 fs.readFileSync(
+                    path.join(workspaceRoot, '.github', 'instructions', 'root.instructions.md'),
+                    'utf-8',
+                ),
+                '# root metadata\n',
+            );
+            assert.ok(
+                !fs.existsSync(
                     path.join(
                         workspaceRoot,
                         '.github',
                         'instructions',
                         'ai-metadata-agent.instructions.md',
                     ),
-                    'utf-8',
                 ),
-                '# nested authoring\n',
+                'Workspace scaffolding should not materialize nested bundled capability assets.',
             );
             assert.ok(
-                !fs.existsSync(
-                    path.join(
-                        workspaceRoot,
-                        'capabilities',
-                        'metadata-authoring',
-                        'github-copilot-metadata-authoring',
-                        'CAPABILITY.md',
-                    ),
-                ),
-                'Workspace scaffolding should not materialize nested bundled capability manifests.',
+                !fs.existsSync(path.join(workspaceRoot, 'capabilities')),
+                'Workspace scaffolding should not materialize the nested capability tree.',
             );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -218,9 +246,22 @@ suite('metaFlowAiMetadata', () => {
             'metaflow-ai-metadata',
             'CAPABILITY.md',
         );
+        const nestedSourceInstruction = path.join(
+            extensionPath,
+            'assets',
+            'metaflow-ai-metadata',
+            'capabilities',
+            'metadata-authoring',
+            'github-copilot-metadata-authoring',
+            '.github',
+            'instructions',
+            'nested.instructions.md',
+        );
         fs.mkdirSync(path.dirname(sourceInstruction), { recursive: true });
+        fs.mkdirSync(path.dirname(nestedSourceInstruction), { recursive: true });
         fs.writeFileSync(sourceInstruction, '# starter\n', 'utf-8');
         fs.writeFileSync(sourceManifest, '# capability\n', 'utf-8');
+        fs.writeFileSync(nestedSourceInstruction, '# nested\n', 'utf-8');
 
         try {
             const cached = await ensureMetaFlowAiMetadataCache({
@@ -246,8 +287,18 @@ suite('metaFlowAiMetadata', () => {
                 'starter.instructions.md',
             );
             const targetManifest = path.join(cached!.targetRoot, 'CAPABILITY.md');
+            const targetNestedInstruction = path.join(
+                cached!.targetRoot,
+                'capabilities',
+                'metadata-authoring',
+                'github-copilot-metadata-authoring',
+                '.github',
+                'instructions',
+                'nested.instructions.md',
+            );
             assert.strictEqual(fs.readFileSync(targetInstruction, 'utf-8'), '# starter\n');
             assert.strictEqual(fs.readFileSync(targetManifest, 'utf-8'), '# capability\n');
+            assert.strictEqual(fs.readFileSync(targetNestedInstruction, 'utf-8'), '# nested\n');
 
             const unchanged = await ensureMetaFlowAiMetadataCache({
                 storageRoot,

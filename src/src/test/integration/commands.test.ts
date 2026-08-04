@@ -6022,6 +6022,8 @@ suite('Command Execution', function () {
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        await resetBuiltInCapabilityState();
+
         const authoredConfig = JSON.parse(originalConfig) as {
             metadataRepos?: Array<Record<string, unknown>>;
             layerSources?: Array<Record<string, unknown>>;
@@ -6065,7 +6067,6 @@ suite('Command Execution', function () {
         };
 
         try {
-            await resetBuiltInCapabilityState();
             await vscode.commands.executeCommand('metaflow.refresh', {
                 skipConfigMaintenance: true,
             });

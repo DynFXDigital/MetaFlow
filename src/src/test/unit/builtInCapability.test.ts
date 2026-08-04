@@ -6,6 +6,7 @@ import {
     BUILT_IN_CAPABILITY_REPO_ID,
     BUILT_IN_CAPABILITY_STATE_KEY,
     formatBuiltInCapabilityRepoLabel,
+    getObsoleteSynchronizedFiles,
     isBuiltInCapabilityActive,
     isBuiltInCapabilityEnabled,
     readBuiltInCapabilityRuntimeState,
@@ -69,6 +70,20 @@ suite('builtInCapability', () => {
             '.github/instructions/a.md',
             '.github/prompts/p.prompt.md',
         ]);
+    });
+
+    test('getObsoleteSynchronizedFiles identifies legacy files removed from the projection', () => {
+        assert.deepStrictEqual(
+            getObsoleteSynchronizedFiles(
+                [
+                    '.github/instructions/root.instructions.md',
+                    '.github/instructions/nested.instructions.md',
+                    'README.md',
+                ],
+                ['.github/instructions/root.instructions.md'],
+            ),
+            ['.github/instructions/nested.instructions.md'],
+        );
     });
 
     test('readBuiltInCapabilityRuntimeState disables built-in mode when assets are unavailable', () => {

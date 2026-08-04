@@ -126,6 +126,7 @@ import {
     BuiltInCapabilityWorkspaceState,
     isBuiltInCapabilityActive,
     isBuiltInCapabilityEnabled,
+    getObsoleteSynchronizedFiles,
     normalizeBuiltInLayerPath,
     removeBuiltInCapabilityFromConfig,
     readBuiltInCapabilityRuntimeState,
@@ -2987,6 +2988,14 @@ async function syncTrackedSynchronizedBuiltInCapabilityFiles(
 
     if (!synchronized) {
         return currentState;
+    }
+
+    const obsoleteFiles = getObsoleteSynchronizedFiles(
+        currentState.synchronizedFiles,
+        synchronized.writtenFiles,
+    );
+    if (obsoleteFiles.length > 0) {
+        await removeSynchronizedCapabilityFiles(workspaceRoot, obsoleteFiles);
     }
 
     return writeBuiltInCapabilityWorkspaceState(context, currentState, {

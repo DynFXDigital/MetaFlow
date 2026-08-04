@@ -236,6 +236,14 @@ export function sanitizeSynchronizedFiles(values: string[] | undefined): string[
     return Array.from(unique.values()).sort();
 }
 
+export function getObsoleteSynchronizedFiles(
+    previousFiles: string[] | undefined,
+    nextFiles: string[] | undefined,
+): string[] {
+    const next = new Set(sanitizeSynchronizedFiles(nextFiles));
+    return sanitizeSynchronizedFiles(previousFiles).filter((file) => !next.has(file));
+}
+
 export function sanitizeBuiltInLayerStates(
     values: Record<string, boolean> | undefined,
 ): Record<string, boolean> {

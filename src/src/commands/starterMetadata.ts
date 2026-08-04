@@ -41,7 +41,7 @@ export async function scaffoldMetaFlowAiMetadata(options: {
         sourceRoot,
         destinationRoot: options.workspaceRoot,
         includeRootCapabilityManifest: false,
-        flattenNestedCapabilities: true,
+        rootOnlyWorkspaceProjection: true,
         overwriteExisting: options.overwriteExisting,
         copyFile: options.copyFile,
     });
@@ -205,7 +205,7 @@ async function copyBundledMetaFlowAiMetadata(options: {
     sourceRoot: string;
     destinationRoot: string;
     includeRootCapabilityManifest?: boolean;
-    flattenNestedCapabilities?: boolean;
+    rootOnlyWorkspaceProjection?: boolean;
     overwriteExisting?: boolean;
     copyFile?: (sourceFile: string, destinationFile: string) => Promise<void>;
 }): Promise<ScaffoldMetaFlowAiMetadataResult> {
@@ -224,7 +224,7 @@ async function copyBundledMetaFlowAiMetadata(options: {
         const relative = path.relative(options.sourceRoot, sourceFile).replace(/\\/g, '/');
         const destinationRelative = resolveDestinationRelativePath(
             relative,
-            options.flattenNestedCapabilities === true,
+            options.rootOnlyWorkspaceProjection === true,
         );
         if (!destinationRelative) {
             continue;
@@ -279,20 +279,13 @@ function isRootCapabilityManifest(sourceRoot: string, sourceFile: string): boole
 
 function resolveDestinationRelativePath(
     sourceRelativePath: string,
-    flattenNestedCapabilities: boolean,
+    rootOnlyWorkspaceProjection: boolean,
 ): string | undefined {
-    if (!flattenNestedCapabilities) {
+    if (!rootOnlyWorkspaceProjection) {
         return sourceRelativePath;
     }
 
-    const nestedGithubMatch = sourceRelativePath.match(
-        /^capabilities\/(?:[^/]+\/)+(\.github\/.+)$/,
-    );
-    if (nestedGithubMatch) {
-        return nestedGithubMatch[1];
-    }
-
-    if (/^capabilities\/(?:[^/]+\/)+CAPABILITY\.md$/i.test(sourceRelativePath)) {
+    if (/^capabilities\//i.test(sourceRelativePath)) {
         return undefined;
     }
 
