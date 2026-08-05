@@ -1,5 +1,15 @@
 # @metaflow/engine
 
+## 0.4.2
+
+### Added
+
+- Recognize plugin commands as a first-class artifact type, including provider command paths.
+
+### Fixed
+
+- Preserve nested capability paths during artifact discovery and summary generation.
+
 ## 0.4.1
 
 ### Fixed

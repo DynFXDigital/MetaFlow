@@ -2,7 +2,7 @@
   "name": "metaflow-ai",
   "displayName": "MetaFlow: AI Metadata Overlay",
   "description": "Layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "dynfxdigital",
   "license": "MIT",
   "repository": {
@@ -325,23 +325,23 @@
         "title": "Synchronize"
       },
       {
-          "command": "metaflow.synchronization.prompts.inherit",
-          "title": "Inherit"
-        },
-        {
-          "command": "metaflow.synchronization.commands.plugin",
-          "title": "Plugin"
-        },
-        {
-          "command": "metaflow.synchronization.commands.synchronize",
-          "title": "Synchronize"
-        },
-        {
-          "command": "metaflow.synchronization.commands.inherit",
-          "title": "Inherit"
-        },
-        {
-          "command": "metaflow.synchronization.skills.settings",
+        "command": "metaflow.synchronization.prompts.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.commands.plugin",
+        "title": "Plugin"
+      },
+      {
+        "command": "metaflow.synchronization.commands.synchronize",
+        "title": "Synchronize"
+      },
+      {
+        "command": "metaflow.synchronization.commands.inherit",
+        "title": "Inherit"
+      },
+      {
+        "command": "metaflow.synchronization.skills.settings",
         "title": "Settings"
       },
       {

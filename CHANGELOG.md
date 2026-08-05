@@ -4,6 +4,19 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.2
+
+### Highlights
+
+- Added first-class plugin command support, including command classification and a bundled metadata review command.
+- Exposed built-in MetaFlow capabilities through native VS Code contribution points, including the MetaFlow chat participant and independently toggleable authoring capabilities.
+
+### Fixed
+
+- Kept built-in metadata out of workspace settings and plugin-location configuration when native contributions are active.
+- Corrected capability tree grouping so nested capability metadata does not appear beneath root instruction or other artifact nodes.
+- Prevented workspace synchronization from flattening nested capability assets and cleaned up legacy flattened files during resynchronization.
+
 ## 0.4.1
 
 ### Documentation

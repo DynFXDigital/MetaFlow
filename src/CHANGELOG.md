@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.2
+
+### Added
+
+- Native VS Code contribution support for the built-in MetaFlow capability, including the MetaFlow chat participant and independent capability toggles.
+- First-class plugin command support for built-in metadata authoring.
+
+### Fixed
+
+- Keep nested built-in capabilities out of root artifact rows and avoid flattening their workspace metadata.
+- Remove legacy flattened synchronized files when the built-in workspace projection is refreshed.
+
 ## 0.4.1
 
 ### Fixed
