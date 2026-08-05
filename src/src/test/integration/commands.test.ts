@@ -6065,14 +6065,16 @@ suite('Command Execution', function () {
         };
 
         try {
-            await vscode.commands.executeCommand('metaflow.initMetaFlowAiMetadata');
-            await vscode.commands.executeCommand('metaflow.refresh');
+            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                skipConfigMaintenance: true,
+            });
 
-            const afterInitConfig = fs.readFileSync(configPath, 'utf-8');
+            const beforeRemoveConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
-                afterInitConfig,
+                beforeRemoveConfig,
                 legacyConfig,
-                'Built-in mode should not mutate .metaflow/config.jsonc',
+                'Loading legacy built-in config without maintenance should preserve it for explicit removal',
             );
 
             await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');

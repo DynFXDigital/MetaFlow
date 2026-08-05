@@ -546,7 +546,7 @@ suite('Governance command enforcement', () => {
         }
     });
 
-    test('blocks built-in repo toggles under error governance without persisting workspace-state writes', async function () {
+    test('blocks built-in repo toggles under error governance without injecting legacy settings paths', async function () {
         this.timeout(GOVERNANCE_TEST_TIMEOUT_MS);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -609,7 +609,7 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(
-                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                () => !getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
                 undefined,
                 100,
                 () => getBuiltInInstructionState(wsConfig),
@@ -622,7 +622,7 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(
-                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                () => !getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
                 undefined,
                 100,
                 () => getBuiltInInstructionState(wsConfig),
@@ -671,7 +671,7 @@ suite('Governance command enforcement', () => {
         }
     });
 
-    test('blocks built-in layer toggles under error governance without persisting workspace-state writes', async function () {
+    test('blocks built-in layer toggles under error governance without injecting legacy settings paths', async function () {
         this.timeout(GOVERNANCE_TEST_TIMEOUT_MS);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -734,7 +734,7 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(
-                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                () => !getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
                 undefined,
                 100,
                 () => getBuiltInInstructionState(wsConfig),
@@ -748,7 +748,7 @@ suite('Governance command enforcement', () => {
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
             await waitFor(
-                () => getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
+                () => !getBuiltInInstructionState(wsConfig).hasBuiltInInstructionPath,
                 undefined,
                 100,
                 () => getBuiltInInstructionState(wsConfig),
