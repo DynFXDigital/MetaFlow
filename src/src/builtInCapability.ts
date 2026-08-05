@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import type { InjectionConfig, InjectionMode } from '@metaflow/engine';
+import type { InjectionConfig, InjectionMode, MetaFlowConfig } from '@metaflow/engine';
 
 export const BUILT_IN_CAPABILITY_STATE_KEY = 'metaflow.builtInCapability.v1';
 export const BUILT_IN_CAPABILITY_REPO_ID = '__metaflow_builtin__';
@@ -94,17 +94,26 @@ export function resolveBuiltInLayerEnabled(
 ): boolean {
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
     const layerState = state.layerStates?.[normalizedLayerPath];
-    return typeof layerState === 'boolean' ? layerState : state.layerEnabled;
+    if (typeof layerState === 'boolean') {
+        return layerState;
+    }
+
+    // The root MetaFlow capability is its own switch. Nested capabilities are
+    // enabled by default and only change when they have an explicit override;
+    // they must not inherit the root capability's disabled state.
+    return normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
+        ? state.layerEnabled
+        : true;
 }
 
 export function resolveBuiltInRepoEnabled(
-    state: Pick<BuiltInCapabilityRuntimeState, 'layerEnabled' | 'layerStates'>,
+    state: Pick<BuiltInCapabilityRuntimeState, 'enabled'>,
 ): boolean {
-    if (state.layerEnabled) {
-        return true;
-    }
-
-    return Object.values(state.layerStates ?? {}).some((value) => value === true);
+    // The repository checkbox controls whether the extension-owned source is
+    // available at all. It must not become unchecked merely because the
+    // MetaFlow capability layer is disabled; nested capabilities remain
+    // independently selectable in that state.
+    return state.enabled;
 }
 
 function normalizeBuiltInSourceId(extensionId: string | undefined): string {
@@ -159,6 +168,55 @@ export function isBuiltInCapabilityActive(state: BuiltInCapabilityActivationStat
 
 export function isBuiltInCapabilityEnabled(state: BuiltInCapabilityActivationState): boolean {
     return state.enabled;
+}
+
+/** Remove legacy authored references to the built-in capability. */
+export function removeBuiltInCapabilityFromConfig(config: MetaFlowConfig): boolean {
+    let changed = false;
+
+    if (config.metadataRepos) {
+        const nextRepos = config.metadataRepos.filter(
+            (repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID,
+        );
+        if (nextRepos.length !== config.metadataRepos.length) {
+            config.metadataRepos = nextRepos;
+            changed = true;
+        }
+    }
+
+    if (config.layerSources) {
+        const nextLayerSources = config.layerSources.filter(
+            (source) => source.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+        );
+        if (nextLayerSources.length !== config.layerSources.length) {
+            config.layerSources = nextLayerSources;
+            changed = true;
+        }
+    }
+
+    for (const profile of Object.values(config.profiles ?? {})) {
+        if (profile.enabledCapabilities) {
+            const nextReferences = profile.enabledCapabilities.filter(
+                (reference) => !reference.startsWith(`${BUILT_IN_CAPABILITY_REPO_ID}:`),
+            );
+            if (nextReferences.length !== profile.enabledCapabilities.length) {
+                profile.enabledCapabilities = nextReferences;
+                changed = true;
+            }
+        }
+
+        if (profile.layerOverrides) {
+            const nextOverrides = profile.layerOverrides.filter(
+                (override) => override.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+            );
+            if (nextOverrides.length !== profile.layerOverrides.length) {
+                profile.layerOverrides = nextOverrides;
+                changed = true;
+            }
+        }
+    }
+
+    return changed;
 }
 
 export function sanitizeSynchronizedFiles(values: string[] | undefined): string[] {

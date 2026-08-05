@@ -234,6 +234,7 @@ function makeState(
         enabled: boolean;
         layerEnabled: boolean;
         disabledByUser?: boolean;
+        layerStates?: Record<string, boolean>;
         synchronizedFiles: string[];
         sourceRoot?: string;
         sourceId: string;
@@ -780,7 +781,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(children.length, 0, 'should have no artifact-type children');
     });
 
-    test('LTV-AT-10: built-in layer appears with repo id and checkbox in tree mode', () => {
+    test('LTV-AT-10: built-in MetaFlow capability appears with repo id and checkbox in tree mode', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = makeMultiRepoConfig();
         const provider = new LayersTreeViewProvider(
@@ -827,7 +828,7 @@ suite('LayersTreeView – artifact-type children', () => {
 
         const builtInLayer = provider.getChildren(builtInRepo)[0];
         assert.strictEqual(builtInLayer.repoId, '__metaflow_builtin__');
-        assert.strictEqual(String(builtInLayer.label), 'root');
+        assert.strictEqual(String(builtInLayer.label), 'MetaFlow');
         assert.strictEqual(String(builtInLayer.description), '(0/0)');
         assert.ok(!String(builtInLayer.description).includes('__metaflow_builtin__'));
         assert.strictEqual(builtInLayer.contextValue, 'layer');
@@ -971,6 +972,68 @@ suite('LayersTreeView – artifact-type children', () => {
             'Codex Metadata Authoring',
             'GitHub Copilot Metadata Authoring',
         ]);
+    });
+
+    test('LTV-AT-10d: nested authoring capabilities remain checked when MetaFlow is unchecked', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const githubAuthoringPath =
+            'capabilities/metadata-authoring/github-copilot-metadata-authoring';
+        const bundledSourceRoot = path.resolve(
+            __dirname,
+            '../../../assets/metaflow-ai-metadata',
+        );
+        const provider = new LayersTreeViewProvider(
+            makeState(
+                { metadataRepos: [], layerSources: [] },
+                [],
+                {
+                    '__metaflow_builtin__/.': { name: 'MetaFlow' },
+                    [`__metaflow_builtin__/${githubAuthoringPath}`]: {
+                        name: 'GitHub Copilot Metadata Authoring',
+                    },
+                },
+                {
+                    enabled: true,
+                    layerEnabled: false,
+                    layerStates: {},
+                    synchronizedFiles: [],
+                    sourceRoot: bundledSourceRoot,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            ),
+            () => 'tree',
+        );
+
+        const builtInRepo = provider
+            .getChildren()
+            .find((item) => item.repoId === '__metaflow_builtin__');
+        assert.ok(builtInRepo, 'expected built-in repository node');
+        const metadataAuthoringFolder = provider
+            .getChildren(builtInRepo as never)
+            .find((item) => String(item.label) === 'metadata-authoring');
+        assert.ok(metadataAuthoringFolder, 'expected metadata-authoring folder');
+        const githubCapability = provider
+            .getChildren(metadataAuthoringFolder as never)
+            .find((item) => String(item.label) === 'GitHub Copilot Metadata Authoring');
+        assert.ok(githubCapability, 'expected GitHub authoring capability');
+        assert.strictEqual(githubCapability?.checkboxState, 1);
+
+        provider.setPendingCapabilityCheckboxState({
+            kind: 'layer',
+            repoId: '__metaflow_builtin__',
+            layerPath: githubAuthoringPath,
+            checked: false,
+        });
+
+        const refreshedGithubCapability = provider
+            .getChildren(metadataAuthoringFolder as never)
+            .find((item) => String(item.label) === 'GitHub Copilot Metadata Authoring');
+        assert.strictEqual(
+            refreshedGithubCapability?.checkboxState,
+            0,
+            'pending nested disable should remain independent of the disabled MetaFlow root capability',
+        );
     });
 
     test('LTV-AT-10: only types with files are shown (partial coverage)', () => {

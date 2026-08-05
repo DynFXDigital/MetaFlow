@@ -28,10 +28,137 @@
     "theme": "dark"
   },
   "activationEvents": [
-    "workspaceContains:**/.metaflow/config.jsonc"
+    "workspaceContains:**/.metaflow/config.jsonc",
+    "onChatParticipant:dynfxdigital.metaflow-ai.metaflow"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "dynfxdigital.metaflow-ai.metaflow",
+        "name": "metaflow",
+        "fullName": "MetaFlow",
+        "description": "Inspect, review, and author layered MetaFlow AI metadata capabilities.",
+        "commands": [
+          {
+            "name": "review",
+            "description": "Review a capability and its metadata boundaries"
+          },
+          {
+            "name": "author",
+            "description": "Author or improve MetaFlow capability metadata"
+          },
+          {
+            "name": "diagnose",
+            "description": "Inspect MetaFlow diagnostics and registration state"
+          }
+        ]
+      }
+    ],
+    "chatAgents": [
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/agents/metaflow-metadata-steward.agent.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/agents/github-copilot-metadata-authoring-steward.agent.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/agents/claude-code-metadata-authoring-steward.agent.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.claudeCodeMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/agents/codex-metadata-authoring-steward.agent.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.codexMetadataAuthoring"
+      }
+    ],
+    "chatInstructions": [
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/metaflow-capability-contract.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/metaflow-constructs.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/metaflow-prompt-injection-defense.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/metaflow-repo-manifest.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-agent.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-agents.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-agent-skills.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-prompts.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-hooks.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/instructions/ai-metadata-plugins.instructions.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      }
+    ],
+    "chatPromptFiles": [
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/prompts/metaflow-reconcile-ai-metadata.prompt.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/prompts/metaflow-review-layer.prompt.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/prompts/review-metadata-authoring-capability.prompt.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/prompts/create-repo-manifest.prompt.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/prompts/create-agents-md.prompt.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      }
+    ],
+    "chatSkills": [
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/skills/ai-metadata/SKILL.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.githubCopilotMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/skills/claude-code-metadata/SKILL.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.claudeCodeMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/skills/codex-metadata/SKILL.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.codexMetadataAuthoring"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/skills/metaflow-capability-review/SKILL.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      },
+      {
+        "path": "./assets/metaflow-ai-metadata/.github/skills/metaflow-linked-metadata-reconciliation/SKILL.md",
+        "when": "metaflow.builtIn.enabled && metaflow.builtIn.layers.metaflow"
+      }
+    ],
     "commands": [
       {
         "command": "metaflow.refresh",

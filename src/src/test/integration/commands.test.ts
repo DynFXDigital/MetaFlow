@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
+import { BUILT_IN_CAPABILITY_REPO_ID } from '../../builtInCapability';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 const COMPLEX_COMMAND_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
@@ -6016,11 +6017,37 @@ suite('Command Execution', function () {
         }
     });
 
-    test('initMetaFlowAiMetadata built-in mode leaves config unchanged and remove disables built-in mode', async function () {
+    test('removeMetaFlowCapability cleans legacy built-in config references', async function () {
         this.timeout(20000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const authoredConfig = JSON.parse(originalConfig) as {
+            metadataRepos?: Array<Record<string, unknown>>;
+            layerSources?: Array<Record<string, unknown>>;
+            profiles?: Record<string, { enabledCapabilities?: string[]; layerOverrides?: Array<Record<string, unknown>> }>;
+        };
+        authoredConfig.metadataRepos = [
+            ...(authoredConfig.metadataRepos ?? []),
+            { id: BUILT_IN_CAPABILITY_REPO_ID, localPath: 'bundled-metadata' },
+        ];
+        authoredConfig.layerSources = [
+            ...(authoredConfig.layerSources ?? []),
+            { repoId: BUILT_IN_CAPABILITY_REPO_ID, path: '.' },
+        ];
+        const defaultProfile = authoredConfig.profiles?.default;
+        if (defaultProfile) {
+            defaultProfile.enabledCapabilities = [
+                ...(defaultProfile.enabledCapabilities ?? []),
+                `${BUILT_IN_CAPABILITY_REPO_ID}:.`,
+            ];
+            defaultProfile.layerOverrides = [
+                ...(defaultProfile.layerOverrides ?? []),
+                { repoId: BUILT_IN_CAPABILITY_REPO_ID, path: '.', enabled: true },
+            ];
+        }
+        fs.writeFileSync(configPath, JSON.stringify(authoredConfig, null, 2), 'utf-8');
+        const legacyConfig = fs.readFileSync(configPath, 'utf-8');
 
         const windowAny = vscode.window as unknown as {
             showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
@@ -6044,18 +6071,33 @@ suite('Command Execution', function () {
             const afterInitConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
                 afterInitConfig,
-                originalConfig,
+                legacyConfig,
                 'Built-in mode should not mutate .metaflow/config.jsonc',
             );
 
             await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const afterRemoveConfig = fs.readFileSync(configPath, 'utf-8');
-            assert.strictEqual(
-                afterRemoveConfig,
-                originalConfig,
-                'Removing built-in mode should not mutate .metaflow/config.jsonc',
+            const afterRemoveConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as typeof authoredConfig;
+            assert.ok(
+                !afterRemoveConfig.metadataRepos?.some(
+                    (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,
+                ),
+                'Removing built-in mode should remove its legacy metadataRepos entry',
+            );
+            assert.ok(
+                !afterRemoveConfig.layerSources?.some(
+                    (source) => source.repoId === BUILT_IN_CAPABILITY_REPO_ID,
+                ),
+                'Removing built-in mode should remove its legacy layerSources entries',
+            );
+            assert.ok(
+                !Object.values(afterRemoveConfig.profiles ?? {}).some((profile) =>
+                    profile.enabledCapabilities?.some((reference) =>
+                        reference.startsWith(`${BUILT_IN_CAPABILITY_REPO_ID}:`),
+                    ),
+                ),
+                'Removing built-in mode should remove its profile references',
             );
         } finally {
             windowAny.showWarningMessage = originalWarning;
@@ -6250,7 +6292,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0337: aiMetadataAutoApplyMode=builtinLayer enables built-in capability projection without mutating config', async function () {
+    test('TC-0337: aiMetadataAutoApplyMode=builtinLayer uses native contributions without mutating config', async function () {
         this.timeout(25000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6289,8 +6331,8 @@ suite('Command Execution', function () {
             const instructionSettings = getBuiltInInstructionSettingsPresence(wsConfig);
             assert.strictEqual(
                 instructionSettings.hasBuiltIn,
-                true,
-                'builtinLayer mode should inject built-in capability instruction paths',
+                false,
+                'builtinLayer mode should keep built-in contribution paths out of settings',
             );
             assert.strictEqual(
                 instructionSettings.hasExtensionInstall,
@@ -6321,7 +6363,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0318: toggleRepoSource persists built-in MetaFlow repo selection', async function () {
+    test('TC-0318: toggleRepoSource keeps built-in selection in extension state', async function () {
         this.timeout(25000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6356,48 +6398,29 @@ suite('Command Execution', function () {
                 wsFolder!,
             );
             await vscode.commands.executeCommand('metaflow.refresh');
-            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            }, 20000);
-
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
                 checked: false,
             });
-            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return !hasBuiltInInstructionPath(instructionLocations);
-            }, 20000);
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
                 checked: true,
             });
-            await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const instructionLocations = getInjectedLocationValue(
-                    wsConfig.inspect<Record<string, boolean>>('chat.instructionsFilesLocations'),
-                );
-                return hasBuiltInInstructionPath(instructionLocations);
-            }, 20000);
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
-            assert.notStrictEqual(
+            assert.strictEqual(
                 afterToggleConfig,
                 originalConfig,
-                'Built-in repo toggling should persist the selected built-in source state',
+                'Built-in repo toggling should not persist extension-owned state in .metaflow/config.jsonc',
             );
-            assert.match(afterToggleConfig, /__metaflow_builtin__/);
+            const persistedConfig = JSON.parse(afterToggleConfig) as {
+                metadataRepos?: Array<{ id: string; localPath: string }>;
+            };
+            const persistedBuiltInRepo = persistedConfig.metadataRepos?.find(
+                (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,
+            );
+            assert.strictEqual(persistedBuiltInRepo, undefined);
         } finally {
             await wsConfig.update(
                 'metaflow.aiMetadataAutoApplyMode',
@@ -6416,7 +6439,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0339: built-in remove/re-add preserves deterministic managed settings ordering', async function () {
+    test('TC-0339: built-in remove/re-add leaves user settings stable', async function () {
         this.timeout(30000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6469,19 +6492,13 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 20000);
-
             const firstEnabledSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
             );
-            assert.ok(
+            assert.strictEqual(
                 snapshotHasBuiltInInstructions(firstEnabledSnapshot),
-                'First built-in enable cycle should inject managed instruction settings',
+                false,
+                'First built-in enable cycle should keep native contribution paths out of settings',
             );
 
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
@@ -6490,25 +6507,11 @@ suite('Command Execution', function () {
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return !snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
-
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
                 checked: true,
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 20000);
 
             const secondEnabledSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
@@ -6516,16 +6519,15 @@ suite('Command Execution', function () {
             assert.deepStrictEqual(
                 secondEnabledSnapshot,
                 firstEnabledSnapshot,
-                'Built-in remove/re-add should restore the same deterministic instruction settings payload',
+                'Built-in remove/re-add should preserve the same user settings payload',
             );
 
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
-            assert.notStrictEqual(
+            assert.strictEqual(
                 afterToggleConfig,
                 originalConfig,
-                'Built-in remove/re-add should preserve the persisted built-in source state',
+                'Built-in remove/re-add should keep extension-owned state out of .metaflow/config.jsonc',
             );
-            assert.match(afterToggleConfig, /__metaflow_builtin__/);
         } finally {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
@@ -6547,7 +6549,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0340: repeated equivalent built-in operations are byte-stable', async function () {
+    test('TC-0340: repeated equivalent built-in operations are config-byte-stable', async function () {
         this.timeout(30000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6599,13 +6601,6 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
-
             const firstSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
             );
@@ -6613,13 +6608,6 @@ suite('Command Execution', function () {
 
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
 
             const secondSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
@@ -6629,7 +6617,7 @@ suite('Command Execution', function () {
             assert.deepStrictEqual(
                 secondSnapshot,
                 firstSnapshot,
-                'Equivalent builtinLayer refresh/apply cycles should preserve the same serialized managed settings payload',
+                'Equivalent builtinLayer refresh/apply cycles should preserve the same user settings payload',
             );
             assert.strictEqual(
                 secondConfig,
@@ -6657,7 +6645,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0341: unmanaged user settings entries survive managed ordering rewrites', async function () {
+    test('TC-0341: unmanaged user settings entries survive built-in toggles', async function () {
         this.timeout(30000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6714,38 +6702,17 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.refresh');
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
-
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
                 checked: false,
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
 
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return !snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
-
             await vscode.commands.executeCommand('metaflow.toggleRepoSource', {
                 repoId: '__metaflow_builtin__',
                 checked: true,
             });
             await vscode.commands.executeCommand('metaflow.apply', { skipRefresh: true });
-
-            await waitFor(() => {
-                const snapshot = getInstructionSettingsSnapshot(
-                    vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
-                );
-                return snapshotHasBuiltInInstructions(snapshot);
-            }, 10000);
 
             const finalSnapshot = getInstructionSettingsSnapshot(
                 vscode.workspace.getConfiguration(undefined, wsFolder!.uri),
@@ -6759,7 +6726,7 @@ suite('Command Execution', function () {
             assert.deepStrictEqual(
                 preservedBaselineInstructionLocations,
                 baselineUnmanagedInstructionLocations,
-                'Unmanaged instruction location entries should survive built-in managed rewrites in their original relative order',
+                'Unmanaged instruction location entries should survive built-in toggles in their original relative order',
             );
         } finally {
             await updateConfigAndWait(

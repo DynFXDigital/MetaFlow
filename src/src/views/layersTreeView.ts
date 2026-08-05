@@ -18,6 +18,7 @@ import {
 import { ExtensionState } from '../commands/commandHandlers';
 import {
     BUILT_IN_CAPABILITY_LAYER_PATH,
+    BUILT_IN_CAPABILITY_LAYER_LABEL,
     BUILT_IN_CAPABILITY_REPO_ID,
     isBuiltInCapabilityActive,
     normalizeBuiltInLayerPath,
@@ -2064,7 +2065,15 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             );
 
         if (!prefix && rootEntry) {
-            const rootLabel = entries[0]?.repoId ? 'root' : rootEntry.label;
+            // A repository's `.` layer is still a concrete capability. Do not
+            // replace its authored/built-in capability name with the internal
+            // storage term "root".
+            const rootLabel =
+                rootEntry.repoId === BUILT_IN_CAPABILITY_REPO_ID && !rootEntry.capability?.name
+                    ? BUILT_IN_CAPABILITY_LAYER_LABEL
+                    : entries[0]?.repoId
+                      ? 'root'
+                      : rootEntry.label;
             const rootHasDescendantLayers = entries.some((entry) => entry.normalizedPath !== '');
             const rootHasArtifactChildren =
                 mode === 'tree' &&

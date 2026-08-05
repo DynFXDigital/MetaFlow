@@ -61,6 +61,45 @@ function loadCommandHandlers(
 }
 
 suite('Command handler capability plugin maintenance helpers', () => {
+    test('filterSettingsEligibleEffectiveFiles keeps built-in native contributions out of settings', () => {
+        const { filterSettingsEligibleEffectiveFiles } = loadCommandHandlers();
+        const effectiveFiles = [
+            {
+                sourceRepo: '__metaflow_builtin__',
+                sourcePath: 'C:/extension/assets/metaflow-ai-metadata/.github/prompts/review.prompt.md',
+                relativePath: '.github/prompts/review.prompt.md',
+            },
+            {
+                sourceRepo: 'primary',
+                sourcePath: 'C:/metadata/.github/prompts/project.prompt.md',
+                relativePath: '.github/prompts/project.prompt.md',
+            },
+            {
+                sourceRepo: 'primary',
+                sourcePath: 'C:/extension/assets/metaflow-ai-metadata/.github/prompts/overlap.prompt.md',
+                relativePath: '.github/prompts/overlap.prompt.md',
+            },
+        ];
+
+        const eligible = filterSettingsEligibleEffectiveFiles(
+            effectiveFiles as never,
+            {
+                enabled: true,
+                layerEnabled: true,
+                synchronizedFiles: [],
+                sourceRoot: 'C:/extension/assets/metaflow-ai-metadata',
+                sourceId: 'dynfxdigital.metaflow-ai',
+                sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+            } as never,
+        );
+
+        assert.deepStrictEqual(
+            eligible.map((file: { sourceRepo?: string }) => file.sourceRepo),
+            ['primary'],
+            'only ordinary repository artifacts should remain settings-eligible',
+        );
+    });
+
     test('mergeCapabilityWarningMessages appends only unique non-empty warnings', () => {
         const { mergeCapabilityWarningMessages } = loadCommandHandlers();
         const warnings = ['Existing warning'];

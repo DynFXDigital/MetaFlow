@@ -127,6 +127,7 @@ import {
     isBuiltInCapabilityActive,
     isBuiltInCapabilityEnabled,
     normalizeBuiltInLayerPath,
+    removeBuiltInCapabilityFromConfig,
     readBuiltInCapabilityRuntimeState,
     resolveBuiltInCapabilityDisplayName,
     resolveBuiltInLayerEnabled,
@@ -519,7 +520,6 @@ function fileUriToFsPath(uri: string): string | undefined {
 function collectConfiguredMetadataRepoRoots(
     config: MetaFlowConfig,
     workspaceRoot: string,
-    builtInCapability: BuiltInCapabilityRuntimeState,
 ): string[] {
     const roots = new Set<string>();
 
@@ -535,26 +535,22 @@ function collectConfiguredMetadataRepoRoots(
         );
     }
 
-    if (builtInCapability.sourceRoot) {
-        roots.add(path.normalize(builtInCapability.sourceRoot));
-    }
-
     return Array.from(roots).sort((left, right) => left.localeCompare(right));
 }
 
-function filterSettingsEligibleEffectiveFiles(
+export function filterSettingsEligibleEffectiveFiles(
     effectiveFiles: EffectiveFile[],
     builtInCapability: BuiltInCapabilityRuntimeState,
 ): EffectiveFile[] {
-    if (isBuiltInCapabilityEnabled(builtInCapability)) {
-        return effectiveFiles;
-    }
-
     const builtInRoot = builtInCapability.sourceRoot
         ? path.normalize(builtInCapability.sourceRoot)
         : undefined;
 
     return effectiveFiles.filter((file) => {
+        // The built-in capability is projected through the extension manifest's
+        // native VS Code contribution points. It must not be copied into
+        // chat.* settings, even while the capability is enabled. Keep settings
+        // injection available for all ordinary metadata repositories.
         if (file.sourceRepo === BUILT_IN_CAPABILITY_REPO_ID) {
             return false;
         }
@@ -867,10 +863,7 @@ function previewBuiltInRootLayerEnabledState(
     enabled: boolean,
 ): BuiltInCapabilityRuntimeState {
     return previewBuiltInCapabilityWorkspaceState(currentState, {
-        enabled,
         layerEnabled: enabled,
-        disabledByUser: !enabled,
-        layerStates: {},
     });
 }
 
@@ -886,7 +879,11 @@ function previewBuiltInLayerEnabledState(
 
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    if (enabled === currentState.layerEnabled) {
+    const defaultEnabled =
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
+            ? currentState.layerEnabled
+            : true;
+    if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
         nextLayerStates[normalizedLayerPath] = enabled;
@@ -912,7 +909,11 @@ function previewBuiltInLayerEnabledStates(
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     for (const normalizedLayerPath of normalizedLayerPaths) {
-        if (enabled === currentState.layerEnabled) {
+        const defaultEnabled =
+            normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
+                ? currentState.layerEnabled
+                : true;
+        if (enabled === defaultEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
             nextLayerStates[normalizedLayerPath] = enabled;
@@ -995,9 +996,8 @@ function buildGovernedMutationDecision(
 
 function buildGovernanceEvaluationConfig(
     config: MetaFlowConfig,
-    builtInCapability: BuiltInCapabilityRuntimeState,
 ): MetaFlowConfig {
-    return projectConfigForProfile(withBuiltInCapabilityProjected(config, builtInCapability));
+    return projectConfigForProfile(config);
 }
 
 export function previewGovernedMutationDecision(options: {
@@ -1016,10 +1016,7 @@ export function previewGovernedMutationDecision(options: {
 
     const compliance = evaluateGovernanceCompliance(
         options.contract,
-        buildGovernanceEvaluationConfig(
-            options.candidateConfig,
-            options.candidateBuiltInCapability,
-        ),
+        buildGovernanceEvaluationConfig(options.candidateConfig),
     );
     return buildGovernedMutationDecision(options.actionLabel, options.contractPath, compliance);
 }
@@ -2671,87 +2668,6 @@ function withBuiltInCapabilityProjected(
     return projected;
 }
 
-/** Persist the bundled metadata source using the same authored config/profile model as any repo. */
-function persistBuiltInCapabilityConfig(
-    config: MetaFlowConfig,
-    builtInState: BuiltInCapabilityRuntimeState,
-): void {
-    if (!builtInState.sourceRoot) {
-        return;
-    }
-
-    const multiRepo = ensureMultiRepoConfig(config);
-    const builtInManifest = loadBuiltInRepoManifest(builtInState.sourceRoot);
-    const existingRepo = multiRepo.metadataRepos.find(
-        (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,
-    );
-    const builtInRepo = existingRepo ?? {
-        id: BUILT_IN_CAPABILITY_REPO_ID,
-        localPath: builtInState.sourceRoot,
-    };
-    builtInRepo.localPath = builtInState.sourceRoot;
-    builtInRepo.name = resolveBuiltInCapabilityDisplayName(
-        builtInManifest?.name,
-        builtInState.sourceDisplayName,
-    );
-    builtInRepo.enabled = resolveBuiltInRepoEnabled(builtInState);
-    builtInRepo.injection = builtInState.injection;
-    if (!existingRepo) {
-        multiRepo.metadataRepos.push(builtInRepo);
-    }
-
-    const builtInLayerPaths = discoverBuiltInCapabilityLayerPaths(builtInState.sourceRoot);
-    const builtInLayerKeys = new Set(
-        builtInLayerPaths.map((layerPath) => normalizeBuiltInLayerPath(layerPath)),
-    );
-    const nextLayerSources = multiRepo.layerSources.filter(
-        (source) => source.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
-    );
-    for (const layerPath of builtInLayerPaths) {
-        nextLayerSources.push({
-            repoId: BUILT_IN_CAPABILITY_REPO_ID,
-            path: layerPath,
-            enabled:
-                resolveBuiltInRepoEnabled(builtInState) &&
-                resolveBuiltInLayerEnabled(builtInState, layerPath),
-        });
-    }
-    config.layerSources = nextLayerSources;
-
-    const activeProfileId = config.activeProfile ?? DEFAULT_PROFILE_ID;
-    const activeProfile = config.profiles?.[activeProfileId];
-    if (!activeProfile) {
-        return;
-    }
-
-    if (activeProfile.enabledCapabilities !== undefined) {
-        const selected = new Set(activeProfile.enabledCapabilities);
-        for (const layerPath of builtInLayerKeys) {
-            const reference = `${BUILT_IN_CAPABILITY_REPO_ID}:${layerPath}`;
-            if (
-                resolveBuiltInRepoEnabled(builtInState) &&
-                resolveBuiltInLayerEnabled(builtInState, layerPath)
-            ) {
-                selected.add(reference);
-            } else {
-                selected.delete(reference);
-            }
-        }
-        activeProfile.enabledCapabilities = Array.from(selected).sort((left, right) =>
-            left.localeCompare(right),
-        );
-        return;
-    }
-
-    for (const layerPath of builtInLayerKeys) {
-        updateProfileLayerOverride(activeProfile, BUILT_IN_CAPABILITY_REPO_ID, layerPath, {
-            enabled:
-                resolveBuiltInRepoEnabled(builtInState) &&
-                resolveBuiltInLayerEnabled(builtInState, layerPath),
-        });
-    }
-}
-
 async function resolveBuiltInCapabilitySourceRoot(
     context: vscode.ExtensionContext,
 ): Promise<string | undefined> {
@@ -2818,16 +2734,17 @@ async function writeBuiltInLayerEnabledState(
     const normalizedLayerPath = normalizeBuiltInLayerPath(layerPath);
     if (normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH) {
         return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled,
             layerEnabled: enabled,
-            disabledByUser: !enabled,
-            layerStates: {},
         });
     }
 
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
-    if (enabled === currentState.layerEnabled) {
+    const defaultEnabled =
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
+            ? currentState.layerEnabled
+            : true;
+    if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
         nextLayerStates[normalizedLayerPath] = enabled;
@@ -2849,17 +2766,18 @@ async function writeBuiltInLayerEnabledStates(
     );
     if (normalizedLayerPaths.includes(BUILT_IN_CAPABILITY_LAYER_PATH)) {
         return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled,
             layerEnabled: enabled,
-            disabledByUser: !enabled,
-            layerStates: {},
         });
     }
 
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     for (const normalizedLayerPath of normalizedLayerPaths) {
-        if (enabled === currentState.layerEnabled) {
+        const defaultEnabled =
+            normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
+                ? currentState.layerEnabled
+                : true;
+        if (enabled === defaultEnabled) {
             delete nextLayerStates[normalizedLayerPath];
         } else {
             nextLayerStates[normalizedLayerPath] = enabled;
@@ -3150,7 +3068,6 @@ function resolveOverlay(
     options?: {
         enableDiscovery?: boolean;
         forceDiscoveryRepoIds?: string[];
-        builtInCapability?: BuiltInCapabilityRuntimeState;
         layerResolutionCache?: ResolveLayersCache;
     },
     emitLogs: boolean = true,
@@ -3311,7 +3228,6 @@ function buildProfileEffectiveFilesLookup(
     options?: {
         enableDiscovery?: boolean;
         forceDiscoveryRepoIds?: string[];
-        builtInCapability?: BuiltInCapabilityRuntimeState;
         layerResolutionCache?: ResolveLayersCache;
     },
 ): Record<string, EffectiveFile[]> {
@@ -4318,7 +4234,7 @@ function resolveCapabilityManifestSuggestedDirectory(
         return undefined;
     }
 
-    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config);
     const { metadataRepos, layerSources } = ensureMultiRepoConfig(projectedConfig);
     const requestedRepoId = extractRepoId(arg);
     const requestedLayerPath = normalizeCapabilityDirectorySegment(extractLayerPath(arg));
@@ -4373,7 +4289,7 @@ async function promptForFlatCapabilityDirectory(
         return undefined;
     }
 
-    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config);
     const { metadataRepos, layerSources } = ensureMultiRepoConfig(projectedConfig);
 
     const picks: FlatCapabilityDirectoryPick[] = [];
@@ -4426,7 +4342,7 @@ async function promptForMetadataRepoId(state: ExtensionState): Promise<string | 
         return undefined;
     }
 
-    const projectedConfig = buildGovernanceEvaluationConfig(state.config, state.builtInCapability);
+    const projectedConfig = buildGovernanceEvaluationConfig(state.config);
     const { metadataRepos } = ensureMultiRepoConfig(projectedConfig);
     const picks: MetadataRepoPick[] = metadataRepos
         .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID)
@@ -5312,7 +5228,7 @@ export async function injectWorkspaceSettings(
                 workspace.uri.fsPath,
                 managedPluginUris,
                 nextManagedPluginUris,
-                collectConfiguredMetadataRepoRoots(config, workspace.uri.fsPath, builtInCapability),
+                collectConfiguredMetadataRepoRoots(config, workspace.uri.fsPath),
             );
             managedPluginUris = normalizeManagedPluginUris(nextManagedPluginUris);
         } catch (pluginErr: unknown) {
@@ -5723,6 +5639,7 @@ export function registerCommands(
             clearDiagnostics(diagnosticCollection);
             state.configWarnings = [];
             state.capabilityDiagnosticFilePaths = [];
+            const legacyBuiltInConfigRemoved = removeBuiltInCapabilityFromConfig(result.config);
             const managedStateForCapabilityCatalog = loadManagedState(ws.uri.fsPath);
             restoreCapabilityCatalog(
                 result.config,
@@ -5756,13 +5673,19 @@ export function registerCommands(
                     logWarn(`Capability identity drift repair skipped: ${message}`);
                 }
                 if (
-                    (result.migrated ||
+                    (legacyBuiltInConfigRemoved ||
+                        result.migrated ||
                         configNormalized ||
                         discoveryResult.totalAdded > 0 ||
                         (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
                     result.configPath
                 ) {
                     const pendingConfigUpdateReasons: string[] = [];
+                    if (legacyBuiltInConfigRemoved) {
+                        pendingConfigUpdateReasons.push(
+                            'Remove legacy built-in MetaFlow repository entries; built-in metadata is now supplied by extension contributions.',
+                        );
+                    }
                     if (result.migrated) {
                         pendingConfigUpdateReasons.push(
                             'Migrate existing config to the current MetaFlow format.',
@@ -5877,14 +5800,10 @@ export function registerCommands(
                 );
             }
 
-            const projectedConfigForBuiltInRepair = withBuiltInCapabilityProjected(
-                result.config,
-                state.builtInCapability,
-            );
             const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(
                 state.builtInCapability,
                 ws.uri.fsPath,
-                projectedConfigForBuiltInRepair,
+                result.config,
             );
             if (builtInRepairPreview.repairs.length > 0) {
                 const builtInUpdateDecision: RefreshUpdateDecision = autoAcceptRefreshUpdates
@@ -5939,18 +5858,13 @@ export function registerCommands(
                 const shouldEnableDiscovery =
                     autoApplyEnabled || refreshOptions.forceDiscovery === true;
                 const activeProfileConfig = projectConfigForProfile(result.config);
-                const projectedConfig = withBuiltInCapabilityProjected(
-                    result.config,
-                    state.builtInCapability,
-                );
                 if (shouldAdvanceCapabilityIdentitySnapshot) {
-                    saveCapabilityIdentitySnapshot(projectedConfig, ws.uri.fsPath);
+                    saveCapabilityIdentitySnapshot(result.config, ws.uri.fsPath);
                 }
-                const activeProfileProjectedConfig = projectConfigForProfile(projectedConfig);
                 if (governanceResult.ok) {
                     state.governanceCompliance = evaluateGovernanceCompliance(
                         governanceResult.contract,
-                        activeProfileProjectedConfig,
+                        activeProfileConfig,
                     );
                     publishGovernanceComplianceDiagnostics(
                         diagnosticCollection,
@@ -5964,7 +5878,7 @@ export function registerCommands(
                     state.builtInCapability,
                 );
                 const overlay = resolveOverlay(
-                    activeProfileProjectedConfig,
+                    activeProfileConfig,
                     ws.uri.fsPath,
                     injectionConfig,
                     {
@@ -5972,7 +5886,6 @@ export function registerCommands(
                         forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
                             ? [refreshOptions.forceDiscoveryRepoId]
                             : undefined,
-                        builtInCapability: state.builtInCapability,
                         layerResolutionCache,
                     },
                 );
@@ -6015,7 +5928,7 @@ export function registerCommands(
                     overlay.capabilityDiagnostics,
                 );
                 const profileEffectiveFilesByName = buildProfileEffectiveFilesLookup(
-                    projectedConfig,
+                    result.config,
                     ws.uri.fsPath,
                     injectionConfig,
                     result.config.activeProfile,
@@ -6025,12 +5938,11 @@ export function registerCommands(
                         forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
                             ? [refreshOptions.forceDiscoveryRepoId]
                             : undefined,
-                        builtInCapability: state.builtInCapability,
                         layerResolutionCache,
                     },
                 );
                 state.treeSummaryCache = await buildTreeSummaryCache(
-                    projectedConfig,
+                    result.config,
                     ws.uri.fsPath,
                     state.effectiveFiles,
                     state.baseProfileFiles,
@@ -6682,25 +6594,14 @@ export function registerCommands(
                                       requestedLayerPath,
                                       nextLayerEnabled,
                                   )
-                                : await writeBuiltInCapabilityWorkspaceState(
+                                : await writeBuiltInLayerEnabledState(
                                       context,
                                       state.builtInCapability,
-                                      {
-                                          enabled: nextLayerEnabled,
-                                          layerEnabled: nextLayerEnabled,
-                                          disabledByUser: !nextLayerEnabled,
-                                          layerStates: {},
-                                      },
+                                      BUILT_IN_CAPABILITY_LAYER_PATH,
+                                      nextLayerEnabled,
                                   );
-                        if (candidateConfig && state.configPath) {
-                            persistBuiltInCapabilityConfig(
-                                candidateConfig,
-                                state.builtInCapability,
-                            );
-                            await persistConfig(state.configPath, candidateConfig, state);
-                            state.config = candidateConfig;
-                            state.activeProfile = candidateConfig.activeProfile;
-                        }
+                        // Built-in selection is extension-owned state. It must not be
+                        // serialized as a user-authored metadata repository.
                     },
                 });
                 if (!applied) {
@@ -7005,13 +6906,17 @@ export function registerCommands(
                             updatedBuiltInLayerPaths,
                             requestedCheckedState,
                         );
-                        persistBuiltInCapabilityConfig(candidateConfig, state.builtInCapability);
                     }
-                    if (state.configPath) {
-                        await persistConfig(state.configPath, candidateConfig, state);
+                    const configChanged = Array.from(updatedLayerIds).some(
+                        (layerId) => !layerId.startsWith(`${BUILT_IN_CAPABILITY_REPO_ID}:`),
+                    );
+                    if (configChanged) {
+                        if (state.configPath) {
+                            await persistConfig(state.configPath, candidateConfig, state);
+                        }
+                        state.config = candidateConfig;
+                        state.activeProfile = candidateConfig.activeProfile;
                     }
-                    state.config = candidateConfig;
-                    state.activeProfile = candidateConfig.activeProfile;
                 },
             });
             if (!applied) {
@@ -7091,11 +6996,16 @@ export function registerCommands(
                                 true,
                             );
                         }
-                        if (state.configPath) {
-                            await persistConfig(state.configPath, candidateConfig, state);
+                        const configChanged = indices.some(
+                            (index) => layerSources[index]?.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+                        );
+                        if (configChanged) {
+                            if (state.configPath) {
+                                await persistConfig(state.configPath, candidateConfig, state);
+                            }
+                            state.config = candidateConfig;
+                            state.activeProfile = candidateConfig.activeProfile;
                         }
-                        state.config = candidateConfig;
-                        state.activeProfile = candidateConfig.activeProfile;
                     },
                 });
                 if (!applied) {
@@ -7174,11 +7084,16 @@ export function registerCommands(
                                 false,
                             );
                         }
-                        if (state.configPath) {
-                            await persistConfig(state.configPath, candidateConfig, state);
+                        const configChanged = indices.some(
+                            (index) => layerSources[index]?.repoId !== BUILT_IN_CAPABILITY_REPO_ID,
+                        );
+                        if (configChanged) {
+                            if (state.configPath) {
+                                await persistConfig(state.configPath, candidateConfig, state);
+                            }
+                            state.config = candidateConfig;
+                            state.activeProfile = candidateConfig.activeProfile;
                         }
-                        state.config = candidateConfig;
-                        state.activeProfile = candidateConfig.activeProfile;
                     },
                 });
                 if (!applied) {
@@ -7566,15 +7481,13 @@ export function registerCommands(
                 const nextEnabled =
                     typeof requestedCheckedState === 'boolean'
                         ? requestedCheckedState
-                        : !state.builtInCapability.layerEnabled;
+                        : !state.builtInCapability.enabled;
 
                 const candidateBuiltInCapability = previewBuiltInCapabilityWorkspaceState(
                     state.builtInCapability,
                     {
                         enabled: nextEnabled,
-                        layerEnabled: nextEnabled,
                         disabledByUser: !nextEnabled,
-                        layerStates: {},
                     },
                 );
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
@@ -7589,20 +7502,9 @@ export function registerCommands(
                             state.builtInCapability,
                             {
                                 enabled: nextEnabled,
-                                layerEnabled: nextEnabled,
                                 disabledByUser: !nextEnabled,
-                                layerStates: {},
                             },
                         );
-                        if (candidateConfig && state.configPath) {
-                            persistBuiltInCapabilityConfig(
-                                candidateConfig,
-                                state.builtInCapability,
-                            );
-                            await persistConfig(state.configPath, candidateConfig, state);
-                            state.config = candidateConfig;
-                            state.activeProfile = candidateConfig.activeProfile;
-                        }
                     },
                 });
                 if (!applied) {
@@ -8780,10 +8682,7 @@ export function registerCommands(
                     return;
                 }
 
-                const projectedConfig = buildGovernanceEvaluationConfig(
-                    state.config,
-                    state.builtInCapability,
-                );
+                const projectedConfig = buildGovernanceEvaluationConfig(state.config);
                 const { metadataRepos } = ensureMultiRepoConfig(projectedConfig);
                 const repo = metadataRepos.find((candidate) => candidate.id === repoId);
                 if (!repo) {
@@ -9072,15 +8971,20 @@ export function registerCommands(
 
             const hasBuiltInMode = isBuiltInCapabilityActive(state.builtInCapability);
             const trackedFileCount = state.builtInCapability.synchronizedFiles.length;
+            const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+            const hasAuthoredBuiltInConfig = candidateConfig
+                ? removeBuiltInCapabilityFromConfig(candidateConfig)
+                : false;
 
-            if (!hasBuiltInMode && trackedFileCount === 0) {
+            if (!hasBuiltInMode && trackedFileCount === 0 && !hasAuthoredBuiltInConfig) {
                 vscode.window.showInformationMessage(
                     'MetaFlow: No built-in mode or synchronized MetaFlow capability files are currently tracked.',
                 );
                 return;
             }
 
-            const message = hasBuiltInMode
+            const hasBuiltInSource = hasBuiltInMode || hasAuthoredBuiltInConfig;
+            const message = hasBuiltInSource
                 ? `Remove built-in MetaFlow capability source${trackedFileCount > 0 ? ` and ${trackedFileCount} tracked synchronized file(s)` : ''}?`
                 : `Remove ${trackedFileCount} tracked synchronized MetaFlow capability file(s) from .github?`;
 
@@ -9118,17 +9022,23 @@ export function registerCommands(
                 );
             }
 
+            if (hasAuthoredBuiltInConfig && candidateConfig && state.configPath) {
+                await persistConfig(state.configPath, candidateConfig, state);
+                state.config = candidateConfig;
+                state.activeProfile = candidateConfig.activeProfile;
+            }
+
             await vscode.commands.executeCommand('metaflow.refresh', {
                 skipRepoSync: true,
                 skipBuiltInAutoApply: true,
             });
-            if (hasBuiltInMode && trackedFileCount > 0) {
+            if (hasBuiltInSource && trackedFileCount > 0) {
                 vscode.window.showInformationMessage(
                     `MetaFlow: Removed built-in capability source and ${removed} tracked synchronized file(s).`,
                 );
                 return;
             }
-            if (hasBuiltInMode) {
+            if (hasBuiltInSource) {
                 vscode.window.showInformationMessage(
                     'MetaFlow: Removed built-in MetaFlow capability source.',
                 );

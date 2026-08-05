@@ -183,7 +183,7 @@ suite('Command handler config update consent', () => {
         );
         assert.match(
             source,
-            /if \(shouldAdvanceCapabilityIdentitySnapshot\) \{\s+saveCapabilityIdentitySnapshot\(projectedConfig, ws\.uri\.fsPath\);/m,
+            /if \(shouldAdvanceCapabilityIdentitySnapshot\) \{\s+saveCapabilityIdentitySnapshot\(result\.config, ws\.uri\.fsPath\);/m,
         );
     });
 

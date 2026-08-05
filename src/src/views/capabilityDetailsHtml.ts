@@ -319,6 +319,27 @@ function renderScopeRiskCard(model: CapabilityDetailModel): string {
                 </section>`;
 }
 
+function renderNativeContributionsCard(model: CapabilityDetailModel): string {
+    const contributions = model.nativeContributions;
+    if (!contributions || contributions.length === 0) {
+        return '';
+    }
+
+    return `
+                <section class="sidebar-card">
+                    <h2>Native VS Code registrations</h2>
+                    <p class="scope-risk-intro">This built-in capability is also exposed through native VS Code Chat and extension contribution points. MetaFlow remains the source of truth for its repository and layer state.</p>
+                    <ul class="warning-list native-contribution-list">
+                        ${contributions
+                            .map(
+                                (contribution) =>
+                                    `<li><strong>${escapeHtml(contribution.kind)}:</strong> <code>${escapeHtml(contribution.name)}</code><br /><span class="scope-risk-reason">${escapeHtml(contribution.detail)}</span></li>`,
+                            )
+                            .join('')}
+                    </ul>
+                </section>`;
+}
+
 function renderContentSections(model: CapabilityDetailModel): string {
     if (model.layerFiles.length === 0) {
         return '<p class="empty-state">No source artifacts were found under this layer.</p>';
@@ -1150,6 +1171,8 @@ export function renderCapabilityDetailsHtml(
                 }
 
                 ${renderScopeRiskCard(model)}
+
+                ${renderNativeContributionsCard(model)}
 
                 <details class="sidebar-card sidebar-disclosure">
                     <summary>Paths &amp; IDs</summary>

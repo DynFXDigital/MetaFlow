@@ -9,6 +9,7 @@ AI metadata overlays for Copilot instructions, prompts, skills, and agents.
 - **Profile Management**: Switch between profiles to select complete capability sets.
 - **Capability Management**: Toggle individual capabilities on/off, bulk-toggle folder branches in tree mode, browse artifact contents under each layer, and work across multiple repositories.
 - **Capability Details Webview**: Open a reusable capability-details panel that shows metadata, warnings, artifact inventory, and rendered `CAPABILITY.md` content.
+- **Native VS Code AI Contributions**: The built-in MetaFlow capability is also exposed through a chat participant, participant slash commands, custom agents, skills, instructions, prompt files, and language-model tools without writing those registrations into workspace settings.
 - **Drift Detection**: Detect locally-edited synchronized files; protect from overwrite.
 - **Settings Injection**: Configure Copilot alternate-path settings for settings-backed artifacts.
 - **TreeView UI**: Visual tree views for config summary, profiles, capabilities, warnings, and effective files.
@@ -101,13 +102,15 @@ Supported injection modes are:
 - `synchronize`: materialize files into the workspace `.github` directory
 - `plugin`: inject capability roots into `chat.pluginLocations` for local Copilot plugin discovery
 
-`plugin` mode is now the default for `instructions`, `skills`, `agents`, and Copilot hook artifacts. Prompts still need `settings` or `synchronize`. Legacy `hooks.preApply` and `hooks.postApply` remain settings-backed script paths because they are not Copilot `hooks.json` event definitions.
+`plugin` mode is now the default for `instructions`, `skills`, `agents`, and Copilot hook artifacts. Prompts from ordinary metadata repositories still need `settings` or `synchronize`; the built-in MetaFlow prompts are contributed natively by the extension and are excluded from settings injection. Legacy `hooks.preApply` and `hooks.postApply` remain settings-backed script paths because they are not Copilot `hooks.json` event definitions.
 
 > **Known limitation (plugin-mode host discovery).** MetaFlow registers enabled capability roots in `chat.pluginLocations` and records enablement intent, but final visibility of a repo-local capability still depends on the GitHub Copilot host's own plugin discovery and enablement lifecycle. Enabling a capability in MetaFlow expresses _desired_ state; if the host has not discovered or installed a repo-local plugin root, the capability may not surface even though MetaFlow shows it as enabled. Prompts delivered via `settings` can appear independently, which can make a partially visible capability look like a discovery failure. Converging MetaFlow's plugin activation with the host-native plugin lifecycle is tracked as follow-up work.
 
+The built-in MetaFlow capability also uses VS Code extension contribution points for native discovery. Invoke `@metaflow` in Chat and choose `/review`, `/author`, or `/diagnose`, or use the contributed agents, skills, and prompt files from VS Code's native Chat customization surfaces. These built-in registrations are not written to `.metaflow/config.jsonc`, `chat.*` settings, or the workspace's Copilot plugin enablement file. MetaFlow continues to own the repository and layer model, capability enablement, provenance, precedence, and governance state; the capability-details webview shows the native registrations alongside that state.
+
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
-After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability with plugin-first defaults and refreshes once so bundled guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo row's injection policy menu or `metaflow.aiMetadataAutoApplyMode=synchronize` when you need to change the policy after setup.
+After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability and refreshes once so bundled native guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo and layer checkboxes to control native contribution visibility. Choose `metaflow.aiMetadataAutoApplyMode=synchronize` only when you explicitly want workspace `.github` files for compatibility with hosts that do not consume extension contributions.
 
 `MetaFlow: Add Repository Source` also recognizes local metadata authoring workflows:
 

@@ -3,16 +3,59 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+    BUILT_IN_CAPABILITY_REPO_ID,
     BUILT_IN_CAPABILITY_STATE_KEY,
     formatBuiltInCapabilityRepoLabel,
     isBuiltInCapabilityActive,
     isBuiltInCapabilityEnabled,
     readBuiltInCapabilityRuntimeState,
+    removeBuiltInCapabilityFromConfig,
     resolveBuiltInCapabilityDisplayName,
+    resolveBuiltInLayerEnabled,
     sanitizeSynchronizedFiles,
 } from '../../builtInCapability';
 
 suite('builtInCapability', () => {
+    test('removeBuiltInCapabilityFromConfig removes legacy repo and profile references', () => {
+        const config = {
+            metadataRepos: [
+                { id: 'primary', localPath: '.ai/ai-metadata' },
+                { id: BUILT_IN_CAPABILITY_REPO_ID, localPath: 'bundled-metadata' },
+            ],
+            layerSources: [
+                { repoId: 'primary', path: 'company/core' },
+                { repoId: BUILT_IN_CAPABILITY_REPO_ID, path: '.' },
+            ],
+            profiles: {
+                default: {
+                    enabledCapabilities: [
+                        'primary:company/core',
+                        `${BUILT_IN_CAPABILITY_REPO_ID}:.`,
+                    ],
+                    layerOverrides: [
+                        { repoId: 'primary', path: 'company/core', enabled: true },
+                        { repoId: BUILT_IN_CAPABILITY_REPO_ID, path: '.', enabled: true },
+                    ],
+                },
+            },
+        };
+
+        assert.strictEqual(removeBuiltInCapabilityFromConfig(config as never), true);
+        assert.deepStrictEqual(config.metadataRepos, [
+            { id: 'primary', localPath: '.ai/ai-metadata' },
+        ]);
+        assert.deepStrictEqual(config.layerSources, [
+            { repoId: 'primary', path: 'company/core' },
+        ]);
+        assert.deepStrictEqual(config.profiles.default.enabledCapabilities, [
+            'primary:company/core',
+        ]);
+        assert.deepStrictEqual(config.profiles.default.layerOverrides, [
+            { repoId: 'primary', path: 'company/core', enabled: true },
+        ]);
+        assert.strictEqual(removeBuiltInCapabilityFromConfig(config as never), false);
+    });
+
     test('sanitizeSynchronizedFiles keeps only unique .github paths', () => {
         const values = sanitizeSynchronizedFiles([
             '.github/instructions/a.md',
@@ -212,6 +255,22 @@ suite('builtInCapability', () => {
 
     test('resolveBuiltInCapabilityDisplayName falls back to generic label when names are absent', () => {
         assert.strictEqual(resolveBuiltInCapabilityDisplayName(undefined, '   '), 'MetaFlow');
+    });
+
+    test('nested built-in capabilities default independently of the MetaFlow root layer', () => {
+        const state = {
+            layerEnabled: false,
+            layerStates: {},
+        };
+
+        assert.strictEqual(resolveBuiltInLayerEnabled(state, '.'), false);
+        assert.strictEqual(
+            resolveBuiltInLayerEnabled(
+                state,
+                'capabilities/metadata-authoring/github-copilot-metadata-authoring',
+            ),
+            true,
+        );
     });
 
     test('isBuiltInCapabilityActive is true when explicitly enabled', () => {

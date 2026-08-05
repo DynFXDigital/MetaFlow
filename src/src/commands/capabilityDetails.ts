@@ -24,6 +24,10 @@ import {
 import { projectConfigForProfile } from './commandHelpers';
 import { buildCapabilityGovernanceProjection, type GovernanceUiState } from '../governanceSignals';
 import { resolveRepoDisplayLabel } from '../repoDisplayLabel';
+import {
+    METAFLOW_NATIVE_CONTRIBUTIONS,
+    NativeContributionDescriptor,
+} from '../nativeContributions';
 
 type DetailArtifactType =
     | 'instructions'
@@ -100,6 +104,7 @@ export interface CapabilityDetailModel {
     layerFiles: string[];
     artifactBuckets: CapabilityDetailArtifactBucket[];
     artifactCount: number;
+    nativeContributions?: readonly NativeContributionDescriptor[];
     body?: string;
     governance?: {
         summary: string;
@@ -429,6 +434,11 @@ export async function loadCapabilityDetailModel(
         layerFiles,
         artifactBuckets,
         artifactCount: layerFiles.length,
+        nativeContributions:
+            target.repoId === BUILT_IN_CAPABILITY_REPO_ID &&
+            normalizeBuiltInLayerPath(target.layerPath) === BUILT_IN_CAPABILITY_LAYER_PATH
+                ? METAFLOW_NATIVE_CONTRIBUTIONS
+                : undefined,
         body: manifest?.body?.trim(),
         ...(governance.summary
             ? {

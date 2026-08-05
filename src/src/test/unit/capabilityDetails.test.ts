@@ -613,6 +613,10 @@ suite('CapabilityDetails helpers', () => {
         assert.strictEqual(model.title, 'MetaFlow');
         assert.strictEqual(model.builtIn, true);
         assert.strictEqual(model.warnings.length, 0);
+        assert.ok(
+            model.nativeContributions && model.nativeContributions.length >= 7,
+            'built-in capability should expose native VS Code registration metadata',
+        );
 
         const instructionsBucket = model.artifactBuckets.find(
             (bucket) => bucket.type === 'instructions',
@@ -647,6 +651,14 @@ suite('CapabilityDetails helpers', () => {
         assert.ok(html.includes('Agents'), 'HTML should show Agents section');
         assert.ok(html.includes('Skills'), 'HTML should show Skills section');
         assert.ok(html.includes('Built-in capability'), 'HTML should show built-in source kind');
+        assert.ok(
+            html.includes('Native VS Code registrations'),
+            'HTML should show native VS Code registration visibility',
+        );
+        assert.ok(
+            html.includes('@metaflow'),
+            'HTML should show the native MetaFlow chat participant',
+        );
         assert.ok(
             html.includes('metaflow-constructs.instructions.md'),
             'HTML should include MetaFlow constructs instruction',

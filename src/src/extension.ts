@@ -30,7 +30,7 @@ import {
     loadCapabilityDetailModel,
     resolveCapabilityDetailTarget,
 } from './commands/capabilityDetails';
-import { isBuiltInCapabilityActive } from './builtInCapability';
+import { isBuiltInCapabilityActive, isBuiltInCapabilityEnabled } from './builtInCapability';
 import {
     extractLayerPath,
     extractRepoId,
@@ -43,8 +43,10 @@ import { createRepoUpdateSchedulerLifecycleController } from './extensionSchedul
 import { createCapabilityPluginMetadataScheduler } from './capabilityPluginMetadataScheduler';
 import { registerDiagnosticsTool } from './agentTools/diagnosticsTool';
 import { buildDiagnosticsSnapshot } from './diagnostics/diagnosticsSnapshot';
+import { createMetaFlowChatParticipant } from './chat/metaflowParticipant';
 import { createLayerTreeCheckboxQueue } from './layerTreeCheckboxQueue';
 import { createLayerTreeCheckboxIdleRefreshScheduler } from './layerTreeCheckboxIdleRefresh';
+import { buildNativeContributionContextValues } from './nativeContributions';
 
 type FilesViewMode = 'unified' | 'repoTree';
 type LayersViewMode = 'flat' | 'tree';
@@ -116,6 +118,14 @@ function hasInstalledMetaFlowCapability(state: ReturnType<typeof createState>): 
 
 function hasLoadedConfig(state: ReturnType<typeof createState>): boolean {
     return !!state.config;
+}
+
+function syncNativeContributionContext(state: ReturnType<typeof createState>): void {
+    for (const [key, value] of Object.entries(
+        buildNativeContributionContextValues(state.builtInCapability),
+    )) {
+        void vscode.commands.executeCommand('setContext', key, value);
+    }
 }
 
 /**
@@ -360,6 +370,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Register commands (wires engine + synchronization pipeline)
     registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
+    syncNativeContributionContext(state);
 
     let scheduledRefreshHandle: ReturnType<typeof setTimeout> | undefined;
     const scheduleRefresh = (): void => {
@@ -398,6 +409,9 @@ export function activate(context: vscode.ExtensionContext): void {
                 preferStateConfig: true,
             });
         },
+    );
+    context.subscriptions.push(
+        createMetaFlowChatParticipant(() => isBuiltInCapabilityEnabled(state.builtInCapability)),
     );
 
     // Register TreeView providers
@@ -616,6 +630,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(
         state.onDidChange.event(() => {
+            syncNativeContributionContext(state);
             vscode.commands.executeCommand(
                 'setContext',
                 'metaflow.hasGitBackedRepo',

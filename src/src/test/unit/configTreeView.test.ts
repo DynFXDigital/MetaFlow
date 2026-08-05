@@ -1002,7 +1002,7 @@ suite('ConfigTreeView', () => {
         );
     });
 
-    test('CTV-12: built-in repo falls back to capability manifest name when repo metadata is absent', () => {
+    test('CTV-12: built-in repo stays enabled when only the MetaFlow capability layer is disabled', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(
             makeState({
@@ -1028,7 +1028,7 @@ suite('ConfigTreeView', () => {
 
         assert.strictEqual(String(builtInItem.label), 'Bundled Capability');
         assert.strictEqual(builtInItem.contextValue, 'configRepoSourceBuiltin');
-        assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, disabled)');
+        assert.strictEqual(builtInItem.description, 'bundled extension metadata (0/0, enabled)');
         assert.strictEqual(extractThemeIconId(builtInItem.iconPath), 'package');
     });
 
