@@ -199,7 +199,6 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(
                 model.descriptorPath?.replace(/\\/g, '/').endsWith('/standards/sdlc/README.md'),
             );
-            assert.strictEqual(model.descriptorId, '123e4567-e89b-12d3-a456-426614174000');
             assert.strictEqual(model.artifactCount, 3);
             assert.strictEqual(model.experimental, undefined);
             assert.strictEqual(model.agentPlugin, true);
@@ -281,7 +280,7 @@ suite('CapabilityDetails helpers', () => {
                 nonce: 'nonce-duplicate',
             });
 
-            assert.strictEqual(model.title, 'README Package');
+            assert.strictEqual(model.title, 'README Documentation');
             assert.strictEqual(model.descriptorKind, 'readme');
             assert.ok(
                 model.descriptorPath?.replace(/\\/g, '/').endsWith('/duplicate-package/README.md'),
@@ -687,7 +686,7 @@ suite('CapabilityDetails helpers', () => {
             nonce: 'nonce-bundled',
         });
 
-        assert.strictEqual(model.title, 'metaflow-ai-metadata');
+        assert.strictEqual(model.title, 'MetaFlow Metadata');
         assert.strictEqual(model.builtIn, true);
         assert.strictEqual(model.descriptorKind, 'readme');
         assert.ok(

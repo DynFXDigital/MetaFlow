@@ -18,7 +18,7 @@ function runPromptInjectionHook(event: unknown): string {
 }
 
 suite('bundled metadata assets', () => {
-    test('bundled package READMEs use the portable descriptor front matter', () => {
+    test('bundled package READMEs are ordinary human-facing Markdown', () => {
         const descriptorPaths = [
             'README.md',
             'capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md',
@@ -28,25 +28,16 @@ suite('bundled metadata assets', () => {
 
         for (const relativePath of descriptorPaths) {
             const content = fs.readFileSync(path.join(ASSET_ROOT, relativePath), 'utf-8');
-            assert.match(
-                content,
-                /^name:\s+.+$/im,
-                `Expected bundled README.md to declare a name: ${relativePath}`,
-            );
-            assert.match(
-                content,
-                /^description:\s+.+$/im,
-                `Expected bundled README.md to declare a description: ${relativePath}`,
-            );
+            assert.doesNotMatch(content, /^---\r?\n/m, `README should not require front matter: ${relativePath}`);
             assert.doesNotMatch(
                 content,
-                /^(license|agentPlugin|previousIds|previousPaths):/im,
-                `Expected bundled README.md to omit legacy MetaFlow fields: ${relativePath}`,
+                /^(id|uid|license|agentPlugin|previousIds|previousPaths):/im,
+                `Expected bundled README.md to omit metadata fields: ${relativePath}`,
             );
         }
     });
 
-    test('bundled README identities match adjacent plugin manifests', () => {
+    test('bundled plugin manifests own package identities', () => {
         const descriptorPairs = [
             ['README.md', 'plugin.json'],
             [
@@ -71,21 +62,9 @@ suite('bundled metadata assets', () => {
             const pluginManifest = JSON.parse(
                 fs.readFileSync(path.join(ASSET_ROOT, pluginPath), 'utf-8'),
             ) as { name?: string; description?: string };
-            const descriptorName = descriptorContent.match(/^name:\s*(.+)$/m)?.[1].trim();
-            const descriptorDescription = descriptorContent
-                .match(/^description:\s*(.+)$/m)?.[1]
-                .trim();
-
-            assert.strictEqual(
-                descriptorName,
-                pluginManifest.name,
-                `Expected README and plugin.json names to agree: ${descriptorPath}`,
-            );
-            assert.strictEqual(
-                descriptorDescription,
-                pluginManifest.description,
-                `Expected README and plugin.json descriptions to agree: ${descriptorPath}`,
-            );
+            assert.ok(descriptorContent.trim().length > 0, `Expected README body: ${descriptorPath}`);
+            assert.ok(pluginManifest.name, `Expected plugin.json name: ${descriptorPath}`);
+            assert.ok(pluginManifest.description, `Expected plugin.json description: ${descriptorPath}`);
         }
     });
 
@@ -105,7 +84,7 @@ suite('bundled metadata assets', () => {
         );
         assert.ok(
             content.includes(
-                'Required fields are `name`, `description`, and a valid publisher-assigned UUID `id`.',
+                'README front matter is optional and should normally be omitted for agent-plugin packages.',
             ),
             'Expected bundled README guidance to describe the required front matter contract.',
         );

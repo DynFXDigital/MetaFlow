@@ -11,12 +11,10 @@ It explains what people can use and trust in the package; component files define
 ## Front matter guidance
 
 - Keep front matter present and valid YAML.
-- Required fields are `name`, `description`, and a valid publisher-assigned UUID `id`.
-- Do not add MetaFlow namespaces, lifecycle fields, plugin flags, aliases, host compatibility fields,
-  or schema markers to the portable README contract.
-- Write `description` as a single declarative sentence about what the package offers.
-- Preserve a publisher-assigned `id` when moving or renaming a package; generate a new one only when
-  intentionally forking or copying it.
+- README front matter is optional and should normally be omitted for agent-plugin packages.
+- Put plugin identity and runtime metadata in `plugin.json`, including `name`, `description`,
+  `version`, hosts, license, and component paths.
+- Keep README as ordinary human-facing Markdown; do not add GUID/UUID identity fields.
 
 ## README body guidance
 
@@ -32,9 +30,9 @@ It explains what people can use and trust in the package; component files define
 
 ## Authority and compatibility
 
-- `README.md` owns human-facing package name, description, required publisher-assigned UUID `id`,
-  and documentation body.
-- `plugin.json` owns runtime component paths, host declarations, and plugin-specific metadata.
+- `README.md` owns human-facing documentation body.
+- `plugin.json` owns package name, description, runtime component paths, host declarations, and
+  plugin-specific metadata.
 - `marketplace.json` owns marketplace listing metadata.
 - `CAPABILITY.md` is a legacy compatibility descriptor only. Use it when README is absent; its
   legacy `uid` may remain omitted during migration. Do not merge the two files or copy legacy-only

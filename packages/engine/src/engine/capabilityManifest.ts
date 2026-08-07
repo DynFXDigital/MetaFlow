@@ -1,8 +1,8 @@
 /**
  * Capability descriptor parser/loader.
  *
- * README.md frontmatter contract:
- * - required: name, description, id
+ * README.md is human-facing package documentation. Its frontmatter is optional
+ * and is retained only for compatibility while plugin.json owns plugin metadata.
  *
  * CAPABILITY.md remains a legacy compatibility format:
  * - required: name, description
@@ -52,7 +52,6 @@ type ManifestFields = {
 };
 
 type ReadmeDescriptorFields = {
-    id?: string;
     name?: string;
     description?: string;
 };
@@ -114,11 +113,21 @@ function stripQuotes(value: string): string {
     return trimmed;
 }
 
+function readmeHeadingTitle(body: string): string | undefined {
+    const heading = body.match(/^#\s+(.+)$/m)?.[1].trim();
+    if (!heading) {
+        return undefined;
+    }
+
+    return heading.replace(/^Capability:\s*/i, '').trim() || undefined;
+}
+
 function parseFrontmatter(
     rawText: string,
     filePath?: string,
     descriptorFileName = CAPABILITY_FILE_NAME,
     warningPrefix = 'CAPABILITY',
+    frontmatterRequired = true,
 ): ParseFrontmatterResult {
     const warnings: CapabilityWarning[] = [];
     const normalized = rawText.replace(/^\uFEFF/, '');
@@ -127,13 +136,15 @@ function parseFrontmatter(
         return {
             fields: {},
             body: normalized,
-            warnings: [
-                toWarning(
-                    `${warningPrefix}_FRONTMATTER_MISSING`,
-                    `${descriptorFileName} is missing required YAML frontmatter delimited by --- markers.`,
-                    filePath,
-                ),
-            ],
+            warnings: frontmatterRequired
+                ? [
+                      toWarning(
+                          `${warningPrefix}_FRONTMATTER_MISSING`,
+                          `${descriptorFileName} is missing required YAML frontmatter delimited by --- markers.`,
+                          filePath,
+                      ),
+                  ]
+                : [],
         };
     }
 
@@ -858,53 +869,6 @@ export function parseCapabilityManifestContent(
     };
 }
 
-function validateReadmeDescriptorFields(
-    fields: ReadmeDescriptorFields,
-    filePath: string,
-): CapabilityWarning[] {
-    const warnings: CapabilityWarning[] = [];
-
-    if (!fields.id || fields.id.trim().length === 0) {
-        warnings.push(
-            toWarning(
-                'README_DESCRIPTOR_ID_REQUIRED',
-                'README.md requires a non-empty publisher-assigned UUID "id" field in frontmatter.',
-                filePath,
-            ),
-        );
-    } else if (!isValidCapabilityUid(fields.id)) {
-        warnings.push(
-            toWarning(
-                'README_DESCRIPTOR_ID_INVALID',
-                'README.md "id" should be an RFC 4122 UUID such as 123e4567-e89b-12d3-a456-426614174000.',
-                filePath,
-            ),
-        );
-    }
-
-    if (!fields.name || fields.name.trim().length === 0) {
-        warnings.push(
-            toWarning(
-                'README_DESCRIPTOR_NAME_REQUIRED',
-                'README.md requires a non-empty "name" field in frontmatter.',
-                filePath,
-            ),
-        );
-    }
-
-    if (!fields.description || fields.description.trim().length === 0) {
-        warnings.push(
-            toWarning(
-                'README_DESCRIPTOR_DESCRIPTION_REQUIRED',
-                'README.md requires a non-empty "description" field in frontmatter.',
-                filePath,
-            ),
-        );
-    }
-
-    return warnings;
-}
-
 /** Parse the portable README descriptor contract into normalized metadata. */
 export function parseReadmeDescriptorContent(
     rawText: string,
@@ -916,6 +880,7 @@ export function parseReadmeDescriptorContent(
         descriptorPath,
         README_FILE_NAME,
         descriptorWarningPrefix('readme'),
+        false,
     );
     const warnings = [...parsed.warnings];
 
@@ -932,15 +897,12 @@ export function parseReadmeDescriptorContent(
     }
 
     const fields: ReadmeDescriptorFields = {
-        id: parsed.fields.id,
-        name: parsed.fields.name,
+        name: readmeHeadingTitle(parsed.body) ?? parsed.fields.name,
         description: parsed.fields.description,
     };
-    warnings.push(...validateReadmeDescriptorFields(fields, descriptorPath));
 
     return {
         id: capabilityId,
-        uid: fields.id?.trim() || undefined,
         manifestPath: descriptorPath,
         descriptorKind: 'readme',
         name: fields.name?.trim() || undefined,
@@ -952,16 +914,8 @@ export function parseReadmeDescriptorContent(
 
 /** Return whether a package-root README has the required descriptor fields. */
 export function isValidReadmeDescriptor(metadata: CapabilityMetadata): boolean {
-    const name = metadata.name?.trim();
-    const description = metadata.description?.trim();
-    const id = metadata.uid?.trim();
-    if (!name || !description || !id || !isValidCapabilityUid(id)) {
-        return false;
-    }
-
     return !metadata.warnings.some(
         (warning) =>
-            warning.code === 'README_DESCRIPTOR_ID_INVALID' ||
             warning.code.startsWith('README_DESCRIPTOR_FRONTMATTER_'),
     );
 }
@@ -1051,11 +1005,12 @@ export function loadCapabilityDescriptorForLayer(
             : manifest.agentPlugin === true;
     if (shouldLoadPluginManifest) {
         const pluginResult = loadAgentPluginManifestForLayer(layerPath, descriptor.kind);
-        const readmeDescriptorIsValid =
-            descriptor.kind !== 'readme' || isValidReadmeDescriptor(manifest);
-        if (descriptor.kind === 'readme' && readmeDescriptorIsValid) {
+        if (descriptor.kind === 'readme' && pluginResult.metadata) {
             manifest.agentPlugin = true;
             manifest.agentPluginManifest = pluginResult.metadata;
+                manifest.name = manifest.name || pluginResult.metadata.name;
+                manifest.description = pluginResult.metadata.description || manifest.description;
+                manifest.license = pluginResult.metadata.license || manifest.license;
         } else if (descriptor.kind === 'capability') {
             manifest.agentPluginManifest = pluginResult.metadata;
         }

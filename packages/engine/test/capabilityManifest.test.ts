@@ -286,7 +286,7 @@ describe('capabilityManifest parser', () => {
         }
     });
 
-    it('loads a minimal README.md descriptor with id, body, and selected path', () => {
+    it('loads a minimal README.md descriptor with body and selected path', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
         try {
             const descriptorId = '123e4567-e89b-42d3-a456-426614174000';
@@ -310,7 +310,7 @@ describe('capabilityManifest parser', () => {
             const loaded = loadCapabilityDescriptorForLayer(tmpDir, 'portable-package');
             assert.ok(loaded);
             assert.strictEqual(loaded?.id, 'portable-package');
-            assert.strictEqual(loaded?.uid, descriptorId);
+            assert.strictEqual(loaded?.uid, undefined);
             assert.strictEqual(loaded?.descriptorKind, 'readme');
             assert.strictEqual(loaded?.manifestPath, readmePath);
             assert.strictEqual(loaded?.name, 'Portable Package');
@@ -448,22 +448,18 @@ describe('capabilityManifest parser', () => {
         }
     });
 
-    it('treats an ordinary README.md as documentation until descriptor fields are present', () => {
+    it('treats an ordinary README.md as documentation without front matter', () => {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
         try {
             const readmePath = path.join(tmpDir, 'README.md');
             fs.writeFileSync(readmePath, '# Ordinary Repository\n\nDocumentation only.', 'utf-8');
 
-            assert.strictEqual(hasValidReadmeDescriptorAtRoot(tmpDir), false);
+            assert.strictEqual(hasValidReadmeDescriptorAtRoot(tmpDir), true);
             const loaded = loadCapabilityManifestForLayer(tmpDir, 'ordinary-repository');
             assert.ok(loaded);
             assert.strictEqual(loaded?.manifestPath, readmePath);
-            assert.strictEqual(loaded?.name, undefined);
-            assert.ok(
-                loaded?.warnings.some(
-                    (warning) => warning.code === 'README_DESCRIPTOR_FRONTMATTER_MISSING',
-                ),
-            );
+            assert.strictEqual(loaded?.name, 'Ordinary Repository');
+            assert.deepStrictEqual(loaded?.warnings, []);
         } finally {
             fs.rmSync(tmpDir, { recursive: true, force: true });
         }
@@ -474,13 +470,7 @@ describe('capabilityManifest parser', () => {
         try {
             fs.writeFileSync(
                 path.join(tmpDir, 'README.md'),
-                [
-                    '---',
-                    'id: 123e4567-e89b-42d3-a456-426614174000',
-                    'name: Plugin Package',
-                    'description: Plugin documentation.',
-                    '---',
-                ].join('\n'),
+                '# Plugin Package\n\nHuman-facing plugin documentation.',
                 'utf-8',
             );
             fs.writeFileSync(
@@ -501,6 +491,8 @@ describe('capabilityManifest parser', () => {
             const loaded = loadCapabilityManifestForLayer(tmpDir, 'plugin-package');
             assert.ok(loaded);
             assert.strictEqual(loaded?.agentPlugin, true);
+            assert.strictEqual(loaded?.name, 'Plugin Package');
+            assert.strictEqual(loaded?.description, 'Runtime plugin metadata.');
             assert.strictEqual(loaded?.agentPluginManifest?.name, 'plugin-package');
             assert.strictEqual(loaded?.agentPluginManifest?.version, '1.0.0');
             assert.deepStrictEqual(loaded?.agentPluginManifest?.pluginHosts, ['github-copilot']);
@@ -537,7 +529,7 @@ describe('capabilityManifest parser', () => {
                     'description: Missing name.',
                     '---',
                 ].join('\n'),
-                warningCode: 'README_DESCRIPTOR_NAME_REQUIRED',
+                warningCode: undefined,
             },
             {
                 name: 'missing-description',
@@ -547,12 +539,12 @@ describe('capabilityManifest parser', () => {
                     'name: Missing Description',
                     '---',
                 ].join('\n'),
-                warningCode: 'README_DESCRIPTOR_DESCRIPTION_REQUIRED',
+                warningCode: undefined,
             },
             {
                 name: 'ordinary-readme',
                 readme: '# Ordinary Repository\n\nDocumentation only.',
-                warningCode: 'README_DESCRIPTOR_FRONTMATTER_MISSING',
+                warningCode: undefined,
             },
             {
                 name: 'invalid-id',
@@ -563,7 +555,7 @@ describe('capabilityManifest parser', () => {
                     'id: not-a-uuid',
                     '---',
                 ].join('\n'),
-                warningCode: 'README_DESCRIPTOR_ID_INVALID',
+                warningCode: undefined,
             },
             {
                 name: 'missing-id',
@@ -573,7 +565,7 @@ describe('capabilityManifest parser', () => {
                     'description: The required identifier is absent.',
                     '---',
                 ].join('\n'),
-                warningCode: 'README_DESCRIPTOR_ID_REQUIRED',
+                warningCode: undefined,
             },
         ];
 
@@ -599,23 +591,25 @@ describe('capabilityManifest parser', () => {
 
                 const loaded = loadCapabilityManifestForLayer(tmpDir, testCase.name);
                 assert.ok(loaded);
-                assert.strictEqual(loaded?.agentPlugin, undefined);
-                assert.strictEqual(loaded?.agentPluginManifest, undefined);
-                assert.ok(
-                    loaded?.warnings.some((warning) => warning.code === testCase.warningCode),
-                );
+                assert.strictEqual(loaded?.agentPlugin, true);
+                assert.ok(loaded?.agentPluginManifest);
+                if (testCase.warningCode) {
+                    assert.ok(
+                        loaded?.warnings.some((warning) => warning.code === testCase.warningCode),
+                    );
+                }
 
                 const catalog = buildAgentPluginCatalog([
                     { layerId: testCase.name, files: [], capability: loaded },
                 ]);
-                assert.deepStrictEqual(catalog.entries, []);
+                assert.strictEqual(catalog.entries.length, 1);
             } finally {
                 fs.rmSync(tmpDir, { recursive: true, force: true });
             }
         }
     });
 
-    it('requires name, description, and id for README frontmatter', () => {
+    it('accepts optional README frontmatter without a GUID contract', () => {
         const parsed = parseReadmeDescriptorContent(
             [
                 '---',
@@ -632,14 +626,14 @@ describe('capabilityManifest parser', () => {
 
         assert.strictEqual(parsed.name, 'Minimal');
         assert.strictEqual(parsed.description, 'Minimal description.');
-        assert.strictEqual(parsed.uid, '123e4567-e89b-42d3-a456-426614174000');
+        assert.strictEqual(parsed.uid, undefined);
         assert.strictEqual(parsed.agentPlugin, undefined);
         assert.strictEqual(parsed.experimental, undefined);
         assert.strictEqual(parsed.previousIds, undefined);
         assert.deepStrictEqual(parsed.warnings, []);
     });
 
-    it('diagnoses incomplete README frontmatter without requiring legacy fields', () => {
+    it('accepts incomplete README frontmatter as documentation', () => {
         const parsed = parseReadmeDescriptorContent(
             [
                 '---',
@@ -655,16 +649,7 @@ describe('capabilityManifest parser', () => {
 
         assert.strictEqual(parsed.name, 'Incomplete');
         assert.strictEqual(parsed.description, undefined);
-        assert.ok(
-            parsed.warnings.some(
-                (warning) => warning.code === 'README_DESCRIPTOR_DESCRIPTION_REQUIRED',
-            ),
-        );
-        assert.ok(
-            !parsed.warnings.some(
-                (warning) => warning.code === 'README_DESCRIPTOR_AGENT_PLUGIN_REQUIRED',
-            ),
-        );
+        assert.deepStrictEqual(parsed.warnings, []);
         assert.strictEqual(parsed.agentPlugin, undefined);
         assert.strictEqual(parsed.experimental, undefined);
         assert.strictEqual(parsed.previousIds, undefined);

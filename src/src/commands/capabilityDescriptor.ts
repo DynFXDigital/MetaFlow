@@ -26,7 +26,6 @@ export interface CapabilityDescriptorWarning {
 export interface CapabilityDescriptorResolution {
     kind?: CapabilityDescriptorKind;
     descriptorPath?: string;
-    descriptorId?: string;
     name?: string;
     description?: string;
     license?: string;
@@ -40,13 +39,10 @@ export interface CapabilityDescriptorResolution {
 interface ParsedDescriptorFile {
     name?: string;
     description?: string;
-    descriptorId?: string;
     body: string;
     rawText: string;
     warnings: CapabilityDescriptorWarning[];
 }
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function warning(
     code: string,
@@ -80,7 +76,9 @@ function parseDescriptorFile(rawText: string, descriptorPath: string): ParsedDes
         return {
             body: normalized,
             rawText,
-            warnings: [
+            warnings: isReadme
+                ? []
+                : [
                 warning(
                     `${codePrefix}_FRONTMATTER_MISSING`,
                     `${fileName} is missing required YAML frontmatter delimited by --- markers.`,
@@ -144,9 +142,8 @@ function parseDescriptorFile(rawText: string, descriptorPath: string): ParsedDes
 
     const name = fields.get('name')?.trim() || undefined;
     const description = fields.get('description')?.trim() || undefined;
-    const descriptorId = fields.get('id')?.trim() || undefined;
 
-    if (!name) {
+    if (!name && !isReadme) {
         warnings.push(
             warning(
                 `${codePrefix}_NAME_REQUIRED`,
@@ -155,7 +152,7 @@ function parseDescriptorFile(rawText: string, descriptorPath: string): ParsedDes
             ),
         );
     }
-    if (!description) {
+    if (!description && !isReadme) {
         warnings.push(
             warning(
                 `${codePrefix}_DESCRIPTION_REQUIRED`,
@@ -164,20 +161,9 @@ function parseDescriptorFile(rawText: string, descriptorPath: string): ParsedDes
             ),
         );
     }
-    if (isReadme && descriptorId && !UUID_PATTERN.test(descriptorId)) {
-        warnings.push(
-            warning(
-                'README_DESCRIPTOR_ID_INVALID',
-                'README.md "id" should be a publisher-assigned UUID when present.',
-                descriptorPath,
-            ),
-        );
-    }
-
     return {
         name,
         description,
-        descriptorId,
         body,
         rawText,
         warnings,
@@ -315,9 +301,8 @@ export function resolveCapabilityDescriptor(
         return {
             kind: 'readme',
             descriptorPath: readmePath,
-            descriptorId: parsed.descriptorId,
-            name: parsed.name,
-            description: parsed.description,
+            name: plugin.metadata?.name ?? parsed.name,
+            description: plugin.metadata?.description ?? parsed.description,
             agentPlugin: plugin.metadata !== undefined,
             agentPluginManifest: plugin.metadata,
             body: parsed.body,
@@ -330,7 +315,6 @@ export function resolveCapabilityDescriptor(
         return {
             kind: 'legacy-capability',
             descriptorPath: legacyPath,
-            descriptorId: legacyManifest?.uid,
             name: legacyManifest?.name,
             description: legacyManifest?.description,
             license: legacyManifest?.license,

@@ -522,7 +522,7 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(layers.length, 1);
         assert.strictEqual(layers[0].capability?.manifestPath, path.join(layerDir, 'README.md'));
         assert.strictEqual(layers[0].capability?.descriptorKind, 'readme');
-        assert.strictEqual(layers[0].capability?.uid, '123e4567-e89b-42d3-a456-426614174000');
+        assert.strictEqual(layers[0].capability?.uid, undefined);
         assert.strictEqual(resolveCapabilityDescriptorPath(layerDir)?.kind, 'readme');
     });
 

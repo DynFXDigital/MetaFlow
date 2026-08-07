@@ -1,9 +1,3 @@
----
-name: metaflow-ai-metadata
-description: MetaFlow's built-in AI metadata guardrails and authoring guidance.
-id: d7da7ee3-4ccf-42e8-a23f-c61e321ec612
----
-
 # MetaFlow Metadata
 
 The bundled MetaFlow package provides a starting point for managing reusable AI metadata. It combines MetaFlow-specific guidance with authoring and review assets for repositories that maintain instructions, prompts, agents, skills, and hooks.

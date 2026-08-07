@@ -1,9 +1,3 @@
----
-name: codex-metadata-authoring
-description: Standards and workflows support authoring, reviewing, and maintaining OpenAI Codex metadata constructs.
-id: ccf8bd0b-f27b-4f96-8916-8dcdacd63f3c
----
-
 # Codex Metadata Authoring
 
 This package provides reusable standards and maintenance workflows for OpenAI Codex repository metadata. It focuses on Codex-native structure, compatibility, safe configuration, and promotion readiness.

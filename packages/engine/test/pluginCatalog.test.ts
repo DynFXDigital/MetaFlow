@@ -82,7 +82,6 @@ describe('pluginCatalog', () => {
                     '---',
                     'name: readme-plugin',
                     'description: Documented by the package README.',
-                    'id: 123e4567-e89b-12d3-a456-426614174000',
                     '---',
                     '',
                     '# README Plugin',
@@ -125,8 +124,7 @@ describe('pluginCatalog', () => {
             assert.deepStrictEqual(catalog.entries[0], {
                 pluginName: 'readme-plugin',
                 version: '1.2.3',
-                displayName: 'readme-plugin',
-                descriptorId: '123e4567-e89b-12d3-a456-426614174000',
+                displayName: 'README Plugin',
                 description: 'Documented by the package README.',
                 capabilityId: 'readme-plugin',
                 layerId: 'repo',
@@ -172,6 +170,18 @@ describe('pluginCatalog', () => {
         }
     });
 
+    it('allows human-readable README names that normalize to the plugin slug', () => {
+        const result = buildAgentPluginCatalog([
+            makeLayer('repo/manual-commit', 'repo', 'manual-commit', [], {
+                descriptorKind: 'readme',
+                descriptorName: 'Manual Commit',
+            }),
+        ]);
+
+        assert.strictEqual(result.entries[0]?.displayName, 'Manual Commit');
+        assert.deepStrictEqual(result.warnings, []);
+    });
+
     it('keeps CAPABILITY-only legacy plugin packages in the catalog', () => {
         const result = buildAgentPluginCatalog([
             makeLayer('repo/legacy/plugin', 'repo', 'legacy-plugin', [], {
@@ -181,11 +191,10 @@ describe('pluginCatalog', () => {
         ]);
 
         assert.strictEqual(result.entries.length, 1);
-        assert.strictEqual(result.entries[0]?.descriptorId, undefined);
         assert.deepStrictEqual(result.warnings, []);
     });
 
-    it('omits README plugin packages without a valid descriptor id', () => {
+    it('supports README plugin packages without a descriptor id', () => {
         const layer = makeLayer('repo/readme/missing-id', 'repo', 'missing-id', [], {
             descriptorKind: 'readme',
         });
@@ -193,7 +202,7 @@ describe('pluginCatalog', () => {
 
         const result = buildAgentPluginCatalog([layer]);
 
-        assert.deepStrictEqual(result.entries, []);
+        assert.strictEqual(result.entries.length, 1);
         assert.deepStrictEqual(result.warnings, []);
     });
 

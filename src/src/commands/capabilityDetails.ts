@@ -93,7 +93,6 @@ export interface CapabilityDetailModel {
     repoLabel: string;
     descriptorPath?: string;
     descriptorKind?: CapabilityDescriptorKind;
-    descriptorId?: string;
     /** @deprecated Use descriptorPath. */
     manifestPath?: string;
     enabled: boolean;
@@ -433,7 +432,6 @@ export async function loadCapabilityDetailModel(
         repoLabel: target.repoLabel,
         descriptorPath: descriptor?.manifestPath,
         descriptorKind: descriptor?.descriptorKind,
-        descriptorId: descriptor?.uid,
         manifestPath: descriptor?.manifestPath,
         enabled: target.enabled,
         builtIn: target.builtIn,

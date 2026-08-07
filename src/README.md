@@ -118,7 +118,7 @@ After initialization succeeds, MetaFlow automatically enables the built-in MetaF
 - if the selected directory is not a git repository yet, MetaFlow offers to initialize it with `git init` plus an empty initial commit
 - update checks and pull actions stay limited to repositories that also have a configured remote URL
 
-For new package authoring, create a root `README.md` with required `name`, `description`, and a valid publisher-assigned UUID `id` in front matter. Use the README body for human-facing purpose, usage, included components, activation, trust, compatibility, and further-documentation guidance; keep operational behavior in component files. Use `MetaFlow: Create README Descriptor` to seed the package-root descriptor.
+For new package authoring, create a root `README.md` as ordinary human-facing Markdown. Put package name, description, version, license, hosts, and component paths in the adjacent `plugin.json`; keep operational behavior in component files. Use `MetaFlow: Create README Descriptor` to seed the package-root documentation.
 
 Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSources` are accepted during the pre-release window. Released configs authored against an older compatibility version are also upgraded automatically. On load/open, MetaFlow rewrites stale configs to the current contract, persists the current `compatibilityVersion`, and shows a migration notice.
 
@@ -126,21 +126,13 @@ If enabled capabilities surface the same effective relative path, MetaFlow repor
 
 ### Capability units and organizational containers
 
-A capability unit is a folder that contains both a `.github/` subdirectory with capability metadata and a package-root `README.md` descriptor with valid `name`, `description`, and publisher-assigned UUID `id` front matter. A configured package may still use `CAPABILITY.md` as a legacy fallback when README is absent.
+A capability unit is a folder that contains both a `.github/` subdirectory with capability metadata and a package-root `README.md` documentation file. Agent-plugin packages also contain `plugin.json`, which owns their runtime identity and metadata. A configured package may still use `CAPABILITY.md` as a legacy fallback when README is absent.
 
 An organizational container only groups related descendant capabilities and has no `.github/` subdirectory of its own. It does not require a package descriptor; it may include an ordinary `README.md` when human-oriented discovery or navigation would help.
 
-```md
----
-name: SDLC Traceability
-description: Shared SDLC traceability metadata.
-id: 123e4567-e89b-12d3-a456-426614174000
----
-```
-
-- `name`, `description`, and valid publisher-assigned UUID `id` are required for a README descriptor.
+- README front matter is optional and is not a MetaFlow identity contract.
 - The Markdown body is free-form; recommended topics do not become required headings.
-- Plugin runtime, marketplace, and MetaFlow migration fields remain in their owning files rather than README front matter.
+- Plugin name, description, runtime, marketplace, and host metadata remain in `plugin.json` and its owning files.
 
 Classify each folder independently at every nesting level: descendant capabilities do not make their parent a capability unit. Capability-unit metadata is shown in `metaflow status`, in the Capabilities/Effective Files views, and in the capability details webview.
 

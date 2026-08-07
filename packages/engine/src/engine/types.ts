@@ -97,8 +97,6 @@ export interface CapabilityPluginCatalogEntry {
     version: string;
     /** User-facing title for marketplace and catalog displays. */
     displayName: string;
-    /** Optional publisher-assigned id from a normalized README descriptor. */
-    descriptorId?: string;
     /** Optional user-facing description. */
     description?: string;
     /** Capability identifier backing this plugin package. */

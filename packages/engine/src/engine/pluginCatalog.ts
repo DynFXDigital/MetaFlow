@@ -1,5 +1,4 @@
 import * as path from 'path';
-import { isValidReadmeDescriptor } from './capabilityManifest';
 import {
     CapabilityAgentPluginManifest,
     CapabilityMetadata,
@@ -115,7 +114,11 @@ function toIdentityMismatchWarnings(
     const warnings: CapabilityWarning[] = [];
     const descriptorName = capability.name?.trim();
     const pluginName = pluginManifest.name?.trim();
-    if (descriptorName && pluginName && descriptorName !== pluginName) {
+    if (
+        descriptorName &&
+        pluginName &&
+        normalizePluginName(descriptorName) !== normalizePluginName(pluginName)
+    ) {
         warnings.push(
             toIdentityMismatchWarning(
                 'name',
@@ -152,6 +155,14 @@ function compareText(left: string, right: string): number {
         return 1;
     }
     return 0;
+}
+
+function normalizePluginName(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 }
 
 function compareWarnings(left: CapabilityWarning, right: CapabilityWarning): number {
@@ -206,7 +217,6 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
         if (
             !capability ||
             capability?.agentPlugin === false ||
-            (capability.descriptorKind === 'readme' && !isValidReadmeDescriptor(capability)) ||
             !pluginManifest?.name ||
             !pluginManifest.version
         ) {
@@ -223,9 +233,6 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
             pluginName: pluginManifest.name,
             version: pluginManifest.version,
             displayName: capability.name?.trim() || pluginManifest.name || capability.id,
-            ...(capability.descriptorKind === 'readme' && capability.uid?.trim()
-                ? { descriptorId: capability.uid.trim() }
-                : {}),
             description:
                 capability.description?.trim() || pluginManifest.description?.trim() || undefined,
             capabilityId: capability.id,

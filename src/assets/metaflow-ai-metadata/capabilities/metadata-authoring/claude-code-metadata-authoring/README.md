@@ -1,9 +1,3 @@
----
-name: claude-code-metadata-authoring
-description: Standards and workflows support authoring, reviewing, and maintaining Claude Code metadata constructs.
-id: 5b3bbb8c-6715-498b-8ed8-f905dd82735c
----
-
 # Claude Code Metadata Authoring
 
 This package provides reusable standards and maintenance workflows for Anthropic Claude Code repository metadata. It focuses on Claude Code-native structure, compatibility, safe configuration, and promotion readiness.

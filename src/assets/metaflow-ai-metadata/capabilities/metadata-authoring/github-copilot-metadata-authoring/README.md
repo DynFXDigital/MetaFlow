@@ -1,9 +1,3 @@
----
-name: github-copilot-metadata-authoring
-description: GitHub Copilot metadata standards, prompts, and skills support portable AI metadata artifacts and promotion workflows.
-id: 3cdc581b-1bf9-481a-84d8-f75926e673e8
----
-
 # GitHub Copilot Metadata Authoring
 
 This package helps teams review and maintain GitHub Copilot metadata after Copilot or a human has produced an initial draft. It focuses on choosing the smallest effective surface, scoping it correctly, limiting permissions, preserving host compatibility, and deciding whether reusable metadata is ready to share.
