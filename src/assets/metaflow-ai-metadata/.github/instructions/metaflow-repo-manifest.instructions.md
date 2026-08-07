@@ -44,10 +44,13 @@ my-metadata-repo/
 ├── METAFLOW.md         ← here
 ├── capabilities/
 │   └── my-capability/
-│       ├── CAPABILITY.md
+│       ├── README.md
 │       └── .github/
 └── ...
 ```
+
+New package roots should use `README.md` as the human-facing descriptor. Existing `CAPABILITY.md`
+files remain a legacy compatibility format when README is absent.
 
 ## Example
 

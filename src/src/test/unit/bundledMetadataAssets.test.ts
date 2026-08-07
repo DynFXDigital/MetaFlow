@@ -2,15 +2,13 @@ import * as assert from 'assert';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getArtifactType } from '@metaflow/engine';
+import { getArtifactType, loadCapabilityDescriptorForLayer } from '@metaflow/engine';
 import { minimatch } from 'minimatch';
 
 const ASSET_ROOT = path.resolve(__dirname, '../../../assets/metaflow-ai-metadata');
+const TEST_WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
 const GITHUB_ROOT = path.join(ASSET_ROOT, '.github');
-const PROMPT_INJECTION_HOOK = path.join(
-    ASSET_ROOT,
-    'scripts/prompt-injection-guard.mjs',
-);
+const PROMPT_INJECTION_HOOK = path.join(ASSET_ROOT, 'scripts/prompt-injection-guard.mjs');
 
 function runPromptInjectionHook(event: unknown): string {
     return execFileSync(process.execPath, [PROMPT_INJECTION_HOOK], {
@@ -20,25 +18,78 @@ function runPromptInjectionHook(event: unknown): string {
 }
 
 suite('bundled metadata assets', () => {
-    test('bundled capability manifests declare immutable uids', () => {
-        const manifestPaths = [
-            'CAPABILITY.md',
-            'capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md',
-            'capabilities/metadata-authoring/claude-code-metadata-authoring/CAPABILITY.md',
-            'capabilities/metadata-authoring/codex-metadata-authoring/CAPABILITY.md',
+    test('bundled package READMEs use the portable descriptor front matter', () => {
+        const descriptorPaths = [
+            'README.md',
+            'capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md',
+            'capabilities/metadata-authoring/claude-code-metadata-authoring/README.md',
+            'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
         ];
 
-        for (const relativePath of manifestPaths) {
+        for (const relativePath of descriptorPaths) {
             const content = fs.readFileSync(path.join(ASSET_ROOT, relativePath), 'utf-8');
             assert.match(
                 content,
-                /^uid:\s+[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/im,
-                `Expected bundled CAPABILITY.md to declare immutable uid: ${relativePath}`,
+                /^name:\s+.+$/im,
+                `Expected bundled README.md to declare a name: ${relativePath}`,
+            );
+            assert.match(
+                content,
+                /^description:\s+.+$/im,
+                `Expected bundled README.md to declare a description: ${relativePath}`,
+            );
+            assert.doesNotMatch(
+                content,
+                /^(license|agentPlugin|previousIds|previousPaths):/im,
+                `Expected bundled README.md to omit legacy MetaFlow fields: ${relativePath}`,
             );
         }
     });
 
-    test('bundled capability contract guidance requires H1 headings to use the frontmatter name', () => {
+    test('bundled README identities match adjacent plugin manifests', () => {
+        const descriptorPairs = [
+            ['README.md', 'plugin.json'],
+            [
+                'capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md',
+                'capabilities/metadata-authoring/github-copilot-metadata-authoring/plugin.json',
+            ],
+            [
+                'capabilities/metadata-authoring/claude-code-metadata-authoring/README.md',
+                'capabilities/metadata-authoring/claude-code-metadata-authoring/plugin.json',
+            ],
+            [
+                'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
+                'capabilities/metadata-authoring/codex-metadata-authoring/plugin.json',
+            ],
+        ];
+
+        for (const [descriptorPath, pluginPath] of descriptorPairs) {
+            const descriptorContent = fs.readFileSync(
+                path.join(ASSET_ROOT, descriptorPath),
+                'utf-8',
+            );
+            const pluginManifest = JSON.parse(
+                fs.readFileSync(path.join(ASSET_ROOT, pluginPath), 'utf-8'),
+            ) as { name?: string; description?: string };
+            const descriptorName = descriptorContent.match(/^name:\s*(.+)$/m)?.[1].trim();
+            const descriptorDescription = descriptorContent
+                .match(/^description:\s*(.+)$/m)?.[1]
+                .trim();
+
+            assert.strictEqual(
+                descriptorName,
+                pluginManifest.name,
+                `Expected README and plugin.json names to agree: ${descriptorPath}`,
+            );
+            assert.strictEqual(
+                descriptorDescription,
+                pluginManifest.description,
+                `Expected README and plugin.json descriptions to agree: ${descriptorPath}`,
+            );
+        }
+    });
+
+    test('bundled README descriptor guidance keeps human documentation separate from behavior', () => {
         const instructionPath = path.join(
             GITHUB_ROOT,
             'instructions/metaflow-capability-contract.instructions.md',
@@ -48,18 +99,67 @@ suite('bundled metadata assets', () => {
 
         assert.ok(
             content.includes(
-                'Use the frontmatter `name` as the user-facing capability title throughout the file.',
+                '`README.md` is the preferred human-facing descriptor at the root of a configured metadata package.',
             ),
-            'Expected bundled CAPABILITY contract guidance to require the frontmatter name as the user-facing title.',
+            'Expected bundled guidance to prefer README package descriptors.',
         );
         assert.ok(
-            content.includes('Include `uid` as a generated immutable UUID'),
-            'Expected bundled CAPABILITY contract guidance to require immutable uid guidance.',
+            content.includes(
+                'Required fields are `name`, `description`, and a valid publisher-assigned UUID `id`.',
+            ),
+            'Expected bundled README guidance to describe the required front matter contract.',
         );
         assert.ok(
-            content.includes('Set the first heading to `# Capability: <Frontmatter Name>`'),
-            'Expected bundled CAPABILITY contract guidance to require the H1 heading to match the frontmatter name.',
+            content.includes(
+                'The README body is documentation, not an instruction-execution surface.',
+            ),
+            'Expected bundled README guidance to keep behavior in component files.',
         );
+        assert.ok(
+            content.includes('`CAPABILITY.md` is a legacy compatibility descriptor only.'),
+            'Expected bundled README guidance to keep CAPABILITY compatibility explicit.',
+        );
+    });
+
+    test('test workspace covers README and CAPABILITY descriptor formats', () => {
+        const readmePath = path.join(
+            TEST_WORKSPACE_ROOT,
+            '.ai/ai-metadata/standards/sdlc/README.md',
+        );
+        const legacyPath = path.join(
+            TEST_WORKSPACE_ROOT,
+            'descriptor-fixtures/legacy-capability/CAPABILITY.md',
+        );
+
+        const readmeContent = fs.readFileSync(readmePath, 'utf-8');
+        assert.match(readmeContent, /^name:\s+sdlc$/m);
+        assert.match(readmeContent, /^description:\s+.+$/m);
+        assert.match(readmeContent, /^id:\s+[0-9a-f-]+$/im);
+        assert.ok(
+            !fs.existsSync(path.join(path.dirname(readmePath), 'CAPABILITY.md')),
+            'Expected the active SDLC fixture to use README.md rather than CAPABILITY.md.',
+        );
+
+        const readmeDescriptor = loadCapabilityDescriptorForLayer(path.dirname(readmePath), 'sdlc');
+        assert.strictEqual(readmeDescriptor?.descriptorKind, 'readme');
+        assert.strictEqual(readmeDescriptor?.manifestPath, readmePath);
+        assert.strictEqual(readmeDescriptor?.warnings.length, 0);
+
+        const legacyContent = fs.readFileSync(legacyPath, 'utf-8');
+        assert.match(legacyContent, /^uid:\s+[0-9a-f-]+$/im);
+        assert.match(legacyContent, /^agentPlugin:\s+false$/im);
+        assert.ok(
+            !fs.existsSync(path.join(path.dirname(legacyPath), 'README.md')),
+            'Expected the legacy compatibility fixture to remain CAPABILITY-only.',
+        );
+
+        const legacyDescriptor = loadCapabilityDescriptorForLayer(
+            path.dirname(legacyPath),
+            'legacy-capability',
+        );
+        assert.strictEqual(legacyDescriptor?.descriptorKind, 'capability');
+        assert.strictEqual(legacyDescriptor?.manifestPath, legacyPath);
+        assert.strictEqual(legacyDescriptor?.agentPlugin, false);
     });
 
     test('bundled metadata-authoring assets are present and avoid exact global applyTo scopes', () => {
@@ -208,10 +308,7 @@ suite('bundled metadata assets', () => {
         );
 
         const nestedBestPractices = fs.readFileSync(
-            path.join(
-                githubRoots[1],
-                'skills/ai-metadata/BestPractices.md',
-            ),
+            path.join(githubRoots[1], 'skills/ai-metadata/BestPractices.md'),
             'utf-8',
         );
         assert.strictEqual((nestedBestPractices.match(/^#{2,3} Hooks$/gm) ?? []).length, 1);
@@ -248,22 +345,22 @@ suite('bundled metadata assets', () => {
 
         for (const capabilityName of capabilityNames) {
             const root = path.join(capabilityRoot, capabilityName);
-            const capabilityPath = path.join(root, 'CAPABILITY.md');
+            const descriptorPath = path.join(root, 'README.md');
             const pluginPath = path.join(root, 'plugin.json');
 
             assert.ok(
-                fs.existsSync(capabilityPath),
-                `Expected bundled capability contract: ${capabilityName}`,
+                fs.existsSync(descriptorPath),
+                `Expected bundled package README descriptor: ${capabilityName}`,
             );
             assert.ok(
                 fs.existsSync(pluginPath),
                 `Expected bundled plugin manifest: ${capabilityName}`,
             );
 
-            const capabilityContent = fs.readFileSync(capabilityPath, 'utf-8');
+            const descriptorContent = fs.readFileSync(descriptorPath, 'utf-8');
             assert.ok(
-                capabilityContent.includes('agentPlugin: true'),
-                `Expected bundled capability to declare agentPlugin: true: ${capabilityName}`,
+                !descriptorContent.includes('agentPlugin:'),
+                `Expected plugin opt-in fields to remain in plugin.json: ${capabilityName}`,
             );
         }
 
@@ -464,7 +561,7 @@ suite('bundled metadata assets', () => {
             'node "${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs"',
         );
         assert.ok(
-            pluginScript.includes("../.github/hooks/scripts/prompt-injection-guard.mjs"),
+            pluginScript.includes('../.github/hooks/scripts/prompt-injection-guard.mjs'),
             'Expected the plugin entry point to delegate to the shipped hook implementation.',
         );
         assert.ok(

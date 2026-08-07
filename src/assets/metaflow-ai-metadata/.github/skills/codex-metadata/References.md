@@ -3,6 +3,7 @@
 Last reviewed: 2026-03-28
 
 ## OpenAI Codex docs (authoritative)
+
 - AGENTS.md: https://developers.openai.com/codex/guides/agents-md
 - Config basics: https://developers.openai.com/codex/config-basic
 - Config reference: https://developers.openai.com/codex/config-reference
@@ -14,4 +15,5 @@ Last reviewed: 2026-03-28
 - MCP: https://developers.openai.com/codex/mcp
 
 ## Repo-local research and design inputs
-- `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
+
+- `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/README.md`

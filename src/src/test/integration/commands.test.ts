@@ -1790,8 +1790,7 @@ suite('Command Execution', function () {
         this.timeout(15000);
 
         const lines = (await vscode.commands.executeCommand('metaflow.status')) as
-            | string[]
-            | undefined;
+            string[] | undefined;
         assert.ok(Array.isArray(lines), 'Status should return the emitted log lines');
 
         assert.ok(
@@ -1828,7 +1827,7 @@ suite('Command Execution', function () {
         );
     });
 
-    test('status reports capability warning file path when manifest is malformed', async function () {
+    test('status reports README descriptor warning file path when README is malformed', async function () {
         this.timeout(15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
@@ -1848,42 +1847,43 @@ suite('Command Execution', function () {
         };
         fs.writeFileSync(configPath, JSON.stringify(capabilityConfig, null, 2), 'utf-8');
 
-        const capabilityPath = path.join(
+        const descriptorPath = path.join(
             workspaceRoot,
             '.ai',
             'ai-metadata',
             'standards',
             'sdlc',
-            'CAPABILITY.md',
+            'README.md',
         );
 
-        const originalCapability = fs.readFileSync(capabilityPath, 'utf-8');
+        const originalDescriptor = fs.readFileSync(descriptorPath, 'utf-8');
 
         try {
-            fs.writeFileSync(capabilityPath, '# malformed manifest without frontmatter\n', 'utf-8');
+            fs.writeFileSync(
+                descriptorPath,
+                '# malformed README descriptor without frontmatter\n',
+                'utf-8',
+            );
 
             await vscode.commands.executeCommand('metaflow.refresh');
             const lines = (await vscode.commands.executeCommand('metaflow.status')) as
-                | string[]
-                | undefined;
+                string[] | undefined;
             assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
 
-            const warningLine = lines.find(
-                (line) =>
-                    line.includes('CAPABILITY_FRONTMATTER_MISSING') ||
-                    line.includes('CAPABILITY_NO_FRONTMATTER'),
+            const warningLine = lines.find((line) =>
+                line.includes('README_DESCRIPTOR_FRONTMATTER_MISSING'),
             );
             assert.ok(
                 warningLine,
-                'Status should include capability warning code for malformed manifest',
+                'Status should include README descriptor warning code for malformed README',
             );
             const normalizedWarningLine = warningLine?.replace(/\\/g, '/');
             assert.ok(
-                normalizedWarningLine?.includes('standards/sdlc/CAPABILITY.md'),
-                `Expected warning to include manifest path, got: ${warningLine}`,
+                normalizedWarningLine?.includes('standards/sdlc/README.md'),
+                `Expected warning to include README descriptor path, got: ${warningLine}`,
             );
         } finally {
-            fs.writeFileSync(capabilityPath, originalCapability, 'utf-8');
+            fs.writeFileSync(descriptorPath, originalDescriptor, 'utf-8');
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
@@ -1916,8 +1916,7 @@ suite('Command Execution', function () {
 
             await vscode.commands.executeCommand('metaflow.refresh');
             const lines = (await vscode.commands.executeCommand('metaflow.status')) as
-                | string[]
-                | undefined;
+                string[] | undefined;
             assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
 
             const warningLine = lines.find((line) => line.includes('REPO_PATH_MISSING'));
@@ -2318,7 +2317,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('openCapabilityManifest opens the backing CAPABILITY.md from capability details context', async function () {
+    test('openCapabilityDescriptor opens the selected README descriptor and reports duplicates', async function () {
         this.timeout(15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
@@ -2327,7 +2326,7 @@ suite('Command Execution', function () {
         const layerRoot = path.join(repoRoot, 'review', 'capability-open');
         fs.mkdirSync(layerRoot, { recursive: true });
         fs.writeFileSync(
-            path.join(layerRoot, 'CAPABILITY.md'),
+            path.join(layerRoot, 'README.md'),
             [
                 '---',
                 'name: Capability Open',
@@ -2335,6 +2334,18 @@ suite('Command Execution', function () {
                 '---',
                 '',
                 '# Capability Open',
+            ].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(layerRoot, 'CAPABILITY.md'),
+            [
+                '---',
+                'name: Legacy Capability Open',
+                'description: Legacy fallback descriptor.',
+                '---',
+                '',
+                '# Legacy Capability Open',
             ].join('\n'),
             'utf-8',
         );
@@ -2363,30 +2374,34 @@ suite('Command Execution', function () {
             )) as { html?: string } | undefined;
 
             assert.ok(
-                snapshot?.html?.includes('Open CAPABILITY.md'),
+                snapshot?.html?.includes('Open README.md'),
                 'details view should render the open-manifest action',
             );
             assert.ok(
-                snapshot?.html?.includes('command:metaflow.openCapabilityManifest?'),
+                snapshot?.html?.includes('command:metaflow.openCapabilityDescriptor?'),
                 'details view should expose the open-manifest command uri',
+            );
+            assert.ok(
+                snapshot?.html?.includes('CAPABILITY_DESCRIPTOR_DUPLICATE'),
+                'details view should expose the duplicate descriptor warning',
             );
 
             const openedPath = (await vscode.commands.executeCommand(
-                'metaflow.openCapabilityManifest',
+                'metaflow.openCapabilityDescriptor',
                 {
-                    manifestPath: path.join(layerRoot, 'CAPABILITY.md'),
+                    descriptorPath: path.join(layerRoot, 'README.md'),
                 },
             )) as string | undefined;
 
-            assert.strictEqual(openedPath, path.join(layerRoot, 'CAPABILITY.md'));
+            assert.strictEqual(openedPath, path.join(layerRoot, 'README.md'));
             assert.ok(
                 vscode.window.activeTextEditor,
                 'opening the manifest should reveal a text editor',
             );
             assert.strictEqual(
                 path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
-                path.normalize(path.join(layerRoot, 'CAPABILITY.md')),
-                'openCapabilityManifest should open the exact backing CAPABILITY.md file',
+                path.normalize(path.join(layerRoot, 'README.md')),
+                'openCapabilityDescriptor should open the selected README descriptor',
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
@@ -2580,6 +2595,7 @@ suite('Command Execution', function () {
                       guidancePath?: string;
                       examplePath?: string;
                       draftUri?: string;
+                      descriptorPath?: string;
                       manifestPath?: string;
                       pluginJsonPath?: string;
                       targetDirectory?: string;
@@ -2601,23 +2617,16 @@ suite('Command Execution', function () {
                 expectedCapabilityDirectoryPath,
                 '.github',
             );
-            const expectedManifestPath = path.join(
-                expectedCapabilityDirectoryPath,
-                'CAPABILITY.md',
-            );
-            const expectedPluginJsonPath = path.join(
-                expectedCapabilityDirectoryPath,
-                'plugin.json',
+            const expectedDescriptorPath = path.join(expectedCapabilityDirectoryPath, 'README.md');
+            assert.strictEqual(
+                path.normalize(result?.descriptorPath ?? ''),
+                path.normalize(expectedDescriptorPath),
+                'guided create should write README.md in the child package directory',
             );
             assert.strictEqual(
                 path.normalize(result?.manifestPath ?? ''),
-                path.normalize(expectedManifestPath),
-                'guided create should write CAPABILITY.md in the child capability directory',
-            );
-            assert.strictEqual(
-                path.normalize(result?.pluginJsonPath ?? ''),
-                path.normalize(expectedPluginJsonPath),
-                'guided create should write plugin.json in the child capability directory',
+                path.normalize(expectedDescriptorPath),
+                'guided create should retain the descriptor path compatibility alias',
             );
             assert.strictEqual(
                 path.normalize(result?.targetDirectory ?? ''),
@@ -2646,16 +2655,17 @@ suite('Command Execution', function () {
             );
             assert.strictEqual(
                 result?.draftUri,
-                vscode.Uri.file(expectedManifestPath).toString(),
-                'guided create should return the created CAPABILITY.md uri',
+                vscode.Uri.file(expectedDescriptorPath).toString(),
+                'guided create should return the created README.md uri',
             );
             assert.ok(
                 fs.existsSync(expectedCapabilityGithubDirectoryPath),
                 'guided create should create an empty .github directory for the new capability',
             );
+            assert.strictEqual(result?.pluginJsonPath, undefined);
             assert.ok(
-                fs.existsSync(expectedPluginJsonPath),
-                'guided create should create plugin.json',
+                !fs.existsSync(path.join(expectedCapabilityDirectoryPath, 'plugin.json')),
+                'guided create should leave plugin.json to the separate maintenance flow',
             );
 
             assert.ok(
@@ -2670,39 +2680,21 @@ suite('Command Execution', function () {
                     (doc) =>
                         path.normalize(doc.uri.fsPath) === path.normalize(result!.examplePath!),
                 ),
-                'guided create should open the bundled example CAPABILITY.md',
+                'guided create should open the bundled example README.md',
             );
 
-            const manifestContent = fs.readFileSync(expectedManifestPath, 'utf-8');
-            assert.ok(manifestContent.includes('agentPlugin: true'));
-
-            const pluginJsonContent = JSON.parse(
-                fs.readFileSync(expectedPluginJsonPath, 'utf-8'),
-            ) as {
-                name?: string;
-                version?: string;
-                agents?: string;
-                metaflow?: { pluginHosts?: string[] };
-            };
-            assert.strictEqual(pluginJsonContent.name, 'context-capability');
-            assert.strictEqual(pluginJsonContent.version, '0.1.0');
-            assert.strictEqual(pluginJsonContent.agents, '.github/agents');
-            assert.deepStrictEqual(pluginJsonContent.metaflow?.pluginHosts, ['github-copilot']);
+            const descriptorContent = fs.readFileSync(expectedDescriptorPath, 'utf-8');
+            assert.ok(descriptorContent.includes('name: Context Capability'));
+            assert.ok(!descriptorContent.includes('agentPlugin'));
 
             assert.ok(
                 vscode.window.activeTextEditor,
-                'guided create should leave CAPABILITY.md active',
+                'guided create should leave README.md active',
             );
             assert.strictEqual(
                 path.normalize(vscode.window.activeTextEditor!.document.uri.fsPath),
-                path.normalize(expectedManifestPath),
-                'guided create should open the created CAPABILITY.md file',
-            );
-            assert.ok(
-                vscode.window
-                    .activeTextEditor!.document.getText()
-                    .includes('name: Context Capability'),
-                'guided create should use the entered capability name in CAPABILITY.md frontmatter',
+                path.normalize(expectedDescriptorPath),
+                'guided create should open the created README.md file',
             );
         } finally {
             windowAny.showQuickPick = originalQuickPick;
@@ -5047,10 +5039,7 @@ suite('Command Execution', function () {
     test('initConfig immediately offers promotion for existing local git repositories', async function () {
         this.timeout(30000);
 
-        const repoPath = path.join(
-            path.dirname(workspaceRoot),
-            '.tmp-git-promotion-init-config',
-        );
+        const repoPath = path.join(path.dirname(workspaceRoot), '.tmp-git-promotion-init-config');
         const expectedLocalPath = path.relative(workspaceRoot, repoPath).replace(/\\/g, '/');
         removeDirectoryRecursive(repoPath);
         fs.mkdirSync(path.join(repoPath, '.github', 'prompts'), { recursive: true });
@@ -6027,7 +6016,10 @@ suite('Command Execution', function () {
         const authoredConfig = JSON.parse(originalConfig) as {
             metadataRepos?: Array<Record<string, unknown>>;
             layerSources?: Array<Record<string, unknown>>;
-            profiles?: Record<string, { enabledCapabilities?: string[]; layerOverrides?: Array<Record<string, unknown>> }>;
+            profiles?: Record<
+                string,
+                { enabledCapabilities?: string[]; layerOverrides?: Array<Record<string, unknown>> }
+            >;
         };
         authoredConfig.metadataRepos = [
             ...(authoredConfig.metadataRepos ?? []),
@@ -6081,7 +6073,9 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
             await vscode.commands.executeCommand('metaflow.refresh');
 
-            const afterRemoveConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as typeof authoredConfig;
+            const afterRemoveConfig = JSON.parse(
+                fs.readFileSync(configPath, 'utf-8'),
+            ) as typeof authoredConfig;
             assert.ok(
                 !afterRemoveConfig.metadataRepos?.some(
                     (repo) => repo.id === BUILT_IN_CAPABILITY_REPO_ID,

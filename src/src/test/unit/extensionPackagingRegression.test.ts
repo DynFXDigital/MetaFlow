@@ -337,7 +337,7 @@ suite('Extension Packaging Regression Guards', () => {
         assert.strictEqual(pushCommand?.icon, '$(repo-push)');
     });
 
-    test('Create CAPABILITY.md is contributed for the command palette and Capabilities menus', () => {
+    test('Create README Descriptor is contributed for the command palette and Capabilities menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -347,13 +347,17 @@ suite('Extension Packaging Regression Guards', () => {
             (entry) => entry.command === 'metaflow.createCapabilityManifest',
         );
         assert.ok(createCommand, 'Expected metaflow.createCapabilityManifest command contribution');
+        assert.strictEqual(createCommand?.title, 'MetaFlow: Create README Descriptor');
         assert.strictEqual(createCommand?.icon, '$(new-file)');
 
         const titleMenuEntries = packageJson.contributes?.menus?.['view/title'] ?? [];
         const titleEntry = titleMenuEntries.find(
             (entry) => entry.command === 'metaflow.createCapabilityManifest',
         );
-        assert.ok(titleEntry, 'Expected Create CAPABILITY.md in the Capabilities view title menu');
+        assert.ok(
+            titleEntry,
+            'Expected Create README Descriptor in the Capabilities view title menu',
+        );
         assert.strictEqual(
             titleEntry?.when,
             'view == metaflow-layers && metaflow.layersViewMode == flat',
@@ -368,11 +372,11 @@ suite('Extension Packaging Regression Guards', () => {
         );
         assert.ok(
             contextEntry,
-            'Expected Create CAPABILITY.md in the Capabilities item context menu',
+            'Expected Create README Descriptor in the Capabilities item context menu',
         );
     });
 
-    test('Maintain Capability Plugin Metadata is contributed for the command palette only', () => {
+    test('Maintain Plugin Manifest is contributed for the command palette only', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -385,6 +389,10 @@ suite('Extension Packaging Regression Guards', () => {
             maintainCommand,
             'Expected metaflow.maintainCapabilityPluginMetadata command contribution',
         );
+        assert.strictEqual(
+            maintainCommand?.title,
+            'MetaFlow: Maintain Plugin Manifest (plugin.json)',
+        );
         assert.strictEqual(maintainCommand?.icon, '$(package)');
 
         const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
@@ -396,7 +404,7 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('Maintain All Capability Plugin Metadata is contributed for the command palette and repo item menus', () => {
+    test('Maintain All Plugin Manifests is contributed for the command palette and repo item menus', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),

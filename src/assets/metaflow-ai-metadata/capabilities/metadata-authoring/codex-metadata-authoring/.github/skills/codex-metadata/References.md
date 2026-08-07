@@ -21,7 +21,7 @@ Last reviewed: 2026-05-22
 
 ## Repo-local research and design inputs
 
-- `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`# Codex metadata references
+- `capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md`# Codex metadata references
 
 Last reviewed: 2026-03-28
 
@@ -39,4 +39,4 @@ Last reviewed: 2026-03-28
 
 ## Repo-local research and design inputs
 
-- `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
+- `capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md`

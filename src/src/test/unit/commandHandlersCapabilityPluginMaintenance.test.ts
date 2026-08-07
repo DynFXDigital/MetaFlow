@@ -66,7 +66,8 @@ suite('Command handler capability plugin maintenance helpers', () => {
         const effectiveFiles = [
             {
                 sourceRepo: '__metaflow_builtin__',
-                sourcePath: 'C:/extension/assets/metaflow-ai-metadata/.github/prompts/review.prompt.md',
+                sourcePath:
+                    'C:/extension/assets/metaflow-ai-metadata/.github/prompts/review.prompt.md',
                 relativePath: '.github/prompts/review.prompt.md',
             },
             {
@@ -76,7 +77,8 @@ suite('Command handler capability plugin maintenance helpers', () => {
             },
             {
                 sourceRepo: 'primary',
-                sourcePath: 'C:/extension/assets/metaflow-ai-metadata/.github/prompts/overlap.prompt.md',
+                sourcePath:
+                    'C:/extension/assets/metaflow-ai-metadata/.github/prompts/overlap.prompt.md',
                 relativePath: '.github/prompts/overlap.prompt.md',
             },
         ];
@@ -644,9 +646,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 '../metadata/capabilities/plugin-smoke/.github/agents': true,
             });
 
-            const updatedSettings = JSON.parse(
-                fs.readFileSync(copilotSettingsPath, 'utf-8'),
-            ) as {
+            const updatedSettings = JSON.parse(fs.readFileSync(copilotSettingsPath, 'utf-8')) as {
                 enabledPlugins?: Record<string, boolean>;
             };
             assert.deepStrictEqual(updatedSettings.enabledPlugins, {
@@ -936,6 +936,38 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual(pluginJson.commands, '.github/commands');
             assert.strictEqual(pluginJson.rules, '.github/instructions');
             assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainCapabilityPluginMetadataInDirectory keeps README authoring separate from plugin.json maintenance', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-maintain-readme-'));
+        try {
+            const readmePath = path.join(tempRoot, 'README.md');
+            const readmeContent = [
+                '---',
+                'name: README Package',
+                'description: README package description',
+                '---',
+                '',
+                '# README Documentation',
+            ].join('\n');
+            fs.writeFileSync(readmePath, readmeContent, 'utf-8');
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
+
+            assert.strictEqual(result.descriptorKind, 'readme');
+            assert.strictEqual(path.normalize(result.descriptorPath), path.normalize(readmePath));
+            assert.strictEqual(result.descriptorChanged, false);
+            assert.strictEqual(result.manifestChanged, false);
+            assert.strictEqual(fs.readFileSync(readmePath, 'utf-8'), readmeContent);
+            assert.ok(fs.existsSync(result.pluginJsonPath));
+            assert.ok(
+                !fs.readFileSync(readmePath, 'utf-8').includes('agentPlugin'),
+                'README maintenance must not add the legacy agentPlugin field',
+            );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }

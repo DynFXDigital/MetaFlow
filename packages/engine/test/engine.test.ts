@@ -48,6 +48,7 @@ import {
     toSynchronizedRelativePath,
     toAuthoredConfig,
     normalizeConfigShape,
+    resolveCapabilityDescriptorPath,
     // Types
     MetaFlowConfig,
     EffectiveFile,
@@ -128,6 +129,7 @@ describe('Engine package: public API', () => {
         assert.strictEqual(typeof clean, 'function');
         assert.strictEqual(typeof preview, 'function');
         assert.strictEqual(typeof computeSettingsEntries, 'function');
+        assert.strictEqual(typeof resolveCapabilityDescriptorPath, 'function');
     });
 });
 
@@ -371,7 +373,10 @@ describe('Engine package: cross-platform path handling', () => {
         if (result.ok) {
             const layers = resolveLayers(result.config, tmpDir);
             assert.strictEqual(layers.length, 1);
-            assert.deepStrictEqual(layers[0].files.map((file) => file.relativePath), ['hooks.json']);
+            assert.deepStrictEqual(
+                layers[0].files.map((file) => file.relativePath),
+                ['hooks.json'],
+            );
         }
     });
 });
@@ -488,6 +493,62 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['capabilities/empty-capability']);
+    });
+
+    it('resolves an explicitly configured README-only layer and selected descriptor path', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'readme-only-repo');
+        const layerDir = path.join(repoDir, 'packages', 'portable-package');
+        fs.mkdirSync(layerDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(layerDir, 'README.md'),
+            [
+                '---',
+                'id: 123e4567-e89b-42d3-a456-426614174000',
+                'name: Portable Package',
+                'description: Portable package description.',
+                '---',
+                '',
+                '# Portable Package',
+            ].join('\n'),
+            'utf-8',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/readme-only-repo' },
+            layers: ['packages/portable-package'],
+        };
+
+        const layers = resolveLayers(config, tmpDir);
+        assert.strictEqual(layers.length, 1);
+        assert.strictEqual(layers[0].capability?.manifestPath, path.join(layerDir, 'README.md'));
+        assert.strictEqual(layers[0].capability?.descriptorKind, 'readme');
+        assert.strictEqual(layers[0].capability?.uid, '123e4567-e89b-42d3-a456-426614174000');
+        assert.strictEqual(resolveCapabilityDescriptorPath(layerDir)?.kind, 'readme');
+    });
+
+    it('discovers README descriptors only for host-recognized plugin roots', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'readme-discovery-repo');
+        const pluginRoot = path.join(repoRoot, 'plugins', 'portable-package');
+        const nestedDocsRoot = path.join(repoRoot, 'docs', 'reference');
+        fs.mkdirSync(pluginRoot, { recursive: true });
+        fs.mkdirSync(nestedDocsRoot, { recursive: true });
+        fs.writeFileSync(path.join(repoRoot, 'README.md'), '# Ordinary repository README', 'utf-8');
+        fs.writeFileSync(
+            path.join(pluginRoot, 'README.md'),
+            ['---', 'name: Portable Package', 'description: Plugin package.', '---'].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), '{}', 'utf-8');
+        fs.writeFileSync(
+            path.join(nestedDocsRoot, 'README.md'),
+            ['---', 'name: Nested Documentation', 'description: Not a package root.', '---'].join(
+                '\n',
+            ),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['plugins/portable-package']);
     });
 
     it('does not discover artifact roots as standalone layer directories', () => {
@@ -1500,7 +1561,10 @@ describe('Engine: overlay multi-repo resolution', () => {
         });
 
         assert.ok(layers.some((layer) => layer.layerId === 'base'));
-        assert.deepStrictEqual(layers.map((layer) => layer.layerId), ['base']);
+        assert.deepStrictEqual(
+            layers.map((layer) => layer.layerId),
+            ['base'],
+        );
     });
 });
 

@@ -2,8 +2,12 @@ import * as assert from 'assert';
 import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    loadCapabilityDescriptorForLayer,
     LayerContent,
 } from '../src/index';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 function makeLayer(
     layerId: string,
@@ -14,22 +18,38 @@ function makeLayer(
         message: string;
         severity?: 'error' | 'warning' | 'info';
     }> = [],
+    options: {
+        descriptorKind?: 'readme' | 'capability';
+        descriptorId?: string;
+        descriptorName?: string;
+        descriptorDescription?: string;
+        pluginDescription?: string;
+        agentPlugin?: boolean;
+    } = {},
 ): LayerContent {
+    const pluginDescription = options.pluginDescription ?? `Description for ${layerId}`;
+    const descriptorFileName = options.descriptorKind === 'readme' ? 'README.md' : 'CAPABILITY.md';
     return {
         layerId,
         repoId,
         files: [],
         capability: {
             id: layerId.split('/').slice(-1)[0],
-            manifestPath: `/workspace/${layerId}/CAPABILITY.md`,
-            name: `Capability ${layerId}`,
-            description: `Description for ${layerId}`,
-            agentPlugin: true,
+            uid:
+                options.descriptorId ??
+                (options.descriptorKind === 'readme'
+                    ? '123e4567-e89b-42d3-a456-426614174000'
+                    : undefined),
+            manifestPath: `/workspace/${layerId}/${descriptorFileName}`,
+            descriptorKind: options.descriptorKind,
+            name: options.descriptorName ?? pluginName,
+            description: options.descriptorDescription ?? pluginDescription,
+            agentPlugin: options.agentPlugin ?? true,
             agentPluginManifest: {
                 pluginJsonPath: `/workspace/${layerId}/plugin.json`,
                 name: pluginName,
                 version: '1.0.0',
-                description: `Plugin for ${layerId}`,
+                description: pluginDescription,
                 keywords: ['metaflow'],
                 pluginHosts: ['github-copilot'],
                 minimumMetaflowVersion: '^0.1.0',
@@ -51,6 +71,166 @@ describe('pluginCatalog', () => {
             ['example-first', 'example-second'],
         );
         assert.deepStrictEqual(result.warnings, []);
+    });
+
+    it('supports README-only documentation with plugin.json metadata', () => {
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-readme-plugin-'));
+        try {
+            fs.writeFileSync(
+                path.join(repoRoot, 'README.md'),
+                [
+                    '---',
+                    'name: readme-plugin',
+                    'description: Documented by the package README.',
+                    'id: 123e4567-e89b-12d3-a456-426614174000',
+                    '---',
+                    '',
+                    '# README Plugin',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(repoRoot, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'readme-plugin',
+                        version: '1.2.3',
+                        description: 'Documented by the package README.',
+                        author: { name: 'Example Org', email: 'plugins@example.test' },
+                        license: 'MIT',
+                        keywords: ['example', 'readme'],
+                        agents: '.github/agents',
+                        skills: ['.github/skills', '.github/skills-extra'],
+                        homepage: 'https://example.test/readme-plugin',
+                        repository: 'https://github.com/example/readme-plugin',
+                        documentation: 'https://docs.example.test/readme-plugin',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.4.0',
+                        },
+                    },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+
+            const capability = loadCapabilityDescriptorForLayer(repoRoot, 'readme-plugin');
+            assert.ok(capability);
+            const catalog = buildAgentPluginCatalog([
+                { layerId: 'repo', repoId: 'repo', files: [], capability },
+            ]);
+
+            assert.deepStrictEqual(catalog.warnings, []);
+            assert.deepStrictEqual(catalog.entries[0], {
+                pluginName: 'readme-plugin',
+                version: '1.2.3',
+                displayName: 'readme-plugin',
+                descriptorId: '123e4567-e89b-12d3-a456-426614174000',
+                description: 'Documented by the package README.',
+                capabilityId: 'readme-plugin',
+                layerId: 'repo',
+                repoId: 'repo',
+                manifestPath: path.join(repoRoot, 'README.md'),
+                pluginJsonPath: path.join(repoRoot, 'plugin.json'),
+                pluginHosts: ['github-copilot'],
+                minimumMetaflowVersion: '^0.4.0',
+                license: 'MIT',
+                author: { name: 'Example Org', email: 'plugins@example.test' },
+                keywords: ['example', 'readme'],
+                components: {
+                    agents: '.github/agents',
+                    skills: ['.github/skills', '.github/skills-extra'],
+                },
+                homepage: 'https://example.test/readme-plugin',
+                repository: 'https://github.com/example/readme-plugin',
+                documentation: 'https://docs.example.test/readme-plugin',
+                experimental: undefined,
+            });
+
+            const marketplace = buildCapabilityPluginMarketplaceManifest(catalog.entries, {
+                repoRoot,
+                marketplaceName: 'Example Plugins',
+            });
+            assert.deepStrictEqual(marketplace.warnings, []);
+            assert.deepStrictEqual(marketplace.manifest.plugins, [
+                {
+                    name: 'readme-plugin',
+                    source: './',
+                    description: 'Documented by the package README.',
+                    version: '1.2.3',
+                    author: { name: 'Example Org', email: 'plugins@example.test' },
+                    license: 'MIT',
+                    keywords: ['example', 'readme'],
+                    homepage: 'https://example.test/readme-plugin',
+                    repository: 'https://github.com/example/readme-plugin',
+                    documentation: 'https://docs.example.test/readme-plugin',
+                },
+            ]);
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps CAPABILITY-only legacy plugin packages in the catalog', () => {
+        const result = buildAgentPluginCatalog([
+            makeLayer('repo/legacy/plugin', 'repo', 'legacy-plugin', [], {
+                descriptorKind: 'capability',
+                descriptorId: '123e4567-e89b-12d3-a456-426614174000',
+            }),
+        ]);
+
+        assert.strictEqual(result.entries.length, 1);
+        assert.strictEqual(result.entries[0]?.descriptorId, undefined);
+        assert.deepStrictEqual(result.warnings, []);
+    });
+
+    it('omits README plugin packages without a valid descriptor id', () => {
+        const layer = makeLayer('repo/readme/missing-id', 'repo', 'missing-id', [], {
+            descriptorKind: 'readme',
+        });
+        layer.capability!.uid = undefined;
+
+        const result = buildAgentPluginCatalog([layer]);
+
+        assert.deepStrictEqual(result.entries, []);
+        assert.deepStrictEqual(result.warnings, []);
+    });
+
+    it('emits stable actionable diagnostics for README/plugin identity mismatches', () => {
+        const nameMismatch = buildAgentPluginCatalog([
+            makeLayer('repo/readme/name-mismatch', 'repo', 'name-mismatch', [], {
+                descriptorKind: 'readme',
+                descriptorName: 'README Name',
+            }),
+        ]);
+        assert.strictEqual(nameMismatch.entries.length, 1);
+        assert.strictEqual(
+            nameMismatch.warnings[0]?.code,
+            'CAPABILITY_AGENT_PLUGIN_README_NAME_MISMATCH',
+        );
+        assert.ok(nameMismatch.warnings[0]?.message.includes('README Name'));
+        assert.ok(nameMismatch.warnings[0]?.message.includes('name-mismatch'));
+
+        const descriptionMismatch = buildAgentPluginCatalog([
+            makeLayer('repo/readme/description-mismatch', 'repo', 'description-mismatch', [], {
+                descriptorKind: 'readme',
+                descriptorDescription: 'README description',
+                pluginDescription: 'Plugin description',
+            }),
+        ]);
+        assert.strictEqual(descriptionMismatch.entries.length, 1);
+        assert.strictEqual(
+            descriptionMismatch.warnings[0]?.code,
+            'CAPABILITY_AGENT_PLUGIN_README_DESCRIPTION_MISMATCH',
+        );
+        assert.ok(descriptionMismatch.warnings[0]?.message.includes('README description'));
+        assert.ok(descriptionMismatch.warnings[0]?.message.includes('Plugin description'));
+        assert.ok(
+            descriptionMismatch.warnings[0]?.message.includes(
+                'Align the shared description values',
+            ),
+        );
     });
 
     it('omits invalid agent-plugin capabilities that already have error-severity manifest warnings', () => {
@@ -107,18 +287,42 @@ describe('pluginCatalog', () => {
                 source: './review/first',
                 description: 'Description for repo/review/first',
                 version: '1.0.0',
+                keywords: ['metaflow'],
             },
             {
                 name: 'example-second',
                 source: './review/second',
                 description: 'Description for repo/review/second',
                 version: '1.0.0',
+                keywords: ['metaflow'],
             },
         ]);
         assert.strictEqual(
             result.manifest.metadata?.description,
             'Generated from capability plugin metadata.',
         );
+    });
+
+    it('keeps marketplace JSON deterministic regardless of layer input order', () => {
+        const firstLayer = makeLayer('repo/review/first', 'repo', 'example-first');
+        const secondLayer = makeLayer('repo/review/second', 'repo', 'example-second');
+        const forwardCatalog = buildAgentPluginCatalog([firstLayer, secondLayer]);
+        const reverseCatalog = buildAgentPluginCatalog([secondLayer, firstLayer]);
+
+        const forwardMarketplace = buildCapabilityPluginMarketplaceManifest(
+            forwardCatalog.entries,
+            { repoRoot: '/workspace/repo', marketplaceName: 'Example Repo' },
+        );
+        const reverseMarketplace = buildCapabilityPluginMarketplaceManifest(
+            reverseCatalog.entries,
+            { repoRoot: '/workspace/repo', marketplaceName: 'Example Repo' },
+        );
+
+        assert.strictEqual(
+            JSON.stringify(forwardMarketplace.manifest),
+            JSON.stringify(reverseMarketplace.manifest),
+        );
+        assert.deepStrictEqual(forwardMarketplace.warnings, reverseMarketplace.warnings);
     });
 
     it('omits marketplace entries whose generated host plugin names collide', () => {

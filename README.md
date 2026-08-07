@@ -33,12 +33,12 @@ _MetaFlow brings shared AI metadata, capabilities, profiles, and effective outpu
 
 MetaFlow adds four views to the Activity Bar:
 
-| View                | What it helps you do                                                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **AI Metadata**     | Review metadata sources, warnings, rescans, and repository update actions.                                                                                |
-| **Profiles**        | Switch the active profile for the current workspace.                                                                                                      |
+| View                | What it helps you do                                                                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AI Metadata**     | Review metadata sources, warnings, rescans, and repository update actions.                                                                                      |
+| **Profiles**        | Switch the active profile for the current workspace.                                                                                                            |
 | **Capabilities**    | Enable or disable whole capabilities, toggle whole folder branches in tree mode, browse underlying artifact directories and files, and open capability details. |
-| **Effective Files** | Inspect the resolved files, where they came from, and whether they are settings-backed or synchronized.                                                   |
+| **Effective Files** | Inspect the resolved files, where they came from, and whether they are settings-backed or synchronized.                                                         |
 
 ## Get Started
 
@@ -55,16 +55,16 @@ From there, the normal workflow is:
 
 ## Everyday Workflow
 
-| Task                        | Where to do it                                                                                                                      |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **Switch profile**          | Use the **Profiles** view.                                                                                                          |
+| Task                        | Where to do it                                                                                                                                                                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Switch profile**          | Use the **Profiles** view.                                                                                                                                                                                                                          |
 | **Toggle a capability**     | Check or uncheck it in the **Capabilities** view. In tree mode, folder rows also toggle every descendant capability in that branch. Capabilities are atomic: artifact folders inside a capability are browse-only, not partial enablement switches. |
-| **Browse capabilities**     | Expand capability branches and artifact rows to inspect nested folders and files with friendly names and tooltips.                  |
-| **Inspect a capability**    | Open the capability details view from a capability row.                                                                             |
-| **Review effective output** | Browse **Effective Files** to see resolved files, sources, and realization mode.                                                    |
-| **Review metadata repos**   | Use **AI Metadata** to rescan repositories and review update status.                                                                |
-| **Pull repo updates**       | Use the inline repo actions when shared metadata changes upstream.                                                                  |
-| **Review local drift**      | Use MetaFlow's synchronization and promote workflows to see what changed locally and what should be pushed back upstream.           |
+| **Browse capabilities**     | Expand capability branches and artifact rows to inspect nested folders and files with friendly names and tooltips.                                                                                                                                  |
+| **Inspect a capability**    | Open the capability details view from a capability row.                                                                                                                                                                                             |
+| **Review effective output** | Browse **Effective Files** to see resolved files, sources, and realization mode.                                                                                                                                                                    |
+| **Review metadata repos**   | Use **AI Metadata** to rescan repositories and review update status.                                                                                                                                                                                |
+| **Pull repo updates**       | Use the inline repo actions when shared metadata changes upstream.                                                                                                                                                                                  |
+| **Review local drift**      | Use MetaFlow's synchronization and promote workflows to see what changed locally and what should be pushed back upstream.                                                                                                                           |
 
 Tree layout preferences are local workspace state, not VS Code settings. MetaFlow persists the Capabilities layout and Effective Files layout in `.metaflow/state.json`, defaulting to hierarchical Capabilities and flat Effective Files.
 
@@ -88,21 +88,33 @@ Artifact rows inside a capability expand when metadata exists under that class. 
 MetaFlow includes a bundled starter capability so you can try the workflow before setting up a larger shared metadata repository.
 
 - Use it to understand the capability model quickly.
-- Use the bundled metadata-authoring guidance when you need to create or refine instructions, prompts, agents, skills, hooks, or capability manifests from the current context.
+- Use the bundled metadata-authoring guidance when you need to create or refine README package descriptors, instructions, prompts, agents, skills, hooks, or plugin manifests from the current context.
 - Synchronize it locally when you want editable files.
 - Bundled authoring instructions stay narrowly scoped; the built-in set does not rely on exact `applyTo: "**"` injections.
 - Externalize the patterns that work into a shared team or organization metadata repository.
+
+## Package README Descriptors
+
+New package roots use `README.md` as the human-facing descriptor. Its portable front matter contains
+the required `name`, `description`, and valid publisher-assigned UUID `id`; the Markdown body is
+free-form package documentation. Recommended topics include purpose, when to use the package,
+included components, activation, trust, compatibility, and further documentation. These topics do
+not impose required headings, and detailed agent behavior remains in component files.
+
+Existing package roots that still have `CAPABILITY.md` remain supported through the legacy fallback
+when README is absent. README and CAPABILITY are never merged. Use `MetaFlow: Create README
+Descriptor` to seed the package-root descriptor for new authoring.
 
 ## Capability Plugin Metadata
 
 MetaFlow can also treat a capability as an agent-plugin-compatible manifest when the capability opts in explicitly.
 
-- Set `agentPlugin: true` in the capability frontmatter inside `CAPABILITY.md`.
-- Place a `plugin.json` file beside `CAPABILITY.md` at the capability root.
+- Place a `plugin.json` file beside the package-root `README.md`.
+- Keep plugin runtime fields in `plugin.json`; do not duplicate them in README front matter.
 - MetaFlow validates the embedded plugin manifest and surfaces errors or warnings in the normal Problems and diagnostics flows.
-- Use `MetaFlow: Create CAPABILITY.md` to scaffold both files for a new capability.
-- Use `MetaFlow: Maintain Capability Plugin Metadata` to backfill or repair managed plugin manifest fields for an existing capability without replacing unrelated `plugin.json` content.
-- Use `MetaFlow: Maintain All Capability Plugin Metadata` to sweep every capability directory in a selected metadata repository and backfill missing plugin data in one pass.
+- Use `MetaFlow: Create README Descriptor` to migrate an existing legacy package when desired; it preserves the legacy body and keeps legacy-only fields out of README front matter.
+- Use `MetaFlow: Maintain Plugin Manifest (plugin.json)` to backfill or repair managed plugin manifest fields for an existing capability without replacing unrelated `plugin.json` content.
+- Use `MetaFlow: Maintain All Plugin Manifests (plugin.json)` to sweep every capability directory in a selected metadata repository and backfill missing plugin data in one pass.
 
 The maintained plugin manifest contract currently expects:
 
@@ -140,7 +152,7 @@ Current scope:
 - `plugin` is the default mode for `instructions`, `skills`, `agents`, and hook artifacts (`hooks.json`, `hooks/**`, or `.github/hooks/**`)
 - `prompts` remain `settings` or `synchronize` because Copilot plugin discovery does not consume MetaFlow prompt directories directly
 - legacy top-level `hooks.preApply` and `hooks.postApply` remain settings-backed script paths; they are distinct from Copilot plugin hook configuration
-- `plugin.json` must exist at the capability root and should be kept in sync with `CAPABILITY.md`
+- `plugin.json` must exist at the capability root and its shared `name` and `description` should agree with `README.md`.
 
 ## Where to go next
 

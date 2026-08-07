@@ -1,5 +1,4 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { resolvePathFromWorkspace } from '@metaflow/engine';
 import {
@@ -10,8 +9,10 @@ import {
 } from './commands/commandHandlers';
 import { ensureMultiRepoConfig } from './commands/commandHelpers';
 import {
+    CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS,
     createCapabilityPluginMetadataSchedulerCore,
     DirtyCapabilityPluginMetadataRepo,
+    findNearestCapabilityDirectory,
 } from './capabilityPluginMetadataSchedulerCore';
 import { BUILT_IN_CAPABILITY_REPO_ID } from './builtInCapability';
 import { logInfo, logWarn } from './views/outputChannel';
@@ -19,57 +20,11 @@ import { logInfo, logWarn } from './views/outputChannel';
 const AUTO_MAINTAIN_SETTING_KEY = 'pluginMetadata.autoMaintain';
 const AUTO_MAINTAIN_DELAY_SETTING_KEY = 'pluginMetadata.autoMaintainDelayMs';
 const DEFAULT_AUTO_MAINTAIN_DELAY_MS = 5000;
-const WATCH_PATTERNS = [
-    '**/CAPABILITY.md',
-    '**/plugin.json',
-    '**/instructions/**',
-    '**/.github/instructions/**',
-    '**/commands/**',
-    '**/.github/commands/**',
-    '**/skills/**',
-    '**/.github/skills/**',
-    '**/agents/**',
-    '**/.github/agents/**',
-];
-
 interface WatchedRepo {
     repoId: string;
     repoRoot: string;
     excludePatterns: string[];
     disposables: vscode.Disposable[];
-}
-
-function isPathInside(parentPath: string, candidatePath: string): boolean {
-    const relative = path.relative(parentPath, candidatePath);
-    return (
-        relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
-    );
-}
-
-function findNearestCapabilityDirectory(repoRoot: string, changedPath: string): string | undefined {
-    let current = path.dirname(changedPath);
-    try {
-        if (fs.existsSync(changedPath) && fs.statSync(changedPath).isDirectory()) {
-            current = changedPath;
-        }
-    } catch {
-        current = path.dirname(changedPath);
-    }
-
-    while (isPathInside(repoRoot, current)) {
-        const manifestPath = path.join(current, 'CAPABILITY.md');
-        if (fs.existsSync(manifestPath)) {
-            return current;
-        }
-
-        const parent = path.dirname(current);
-        if (parent === current) {
-            return undefined;
-        }
-        current = parent;
-    }
-
-    return undefined;
 }
 
 function normalizeDelayMs(value: unknown): number {
@@ -176,7 +131,7 @@ export function createCapabilityPluginMetadataScheduler(
         const disposables: vscode.Disposable[] = [];
         const repo: WatchedRepo = { repoId, repoRoot, excludePatterns, disposables };
 
-        for (const pattern of WATCH_PATTERNS) {
+        for (const pattern of CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS) {
             const watcher = vscode.workspace.createFileSystemWatcher(
                 new vscode.RelativePattern(repoRoot, pattern),
             );

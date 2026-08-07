@@ -19,7 +19,7 @@ const BUNDLED_METADATA_VERSION_MARKER = '.metaflow-bundle-version';
 const BUNDLED_METADATA_CACHE_LOCK = '.metaflow-ai-metadata.lock';
 const CACHE_LOCK_TIMEOUT_MS = 10000;
 const CACHE_LOCK_STALE_MS = 30000;
-const CAPABILITY_MANIFEST_FILE_NAME = 'CAPABILITY.md';
+const DESCRIPTOR_FILE_NAMES = new Set(['README.md', 'CAPABILITY.md']);
 
 interface BundledMetadataVersionMarker {
     version: string;
@@ -272,9 +272,8 @@ async function copyBundledMetaFlowAiMetadata(options: {
 }
 
 function isRootCapabilityManifest(sourceRoot: string, sourceFile: string): boolean {
-    return (
-        path.relative(sourceRoot, sourceFile).replace(/\\/g, '/') === CAPABILITY_MANIFEST_FILE_NAME
-    );
+    const relativePath = path.relative(sourceRoot, sourceFile).replace(/\\/g, '/');
+    return DESCRIPTOR_FILE_NAMES.has(relativePath);
 }
 
 function resolveDestinationRelativePath(

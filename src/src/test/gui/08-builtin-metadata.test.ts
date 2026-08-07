@@ -41,7 +41,10 @@ suite('Built-in AI Metadata Management', function () {
         await sleep(INTERACTION_TIMEOUT);
 
         const capSection = await getSection(sideBar, 'Capabilities');
-        assert.ok(capSection, 'Capabilities section missing after initializing MetaFlow capability');
+        assert.ok(
+            capSection,
+            'Capabilities section missing after initializing MetaFlow capability',
+        );
     });
 
     test('MetaFlow: Get Diagnostics Snapshot command executes without error', async () => {
@@ -89,12 +92,12 @@ suite('Built-in AI Metadata Management', function () {
         );
     });
 
-    test('MetaFlow: Maintain All Capability Plugin Metadata command is accessible', async () => {
+    test('MetaFlow: Maintain All Plugin Manifests (plugin.json) command is accessible', async () => {
         const workbench = new Workbench();
         // This command maintains plugin.json files — runs silently on git repos
         // Just verify it is registered
         try {
-            await workbench.executeCommand('MetaFlow: Maintain All Capability Plugin Metadata');
+            await workbench.executeCommand('MetaFlow: Maintain All Plugin Manifests (plugin.json)');
             await sleep(500);
         } catch (err) {
             // May require a context (repo item selection) — just verify it is registered

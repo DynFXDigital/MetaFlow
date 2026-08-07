@@ -3,6 +3,7 @@
 Last reviewed: 2026-03-28
 
 ## Anthropic Claude Code docs (authoritative)
+
 - Memory system (CLAUDE.md, Auto Memory, Rules): https://code.claude.com/docs/en/memory.md
 - Sub-agents: https://code.claude.com/docs/en/sub-agents.md
 - Skills: https://code.claude.com/docs/en/skills.md
@@ -13,5 +14,6 @@ Last reviewed: 2026-03-28
 - Documentation map: https://code.claude.com/docs/en/claude_code_docs_map.md
 
 ## Repo-local research and design inputs
-- `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
-- `capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/CAPABILITY.md`
+
+- `capabilities/agentic-development/metadata-authoring/github-copilot-metadata-authoring/README.md`
+- `capabilities/agentic-development/metadata-authoring/codex-metadata-authoring/README.md`

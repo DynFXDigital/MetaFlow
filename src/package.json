@@ -267,17 +267,17 @@
       },
       {
         "command": "metaflow.createCapabilityManifest",
-        "title": "MetaFlow: Create CAPABILITY.md",
+        "title": "MetaFlow: Create README Descriptor",
         "icon": "$(new-file)"
       },
       {
         "command": "metaflow.maintainCapabilityPluginMetadata",
-        "title": "MetaFlow: Maintain Capability Plugin Metadata",
+        "title": "MetaFlow: Maintain Plugin Manifest (plugin.json)",
         "icon": "$(package)"
       },
       {
         "command": "metaflow.maintainAllCapabilityPluginMetadata",
-        "title": "MetaFlow: Maintain All Capability Plugin Metadata",
+        "title": "MetaFlow: Maintain All Plugin Manifests (plugin.json)",
         "icon": "$(repo)"
       },
       {

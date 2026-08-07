@@ -1,5 +1,7 @@
 import * as path from 'path';
+import { isValidReadmeDescriptor } from './capabilityManifest';
 import {
+    CapabilityAgentPluginManifest,
     CapabilityMetadata,
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
@@ -16,6 +18,12 @@ export interface CapabilityPluginMarketplacePluginEntry {
     source: string;
     description?: string;
     version?: string;
+    author?: CapabilityAgentPluginManifest['author'];
+    license?: string;
+    keywords?: string[];
+    homepage?: string;
+    repository?: string;
+    documentation?: string;
 }
 
 export interface CapabilityPluginMarketplaceManifest {
@@ -67,16 +75,97 @@ function toDuplicateWarning(
 function toMarketplacePluginDuplicateWarning(
     pluginName: string,
     pluginJsonPath: string,
-    conflictingPluginNames: string[],
+    conflictingLayerIds: string[],
 ): CapabilityWarning {
     return {
         code: 'CAPABILITY_AGENT_PLUGIN_MARKETPLACE_PLUGIN_DUPLICATE',
         message:
             `Generated marketplace plugin name "${pluginName}" collides for multiple capability plugin manifests: ` +
-            conflictingPluginNames.join(', '),
+            conflictingLayerIds.join(', '),
         filePath: pluginJsonPath,
         severity: 'error',
     };
+}
+
+function toIdentityMismatchWarning(
+    fieldName: 'name' | 'description',
+    descriptorValue: string,
+    pluginValue: string,
+    descriptorPath: string,
+    pluginJsonPath: string,
+): CapabilityWarning {
+    return {
+        code: `CAPABILITY_AGENT_PLUGIN_README_${fieldName.toUpperCase()}_MISMATCH`,
+        message:
+            `README.md ${fieldName} "${descriptorValue}" does not match plugin.json ${fieldName} "${pluginValue}". ` +
+            `Align the shared ${fieldName} values in ${descriptorPath} and ${pluginJsonPath}.`,
+        filePath: descriptorPath,
+        severity: 'warning',
+    };
+}
+
+function toIdentityMismatchWarnings(
+    capability: CapabilityMetadata,
+    pluginManifest: CapabilityAgentPluginManifest,
+): CapabilityWarning[] {
+    if (capability.descriptorKind !== 'readme') {
+        return [];
+    }
+
+    const warnings: CapabilityWarning[] = [];
+    const descriptorName = capability.name?.trim();
+    const pluginName = pluginManifest.name?.trim();
+    if (descriptorName && pluginName && descriptorName !== pluginName) {
+        warnings.push(
+            toIdentityMismatchWarning(
+                'name',
+                descriptorName,
+                pluginName,
+                capability.manifestPath,
+                pluginManifest.pluginJsonPath,
+            ),
+        );
+    }
+
+    const descriptorDescription = capability.description?.trim();
+    const pluginDescription = pluginManifest.description?.trim();
+    if (descriptorDescription && pluginDescription && descriptorDescription !== pluginDescription) {
+        warnings.push(
+            toIdentityMismatchWarning(
+                'description',
+                descriptorDescription,
+                pluginDescription,
+                capability.manifestPath,
+                pluginManifest.pluginJsonPath,
+            ),
+        );
+    }
+
+    return warnings;
+}
+
+function compareText(left: string, right: string): number {
+    if (left < right) {
+        return -1;
+    }
+    if (left > right) {
+        return 1;
+    }
+    return 0;
+}
+
+function compareWarnings(left: CapabilityWarning, right: CapabilityWarning): number {
+    const codeComparison = compareText(left.code, right.code);
+    if (codeComparison !== 0) {
+        return codeComparison;
+    }
+
+    const pathComparison = compareText(left.filePath ?? '', right.filePath ?? '');
+    if (pathComparison !== 0) {
+        return pathComparison;
+    }
+
+    return compareText(left.message, right.message);
 }
 
 function toMarketplaceSourceWarning(
@@ -86,24 +175,16 @@ function toMarketplaceSourceWarning(
 ): CapabilityWarning {
     return {
         code: 'CAPABILITY_AGENT_PLUGIN_MARKETPLACE_MANIFEST_OUTSIDE_REPO',
-        message:
-            `Capability plugin "${pluginName}" is outside the repository root "${repoRoot}" and cannot be included in the generated marketplace manifest.`,
+        message: `Capability plugin "${pluginName}" is outside the repository root "${repoRoot}" and cannot be included in the generated marketplace manifest.`,
         filePath: pluginJsonPath,
         severity: 'error',
     };
 }
 
-function toMarketplacePluginSource(
-    repoRoot: string,
-    pluginJsonPath: string,
-): string | undefined {
+function toMarketplacePluginSource(repoRoot: string, pluginJsonPath: string): string | undefined {
     const pluginDirectory = path.dirname(pluginJsonPath);
     const relativePath = path.relative(repoRoot, pluginDirectory);
-    if (
-        relativePath.length === 0 ||
-        relativePath === '.' ||
-        relativePath === path.sep
-    ) {
+    if (relativePath.length === 0 || relativePath === '.' || relativePath === path.sep) {
         return './';
     }
 
@@ -117,11 +198,18 @@ function toMarketplacePluginSource(
 
 export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCatalogResult {
     const candidateEntries: CapabilityPluginCatalogEntry[] = [];
+    const warnings: CapabilityWarning[] = [];
 
     for (const layer of layers) {
         const capability = layer.capability;
         const pluginManifest = capability?.agentPluginManifest;
-        if (!capability?.agentPlugin || !pluginManifest?.name || !pluginManifest.version) {
+        if (
+            !capability ||
+            capability?.agentPlugin === false ||
+            (capability.descriptorKind === 'readme' && !isValidReadmeDescriptor(capability)) ||
+            !pluginManifest?.name ||
+            !pluginManifest.version
+        ) {
             continue;
         }
 
@@ -129,10 +217,15 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
             continue;
         }
 
+        warnings.push(...toIdentityMismatchWarnings(capability, pluginManifest));
+
         candidateEntries.push({
             pluginName: pluginManifest.name,
             version: pluginManifest.version,
-            displayName: capability.name?.trim() || capability.id,
+            displayName: capability.name?.trim() || pluginManifest.name || capability.id,
+            ...(capability.descriptorKind === 'readme' && capability.uid?.trim()
+                ? { descriptorId: capability.uid.trim() }
+                : {}),
             description:
                 capability.description?.trim() || pluginManifest.description?.trim() || undefined,
             capabilityId: capability.id,
@@ -142,10 +235,24 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
             pluginJsonPath: pluginManifest.pluginJsonPath,
             pluginHosts: [...pluginManifest.pluginHosts],
             minimumMetaflowVersion: pluginManifest.minimumMetaflowVersion,
-            license: capability.license,
+            license: pluginManifest.license ?? capability.license,
+            author: pluginManifest.author,
+            keywords: [...pluginManifest.keywords],
+            components: pluginManifest.components ? { ...pluginManifest.components } : undefined,
+            homepage: pluginManifest.homepage,
+            repository: pluginManifest.repository,
+            documentation: pluginManifest.documentation,
             experimental: capability.experimental,
         });
     }
+
+    candidateEntries.sort((left, right) => {
+        const pluginComparison = compareText(left.pluginName, right.pluginName);
+        if (pluginComparison !== 0) {
+            return pluginComparison;
+        }
+        return compareText(left.layerId, right.layerId);
+    });
 
     const groupedByPluginName = new Map<string, CapabilityPluginCatalogEntry[]>();
     for (const entry of candidateEntries) {
@@ -155,7 +262,6 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
     }
 
     const entries: CapabilityPluginCatalogEntry[] = [];
-    const warnings: CapabilityWarning[] = [];
     for (const [pluginName, grouped] of groupedByPluginName) {
         if (grouped.length > 1) {
             const layerIds = grouped
@@ -171,13 +277,14 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
     }
 
     entries.sort((left, right) => {
-        const pluginComparison = left.pluginName.localeCompare(right.pluginName);
+        const pluginComparison = compareText(left.pluginName, right.pluginName);
         if (pluginComparison !== 0) {
             return pluginComparison;
         }
-        return left.layerId.localeCompare(right.layerId);
+        return compareText(left.layerId, right.layerId);
     });
 
+    warnings.sort(compareWarnings);
     return { entries, warnings };
 }
 
@@ -201,21 +308,28 @@ export function buildCapabilityPluginMarketplaceManifest(
 
         return {
             pluginName: entry.pluginName,
+            layerId: entry.layerId,
             pluginJsonPath: entry.pluginJsonPath,
             plugin: {
                 name: entry.pluginName,
                 source,
                 ...(entry.description ? { description: entry.description } : {}),
                 ...(entry.version ? { version: entry.version } : {}),
+                ...(entry.author ? { author: entry.author } : {}),
+                ...(entry.license ? { license: entry.license } : {}),
+                ...(entry.keywords && entry.keywords.length > 0
+                    ? { keywords: [...entry.keywords] }
+                    : {}),
+                ...(entry.homepage ? { homepage: entry.homepage } : {}),
+                ...(entry.repository ? { repository: entry.repository } : {}),
+                ...(entry.documentation ? { documentation: entry.documentation } : {}),
             } satisfies CapabilityPluginMarketplacePluginEntry,
         };
     });
 
     const groupedByPluginName = new Map<
         string,
-        Array<
-            NonNullable<typeof candidatePlugins[number]>
-        >
+        Array<NonNullable<(typeof candidatePlugins)[number]>>
     >();
     for (const candidate of candidatePlugins) {
         if (!candidate) {
@@ -230,15 +344,15 @@ export function buildCapabilityPluginMarketplaceManifest(
     const plugins: CapabilityPluginMarketplacePluginEntry[] = [];
     for (const [pluginName, grouped] of groupedByPluginName) {
         if (grouped.length > 1) {
-            const conflictingPluginNames = grouped
-                .map((candidate) => candidate.pluginName)
-                .sort((left, right) => left.localeCompare(right));
+            const conflictingLayerIds = grouped
+                .map((candidate) => candidate.layerId)
+                .sort(compareText);
             for (const candidate of grouped) {
                 warnings.push(
                     toMarketplacePluginDuplicateWarning(
                         pluginName,
                         candidate.pluginJsonPath,
-                        conflictingPluginNames,
+                        conflictingLayerIds,
                     ),
                 );
             }
@@ -248,7 +362,8 @@ export function buildCapabilityPluginMarketplaceManifest(
         plugins.push(grouped[0].plugin);
     }
 
-    plugins.sort((left, right) => left.name.localeCompare(right.name));
+    plugins.sort((left, right) => compareText(left.name, right.name));
+    warnings.sort(compareWarnings);
 
     const metadata = {
         ...(options.description ? { description: options.description } : {}),

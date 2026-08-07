@@ -12,6 +12,7 @@ import * as jsonc from 'jsonc-parser';
 import { createHash, randomUUID } from 'crypto';
 import type {
     ApplyResult,
+    CapabilityMetadata,
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
@@ -38,6 +39,7 @@ import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
     collectAgentPluginHookWarnings,
+    resolveCapabilityDescriptorPath,
     resolvePathFromWorkspace,
     applyProfile,
     classifyFiles,
@@ -881,9 +883,7 @@ function previewBuiltInLayerEnabledState(
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     const defaultEnabled =
-        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
-            ? currentState.layerEnabled
-            : true;
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH ? currentState.layerEnabled : true;
     if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
@@ -995,9 +995,7 @@ function buildGovernedMutationDecision(
     };
 }
 
-function buildGovernanceEvaluationConfig(
-    config: MetaFlowConfig,
-): MetaFlowConfig {
+function buildGovernanceEvaluationConfig(config: MetaFlowConfig): MetaFlowConfig {
     return projectConfigForProfile(config);
 }
 
@@ -2050,8 +2048,7 @@ function collectConfiguredCapabilityDiagnosticWarnings(
 
     const appendManifestWarnings = (repoRoot: string, layerPath: string): void => {
         const layerAbsPath = path.join(repoRoot, layerPath);
-        const capabilityFile = path.join(layerAbsPath, 'CAPABILITY.md');
-        if (!fs.existsSync(capabilityFile)) {
+        if (!resolveCapabilityDescriptorPath(layerAbsPath)) {
             return;
         }
 
@@ -2742,9 +2739,7 @@ async function writeBuiltInLayerEnabledState(
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     const defaultEnabled =
-        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
-            ? currentState.layerEnabled
-            : true;
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH ? currentState.layerEnabled : true;
     if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
@@ -4186,7 +4181,7 @@ function pruneRepoSyncStatusToRepos(state: ExtensionState, repoIds: Iterable<str
     );
 }
 
-const BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
+const BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
     'assets',
     'metaflow-ai-metadata',
     '.github',
@@ -4194,13 +4189,13 @@ const BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
     'metaflow-capability-contract.instructions.md',
 );
 
-const BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
+const BUNDLED_DESCRIPTOR_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
     'assets',
     'metaflow-ai-metadata',
     'capabilities',
     'metadata-authoring',
     'github-copilot-metadata-authoring',
-    'CAPABILITY.md',
+    'README.md',
 );
 
 interface CapabilityManifestDestinationPick extends vscode.QuickPickItem {
@@ -4378,7 +4373,7 @@ async function promptForMetadataRepoId(state: ExtensionState): Promise<string | 
     const selected = await vscode.window.showQuickPick(picks, {
         title: 'MetaFlow: Select Repository Source',
         placeHolder:
-            'Choose the metadata repository whose capability plugin metadata should be maintained',
+            'Choose the metadata repository whose package plugin.json metadata should be maintained',
         ignoreFocusOut: true,
     });
 
@@ -4394,7 +4389,7 @@ async function promptForCapabilityManifestDirectory(options: {
         picks.push({
             label: 'Use suggested directory',
             description: options.suggestedDirectory,
-            detail: 'Create or open CAPABILITY.md in the contextual destination',
+            detail: 'Create or open README.md in the contextual package directory',
             mode: 'suggested',
             targetDirectory: options.suggestedDirectory,
         });
@@ -4403,7 +4398,7 @@ async function promptForCapabilityManifestDirectory(options: {
     picks.push(
         {
             label: 'Choose existing directory',
-            detail: 'Pick an existing folder for CAPABILITY.md',
+            detail: 'Pick an existing folder for a package README descriptor',
             mode: 'existing',
         },
         {
@@ -4414,7 +4409,7 @@ async function promptForCapabilityManifestDirectory(options: {
     );
 
     const selected = await vscode.window.showQuickPick(picks, {
-        title: 'MetaFlow: Choose CAPABILITY.md Destination',
+        title: 'MetaFlow: Choose Package Descriptor Destination',
         placeHolder: 'Select how to choose the destination directory',
         ignoreFocusOut: true,
     });
@@ -4469,23 +4464,23 @@ async function promptForExistingCapabilityDirectory(options: {
     const picks: ExistingCapabilityDirectoryPick[] = [];
     if (options.suggestedDirectory) {
         picks.push({
-            label: 'Use suggested capability directory',
+            label: 'Use suggested package directory',
             description: options.suggestedDirectory,
-            detail: 'Maintain package metadata for the selected capability directory',
+            detail: 'Maintain plugin.json for the selected package directory',
             mode: 'suggested',
             targetDirectory: options.suggestedDirectory,
         });
     }
 
     picks.push({
-        label: 'Choose existing capability directory',
-        detail: 'Pick an existing folder that already contains CAPABILITY.md',
+        label: 'Choose existing package directory',
+        detail: 'Pick an existing folder that contains README.md or legacy CAPABILITY.md',
         mode: 'existing',
     });
 
     const selected = await vscode.window.showQuickPick(picks, {
-        title: 'MetaFlow: Choose Capability Directory',
-        placeHolder: 'Select the capability directory to maintain',
+        title: 'MetaFlow: Choose Plugin Package Directory',
+        placeHolder: 'Select the package directory whose plugin.json should be maintained',
         ignoreFocusOut: true,
     });
 
@@ -4521,57 +4516,57 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
     const normalizedName = capabilityName.trim() || 'Capability Name';
     return [
         '---',
-        `uid: ${randomUUID()}`,
         `name: ${normalizedName}`,
-        'description: Describe what this capability offers in one direct declarative sentence.',
-        'license: SEE-LICENSE-IN-REPO',
-        'agentPlugin: true',
+        'description: Describe what this package offers in one direct declarative sentence.',
         '---',
         '',
-        `# Capability: ${normalizedName}`,
+        `# ${normalizedName}`,
         '',
-        '## Mission',
+        '## Purpose',
         '',
-        'Describe the primary purpose of this capability.',
+        'Describe the primary purpose of this package.',
         '',
-        '## Scope',
+        '## Included Components',
         '',
-        '- List the main assets, workflows, or concerns this capability owns.',
+        '- List the main assets, workflows, or concerns this package provides.',
         '',
-        '## Non-Goals',
+        '## Compatibility',
         '',
-        '- List 2 to 4 plausible adjacent responsibilities this capability intentionally does not own.',
-        '- Keep these boundaries inside the same workflow or problem space; avoid unrelated disclaimer bullets.',
+        '- Describe prerequisites, supported hosts, and trust considerations when relevant.',
         '',
     ].join('\n');
 }
 
-function buildCapabilityPluginManifestStarterTemplate(
-    capabilityName: string,
-    capabilityDirectoryName: string,
-): string {
-    const normalizedCapabilityName = capabilityName.trim() || 'Capability Name';
-    const normalizedPluginName =
-        sanitizeCapabilityPluginName(capabilityDirectoryName) || 'capability';
+function buildReadmeDescriptorFromLegacyManifest(manifest: CapabilityMetadata): string {
+    const name = manifest.name?.trim() || 'Package Name';
+    const description = manifest.description?.trim() || 'Describe what this package offers.';
+    const body = manifest.body ?? `\n# ${name}\n`;
+    return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`;
+}
 
-    return `${JSON.stringify(
-        {
-            name: normalizedPluginName,
-            version: '0.1.0',
-            description: `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`,
-            keywords: ['metaflow', 'agent-plugin', 'capability'],
-            agents: '.github/agents',
-            commands: '.github/commands',
-            skills: '.github/skills',
-            rules: '.github/instructions',
-            metaflow: {
-                pluginHosts: ['github-copilot'],
-                minimumMetaflowVersion: '^0.1.0-preview.0',
+async function promptForLegacyDescriptorMigration(): Promise<'migrate' | 'new' | undefined> {
+    const selected = await vscode.window.showQuickPick(
+        [
+            {
+                label: 'Migrate legacy CAPABILITY.md to README.md',
+                description: 'Preserve the legacy name, description, and Markdown body.',
+                detail: 'Legacy-only fields stay in CAPABILITY.md and are not copied into README.md.',
+                mode: 'migrate' as const,
             },
+            {
+                label: 'Create a new README.md',
+                description: 'Leave the legacy CAPABILITY.md unchanged.',
+                mode: 'new' as const,
+            },
+        ],
+        {
+            title: 'MetaFlow: Choose Descriptor Migration',
+            placeHolder: 'Select how to handle the existing legacy descriptor',
+            ignoreFocusOut: true,
         },
-        null,
-        2,
-    )}\n`;
+    );
+
+    return selected?.mode;
 }
 
 function isLikelySemverVersion(value: string): boolean {
@@ -4607,7 +4602,7 @@ export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
     const frontmatterMatch = normalized.match(/^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n?[\s\S]*)$/);
     if (!frontmatterMatch) {
         throw new Error(
-            'CAPABILITY.md must contain valid frontmatter delimited by opening and closing --- markers.',
+            'The legacy descriptor must contain valid frontmatter delimited by opening and closing --- markers.',
         );
     }
 
@@ -4771,20 +4766,31 @@ export async function maintainCapabilityPluginMetadataInDirectory(
 ): Promise<{
     capabilityDirectoryPath: string;
     capabilityName: string;
+    descriptorPath: string;
+    descriptorKind: 'readme' | 'capability';
+    descriptorChanged: boolean;
+    /** @deprecated Use descriptorPath and descriptorChanged. */
     manifestPath: string;
     pluginJsonPath: string;
     manifestChanged: boolean;
     pluginJsonChanged: boolean;
 }> {
-    const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
-    if (!fs.existsSync(manifestPath)) {
+    const descriptor = resolveCapabilityDescriptorPath(capabilityDirectoryPath);
+    if (!descriptor) {
         throw new Error(
-            `${manifestPath} was not found. Choose a capability directory that already contains CAPABILITY.md.`,
+            `${capabilityDirectoryPath} has no README.md or legacy CAPABILITY.md descriptor. Choose a package directory with a descriptor.`,
         );
     }
 
-    const manifestRawText = await fsp.readFile(manifestPath, 'utf-8');
-    const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+    let descriptorChanged = false;
+    if (descriptor.kind === 'capability') {
+        const manifestRawText = await fsp.readFile(descriptor.absolutePath, 'utf-8');
+        const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+        descriptorChanged = manifestUpdate.changed;
+        if (manifestUpdate.changed) {
+            await fsp.writeFile(descriptor.absolutePath, manifestUpdate.content, 'utf-8');
+        }
+    }
 
     const capabilityId = path.basename(capabilityDirectoryPath);
     const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
@@ -4803,9 +4809,6 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         existingRawText: existingPluginJsonRawText,
     });
 
-    if (manifestUpdate.changed) {
-        await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
-    }
     if (pluginUpdate.changed) {
         await fsp.writeFile(pluginJsonPath, pluginUpdate.content, 'utf-8');
     }
@@ -4813,9 +4816,12 @@ export async function maintainCapabilityPluginMetadataInDirectory(
     return {
         capabilityDirectoryPath,
         capabilityName,
-        manifestPath,
+        descriptorPath: descriptor.absolutePath,
+        descriptorKind: descriptor.kind,
+        descriptorChanged,
+        manifestPath: descriptor.absolutePath,
         pluginJsonPath,
-        manifestChanged: manifestUpdate.changed,
+        manifestChanged: descriptorChanged,
         pluginJsonChanged: pluginUpdate.changed,
     };
 }
@@ -4902,13 +4908,8 @@ function toRepoRelativeLayerPath(repoRoot: string, capabilityDirectoryPath: stri
     return path.relative(repoRoot, absolutePath).replace(/\\/g, '/');
 }
 
-function hasCapabilityManifestAtPath(repoRoot: string, layerPath: string): boolean {
-    const manifestPath = path.join(repoRoot, layerPath, 'CAPABILITY.md');
-    try {
-        return fs.statSync(manifestPath).isFile();
-    } catch {
-        return false;
-    }
+function hasCapabilityDescriptorAtPath(repoRoot: string, layerPath: string): boolean {
+    return resolveCapabilityDescriptorPath(path.join(repoRoot, layerPath)) !== undefined;
 }
 
 function discoverCapabilityDirectoryPathsInRepo(
@@ -4916,7 +4917,7 @@ function discoverCapabilityDirectoryPathsInRepo(
     excludePatterns: string[] = [],
 ): string[] {
     return discoverLayersInRepo(repoRoot, excludePatterns).filter((layerPath) =>
-        hasCapabilityManifestAtPath(repoRoot, layerPath),
+        hasCapabilityDescriptorAtPath(repoRoot, layerPath),
     );
 }
 
@@ -5422,8 +5423,7 @@ export function registerCommands(
     );
 
     const withLoadedProfileConfig = ():
-        | { config: MetaFlowConfig; configPath: string }
-        | undefined => {
+        { config: MetaFlowConfig; configPath: string } | undefined => {
         if (!state.config || !state.configPath) {
             vscode.window.showWarningMessage('MetaFlow: No profiles available. Run Refresh first.');
             return undefined;
@@ -8383,36 +8383,43 @@ export function registerCommands(
         }),
     );
 
-    // ── metaflow.openCapabilityManifest ────────────────────────────
+    // ── metaflow.openCapabilityDescriptor ──────────────────────────
+    const openCapabilityDescriptor = async (arg?: unknown): Promise<string | undefined> => {
+        const descriptorPath =
+            typeof (arg as { descriptorPath?: unknown } | undefined)?.descriptorPath === 'string'
+                ? (arg as { descriptorPath: string }).descriptorPath
+                : typeof (arg as { manifestPath?: unknown } | undefined)?.manifestPath === 'string'
+                  ? (arg as { manifestPath: string }).manifestPath
+                  : undefined;
+
+        if (!descriptorPath) {
+            vscode.window.showWarningMessage(
+                'MetaFlow: No README.md or legacy CAPABILITY.md descriptor is available for the selected package.',
+            );
+            return undefined;
+        }
+
+        try {
+            const doc = await vscode.workspace.openTextDocument(descriptorPath);
+            await vscode.window.showTextDocument(doc);
+            return descriptorPath;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showWarningMessage(
+                `MetaFlow: Could not open the package descriptor. ${message}`,
+            );
+            return undefined;
+        }
+    };
+
     context.subscriptions.push(
         vscode.commands.registerCommand(
+            'metaflow.openCapabilityDescriptor',
+            openCapabilityDescriptor,
+        ),
+        vscode.commands.registerCommand(
             'metaflow.openCapabilityManifest',
-            async (arg?: unknown) => {
-                const manifestPath =
-                    typeof (arg as { manifestPath?: unknown } | undefined)?.manifestPath ===
-                    'string'
-                        ? ((arg as { manifestPath: string }).manifestPath as string)
-                        : undefined;
-
-                if (!manifestPath) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: No CAPABILITY.md file is available for the selected capability.',
-                    );
-                    return;
-                }
-
-                try {
-                    const doc = await vscode.workspace.openTextDocument(manifestPath);
-                    await vscode.window.showTextDocument(doc);
-                    return manifestPath;
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    vscode.window.showWarningMessage(
-                        `MetaFlow: Could not open CAPABILITY.md. ${message}`,
-                    );
-                    return;
-                }
-            },
+            openCapabilityDescriptor,
         ),
     );
 
@@ -8493,16 +8500,16 @@ export function registerCommands(
 
                 const guidancePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH,
                 );
                 const examplePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_EXAMPLE_RELATIVE_PATH,
                 );
 
                 if (!fs.existsSync(guidancePath) || !fs.existsSync(examplePath)) {
                     vscode.window.showWarningMessage(
-                        'MetaFlow: Bundled CAPABILITY.md authoring guidance is unavailable in this extension build.',
+                        'MetaFlow: Bundled README.md descriptor authoring guidance is unavailable in this extension build.',
                     );
                     return;
                 }
@@ -8523,57 +8530,57 @@ export function registerCommands(
 
                 await fsp.mkdir(capabilityDirectoryPath, { recursive: true });
                 await fsp.mkdir(capabilityGithubDirectoryPath, { recursive: true });
-                const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
-                const pluginJsonPath = path.join(capabilityDirectoryPath, 'plugin.json');
-                const manifestExists = fs.existsSync(manifestPath);
-                if (!manifestExists) {
+                const descriptorPath = path.join(capabilityDirectoryPath, 'README.md');
+                const descriptorExists = fs.existsSync(descriptorPath);
+                const legacyDescriptorPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
+                const legacyManifest =
+                    !descriptorExists && fs.existsSync(legacyDescriptorPath)
+                        ? loadCapabilityManifestForLayer(
+                              capabilityDirectoryPath,
+                              capabilityDirectoryName,
+                          )
+                        : undefined;
+                const migrationChoice =
+                    legacyManifest?.name && legacyManifest.description
+                        ? await promptForLegacyDescriptorMigration()
+                        : 'new';
+                if (!migrationChoice) {
+                    return;
+                }
+                if (!descriptorExists) {
                     await fsp.writeFile(
-                        manifestPath,
-                        buildCapabilityManifestStarterTemplateForName(capabilityName),
+                        descriptorPath,
+                        migrationChoice === 'migrate'
+                            ? buildReadmeDescriptorFromLegacyManifest(legacyManifest!)
+                            : buildCapabilityManifestStarterTemplateForName(capabilityName),
                         'utf-8',
                     );
                 }
 
-                const pluginJsonExists = fs.existsSync(pluginJsonPath);
-                if (!pluginJsonExists) {
-                    await fsp.writeFile(
-                        pluginJsonPath,
-                        buildCapabilityPluginManifestStarterTemplate(
-                            capabilityName,
-                            capabilityDirectoryName,
-                        ),
-                        'utf-8',
-                    );
-                }
-
-                const pluginJsonDoc = await vscode.workspace.openTextDocument(pluginJsonPath);
-                await vscode.window.showTextDocument(pluginJsonDoc, {
-                    viewColumn: vscode.ViewColumn.Beside,
-                    preview: true,
-                    preserveFocus: true,
-                });
-
-                const draftDoc = await vscode.workspace.openTextDocument(manifestPath);
+                const draftDoc = await vscode.workspace.openTextDocument(descriptorPath);
                 await vscode.window.showTextDocument(draftDoc, {
                     preview: false,
                     viewColumn: vscode.ViewColumn.Active,
                 });
 
                 vscode.window.showInformationMessage(
-                    `MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and ${manifestExists ? 'opened' : 'created'} ${manifestPath} plus ${pluginJsonExists ? 'opened' : 'created'} ${pluginJsonPath}.`,
+                    `MetaFlow: Opened README.md descriptor guidance and an example, and ${descriptorExists ? 'opened' : migrationChoice === 'migrate' ? 'migrated' : 'created'} ${descriptorPath}. Plugin runtime metadata remains a separate flow: run Maintain Plugin Manifest (plugin.json) when needed.`,
                 );
 
                 return {
                     guidancePath,
                     examplePath,
                     draftUri: draftDoc.uri.toString(),
-                    manifestPath,
-                    pluginJsonPath,
+                    descriptorPath,
+                    descriptorKind: 'readme' as const,
+                    manifestPath: descriptorPath,
+                    pluginJsonPath: undefined,
                     targetDirectory,
                     capabilityDirectoryPath,
                     capabilityGithubDirectoryPath,
                     capabilityName: capabilityName.trim(),
                     capabilityDirectoryName,
+                    migratedFromLegacy: migrationChoice === 'migrate',
                 };
             },
         ),
@@ -8612,7 +8619,7 @@ export function registerCommands(
 
                 const guidancePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH,
                 );
                 if (fs.existsSync(guidancePath)) {
                     const guidanceDoc = await vscode.workspace.openTextDocument(guidancePath);
@@ -8630,7 +8637,7 @@ export function registerCommands(
                 } catch (error: unknown) {
                     const message = error instanceof Error ? error.message : String(error);
                     vscode.window.showWarningMessage(
-                        `MetaFlow: Could not maintain capability plugin metadata. ${message}`,
+                        `MetaFlow: Could not maintain plugin.json metadata for the package. ${message}`,
                     );
                     return;
                 }
@@ -8651,10 +8658,12 @@ export function registerCommands(
                 });
 
                 vscode.window.showInformationMessage(
-                    `MetaFlow: ${result.manifestChanged ? 'Updated' : 'Checked'} ${result.manifestPath} and ${result.pluginJsonChanged ? 'updated' : 'checked'} ${result.pluginJsonPath} for capability plugin compatibility.`,
+                    `MetaFlow: ${result.pluginJsonChanged ? 'Updated' : 'Checked'} plugin.json at ${result.pluginJsonPath}; ${result.manifestChanged ? 'updated' : 'left unchanged'} descriptor compatibility data at ${result.descriptorPath}.`,
                 );
 
                 return {
+                    descriptorPath: result.descriptorPath,
+                    descriptorKind: result.descriptorKind,
                     manifestPath: result.manifestPath,
                     pluginJsonPath: result.pluginJsonPath,
                     capabilityDirectoryPath: result.capabilityDirectoryPath,
@@ -8708,7 +8717,7 @@ export function registerCommands(
                 ).sort((left, right) => left.localeCompare(right));
                 if (layerPaths.length === 0) {
                     vscode.window.showInformationMessage(
-                        `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
+                        `MetaFlow: No package directories with README.md or legacy CAPABILITY.md descriptors were found in ${repoRoot}.`,
                     );
                     return;
                 }
@@ -8724,7 +8733,7 @@ export function registerCommands(
                 await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
-                        title: 'MetaFlow: Maintaining capability plugin metadata',
+                        title: 'MetaFlow: Maintaining package plugin.json metadata',
                         cancellable: false,
                     },
                     async (progress) => {
@@ -8782,7 +8791,7 @@ export function registerCommands(
                 }
 
                 const summary =
-                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `MetaFlow: Checked ${layerPaths.length} package director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
                     `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
 
                 if (failures.length > 0) {
