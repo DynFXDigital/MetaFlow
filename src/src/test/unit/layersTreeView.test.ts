@@ -92,6 +92,7 @@ type LayersTreeViewModule = {
                     id?: string;
                     name?: string;
                     description?: string;
+                    keywords?: string[];
                     license?: string;
                     experimental?: boolean;
                 }
@@ -226,6 +227,7 @@ function makeState(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -2868,6 +2870,56 @@ suite('LayersTreeView – artifact-type children', () => {
             [],
             'artifact-only matches should not keep non-matching capabilities visible',
         );
+    });
+
+    test('LTV-SCH-01a: capability search includes ID, description, and plugin keywords', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/root-cause-analysis' },
+                { repoId: 'repo1', path: 'capabilities/release-notes' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/root-cause-analysis': {
+                id: 'root-cause-analysis',
+                name: 'Root Cause Analysis',
+                description: 'Diagnose recurring production failures.',
+                keywords: ['fishbone', 'five-whys'],
+            },
+            'repo1/capabilities/release-notes': {
+                id: 'release-notes',
+                name: 'Release Notes',
+                description: 'Communicate shipped changes.',
+                keywords: ['changelog'],
+            },
+        };
+        const files = [
+            makeEffectiveFile(
+                'instructions/root-cause.md',
+                'repo1',
+                'capabilities/root-cause-analysis',
+            ),
+            makeEffectiveFile(
+                'instructions/release-notes.md',
+                'repo1',
+                'capabilities/release-notes',
+            ),
+        ];
+        const provider = new LayersTreeViewProvider(
+            makeState(config, files, capabilityByLayer),
+            () => 'flat',
+        );
+
+        for (const query of ['root-cause-analysis', 'recurring production', 'five-whys']) {
+            provider.setSearchQuery(query);
+            assert.deepStrictEqual(
+                provider.getChildren().map((item) => String(item.label)),
+                ['Root Cause Analysis'],
+                `search should match capability metadata for query "${query}"`,
+            );
+        }
     });
 
     test('LTV-SCH-02: tree search omits disabled repository and layer matches', () => {

@@ -6,8 +6,8 @@
  * narrow the visible tree items, and that clearing the filter (pressing Escape)
  * restores the full item set.
  *
- * Both filter commands open VS Code's native tree search widget (list.find),
- * which filters items in real-time as the user types. vscode-extension-tester
+ * Both filter commands open a live input box that filters items in real-time as
+ * the user types. vscode-extension-tester
  * captures this widget via InputBox. Tree items not matching the current filter
  * term are hidden from the visible item list, which is what these tests assert.
  *

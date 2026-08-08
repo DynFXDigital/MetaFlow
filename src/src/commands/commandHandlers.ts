@@ -719,6 +719,7 @@ export interface ExtensionState {
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -1921,7 +1922,14 @@ function collectConfiguredCapabilityMetadata(
     workspaceRoot: string,
 ): Record<
     string,
-    { id?: string; name?: string; description?: string; license?: string; experimental?: boolean }
+    {
+        id?: string;
+        name?: string;
+        description?: string;
+        keywords?: string[];
+        license?: string;
+        experimental?: boolean;
+    }
 > {
     const capabilityByLayer: Record<
         string,
@@ -1929,6 +1937,7 @@ function collectConfiguredCapabilityMetadata(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -1955,6 +1964,7 @@ function collectConfiguredCapabilityMetadata(
                 id: manifest.id,
                 name: manifest.name,
                 description: manifest.description,
+                keywords: manifest.agentPluginManifest?.keywords,
                 license: manifest.license,
                 experimental: manifest.experimental,
             };
@@ -1977,6 +1987,7 @@ function collectConfiguredCapabilityMetadata(
                 id: manifest.id,
                 name: manifest.name,
                 description: manifest.description,
+                keywords: manifest.agentPluginManifest?.keywords,
                 license: manifest.license,
                 experimental: manifest.experimental,
             };
@@ -3084,6 +3095,7 @@ function resolveOverlay(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
         }
     >;
@@ -3103,6 +3115,7 @@ function resolveOverlay(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
         }
     > = {};
@@ -3134,6 +3147,7 @@ function resolveOverlay(
                 id: layer.capability.id,
                 name: layer.capability.name,
                 description: layer.capability.description,
+                keywords: layer.capability.agentPluginManifest?.keywords,
                 license: layer.capability.license,
             };
         }
