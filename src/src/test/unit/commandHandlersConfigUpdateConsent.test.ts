@@ -129,6 +129,8 @@ suite('Command handler config update consent', () => {
 
         assert.match(maintenanceBlock, /if \(!refreshOptions\.skipConfigMaintenance\) \{/);
         assert.match(maintenanceBlock, /normalizeAndDeduplicateLayerPaths\(result\.config\)/);
+        assert.doesNotMatch(maintenanceBlock, /configNormalized/);
+        assert.doesNotMatch(maintenanceBlock, /Normalize redundant layer path entries/);
         assert.match(maintenanceBlock, /discoverAndPersistConfiguredRepoLayers\(/);
         assert.match(maintenanceBlock, /previewCapabilityIdentityDriftRepair\(/);
         assert.match(

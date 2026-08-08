@@ -822,6 +822,50 @@ suite('Command handler capability plugin maintenance helpers', () => {
         }
     });
 
+    test('maintainWorkspaceConfigCleanup canonicalizes config explicitly and is idempotent', async () => {
+        const { maintainWorkspaceConfigCleanup } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-config-cleanup-'));
+        try {
+            const configDirectory = path.join(workspaceRoot, '.metaflow');
+            fs.mkdirSync(configDirectory, { recursive: true });
+            const configPath = path.join(configDirectory, 'config.jsonc');
+            fs.writeFileSync(
+                configPath,
+                [
+                    '{',
+                    '  // Preserve this author comment.',
+                    '  "metadataRepos": [',
+                    '    { "id": "primary", "localPath": ".ai/metadata" }',
+                    '  ],',
+                    '  "profiles": {',
+                    '    "default": {',
+                    '      "enabledCapabilities": ["primary:z", "primary:a"]',
+                    '    }',
+                    '  },',
+                    '  "activeProfile": "default",',
+                    '  "compatibilityVersion": 3,',
+                    '  "filters": { "include": [], "exclude": [] }',
+                    '}',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const first = await maintainWorkspaceConfigCleanup(workspaceRoot);
+            const cleanedContent = fs.readFileSync(configPath, 'utf-8');
+            assert.strictEqual(path.normalize(first.configPath), path.normalize(configPath));
+            assert.strictEqual(first.changed, true);
+            assert.ok(cleanedContent.includes('// Preserve this author comment.'));
+            assert.strictEqual(cleanedContent.includes('"filters"'), false);
+            assert.ok(cleanedContent.indexOf('"primary:a"') < cleanedContent.indexOf('"primary:z"'));
+
+            const second = await maintainWorkspaceConfigCleanup(workspaceRoot);
+            assert.strictEqual(second.changed, false);
+            assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), cleanedContent);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson creates a valid plugin scaffold when absent', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({

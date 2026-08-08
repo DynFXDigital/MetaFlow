@@ -3306,7 +3306,7 @@ async function persistConfig(
     configPath: string,
     config: MetaFlowConfig,
     state?: ExtensionState,
-): Promise<void> {
+): Promise<boolean> {
     const authoredConfig = toAuthoredConfig(config);
     const topLevelKeys = [
         'metadataRepo',
@@ -3348,10 +3348,45 @@ async function persistConfig(
             const edits = jsonc.modify(updated, [key], value, { formattingOptions: formatOptions });
             updated = jsonc.applyEdits(updated, edits);
         }
+        if (updated === existing) {
+            return false;
+        }
+        if (state) {
+            state.suppressConfigWatcherUntil = Date.now() + 1500;
+        }
         await fsp.writeFile(configPath, updated, 'utf-8');
+        return true;
     } else {
+        if (state) {
+            state.suppressConfigWatcherUntil = Date.now() + 1500;
+        }
         await fsp.writeFile(configPath, JSON.stringify(authoredConfig, null, 2) + '\n', 'utf-8');
+        return true;
     }
+}
+
+export interface ConfigCleanupResult {
+    configPath: string;
+    changed: boolean;
+}
+
+export async function maintainWorkspaceConfigCleanup(
+    workspaceRoot: string,
+    state?: ExtensionState,
+): Promise<ConfigCleanupResult> {
+    const result = loadConfig(workspaceRoot);
+    if (!result.ok) {
+        const details = result.errors.map((error) => error.message).join('; ');
+        throw new Error(details || 'No valid .metaflow/config.jsonc file was found.');
+    }
+    if (!result.configPath) {
+        throw new Error('No valid .metaflow/config.jsonc file was found.');
+    }
+
+    return {
+        configPath: result.configPath,
+        changed: await persistConfig(result.configPath, result.config, state),
+    };
 }
 
 interface CapabilityIdentityDriftRepairPreview {
@@ -5692,7 +5727,7 @@ export function registerCommands(
             state.governanceCompliance = undefined;
             let shouldAdvanceCapabilityIdentitySnapshot = true;
             if (!refreshOptions.skipConfigMaintenance) {
-                const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
+                normalizeAndDeduplicateLayerPaths(result.config);
                 const discoveryResult = discoverAndPersistConfiguredRepoLayers(
                     result.config,
                     ws.uri.fsPath,
@@ -5712,7 +5747,6 @@ export function registerCommands(
                 if (
                     (legacyBuiltInConfigRemoved ||
                         result.migrated ||
-                        configNormalized ||
                         discoveryResult.totalAdded > 0 ||
                         (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
                     result.configPath
@@ -5727,9 +5761,6 @@ export function registerCommands(
                         pendingConfigUpdateReasons.push(
                             'Migrate existing config to the current MetaFlow format.',
                         );
-                    }
-                    if (configNormalized) {
-                        pendingConfigUpdateReasons.push('Normalize redundant layer path entries.');
                     }
                     if (discoveryResult.totalAdded > 0) {
                         pendingConfigUpdateReasons.push(
@@ -5780,11 +5811,6 @@ export function registerCommands(
                         }
                         void vscode.window.showInformationMessage(
                             getConfigMigrationNoticeMessage(),
-                        );
-                    }
-                    if (shouldPersistConfig && configNormalized) {
-                        logInfo(
-                            'Normalized layer paths in config (removed redundant .github suffix entries).',
                         );
                     }
                     if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
@@ -8670,6 +8696,19 @@ export function registerCommands(
                     return;
                 }
 
+                let configCleanup: ConfigCleanupResult | undefined;
+                let configCleanupError: string | undefined;
+                try {
+                    configCleanup = await maintainWorkspaceConfigCleanup(ws.uri.fsPath, state);
+                } catch (error: unknown) {
+                    configCleanupError = error instanceof Error ? error.message : String(error);
+                }
+                if (configCleanup?.changed) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                    });
+                }
+
                 const pluginJsonDoc = await vscode.workspace.openTextDocument(
                     result.pluginJsonPath,
                 );
@@ -8685,9 +8724,20 @@ export function registerCommands(
                     viewColumn: vscode.ViewColumn.Active,
                 });
 
-                vscode.window.showInformationMessage(
-                    `MetaFlow: ${result.pluginJsonChanged ? 'Updated' : 'Checked'} plugin.json at ${result.pluginJsonPath}; ${result.manifestChanged ? 'updated' : 'left unchanged'} descriptor compatibility data at ${result.descriptorPath}.`,
-                );
+                const configCleanupSummary = configCleanupError
+                    ? `config cleanup failed: ${configCleanupError}`
+                    : configCleanup?.changed
+                      ? `updated config cleanup at ${configCleanup.configPath}`
+                      : 'config cleanup already up to date';
+                const summary =
+                    `MetaFlow: ${result.pluginJsonChanged ? 'Updated' : 'Checked'} plugin.json at ${result.pluginJsonPath}; ` +
+                    `${result.manifestChanged ? 'updated' : 'left unchanged'} descriptor compatibility data at ${result.descriptorPath}; ` +
+                    `${configCleanupSummary}.`;
+                if (configCleanupError) {
+                    vscode.window.showWarningMessage(summary);
+                } else {
+                    vscode.window.showInformationMessage(summary);
+                }
 
                 return {
                     descriptorPath: result.descriptorPath,
@@ -8699,6 +8749,9 @@ export function registerCommands(
                     guidancePath: fs.existsSync(guidancePath) ? guidancePath : undefined,
                     manifestChanged: result.manifestChanged,
                     pluginJsonChanged: result.pluginJsonChanged,
+                    configCleanupPath: configCleanup?.configPath,
+                    configCleanupChanged: configCleanup?.changed ?? false,
+                    configCleanupError,
                 };
             },
         ),
@@ -8791,7 +8844,15 @@ export function registerCommands(
                     },
                 );
 
-                if (changedResults.length > 0) {
+                let configCleanup: ConfigCleanupResult | undefined;
+                let configCleanupError: string | undefined;
+                try {
+                    configCleanup = await maintainWorkspaceConfigCleanup(ws.uri.fsPath, state);
+                } catch (error: unknown) {
+                    configCleanupError = error instanceof Error ? error.message : String(error);
+                }
+
+                if (changedResults.length > 0 || configCleanup?.changed) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipRepoSync: true,
                     });
@@ -8820,9 +8881,10 @@ export function registerCommands(
 
                 const summary =
                     `MetaFlow: Checked ${layerPaths.length} package director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
-                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
+                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed; ` +
+                    `${configCleanupError ? `config cleanup failed: ${configCleanupError}` : configCleanup?.changed ? 'config cleanup updated' : 'config cleanup already up to date'}.`;
 
-                if (failures.length > 0) {
+                if (failures.length > 0 || configCleanupError) {
                     vscode.window.showWarningMessage(summary);
                 } else {
                     vscode.window.showInformationMessage(summary);
@@ -8839,6 +8901,9 @@ export function registerCommands(
                         (result) => result.capabilityDirectoryPath,
                     ),
                     failures,
+                    configCleanupPath: configCleanup?.configPath,
+                    configCleanupChanged: configCleanup?.changed ?? false,
+                    configCleanupError,
                 };
             },
         ),
