@@ -4617,7 +4617,8 @@ function resolveMaintainedPluginComponentPath(
         if (
             relativeCandidate.startsWith('..') ||
             path.isAbsolute(relativeCandidate) ||
-            !fs.existsSync(resolvedCandidate)
+            !fs.existsSync(resolvedCandidate) ||
+            !fs.statSync(resolvedCandidate).isDirectory()
         ) {
             continue;
         }

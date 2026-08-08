@@ -899,6 +899,11 @@ suite('Command handler capability plugin maintenance helpers', () => {
         try {
             fs.mkdirSync(path.join(tempRoot, '.github', 'agents'), { recursive: true });
             fs.mkdirSync(path.join(tempRoot, '.github', 'skills'), { recursive: true });
+            fs.writeFileSync(
+                path.join(tempRoot, '.github', 'commands'),
+                'not a component directory',
+                'utf-8',
+            );
 
             const result = buildMaintainedCapabilityPluginManifestJson({
                 capabilityName: 'Demo Capability',
