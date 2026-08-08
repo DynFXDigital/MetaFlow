@@ -2,11 +2,6 @@
   "name": "claude-code-metadata-authoring",
   "version": "0.1.0",
   "description": "Standards and workflows support authoring, reviewing, and maintaining Claude Code metadata constructs.",
-  "keywords": ["metaflow", "agent-plugin", "capability"],
-  "metaflow": {
-    "pluginHosts": ["github-copilot"],
-    "minimumMetaflowVersion": "^0.1.0-preview.0"
-  },
   "agents": ".github/agents",
   "skills": ".github/skills",
   "rules": ".github/instructions"

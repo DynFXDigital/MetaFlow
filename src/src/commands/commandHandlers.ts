@@ -4594,6 +4594,40 @@ function sanitizeCapabilityPluginName(value: string): string {
         .replace(/^-+|-+$/g, '');
 }
 
+function resolveMaintainedPluginComponentPath(
+    capabilityDirectoryPath: string | undefined,
+    currentValue: unknown,
+    defaultValue: string,
+): string | undefined {
+    const currentPath =
+        typeof currentValue === 'string' && currentValue.trim().length > 0
+            ? currentValue.trim()
+            : undefined;
+    if (!capabilityDirectoryPath) {
+        return currentPath ?? defaultValue;
+    }
+
+    for (const candidate of [currentPath, defaultValue]) {
+        if (!candidate) {
+            continue;
+        }
+
+        const resolvedCandidate = path.resolve(capabilityDirectoryPath, candidate);
+        const relativeCandidate = path.relative(capabilityDirectoryPath, resolvedCandidate);
+        if (
+            relativeCandidate.startsWith('..') ||
+            path.isAbsolute(relativeCandidate) ||
+            !fs.existsSync(resolvedCandidate)
+        ) {
+            continue;
+        }
+
+        return candidate;
+    }
+
+    return undefined;
+}
+
 export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
     content: string;
     changed: boolean;
@@ -4659,6 +4693,7 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     capabilityName: string;
     capabilityDescription?: string;
     capabilityDirectoryName: string;
+    capabilityDirectoryPath?: string;
     existingRawText?: string;
 }): { content: string; changed: boolean } {
     let packageObject: Record<string, unknown> = {};
@@ -4702,38 +4737,29 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
         options.capabilityDescription?.trim() ??
         `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`;
 
-    const currentAgents =
-        typeof packageObject.agents === 'string' && packageObject.agents.trim().length > 0
-            ? packageObject.agents.trim()
-            : undefined;
-    packageObject.agents = currentAgents ?? '.github/agents';
-
-    const currentCommands =
-        typeof packageObject.commands === 'string' && packageObject.commands.trim().length > 0
-            ? packageObject.commands.trim()
-            : undefined;
-    packageObject.commands = currentCommands ?? '.github/commands';
-
-    const currentSkills =
-        typeof packageObject.skills === 'string' && packageObject.skills.trim().length > 0
-            ? packageObject.skills.trim()
-            : undefined;
-    packageObject.skills = currentSkills ?? '.github/skills';
-
-    const currentRules =
-        typeof packageObject.rules === 'string' && packageObject.rules.trim().length > 0
-            ? packageObject.rules.trim()
-            : undefined;
-    packageObject.rules = currentRules ?? '.github/instructions';
-
-    const existingKeywords = normalizeStringArrayForPackage(packageObject.keywords) ?? [];
-    const nextKeywords = [...existingKeywords];
-    for (const keyword of ['metaflow', 'agent-plugin', 'capability']) {
-        if (!nextKeywords.includes(keyword)) {
-            nextKeywords.push(keyword);
+    const componentDefaults = [
+        ['agents', '.github/agents'],
+        ['commands', '.github/commands'],
+        ['skills', '.github/skills'],
+        ['rules', '.github/instructions'],
+    ] as const;
+    for (const [componentName, defaultPath] of componentDefaults) {
+        const componentPath = resolveMaintainedPluginComponentPath(
+            options.capabilityDirectoryPath,
+            packageObject[componentName],
+            defaultPath,
+        );
+        if (componentPath) {
+            packageObject[componentName] = componentPath;
+        } else {
+            delete packageObject[componentName];
         }
     }
-    packageObject.keywords = nextKeywords;
+
+    const legacyKeywords = new Set(['metaflow', 'agent-plugin', 'capability']);
+    packageObject.keywords = (normalizeStringArrayForPackage(packageObject.keywords) ?? []).filter(
+        (keyword) => !legacyKeywords.has(keyword),
+    );
 
     const existingMetaflow =
         packageObject.metaflow &&
@@ -4806,6 +4832,7 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityName,
         capabilityDescription,
         capabilityDirectoryName: path.basename(capabilityDirectoryPath),
+        capabilityDirectoryPath,
         existingRawText: existingPluginJsonRawText,
     });
 

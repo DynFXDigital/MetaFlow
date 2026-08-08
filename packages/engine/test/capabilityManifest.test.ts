@@ -969,9 +969,13 @@ describe('capabilityManifest parser', () => {
         );
     });
 
-    it('recommends declaring pluginHosts when none are present', () => {
+    it('accepts a portable plugin manifest without MetaFlow metadata', () => {
         const loaded = loadWithPluginJson(JSON.stringify({ name: 'good-name', version: '1.0.0' }));
-        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED'));
+        assert.ok(loaded);
+        assert.ok(
+            !loaded.warnings.some((warning) => warning.code.startsWith('CAPABILITY_AGENT_PLUGIN')),
+            `expected no plugin metadata warnings, got: ${JSON.stringify(loaded.warnings)}`,
+        );
     });
 
     it('emits a read error when plugin.json cannot be read as a file', () => {

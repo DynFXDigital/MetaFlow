@@ -28,7 +28,11 @@ suite('bundled metadata assets', () => {
 
         for (const relativePath of descriptorPaths) {
             const content = fs.readFileSync(path.join(ASSET_ROOT, relativePath), 'utf-8');
-            assert.doesNotMatch(content, /^---\r?\n/m, `README should not require front matter: ${relativePath}`);
+            assert.doesNotMatch(
+                content,
+                /^---\r?\n/m,
+                `README should not require front matter: ${relativePath}`,
+            );
             assert.doesNotMatch(
                 content,
                 /^(id|uid|license|agentPlugin|previousIds|previousPaths):/im,
@@ -62,9 +66,15 @@ suite('bundled metadata assets', () => {
             const pluginManifest = JSON.parse(
                 fs.readFileSync(path.join(ASSET_ROOT, pluginPath), 'utf-8'),
             ) as { name?: string; description?: string };
-            assert.ok(descriptorContent.trim().length > 0, `Expected README body: ${descriptorPath}`);
+            assert.ok(
+                descriptorContent.trim().length > 0,
+                `Expected README body: ${descriptorPath}`,
+            );
             assert.ok(pluginManifest.name, `Expected plugin.json name: ${descriptorPath}`);
-            assert.ok(pluginManifest.description, `Expected plugin.json description: ${descriptorPath}`);
+            assert.ok(
+                pluginManifest.description,
+                `Expected plugin.json description: ${descriptorPath}`,
+            );
         }
     });
 

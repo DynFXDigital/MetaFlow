@@ -1,5 +1,8 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { createHash } from 'node:crypto';
 import { resolvePathFromWorkspace } from '@metaflow/engine';
 import {
     ExtensionState,
@@ -25,6 +28,62 @@ interface WatchedRepo {
     repoRoot: string;
     excludePatterns: string[];
     disposables: vscode.Disposable[];
+}
+
+interface RepoMaintenanceLock {
+    path: string;
+    handle: number;
+}
+
+function getRepoMaintenanceLockPath(repoRoot: string): string {
+    const repoKey = createHash('sha256').update(repoRoot.toLowerCase()).digest('hex');
+    return path.join(os.tmpdir(), `metaflow-plugin-maintenance-${repoKey}.lock`);
+}
+
+function tryAcquireRepoMaintenanceLock(repoRoot: string): RepoMaintenanceLock | undefined {
+    const lockPath = getRepoMaintenanceLockPath(repoRoot);
+    try {
+        const handle = fs.openSync(lockPath, 'wx');
+        fs.writeFileSync(handle, `${process.pid}\n`, 'utf-8');
+        return { path: lockPath, handle };
+    } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+            throw error;
+        }
+
+        try {
+            const ownerPid = Number.parseInt(fs.readFileSync(lockPath, 'utf-8').trim(), 10);
+            if (Number.isInteger(ownerPid) && ownerPid > 0) {
+                process.kill(ownerPid, 0);
+                return undefined;
+            }
+        } catch (ownerError: unknown) {
+            if ((ownerError as NodeJS.ErrnoException).code !== 'ESRCH') {
+                return undefined;
+            }
+        }
+
+        try {
+            fs.unlinkSync(lockPath);
+        } catch (unlinkError: unknown) {
+            if ((unlinkError as NodeJS.ErrnoException).code !== 'ENOENT') {
+                return undefined;
+            }
+        }
+
+        return tryAcquireRepoMaintenanceLock(repoRoot);
+    }
+}
+
+function releaseRepoMaintenanceLock(lock: RepoMaintenanceLock): void {
+    fs.closeSync(lock.handle);
+    try {
+        fs.unlinkSync(lock.path);
+    } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+        }
+    }
 }
 
 function normalizeDelayMs(value: unknown): number {
@@ -62,36 +121,46 @@ export function createCapabilityPluginMetadataScheduler(
             return;
         }
 
-        const result = await maintainAllCapabilityPluginMetadataInRepo(target.repoRoot, {
-            repoId: target.repoId,
-            excludePatterns: watched.excludePatterns,
-            capabilityDirectoryPaths: target.capabilityDirectoryPaths,
-        });
-
-        if (result.failureCount > 0 || result.warnings.length > 0) {
-            for (const failure of result.failures) {
-                logWarn(
-                    `MetaFlow: Auto-maintain failed for ${target.repoId}/${failure.layerPath}. ${failure.message}`,
-                );
-            }
-            for (const warning of result.warnings) {
-                logWarn(`MetaFlow: Auto-maintain warning for ${target.repoId}: ${warning.message}`);
-            }
-
-            const warningsChanged = mergeCapabilityWarningMessages(
-                state.capabilityWarnings,
-                collectCapabilityPluginMaintenanceWarningMessages(result),
-            );
-            if (warningsChanged) {
-                state.onDidChange.fire();
-            }
+        const lock = tryAcquireRepoMaintenanceLock(target.repoRoot);
+        if (!lock) {
+            logInfo(`Capability plugin metadata maintenance skipped for ${target.repoId}: another MetaFlow host owns the repository lock.`);
+            return;
         }
 
-        if (result.changedCount > 0 || result.marketplaceChanged) {
-            logInfo(
-                `Capability plugin metadata auto-maintained for ${target.repoId}: ${result.changedCount} capabilities changed, marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'}.`,
-            );
-            await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+        try {
+            const result = await maintainAllCapabilityPluginMetadataInRepo(target.repoRoot, {
+                repoId: target.repoId,
+                excludePatterns: watched.excludePatterns,
+                capabilityDirectoryPaths: target.capabilityDirectoryPaths,
+            });
+
+            if (result.failureCount > 0 || result.warnings.length > 0) {
+                for (const failure of result.failures) {
+                    logWarn(
+                        `MetaFlow: Auto-maintain failed for ${target.repoId}/${failure.layerPath}. ${failure.message}`,
+                    );
+                }
+                for (const warning of result.warnings) {
+                    logWarn(`MetaFlow: Auto-maintain warning for ${target.repoId}: ${warning.message}`);
+                }
+
+                const warningsChanged = mergeCapabilityWarningMessages(
+                    state.capabilityWarnings,
+                    collectCapabilityPluginMaintenanceWarningMessages(result),
+                );
+                if (warningsChanged) {
+                    state.onDidChange.fire();
+                }
+            }
+
+            if (result.changedCount > 0 || result.marketplaceChanged) {
+                logInfo(
+                    `Capability plugin metadata auto-maintained for ${target.repoId}: ${result.changedCount} capabilities changed, marketplace ${result.marketplaceChanged ? 'updated' : 'up to date'}.`,
+                );
+                await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
+            }
+        } finally {
+            releaseRepoMaintenanceLock(lock);
         }
     };
 

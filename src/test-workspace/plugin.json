@@ -2,10 +2,6 @@
   "name": "metaflow-ai-metadata",
   "version": "0.3.5",
   "description": "MetaFlow's built-in AI metadata guardrails and authoring guidance.",
-  "metaflow": {
-    "pluginHosts": ["github-copilot"],
-    "minimumMetaflowVersion": "^0.1.0-preview.0"
-  },
   "agents": ".github/agents",
   "commands": ".github/commands",
   "skills": ".github/skills",

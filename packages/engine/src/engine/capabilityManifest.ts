@@ -650,17 +650,6 @@ function parseAgentPluginManifestContent(
         }
     }
 
-    if (pluginHosts.length === 0) {
-        warnings.push(
-            toWarning(
-                'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED',
-                'plugin.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
-                pluginJsonPath,
-                'warning',
-            ),
-        );
-    }
-
     const components = normalizePluginComponents(manifestObject, pluginJsonPath, warnings);
     const homepage = normalizeOptionalString(manifestObject.homepage);
     const repository = normalizeOptionalString(manifestObject.repository);
@@ -914,9 +903,8 @@ export function parseReadmeDescriptorContent(
 
 /** Return whether a package-root README has the required descriptor fields. */
 export function isValidReadmeDescriptor(metadata: CapabilityMetadata): boolean {
-    return !metadata.warnings.some(
-        (warning) =>
-            warning.code.startsWith('README_DESCRIPTOR_FRONTMATTER_'),
+    return !metadata.warnings.some((warning) =>
+        warning.code.startsWith('README_DESCRIPTOR_FRONTMATTER_'),
     );
 }
 
@@ -1008,9 +996,9 @@ export function loadCapabilityDescriptorForLayer(
         if (descriptor.kind === 'readme' && pluginResult.metadata) {
             manifest.agentPlugin = true;
             manifest.agentPluginManifest = pluginResult.metadata;
-                manifest.name = manifest.name || pluginResult.metadata.name;
-                manifest.description = pluginResult.metadata.description || manifest.description;
-                manifest.license = pluginResult.metadata.license || manifest.license;
+            manifest.name = manifest.name || pluginResult.metadata.name;
+            manifest.description = pluginResult.metadata.description || manifest.description;
+            manifest.license = pluginResult.metadata.license || manifest.license;
         } else if (descriptor.kind === 'capability') {
             manifest.agentPluginManifest = pluginResult.metadata;
         }

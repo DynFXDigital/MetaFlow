@@ -56,6 +56,15 @@ suite('Capability plugin metadata scheduler core', () => {
             assert.ok(CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS.includes('**/CAPABILITY.md'));
             assert.ok(CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS.includes('**/plugin.json'));
             assert.strictEqual(
+                new Set(CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS).size,
+                CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS.length,
+            );
+            const watchPatterns: readonly string[] = CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS;
+            assert.ok(!watchPatterns.includes('**/.github/instructions/**'));
+            assert.ok(!watchPatterns.includes('**/.github/commands/**'));
+            assert.ok(!watchPatterns.includes('**/.github/skills/**'));
+            assert.ok(!watchPatterns.includes('**/.github/agents/**'));
+            assert.strictEqual(
                 findNearestCapabilityDirectory(
                     repoRoot,
                     path.join(readmePackage, 'nested', 'changed.md'),

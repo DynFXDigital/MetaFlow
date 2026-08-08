@@ -7,13 +7,9 @@ export const CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS = [
     '**/CAPABILITY.md',
     '**/plugin.json',
     '**/instructions/**',
-    '**/.github/instructions/**',
     '**/commands/**',
-    '**/.github/commands/**',
     '**/skills/**',
-    '**/.github/skills/**',
     '**/agents/**',
-    '**/.github/agents/**',
 ] as const;
 
 const KNOWN_CAPABILITY_ARTIFACT_ROOTS = [

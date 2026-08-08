@@ -79,12 +79,12 @@ function parseDescriptorFile(rawText: string, descriptorPath: string): ParsedDes
             warnings: isReadme
                 ? []
                 : [
-                warning(
-                    `${codePrefix}_FRONTMATTER_MISSING`,
-                    `${fileName} is missing required YAML frontmatter delimited by --- markers.`,
-                    descriptorPath,
-                ),
-            ],
+                      warning(
+                          `${codePrefix}_FRONTMATTER_MISSING`,
+                          `${fileName} is missing required YAML frontmatter delimited by --- markers.`,
+                          descriptorPath,
+                      ),
+                  ],
         };
     }
 

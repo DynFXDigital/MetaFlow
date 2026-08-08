@@ -121,7 +121,7 @@ The maintained plugin manifest contract currently expects:
 - `name`: a stable plugin identifier such as `my-capability`
 - `version`: a SemVer plugin version such as `1.0.0`
 - `description`: a concise user-facing summary
-- `keywords`: plugin discovery tags; MetaFlow ensures `metaflow`, `agent-plugin`, and `capability` are present
+- `keywords`: capability-specific plugin discovery tags authored in `plugin.json`; MetaFlow copies them into the generated marketplace manifest without adding generic tags
 - `agents`: defaults to `.github/agents` when MetaFlow scaffolds or repairs the manifest
 - `skills`: defaults to `.github/skills` when MetaFlow scaffolds or repairs the manifest
 - `rules`: defaults to `.github/instructions` when MetaFlow scaffolds or repairs the manifest
