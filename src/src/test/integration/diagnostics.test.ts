@@ -106,6 +106,10 @@ suite('Diagnostics Integration', () => {
         this.timeout(15000);
 
         await vscode.commands.executeCommand('metaflow.refresh');
+        // File-system watchers can schedule a follow-up refresh after the
+        // preceding tests restore their fixtures. Let that refresh settle
+        // before taking the snapshot so this test observes the stable state.
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
         const snapshot = await vscode.commands.executeCommand<{
             capabilityWarnings: string[];
@@ -131,7 +135,7 @@ suite('Diagnostics Integration', () => {
         assert.strictEqual(
             snapshot.configDiagnostics.length,
             0,
-            'Clean workspace should have no config diagnostics',
+            `Clean workspace should have no config diagnostics: ${JSON.stringify(snapshot.configDiagnostics)}`,
         );
     });
 

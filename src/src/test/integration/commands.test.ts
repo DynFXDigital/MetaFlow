@@ -1827,7 +1827,7 @@ suite('Command Execution', function () {
         );
     });
 
-    test('status reports README descriptor warning file path when README is malformed', async function () {
+    test('status reports malformed README descriptor warning file path', async function () {
         this.timeout(15000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
@@ -1861,7 +1861,7 @@ suite('Command Execution', function () {
         try {
             fs.writeFileSync(
                 descriptorPath,
-                '# malformed README descriptor without frontmatter\n',
+                '---\nname: malformed\ndescription: missing closing delimiter\n',
                 'utf-8',
             );
 
@@ -1871,7 +1871,7 @@ suite('Command Execution', function () {
             assert.ok(Array.isArray(lines), 'Status should return emitted log lines');
 
             const warningLine = lines.find((line) =>
-                line.includes('README_DESCRIPTOR_FRONTMATTER_MISSING'),
+                line.includes('README_DESCRIPTOR_FRONTMATTER_MALFORMED'),
             );
             assert.ok(
                 warningLine,
