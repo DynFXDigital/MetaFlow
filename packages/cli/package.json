@@ -1,7 +1,7 @@
 {
   "name": "@metaflow/cli",
   "description": "CLI for layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "license": "MIT",
   "private": true,
   "bin": {
