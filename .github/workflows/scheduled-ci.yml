@@ -1,0 +1,23 @@
+name: Scheduled CI
+
+on:
+  schedule:
+    - cron: '30 8 * * 0'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or ref to test.'
+        required: false
+        default: prerelease
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI (${{ inputs.ref || 'prerelease' }})
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.ref || 'prerelease' }}
+    secrets: inherit
