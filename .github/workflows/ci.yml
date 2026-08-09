@@ -55,6 +55,7 @@ jobs:
 
       - name: Lint (blocking on release branches)
         if: >
+          (github.event_name == 'workflow_call' && (inputs.ref == 'main' || inputs.ref == 'prerelease' || startsWith(inputs.ref, 'release/'))) ||
           (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
           (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
         run: npm -w metaflow-ai run lint
@@ -62,6 +63,7 @@ jobs:
       - name: Lint (advisory on develop)
         id: lint_advisory
         if: >
+          (github.event_name == 'workflow_call' && inputs.ref == 'develop') ||
           (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
           (github.event_name == 'push' && github.ref_name == 'develop')
         continue-on-error: true
@@ -95,7 +97,7 @@ jobs:
       - name: Package smoke
         shell: bash
         run: |
-          if [ "${{ github.base_ref }}" = "prerelease" ] || [ "${{ github.ref_name }}" = "prerelease" ]; then
+          if [ "${{ inputs.ref }}" = "prerelease" ] || [ "${{ github.base_ref }}" = "prerelease" ] || [ "${{ github.ref_name }}" = "prerelease" ]; then
             npm -C src run package:pre
           else
             npm -C src run package:stable
@@ -131,6 +133,7 @@ jobs:
 
       - name: Run GUI tests (headless, blocking on release branches)
         if: >
+          (github.event_name == 'workflow_call' && (inputs.ref == 'main' || inputs.ref == 'prerelease' || startsWith(inputs.ref, 'release/'))) ||
           (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'prerelease' || startsWith(github.base_ref, 'release/'))) ||
           (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'prerelease' || startsWith(github.ref_name, 'release/')))
         run: xvfb-run -a node src/scripts/run-gui-batched.mjs
@@ -138,6 +141,7 @@ jobs:
       - name: Run GUI tests (headless, advisory on develop)
         id: gui_advisory
         if: >
+          (github.event_name == 'workflow_call' && inputs.ref == 'develop') ||
           (github.event_name == 'pull_request' && github.base_ref == 'develop') ||
           (github.event_name == 'push' && github.ref_name == 'develop')
         continue-on-error: true
