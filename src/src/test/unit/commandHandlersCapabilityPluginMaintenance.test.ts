@@ -856,7 +856,9 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual(first.changed, true);
             assert.ok(cleanedContent.includes('// Preserve this author comment.'));
             assert.strictEqual(cleanedContent.includes('"filters"'), false);
-            assert.ok(cleanedContent.indexOf('"primary:a"') < cleanedContent.indexOf('"primary:z"'));
+            assert.ok(
+                cleanedContent.indexOf('"primary:a"') < cleanedContent.indexOf('"primary:z"'),
+            );
 
             const second = await maintainWorkspaceConfigCleanup(workspaceRoot);
             assert.strictEqual(second.changed, false);
@@ -1062,12 +1064,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 ].join('\n'),
                 'utf-8',
             );
-            for (const componentDirectory of [
-                'agents',
-                'commands',
-                'skills',
-                'instructions',
-            ]) {
+            for (const componentDirectory of ['agents', 'commands', 'skills', 'instructions']) {
                 fs.mkdirSync(path.join(tempRoot, '.github', componentDirectory), {
                     recursive: true,
                 });

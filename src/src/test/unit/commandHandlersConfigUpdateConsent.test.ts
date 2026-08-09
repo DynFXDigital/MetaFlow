@@ -50,11 +50,16 @@ suite('Command handler config update consent', () => {
         const source = readCommandHandlersSource();
         const persistenceBlock = sourceSlice(
             source,
-            'const topLevelKeys = [',
-            'let existing: string | undefined;',
+            'async function persistConfig(',
+            'interface CapabilityIdentityDriftRepairPreview',
         );
 
         assert.match(persistenceBlock, /'filters',/);
+        assert.match(persistenceBlock, /const authoredConfig = toAuthoredConfig\(config\);/);
+        assert.match(
+            persistenceBlock,
+            /if \(!\(key in authoredConfig\)\) \{[\s\S]*jsonc\.modify\(updated, \[key\], undefined,/,
+        );
     });
 
     test('test-mode refresh accepts pending updates without opening modal dialogs', () => {
