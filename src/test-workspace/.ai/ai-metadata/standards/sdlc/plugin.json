@@ -1,5 +1,5 @@
 {
-  "name": "sdlc",
+  "name": "sdlc-traceability",
   "version": "0.1.0",
   "description": "SDLC traceability metadata includes instructions, skills, and agent guidance.",
   "agents": ".github/agents",
