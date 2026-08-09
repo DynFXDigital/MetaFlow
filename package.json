@@ -26,8 +26,8 @@
     "release:notes": "node scripts/extract-release-notes.mjs"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.30.0",
-    "prettier": "^3.8.1",
+    "@changesets/cli": "^2.31.1",
+    "prettier": "^3.9.6",
     "typescript": "^6.0.2"
   }
 }
