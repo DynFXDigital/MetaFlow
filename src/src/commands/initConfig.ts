@@ -2,7 +2,7 @@
  * Initialize a new MetaFlow configuration file.
  *
  * Supports initializing from:
- * - an existing metadata directory (auto-discover layers),
+ * - an existing metadata directory (auto-discover capabilities),
  * - a git URL (clone then auto-discover),
  * - a new empty directory scaffold.
  */
@@ -452,12 +452,12 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
         [
             {
                 label: 'Use Existing Directory',
-                description: 'Discover layers from existing .github directories',
+                description: 'Discover capabilities from existing .github directories',
                 mode: 'existing' as InitSourceMode,
             },
             {
                 label: 'Clone from Git URL',
-                description: 'Clone metadata repo locally, then discover layers',
+                description: 'Clone metadata repo locally, then discover capabilities',
                 mode: 'url' as InitSourceMode,
             },
             {
@@ -505,7 +505,7 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
     await vscode.window.showTextDocument(doc);
 
     vscode.window.showInformationMessage(
-        `MetaFlow: Configuration initialized with ${selection.layers.length} discovered layer(s).`,
+        `MetaFlow: Configuration initialized with ${selection.layers.length} discovered ${selection.layers.length === 1 ? 'capability' : 'capabilities'}.`,
     );
 
     return true;

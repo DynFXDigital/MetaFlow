@@ -307,7 +307,7 @@ suite('Config Diagnostics', () => {
             {
                 code: 'LAYER_PATH_MISSING',
                 message:
-                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                    '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
                 startLine: 12,
                 startColumn: 8,
             },

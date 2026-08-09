@@ -394,7 +394,7 @@ export async function loadCapabilityDetailModel(
               formatWarning(warning.code, warning.message, warning.severity),
           )
         : [
-              '[DESCRIPTOR_MISSING] No README.md or legacy CAPABILITY.md descriptor was found at the layer root.',
+              '[DESCRIPTOR_MISSING] No README.md or legacy CAPABILITY.md descriptor was found at the capability package root.',
           ];
     const instructionScopeSummary = summarizeLayerContentInstructionScope(
         treeSummaryCache,

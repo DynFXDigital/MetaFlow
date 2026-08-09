@@ -606,7 +606,7 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         onRefreshError: (error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logWarn(`Layer tree checkbox idle refresh failed: ${message}`);
+            logWarn(`Capabilities tree checkbox idle refresh failed: ${message}`);
         },
     });
     context.subscriptions.push(layerTreeCheckboxIdleRefresh);
@@ -624,7 +624,7 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         onSettleError: (error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logWarn(`Layer tree checkbox settlement failed: ${message}`);
+            logWarn(`Capabilities tree checkbox settlement failed: ${message}`);
         },
     });
 

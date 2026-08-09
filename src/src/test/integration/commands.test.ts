@@ -3045,7 +3045,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('toggleLayer persists layer state to the active profile without overwriting other profiles', async function () {
+    test('toggleLayer persists capability state to the active profile without overwriting other profiles', async function () {
         this.timeout(20000);
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
@@ -3884,11 +3884,11 @@ suite('Command Execution', function () {
             );
             assert.ok(
                 !firstApplyFiles.some((entry) => entry.includes('discovered-a.chatmode.md')),
-                'Global refresh should keep newly discovered layers from the first repo inactive until enabled',
+                'Global refresh should keep newly discovered capabilities from the first repo inactive until enabled',
             );
             assert.ok(
                 !firstApplyFiles.some((entry) => entry.includes('discovered-b.chatmode.md')),
-                'Global refresh should keep newly discovered layers from the second repo inactive until enabled',
+                'Global refresh should keep newly discovered capabilities from the second repo inactive until enabled',
             );
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -5236,7 +5236,7 @@ suite('Command Execution', function () {
             );
             assert.deepStrictEqual(updatedConfig.profiles?.default?.enabledCapabilities, []);
             assert.ok(
-                infoMessages.some((message) => message.includes('0 discovered layer(s)')),
+                infoMessages.some((message) => message.includes('0 discovered capabilities')),
                 'Initialize configuration should report a zero-layer bootstrap config',
             );
         } finally {

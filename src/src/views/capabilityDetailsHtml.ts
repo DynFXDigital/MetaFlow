@@ -180,7 +180,7 @@ function formatLicenseLabel(license: string | undefined): string {
 function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, string]> {
     const items: Array<[string, string]> = [
         ['Repository', model.repoLabel],
-        ['Layer', model.layerPath],
+        ['Capability Path', model.layerPath],
         ['License', formatLicenseLabel(model.license)],
         [
             'Descriptor',
@@ -207,7 +207,7 @@ function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, stri
 function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, string]> {
     const items: Array<[string, string]> = [
         ['Capability ID', model.capabilityId],
-        ['Layer ID', model.layerId],
+        ['Source ID', model.layerId],
         ['Source Root', model.layerRoot],
     ];
 
@@ -343,7 +343,7 @@ function renderNativeContributionsCard(model: CapabilityDetailModel): string {
     return `
                 <section class="sidebar-card">
                     <h2>Native VS Code registrations</h2>
-                    <p class="scope-risk-intro">This built-in capability is also exposed through native VS Code Chat and extension contribution points. MetaFlow remains the source of truth for its repository and layer state.</p>
+                    <p class="scope-risk-intro">This built-in capability is also exposed through native VS Code Chat and extension contribution points. MetaFlow remains the source of truth for its repository and capability state.</p>
                     <ul class="warning-list native-contribution-list">
                         ${contributions
                             .map(
@@ -357,7 +357,7 @@ function renderNativeContributionsCard(model: CapabilityDetailModel): string {
 
 function renderContentSections(model: CapabilityDetailModel): string {
     if (model.layerFiles.length === 0) {
-        return '<p class="empty-state">No source artifacts were found under this layer.</p>';
+        return '<p class="empty-state">No source artifacts were found under this capability.</p>';
     }
 
     return `
@@ -430,7 +430,7 @@ function renderHeroActions(model: CapabilityDetailModel): string {
 }
 
 function renderHeaderSubline(model: CapabilityDetailModel): string {
-    const sourceKind = model.builtIn ? 'Built-in capability' : 'Metadata repository layer';
+    const sourceKind = model.builtIn ? 'Built-in capability' : 'Metadata repository capability';
     const repository = model.repoLabel;
 
     return `
@@ -458,7 +458,7 @@ function renderCapabilityBody(model: CapabilityDetailModel): string {
         return '<p class="empty-state">The package descriptor does not contain markdown body content yet.</p>';
     }
 
-    return '<p class="empty-state">No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this layer yet.</p>';
+    return '<p class="empty-state">No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.</p>';
 }
 
 export function renderCapabilityDetailsHtml(
@@ -1165,7 +1165,7 @@ export function renderCapabilityDetailsHtml(
 
                 <section class="tab-panel tab-panel-contents">
                     <section class="panel-surface">
-                        <p class="section-caption">Source files found under this capability layer, grouped by artifact type, with package descriptors excluded.</p>
+                        <p class="section-caption">Source files found under this capability package, grouped by artifact type, with package descriptors excluded.</p>
                         ${renderContentSections(model)}
                     </section>
                 </section>

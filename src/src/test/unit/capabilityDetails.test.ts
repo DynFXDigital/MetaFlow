@@ -340,7 +340,7 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(model.warnings.some((warning) => warning.includes('DESCRIPTOR_MISSING')));
             assert.ok(
                 html.includes(
-                    'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this layer yet.',
+                    'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.',
                 ),
             );
             assert.ok(
@@ -786,10 +786,10 @@ suite('CapabilityDetails helpers', () => {
         assert.ok(html.includes('<div class="hero-actions hero-actions-static">'));
         assert.ok(!html.includes('command:metaflow.toggleLayer?'));
         assert.ok(html.includes('No description was provided in this package descriptor yet.'));
-        assert.ok(html.includes('No source artifacts were found under this layer.'));
+        assert.ok(html.includes('No source artifacts were found under this capability.'));
         assert.ok(
             html.includes(
-                'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this layer yet.',
+                'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.',
             ),
         );
         assert.ok(html.includes('Excluded from the active MetaFlow capability set.'));

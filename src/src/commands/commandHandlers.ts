@@ -2202,11 +2202,11 @@ function formatLayerPathWarning(
 
     switch (accessibility.state) {
         case 'missing':
-            return `[LAYER_PATH_MISSING] Configured layer "${layerLabel}" does not exist or is not currently mounted.`;
+            return `[LAYER_PATH_MISSING] Configured capability path "${layerLabel}" does not exist or is not currently mounted.`;
         case 'not-directory':
-            return `[LAYER_PATH_INVALID] Configured layer "${layerLabel}" is not a directory.`;
+            return `[LAYER_PATH_INVALID] Configured capability path "${layerLabel}" is not a directory.`;
         case 'unreadable':
-            return `[LAYER_PATH_UNREADABLE] Configured layer "${layerLabel}" could not be read: ${accessibility.detail}`;
+            return `[LAYER_PATH_UNREADABLE] Configured capability path "${layerLabel}" could not be read: ${accessibility.detail}`;
     }
 }
 
@@ -2483,7 +2483,7 @@ export function collectConfiguredSourceWarnings(
 
     const formatEmptyLayerWarning = (repoId: string, layerPath: string): string => {
         const normalizedLayerPath = layerPath.replace(/\\/g, '/');
-        return `[LAYER_PATH_EMPTY] Configured layer "${repoId}/${normalizedLayerPath}" exists but currently resolves to no capability metadata or surfaced files.`;
+        return `[LAYER_PATH_EMPTY] Configured capability path "${repoId}/${normalizedLayerPath}" exists but currently resolves to no capability metadata or surfaced files.`;
     };
 
     const appendWarningsForRepoLayers = (
@@ -2551,7 +2551,7 @@ export function collectConfiguredSourceWarnings(
             }
 
             warnings.add(
-                `[LAYER_SOURCE_REPO_MISSING] Configured layer source references repoId "${repoId}", but no enabled metadata repo with that id is available.`,
+                `[LAYER_SOURCE_REPO_MISSING] Configured capability source references repoId "${repoId}", but no enabled metadata repo with that id is available.`,
             );
         }
 
@@ -2640,7 +2640,7 @@ function withBuiltInCapabilityProjected(
 
     if (!builtInRepoEnabled) {
         // Keep the built-in repo row visible in projected config, but do not
-        // surface any built-in layers while the repo checkbox is off.
+        // surface any built-in capabilities while the repo checkbox is off.
         projected.layerSources = multiRepo.layerSources;
         return projected;
     }
@@ -3028,7 +3028,7 @@ async function ensureBuiltInCapabilityFromAutoApplySetting(
             return currentState;
         }
 
-        logInfo('MetaFlow: Auto-applied built-in AI metadata in built-in layer mode.');
+        logInfo('MetaFlow: Auto-applied built-in AI metadata in built-in capability mode.');
         return writeBuiltInCapabilityWorkspaceState(context, currentState, {
             enabled: true,
             layerEnabled: true,
@@ -3157,8 +3157,8 @@ function resolveOverlay(
         }
     }
 
-    // Also load capability metadata from configured layers that are currently disabled,
-    // so layer tooltips can still show capability details in the GUI.
+    // Also load capability metadata from configured capabilities that are currently disabled,
+    // so capability tooltips can still show details in the GUI.
     const configuredCapabilityByLayer = collectConfiguredCapabilityMetadata(config, workspaceRoot);
     for (const [layerId, metadata] of Object.entries(configuredCapabilityByLayer)) {
         if (!capabilityByLayer[layerId]) {
@@ -5778,7 +5778,7 @@ export function registerCommands(
                     }
                     if (discoveryResult.totalAdded > 0) {
                         pendingConfigUpdateReasons.push(
-                            `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
+                            `Add ${discoveryResult.totalAdded} discovered ${discoveryResult.totalAdded === 1 ? 'capability' : 'capabilities'}.`,
                         );
                     }
                     const pendingRepairCount =
@@ -5833,7 +5833,7 @@ export function registerCommands(
                                 ? `${discoveryResult.rescannedRepoIds.length} repositories`
                                 : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
                         logInfo(
-                            `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
+                            `Discovered ${discoveryResult.totalAdded} new ${discoveryResult.totalAdded === 1 ? 'capability' : 'capabilities'} while rescanning ${rescannedScope}.`,
                         );
                     }
                     for (const repair of shouldPersistConfig
@@ -6658,7 +6658,7 @@ export function registerCommands(
                           );
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
                 const applied = await executeGovernedMutation({
-                    actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
+                    actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` at ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -6686,7 +6686,7 @@ export function registerCommands(
                 }
 
                 logInfo(
-                    `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
+                    `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` at ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
                 if (!deferRefresh) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
@@ -6746,12 +6746,12 @@ export function registerCommands(
                 }
 
                 if (typeof layerIndex !== 'number') {
-                    logWarn('Toggle layer requires a valid layer identity.');
+                    logWarn('Toggle capability requires a valid capability identity.');
                     return;
                 }
 
                 if (!layerSource) {
-                    logWarn(`Toggle layer failed: layer index ${layerIndex} not found.`);
+                    logWarn(`Toggle capability failed: capability index ${layerIndex} not found.`);
                     return;
                 }
 
@@ -6776,7 +6776,7 @@ export function registerCommands(
                     );
                     if (!runtimeLayerSource) {
                         logWarn(
-                            `Toggle layer failed: runtime layer ${layerSource.repoId}/${layerSource.path} not found.`,
+                            `Toggle capability failed: runtime capability ${layerSource.repoId}/${layerSource.path} not found.`,
                         );
                         return;
                     }
@@ -6797,7 +6797,7 @@ export function registerCommands(
                 }
 
                 const applied = await executeGovernedMutation({
-                    actionLabel: `toggling layer ${layerSource.repoId}/${layerSource.path}`,
+                    actionLabel: `toggling capability ${layerSource.repoId}/${layerSource.path}`,
                     state,
                     candidateConfig,
                     persist: async () => {
@@ -6813,10 +6813,10 @@ export function registerCommands(
                 }
 
                 logInfo(
-                    `Toggled layer ${layerSource.repoId}/${layerSource.path}: ${nextLayerEnabled ? 'enabled' : 'disabled'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Toggled capability ${layerSource.repoId}/${layerSource.path}: ${nextLayerEnabled ? 'enabled' : 'disabled'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 if (repoAutoEnabled) {
-                    logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
+                    logInfo(`Enabled repo source ${layerSource.repoId} because capability was enabled.`);
                 }
                 if (!deferRefresh) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
@@ -6827,7 +6827,7 @@ export function registerCommands(
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Toggle layer failed: ${message}`);
+                logWarn(`Toggle capability failed: ${message}`);
             }
         }),
     );
@@ -6956,7 +6956,7 @@ export function registerCommands(
 
             if (updatedLayerIds.size === 0) {
                 logWarn(
-                    `toggleLayerBranch: no layers matched ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}.`,
+                    `toggleLayerBranch: no capabilities matched ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}.`,
                 );
                 return;
             }
@@ -7001,7 +7001,7 @@ export function registerCommands(
             }
 
             logInfo(
-                `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} layer(s))${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} ${updatedLayerIds.size === 1 ? 'capability' : 'capabilities'})${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
             );
             if (!deferRefresh) {
                 await vscode.commands.executeCommand('metaflow.refresh', {
@@ -7060,7 +7060,7 @@ export function registerCommands(
                           )
                         : state.builtInCapability;
                 const applied = await executeGovernedMutation({
-                    actionLabel: 'selecting all matched layers',
+                    actionLabel: 'selecting all matched capabilities',
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -7089,12 +7089,12 @@ export function registerCommands(
                     return;
                 }
                 logInfo(
-                    `Selected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Selected ${indices.length} ${indices.length === 1 ? 'capability' : 'capabilities'}.${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Select layers failed: ${message}`);
+                    logWarn(`Select capabilities failed: ${message}`);
             }
         }),
     );
@@ -7148,7 +7148,7 @@ export function registerCommands(
                           )
                         : state.builtInCapability;
                 const applied = await executeGovernedMutation({
-                    actionLabel: 'deselecting all matched layers',
+                    actionLabel: 'deselecting all matched capabilities',
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -7177,12 +7177,12 @@ export function registerCommands(
                     return;
                 }
                 logInfo(
-                    `Deselected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Deselected ${indices.length} ${indices.length === 1 ? 'capability' : 'capabilities'}.${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Deselect layers failed: ${message}`);
+                    logWarn(`Deselect capabilities failed: ${message}`);
             }
         }),
     );
@@ -7692,7 +7692,7 @@ export function registerCommands(
             const addedLayers = discoverAndPersistRepoLayers(state.config, ws.uri.fsPath, repoId);
             if (addedLayers > 0 && state.configPath) {
                 await persistConfig(state.configPath, state.config, state);
-                logInfo(`Discovered ${addedLayers} new layer(s) for ${repoId} and updated config.`);
+                logInfo(`Discovered ${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'} for ${repoId} and updated config.`);
             }
 
             await vscode.commands.executeCommand('metaflow.refresh', {
@@ -7706,8 +7706,8 @@ export function registerCommands(
                 .get<boolean>('autoApply', true);
 
             const completionMessage = autoApplyEnabled
-                ? `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}.`
-                : `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}. Run Apply to synchronize .github changes (autoApply is off).`;
+                ? `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'})` : ''}.`
+                : `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'})` : ''}. Run Apply to synchronize .github changes (autoApply is off).`;
 
             logInfo(completionMessage);
             vscode.window.showInformationMessage(completionMessage);
@@ -8203,12 +8203,12 @@ export function registerCommands(
                 [
                     {
                         label: 'Use Existing Directory',
-                        description: 'Discover layers from existing .github directories',
+                        description: 'Discover capabilities from existing .github directories',
                         mode: 'existing' as InitSourceMode,
                     },
                     {
                         label: 'Clone from Git URL',
-                        description: 'Clone metadata repo locally, then discover layers',
+                        description: 'Clone metadata repo locally, then discover capabilities',
                         mode: 'url' as InitSourceMode,
                     },
                 ],
@@ -8263,7 +8263,7 @@ export function registerCommands(
 
             await persistConfig(state.configPath, state.config, state);
             logInfo(
-                `Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`,
+                `Added repo source ${repoId} with ${selection.layers.length} discovered ${selection.layers.length === 1 ? 'capability' : 'capabilities'}.`,
             );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
@@ -8331,7 +8331,7 @@ export function registerCommands(
                 (layer) => layer.repoId === repoId,
             ).length;
             const confirmation = await vscode.window.showWarningMessage(
-                `Remove source "${repoLabel}" and ${layerCount} associated layer(s)?`,
+                `Remove source "${repoLabel}" and ${layerCount} associated ${layerCount === 1 ? 'capability' : 'capabilities'}?`,
                 'Remove',
                 'Cancel',
             );
@@ -8378,7 +8378,7 @@ export function registerCommands(
             }
 
             await persistConfig(state.configPath, state.config, state);
-            logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);
+            logInfo(`Removed repo source ${repoId} and ${layerCount} ${layerCount === 1 ? 'capability' : 'capabilities'}.`);
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }),
     );
@@ -8956,7 +8956,7 @@ export function registerCommands(
         } catch {
             // Tests and partial activation hosts may not have registered the tree refresh hook.
         }
-        logInfo(`Layers view mode set to: ${nextMode}`);
+        logInfo(`Capabilities view mode set to: ${nextMode}`);
     }
 
     // ── metaflow.showLayersFlatMode ────────────────────────────────

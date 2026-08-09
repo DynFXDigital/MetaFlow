@@ -636,7 +636,7 @@ class LayerItem extends vscode.TreeItem {
             contextLines.push(`Repository: \`${options.repoLabel}\``);
         }
         if (options?.layerPath) {
-            contextLines.push(`Layer: \`${options.layerPath}\``);
+            contextLines.push(`Capability: \`${options.layerPath}\``);
         }
         if (options?.branchToggleSummary) {
             contextLines.push(`Branch state: ${formatBranchStatus(options.branchToggleSummary)}`);
@@ -796,7 +796,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
         }
 
         if (options?.layerPath) {
-            detailLines.push(`Layer: \`${options.layerPath}\``);
+            detailLines.push(`Capability: \`${options.layerPath}\``);
         }
 
         this.tooltip = buildMarkdownTooltip(`**Artifact Type**: ${artifactType}`, detailLines);
@@ -1433,7 +1433,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             ? [`Id: \`${metadata.internalId.trim()}\``]
                             : []),
                         ...(repoLabel ? [`Repository: \`${repoLabel}\``] : []),
-                        `Layer: \`${layerPath}\``,
+                        `Capability: \`${layerPath}\``,
                     ],
                     metadata.description ? `*${metadata.description}*` : undefined,
                 );
@@ -1470,7 +1470,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     [
                         `Path: \`${artifactType}/${normalizedArtifactPath}\``,
                         ...(repoLabel ? [`Repository: \`${repoLabel}\``] : []),
-                        `Layer: \`${layerPath}\``,
+                        `Capability: \`${layerPath}\``,
                     ],
                     metadata?.fields?.description?.trim()
                         ? `*${metadata.fields.description.trim()}*`

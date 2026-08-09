@@ -644,7 +644,7 @@ suite('ConfigTreeView', () => {
             makeState({
                 config: {},
                 configWarnings: [
-                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                    '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
                 ],
             }),
         );
@@ -655,7 +655,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(String(warningsSection.label), 'Warnings (1)');
         assert.ok(
             String(warningItem.label).startsWith(
-                'Configured layer "primary/capabilities/ghost" does not exist or is not currently',
+                'Configured capability path "primary/capabilities/ghost"',
             ),
         );
         assert.ok(extractTooltipText(warningItem.tooltip).includes('currently mounted.'));
@@ -668,10 +668,10 @@ suite('ConfigTreeView', () => {
             makeState({
                 config: {},
                 capabilityWarnings: [
-                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                    '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
                 ],
                 configWarnings: [
-                    '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted. [/workspace/.metaflow/config.jsonc#L13C9]',
+                    '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted. [/workspace/.metaflow/config.jsonc#L13C9]',
                 ],
             }),
         );
@@ -684,7 +684,7 @@ suite('ConfigTreeView', () => {
             warningItem.description,
             '[LAYER_PATH_MISSING] /workspace/.metaflow/config.jsonc#L13C9',
         );
-        assert.strictEqual(String(warningItem.label).includes('Configured layer'), true);
+        assert.strictEqual(String(warningItem.label).includes('Configured capability path'), true);
     });
 
     test('CTV-07b: long structured warnings render a compact row with full tooltip details', () => {
@@ -1002,7 +1002,7 @@ suite('ConfigTreeView', () => {
         );
     });
 
-    test('CTV-12: built-in repo stays enabled when only the MetaFlow capability layer is disabled', () => {
+    test('CTV-12: built-in repo stays enabled when only the MetaFlow capability is disabled', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(
             makeState({

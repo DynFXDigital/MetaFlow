@@ -585,7 +585,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
         assert.strictEqual(
@@ -596,7 +596,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -623,7 +623,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (capability override)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -655,7 +655,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (repo default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
         assert.strictEqual(
@@ -666,7 +666,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (global default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -678,7 +678,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(children.length, 0);
     });
 
-    test('LTV-AT-07b: stale configured layers with no content are omitted when summaries are available', () => {
+    test('LTV-AT-07b: stale configured capabilities with no content are omitted when summaries are available', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: true }],
@@ -736,7 +736,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -1652,7 +1652,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `sdlc-traceability`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -1687,7 +1687,7 @@ suite('LayersTreeView – artifact-type children', () => {
             joinTooltip('**sdlc-traceability**', [
                 'Capability ID: `sdlc-traceability`',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
                 'Instructions: 0/0 active',
                 'Prompts: 0/0 active',
                 'Agents: 0/0 active',
@@ -1704,7 +1704,7 @@ suite('LayersTreeView – artifact-type children', () => {
             'repo1/.': {
                 id: 'sdlc-traceability',
                 name: 'SDLC Traceability',
-                description: 'Capability metadata sourced from layer state.',
+                description: 'Capability metadata sourced from capability state.',
                 license: 'MIT',
             },
         };
@@ -1725,14 +1725,14 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `sdlc-traceability`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
                     'Skills: 0/0 active',
                     'Hooks: 0/0 active',
                 ],
-                '*Capability metadata sourced from layer state.*',
+                '*Capability metadata sourced from capability state.*',
             ),
         );
     });
@@ -1766,7 +1766,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `communication`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -1900,7 +1900,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `devtools`',
                     'License: `MIT`',
                     'Repository: `CoreMeta`',
-                    'Layer: `capabilities/devtools`',
+                    'Capability: `capabilities/devtools`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -2173,7 +2173,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     '**Capability Catalog**',
                     [
                         'Repository: `CoreMeta`',
-                        'Layer: `capabilities`',
+                        'Capability: `capabilities`',
                         'Branch state: all descendant capabilities enabled',
                         'Instructions: 0/0 active',
                         'Prompts: 0/0 active',

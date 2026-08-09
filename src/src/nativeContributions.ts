@@ -60,7 +60,7 @@ export interface NativeContributionDescriptor {
 /**
  * Native VS Code registrations projected from the built-in MetaFlow capability.
  *
- * Keep MetaFlow's repository/layer metadata as the source of truth. This list is
+ * Keep MetaFlow's repository/capability metadata as the source of truth. This list is
  * the user-facing bridge that explains which native Chat surfaces are available
  * for the built-in capability.
  */

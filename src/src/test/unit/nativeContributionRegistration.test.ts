@@ -72,7 +72,7 @@ suite('Native contribution registration', () => {
         }
     });
 
-    test('maps built-in repository and layer state to contribution context keys', () => {
+    test('maps built-in repository and capability state to contribution context keys', () => {
         const state: BuiltInCapabilityRuntimeState = {
             enabled: true,
             layerEnabled: true,
