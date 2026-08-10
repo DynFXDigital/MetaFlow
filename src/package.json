@@ -1086,7 +1086,7 @@
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.6",
     "@types/node": "^25.5.0",
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "^1.110.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.57.2",
     "@vscode/test-electron": "^2.3.8",
