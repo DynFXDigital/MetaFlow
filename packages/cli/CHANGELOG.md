@@ -1,5 +1,11 @@
 # @metaflow/cli
 
+## 0.4.3
+
+### Maintenance
+
+- Align the CLI package release with the MetaFlow extension and engine stable point release.
+
 ## 0.4.2
 
 ### Maintenance

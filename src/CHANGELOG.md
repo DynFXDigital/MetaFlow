@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.3
+
+### Added
+
+- Search capabilities using their metadata and restore built-in capability search behavior.
+
+### Improved
+
+- Make capability and plugin maintenance explicit, portable, and defensive about plugin component directories.
+- Use README-backed capability descriptors and authoritative plugin manifests throughout the extension surface.
+
+### Fixed
+
+- Scope capability diagnostics to active selections so inactive overlaps stay silent.
+
 ## 0.4.2
 
 ### Added

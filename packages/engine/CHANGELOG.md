@@ -1,5 +1,12 @@
 # @metaflow/engine
 
+## 0.4.3
+
+### Improved
+
+- Treat plugin manifests as authoritative for capability metadata and support README-backed capability descriptors.
+- Improve portable plugin metadata maintenance and capability catalog handling.
+
 ## 0.4.2
 
 ### Added

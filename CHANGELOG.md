@@ -4,6 +4,25 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.3
+
+### Highlights
+
+- Capability manifests are now authoritative for capability metadata, with capability descriptors documented in README files.
+- Capability search follows metadata and built-in capability search is restored.
+
+### Improved
+
+- Capability and plugin maintenance is more explicit, portable, and defensive about plugin component directories.
+
+### Fixed
+
+- Capability diagnostics are scoped to active selections, so inactive capability overlaps do not produce active warnings.
+
+### Maintenance
+
+- Refreshed compatible dependencies and stabilized the prerelease CI and release validation lanes.
+
 ## 0.4.2
 
 ### Highlights
