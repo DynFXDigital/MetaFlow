@@ -101,6 +101,77 @@ suite('Diagnostics Integration', () => {
         }
     });
 
+    // Trace: TC-0028..TC-0030
+    test('refresh warns on overlap only when both capabilities are active', async function () {
+        this.timeout(15000);
+
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-active-conflict-diagnostics');
+        const firstRoot = path.join(repoRoot, 'capabilities', 'first');
+        const secondRoot = path.join(repoRoot, 'capabilities', 'second');
+        fs.rmSync(repoRoot, { recursive: true, force: true });
+        fs.mkdirSync(path.join(firstRoot, 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(secondRoot, 'instructions'), { recursive: true });
+        fs.writeFileSync(path.join(firstRoot, 'instructions', 'shared.md'), 'first\n', 'utf-8');
+        fs.writeFileSync(path.join(secondRoot, 'instructions', 'shared.md'), 'second\n', 'utf-8');
+
+        const config = {
+            compatibilityVersion: 2,
+            metadataRepos: [{ id: 'overlap', localPath: '.tmp-active-conflict-diagnostics' }],
+            layerSources: [
+                { repoId: 'overlap', path: 'capabilities/first' },
+                { repoId: 'overlap', path: 'capabilities/second' },
+            ],
+            profiles: {
+                one: { enabledCapabilities: ['overlap:capabilities/first'] },
+                both: {
+                    enabledCapabilities: [
+                        'overlap:capabilities/first',
+                        'overlap:capabilities/second',
+                    ],
+                },
+            },
+            activeProfile: 'one',
+        };
+
+        const snapshot = async (): Promise<{ capabilityWarnings: string[] }> =>
+            vscode.commands.executeCommand('metaflow.getDiagnosticsSnapshot');
+
+        try {
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const inactiveOverlap = await snapshot();
+            assert.ok(
+                !inactiveOverlap.capabilityWarnings.some((warning) =>
+                    warning.includes('[CAPABILITY_CONFLICT]'),
+                ),
+                'Inactive capability overlap should not be reported as an active conflict',
+            );
+
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify({ ...config, activeProfile: 'both' }, null, 2),
+                'utf-8',
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const activeOverlap = await snapshot();
+            assert.ok(
+                activeOverlap.capabilityWarnings.some(
+                    (warning) =>
+                        warning.includes('[CAPABILITY_CONFLICT]') &&
+                        warning.includes('instructions/shared.md'),
+                ),
+                'Active capability overlap should remain visible as a conflict warning',
+            );
+        } finally {
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
     // Trace: TC-0331
     test('getDiagnosticsSnapshot returns empty payload for a clean workspace', async function () {
         this.timeout(15000);

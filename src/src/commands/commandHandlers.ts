@@ -2050,7 +2050,7 @@ function capabilityWarningIdentity(warning: CapabilityWarning): string {
     ].join('|');
 }
 
-function collectConfiguredCapabilityDiagnosticWarnings(
+export function collectConfiguredCapabilityDiagnosticWarnings(
     config: MetaFlowConfig,
     workspaceRoot: string,
 ): CapabilityWarning[] {
@@ -2078,7 +2078,11 @@ function collectConfiguredCapabilityDiagnosticWarnings(
         const repoById = new Map(config.metadataRepos.map((repo) => [repo.id, repo]));
         for (const source of config.layerSources) {
             const repo = repoById.get(source.repoId);
-            if (!repo) {
+            // This collection is used by the active refresh path. Discovery and
+            // catalog maintenance may inspect inactive capabilities, but their
+            // descriptor/plugin diagnostics must not become active warnings until
+            // the repository and capability are both enabled for the profile.
+            if (!repo || repo.enabled === false || source.enabled === false) {
                 continue;
             }
 
