@@ -462,7 +462,15 @@ function Write-JsonFile {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
 
-    $json = $Value | ConvertTo-Json -Depth 50
+    # PowerShell unwraps a one-item array when it is sent through the
+    # pipeline, which would make VS Code's extensions.json an object instead
+    # of the required array. Preserve the array root explicitly.
+    $json = if ($Value -is [System.Array]) {
+        ConvertTo-Json -InputObject ([object[]]$Value) -Depth 50
+    }
+    else {
+        ConvertTo-Json -InputObject $Value -Depth 50
+    }
     $maxAttempts = 5
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
