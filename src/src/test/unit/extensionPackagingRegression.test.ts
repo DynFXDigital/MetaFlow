@@ -114,6 +114,17 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(!installScriptSource.includes('Expand-Archive -LiteralPath $ResolvedVsixPath'));
     });
 
+    test('install-vsix script preserves one-entry extension registry arrays', () => {
+        const installScriptPath = path.join(EXTENSION_ROOT, 'scripts', 'install-vsix.ps1');
+        const installScriptSource = fs.readFileSync(installScriptPath, 'utf-8');
+
+        assert.match(
+            installScriptSource,
+            /ConvertTo-Json -InputObject \(\[object\[\]\]\$Value\) -Depth 50/,
+            'Expected registry writes to preserve a one-entry extensions.json array',
+        );
+    });
+
     test('package.json points extension main to dist bundle', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
