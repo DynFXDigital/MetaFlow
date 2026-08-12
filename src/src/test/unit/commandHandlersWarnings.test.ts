@@ -82,6 +82,81 @@ function loadCommandHelpers(): typeof import('../../commands/commandHelpers') {
 }
 
 suite('Command handler configured source warnings', () => {
+    test('configured capability diagnostics only include enabled repositories and capabilities', () => {
+        const { collectConfiguredCapabilityDiagnosticWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-active-capability-warnings-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            const activeRoot = path.join(repoRoot, 'capabilities', 'active');
+            const inactiveRoot = path.join(repoRoot, 'capabilities', 'inactive');
+            fs.mkdirSync(activeRoot, { recursive: true });
+            fs.mkdirSync(inactiveRoot, { recursive: true });
+
+            for (const capabilityRoot of [activeRoot, inactiveRoot]) {
+                fs.writeFileSync(
+                    path.join(capabilityRoot, 'CAPABILITY.md'),
+                    ['---', 'name: Plugin Capability', 'agentPlugin: true', '---', ''].join('\n'),
+                    'utf-8',
+                );
+            }
+
+            const warnings = collectConfiguredCapabilityDiagnosticWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: true }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/active', enabled: true },
+                        { repoId: 'primary', path: 'capabilities/inactive', enabled: false },
+                    ],
+                } as never,
+                workspaceRoot,
+            );
+
+            assert.ok(warnings.length > 0);
+            assert.ok(
+                warnings.every((warning) =>
+                    warning.filePath?.includes(path.join('capabilities', 'active')),
+                ),
+                'Only the enabled capability should contribute manifest diagnostics',
+            );
+            assert.ok(
+                warnings.some((warning) => warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING'),
+            );
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('disabled repositories do not contribute configured capability diagnostics', () => {
+        const { collectConfiguredCapabilityDiagnosticWarnings } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-disabled-repo-warnings-'));
+
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'metadata');
+            const capabilityRoot = path.join(repoRoot, 'capabilities', 'inactive');
+            fs.mkdirSync(capabilityRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(capabilityRoot, 'CAPABILITY.md'),
+                ['---', 'name: Plugin Capability', 'agentPlugin: true', '---', ''].join('\n'),
+                'utf-8',
+            );
+
+            const warnings = collectConfiguredCapabilityDiagnosticWarnings(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/metadata', enabled: false }],
+                    layerSources: [
+                        { repoId: 'primary', path: 'capabilities/inactive', enabled: true },
+                    ],
+                } as never,
+                workspaceRoot,
+            );
+
+            assert.deepStrictEqual(warnings, []);
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('enabled missing layer path produces a diagnostic warning payload', () => {
         const { collectEnabledConfiguredSourceDiagnosticWarnings } = loadCommandHandlers();
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-missing-layer-'));
@@ -104,7 +179,7 @@ suite('Command handler configured source warnings', () => {
                 {
                     code: 'LAYER_PATH_MISSING',
                     message:
-                        '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                        '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
                 },
             ]);
         } finally {
@@ -156,7 +231,7 @@ suite('Command handler configured source warnings', () => {
             );
 
             assert.deepStrictEqual(warnings, [
-                '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                        '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
             ]);
         } finally {
             fs.rmSync(workspaceRoot, { recursive: true, force: true });
@@ -255,7 +330,7 @@ suite('Command handler configured source warnings', () => {
                 [] as never,
             );
             assert.deepStrictEqual(unprojected, [
-                '[LAYER_PATH_MISSING] Configured layer "primary/capabilities/ghost" does not exist or is not currently mounted.',
+                        '[LAYER_PATH_MISSING] Configured capability path "primary/capabilities/ghost" does not exist or is not currently mounted.',
             ]);
 
             // After profile projection flips enabled to false, the warning is suppressed.
@@ -296,7 +371,7 @@ suite('Command handler configured source warnings', () => {
         }
     });
 
-    test('LAYER_PATH_EMPTY warning is emitted for stale empty configured layers', () => {
+    test('LAYER_PATH_EMPTY warning is emitted for stale empty configured capabilities', () => {
         const { collectConfiguredSourceWarnings } = loadCommandHandlers();
         const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-empty-layer-'));
 

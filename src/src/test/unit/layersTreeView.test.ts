@@ -92,6 +92,7 @@ type LayersTreeViewModule = {
                     id?: string;
                     name?: string;
                     description?: string;
+                    keywords?: string[];
                     license?: string;
                     experimental?: boolean;
                 }
@@ -226,6 +227,7 @@ function makeState(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -583,7 +585,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
         assert.strictEqual(
@@ -594,7 +596,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -621,7 +623,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (capability override)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -653,7 +655,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (repo default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
         assert.strictEqual(
@@ -664,7 +666,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: synchronize (global default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -676,7 +678,7 @@ suite('LayersTreeView – artifact-type children', () => {
         assert.strictEqual(children.length, 0);
     });
 
-    test('LTV-AT-07b: stale configured layers with no content are omitted when summaries are available', () => {
+    test('LTV-AT-07b: stale configured capabilities with no content are omitted when summaries are available', () => {
         const { LayersTreeViewProvider } = loadLayersTreeView();
         const config = {
             metadataRepos: [{ id: 'repo1', localPath: '/repo1', enabled: true }],
@@ -734,7 +736,7 @@ suite('LayersTreeView – artifact-type children', () => {
                 'Repository status: enabled',
                 'Injection: plugin (built-in default)',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
             ]),
         );
     });
@@ -1650,7 +1652,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `sdlc-traceability`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -1685,7 +1687,7 @@ suite('LayersTreeView – artifact-type children', () => {
             joinTooltip('**sdlc-traceability**', [
                 'Capability ID: `sdlc-traceability`',
                 'Repository: `repo1`',
-                'Layer: `.`',
+                'Capability: `.`',
                 'Instructions: 0/0 active',
                 'Prompts: 0/0 active',
                 'Agents: 0/0 active',
@@ -1702,7 +1704,7 @@ suite('LayersTreeView – artifact-type children', () => {
             'repo1/.': {
                 id: 'sdlc-traceability',
                 name: 'SDLC Traceability',
-                description: 'Capability metadata sourced from layer state.',
+                description: 'Capability metadata sourced from capability state.',
                 license: 'MIT',
             },
         };
@@ -1723,14 +1725,14 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `sdlc-traceability`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
                     'Skills: 0/0 active',
                     'Hooks: 0/0 active',
                 ],
-                '*Capability metadata sourced from layer state.*',
+                '*Capability metadata sourced from capability state.*',
             ),
         );
     });
@@ -1764,7 +1766,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `communication`',
                     'License: `MIT`',
                     'Repository: `repo1`',
-                    'Layer: `.`',
+                'Capability: `.`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -1898,7 +1900,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     'Capability ID: `devtools`',
                     'License: `MIT`',
                     'Repository: `CoreMeta`',
-                    'Layer: `capabilities/devtools`',
+                    'Capability: `capabilities/devtools`',
                     'Instructions: 0/0 active',
                     'Prompts: 0/0 active',
                     'Agents: 0/0 active',
@@ -2171,7 +2173,7 @@ suite('LayersTreeView – artifact-type children', () => {
                     '**Capability Catalog**',
                     [
                         'Repository: `CoreMeta`',
-                        'Layer: `capabilities`',
+                        'Capability: `capabilities`',
                         'Branch state: all descendant capabilities enabled',
                         'Instructions: 0/0 active',
                         'Prompts: 0/0 active',
@@ -2868,6 +2870,56 @@ suite('LayersTreeView – artifact-type children', () => {
             [],
             'artifact-only matches should not keep non-matching capabilities visible',
         );
+    });
+
+    test('LTV-SCH-01a: capability search includes ID, description, and plugin keywords', () => {
+        const { LayersTreeViewProvider } = loadLayersTreeView();
+        const config = {
+            metadataRepos: [{ id: 'repo1', name: 'CoreMeta', localPath: '/repo1' }],
+            layerSources: [
+                { repoId: 'repo1', path: 'capabilities/root-cause-analysis' },
+                { repoId: 'repo1', path: 'capabilities/release-notes' },
+            ],
+        };
+        const capabilityByLayer = {
+            'repo1/capabilities/root-cause-analysis': {
+                id: 'root-cause-analysis',
+                name: 'Root Cause Analysis',
+                description: 'Diagnose recurring production failures.',
+                keywords: ['fishbone', 'five-whys'],
+            },
+            'repo1/capabilities/release-notes': {
+                id: 'release-notes',
+                name: 'Release Notes',
+                description: 'Communicate shipped changes.',
+                keywords: ['changelog'],
+            },
+        };
+        const files = [
+            makeEffectiveFile(
+                'instructions/root-cause.md',
+                'repo1',
+                'capabilities/root-cause-analysis',
+            ),
+            makeEffectiveFile(
+                'instructions/release-notes.md',
+                'repo1',
+                'capabilities/release-notes',
+            ),
+        ];
+        const provider = new LayersTreeViewProvider(
+            makeState(config, files, capabilityByLayer),
+            () => 'flat',
+        );
+
+        for (const query of ['root-cause-analysis', 'recurring production', 'five-whys']) {
+            provider.setSearchQuery(query);
+            assert.deepStrictEqual(
+                provider.getChildren().map((item) => String(item.label)),
+                ['Root Cause Analysis'],
+                `search should match capability metadata for query "${query}"`,
+            );
+        }
     });
 
     test('LTV-SCH-02: tree search omits disabled repository and layer matches', () => {

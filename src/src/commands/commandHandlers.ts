@@ -12,6 +12,7 @@ import * as jsonc from 'jsonc-parser';
 import { createHash, randomUUID } from 'crypto';
 import type {
     ApplyResult,
+    CapabilityMetadata,
     CapabilityPluginCatalogEntry,
     CapabilityWarning,
     ConfigError,
@@ -38,6 +39,7 @@ import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
     collectAgentPluginHookWarnings,
+    resolveCapabilityDescriptorPath,
     resolvePathFromWorkspace,
     applyProfile,
     classifyFiles,
@@ -717,6 +719,7 @@ export interface ExtensionState {
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -881,9 +884,7 @@ function previewBuiltInLayerEnabledState(
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     const defaultEnabled =
-        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
-            ? currentState.layerEnabled
-            : true;
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH ? currentState.layerEnabled : true;
     if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
@@ -995,9 +996,7 @@ function buildGovernedMutationDecision(
     };
 }
 
-function buildGovernanceEvaluationConfig(
-    config: MetaFlowConfig,
-): MetaFlowConfig {
+function buildGovernanceEvaluationConfig(config: MetaFlowConfig): MetaFlowConfig {
     return projectConfigForProfile(config);
 }
 
@@ -1923,7 +1922,14 @@ function collectConfiguredCapabilityMetadata(
     workspaceRoot: string,
 ): Record<
     string,
-    { id?: string; name?: string; description?: string; license?: string; experimental?: boolean }
+    {
+        id?: string;
+        name?: string;
+        description?: string;
+        keywords?: string[];
+        license?: string;
+        experimental?: boolean;
+    }
 > {
     const capabilityByLayer: Record<
         string,
@@ -1931,6 +1937,7 @@ function collectConfiguredCapabilityMetadata(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -1957,6 +1964,7 @@ function collectConfiguredCapabilityMetadata(
                 id: manifest.id,
                 name: manifest.name,
                 description: manifest.description,
+                keywords: manifest.agentPluginManifest?.keywords,
                 license: manifest.license,
                 experimental: manifest.experimental,
             };
@@ -1979,6 +1987,7 @@ function collectConfiguredCapabilityMetadata(
                 id: manifest.id,
                 name: manifest.name,
                 description: manifest.description,
+                keywords: manifest.agentPluginManifest?.keywords,
                 license: manifest.license,
                 experimental: manifest.experimental,
             };
@@ -2041,7 +2050,7 @@ function capabilityWarningIdentity(warning: CapabilityWarning): string {
     ].join('|');
 }
 
-function collectConfiguredCapabilityDiagnosticWarnings(
+export function collectConfiguredCapabilityDiagnosticWarnings(
     config: MetaFlowConfig,
     workspaceRoot: string,
 ): CapabilityWarning[] {
@@ -2050,8 +2059,7 @@ function collectConfiguredCapabilityDiagnosticWarnings(
 
     const appendManifestWarnings = (repoRoot: string, layerPath: string): void => {
         const layerAbsPath = path.join(repoRoot, layerPath);
-        const capabilityFile = path.join(layerAbsPath, 'CAPABILITY.md');
-        if (!fs.existsSync(capabilityFile)) {
+        if (!resolveCapabilityDescriptorPath(layerAbsPath)) {
             return;
         }
 
@@ -2070,7 +2078,11 @@ function collectConfiguredCapabilityDiagnosticWarnings(
         const repoById = new Map(config.metadataRepos.map((repo) => [repo.id, repo]));
         for (const source of config.layerSources) {
             const repo = repoById.get(source.repoId);
-            if (!repo) {
+            // This collection is used by the active refresh path. Discovery and
+            // catalog maintenance may inspect inactive capabilities, but their
+            // descriptor/plugin diagnostics must not become active warnings until
+            // the repository and capability are both enabled for the profile.
+            if (!repo || repo.enabled === false || source.enabled === false) {
                 continue;
             }
 
@@ -2194,11 +2206,11 @@ function formatLayerPathWarning(
 
     switch (accessibility.state) {
         case 'missing':
-            return `[LAYER_PATH_MISSING] Configured layer "${layerLabel}" does not exist or is not currently mounted.`;
+            return `[LAYER_PATH_MISSING] Configured capability path "${layerLabel}" does not exist or is not currently mounted.`;
         case 'not-directory':
-            return `[LAYER_PATH_INVALID] Configured layer "${layerLabel}" is not a directory.`;
+            return `[LAYER_PATH_INVALID] Configured capability path "${layerLabel}" is not a directory.`;
         case 'unreadable':
-            return `[LAYER_PATH_UNREADABLE] Configured layer "${layerLabel}" could not be read: ${accessibility.detail}`;
+            return `[LAYER_PATH_UNREADABLE] Configured capability path "${layerLabel}" could not be read: ${accessibility.detail}`;
     }
 }
 
@@ -2475,7 +2487,7 @@ export function collectConfiguredSourceWarnings(
 
     const formatEmptyLayerWarning = (repoId: string, layerPath: string): string => {
         const normalizedLayerPath = layerPath.replace(/\\/g, '/');
-        return `[LAYER_PATH_EMPTY] Configured layer "${repoId}/${normalizedLayerPath}" exists but currently resolves to no capability metadata or surfaced files.`;
+        return `[LAYER_PATH_EMPTY] Configured capability path "${repoId}/${normalizedLayerPath}" exists but currently resolves to no capability metadata or surfaced files.`;
     };
 
     const appendWarningsForRepoLayers = (
@@ -2543,7 +2555,7 @@ export function collectConfiguredSourceWarnings(
             }
 
             warnings.add(
-                `[LAYER_SOURCE_REPO_MISSING] Configured layer source references repoId "${repoId}", but no enabled metadata repo with that id is available.`,
+                `[LAYER_SOURCE_REPO_MISSING] Configured capability source references repoId "${repoId}", but no enabled metadata repo with that id is available.`,
             );
         }
 
@@ -2632,7 +2644,7 @@ function withBuiltInCapabilityProjected(
 
     if (!builtInRepoEnabled) {
         // Keep the built-in repo row visible in projected config, but do not
-        // surface any built-in layers while the repo checkbox is off.
+        // surface any built-in capabilities while the repo checkbox is off.
         projected.layerSources = multiRepo.layerSources;
         return projected;
     }
@@ -2742,9 +2754,7 @@ async function writeBuiltInLayerEnabledState(
     const nextLayerStates = { ...(currentState.layerStates ?? {}) };
 
     const defaultEnabled =
-        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
-            ? currentState.layerEnabled
-            : true;
+        normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH ? currentState.layerEnabled : true;
     if (enabled === defaultEnabled) {
         delete nextLayerStates[normalizedLayerPath];
     } else {
@@ -3022,7 +3032,7 @@ async function ensureBuiltInCapabilityFromAutoApplySetting(
             return currentState;
         }
 
-        logInfo('MetaFlow: Auto-applied built-in AI metadata in built-in layer mode.');
+        logInfo('MetaFlow: Auto-applied built-in AI metadata in built-in capability mode.');
         return writeBuiltInCapabilityWorkspaceState(context, currentState, {
             enabled: true,
             layerEnabled: true,
@@ -3089,6 +3099,7 @@ function resolveOverlay(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
         }
     >;
@@ -3108,6 +3119,7 @@ function resolveOverlay(
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
         }
     > = {};
@@ -3139,6 +3151,7 @@ function resolveOverlay(
                 id: layer.capability.id,
                 name: layer.capability.name,
                 description: layer.capability.description,
+                keywords: layer.capability.agentPluginManifest?.keywords,
                 license: layer.capability.license,
             };
         }
@@ -3148,8 +3161,8 @@ function resolveOverlay(
         }
     }
 
-    // Also load capability metadata from configured layers that are currently disabled,
-    // so layer tooltips can still show capability details in the GUI.
+    // Also load capability metadata from configured capabilities that are currently disabled,
+    // so capability tooltips can still show details in the GUI.
     const configuredCapabilityByLayer = collectConfiguredCapabilityMetadata(config, workspaceRoot);
     for (const [layerId, metadata] of Object.entries(configuredCapabilityByLayer)) {
         if (!capabilityByLayer[layerId]) {
@@ -3311,7 +3324,7 @@ async function persistConfig(
     configPath: string,
     config: MetaFlowConfig,
     state?: ExtensionState,
-): Promise<void> {
+): Promise<boolean> {
     const authoredConfig = toAuthoredConfig(config);
     const topLevelKeys = [
         'metadataRepo',
@@ -3353,10 +3366,45 @@ async function persistConfig(
             const edits = jsonc.modify(updated, [key], value, { formattingOptions: formatOptions });
             updated = jsonc.applyEdits(updated, edits);
         }
+        if (updated === existing) {
+            return false;
+        }
+        if (state) {
+            state.suppressConfigWatcherUntil = Date.now() + 1500;
+        }
         await fsp.writeFile(configPath, updated, 'utf-8');
+        return true;
     } else {
+        if (state) {
+            state.suppressConfigWatcherUntil = Date.now() + 1500;
+        }
         await fsp.writeFile(configPath, JSON.stringify(authoredConfig, null, 2) + '\n', 'utf-8');
+        return true;
     }
+}
+
+export interface ConfigCleanupResult {
+    configPath: string;
+    changed: boolean;
+}
+
+export async function maintainWorkspaceConfigCleanup(
+    workspaceRoot: string,
+    state?: ExtensionState,
+): Promise<ConfigCleanupResult> {
+    const result = loadConfig(workspaceRoot);
+    if (!result.ok) {
+        const details = result.errors.map((error) => error.message).join('; ');
+        throw new Error(details || 'No valid .metaflow/config.jsonc file was found.');
+    }
+    if (!result.configPath) {
+        throw new Error('No valid .metaflow/config.jsonc file was found.');
+    }
+
+    return {
+        configPath: result.configPath,
+        changed: await persistConfig(result.configPath, result.config, state),
+    };
 }
 
 interface CapabilityIdentityDriftRepairPreview {
@@ -4186,7 +4234,7 @@ function pruneRepoSyncStatusToRepos(state: ExtensionState, repoIds: Iterable<str
     );
 }
 
-const BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
+const BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
     'assets',
     'metaflow-ai-metadata',
     '.github',
@@ -4194,13 +4242,13 @@ const BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH = path.join(
     'metaflow-capability-contract.instructions.md',
 );
 
-const BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
+const BUNDLED_DESCRIPTOR_CONTRACT_EXAMPLE_RELATIVE_PATH = path.join(
     'assets',
     'metaflow-ai-metadata',
     'capabilities',
     'metadata-authoring',
     'github-copilot-metadata-authoring',
-    'CAPABILITY.md',
+    'README.md',
 );
 
 interface CapabilityManifestDestinationPick extends vscode.QuickPickItem {
@@ -4378,7 +4426,7 @@ async function promptForMetadataRepoId(state: ExtensionState): Promise<string | 
     const selected = await vscode.window.showQuickPick(picks, {
         title: 'MetaFlow: Select Repository Source',
         placeHolder:
-            'Choose the metadata repository whose capability plugin metadata should be maintained',
+            'Choose the metadata repository whose package plugin.json metadata should be maintained',
         ignoreFocusOut: true,
     });
 
@@ -4394,7 +4442,7 @@ async function promptForCapabilityManifestDirectory(options: {
         picks.push({
             label: 'Use suggested directory',
             description: options.suggestedDirectory,
-            detail: 'Create or open CAPABILITY.md in the contextual destination',
+            detail: 'Create or open README.md in the contextual package directory',
             mode: 'suggested',
             targetDirectory: options.suggestedDirectory,
         });
@@ -4403,7 +4451,7 @@ async function promptForCapabilityManifestDirectory(options: {
     picks.push(
         {
             label: 'Choose existing directory',
-            detail: 'Pick an existing folder for CAPABILITY.md',
+            detail: 'Pick an existing folder for a package README descriptor',
             mode: 'existing',
         },
         {
@@ -4414,7 +4462,7 @@ async function promptForCapabilityManifestDirectory(options: {
     );
 
     const selected = await vscode.window.showQuickPick(picks, {
-        title: 'MetaFlow: Choose CAPABILITY.md Destination',
+        title: 'MetaFlow: Choose Package Descriptor Destination',
         placeHolder: 'Select how to choose the destination directory',
         ignoreFocusOut: true,
     });
@@ -4469,23 +4517,23 @@ async function promptForExistingCapabilityDirectory(options: {
     const picks: ExistingCapabilityDirectoryPick[] = [];
     if (options.suggestedDirectory) {
         picks.push({
-            label: 'Use suggested capability directory',
+            label: 'Use suggested package directory',
             description: options.suggestedDirectory,
-            detail: 'Maintain package metadata for the selected capability directory',
+            detail: 'Maintain plugin.json for the selected package directory',
             mode: 'suggested',
             targetDirectory: options.suggestedDirectory,
         });
     }
 
     picks.push({
-        label: 'Choose existing capability directory',
-        detail: 'Pick an existing folder that already contains CAPABILITY.md',
+        label: 'Choose existing package directory',
+        detail: 'Pick an existing folder that contains README.md or legacy CAPABILITY.md',
         mode: 'existing',
     });
 
     const selected = await vscode.window.showQuickPick(picks, {
-        title: 'MetaFlow: Choose Capability Directory',
-        placeHolder: 'Select the capability directory to maintain',
+        title: 'MetaFlow: Choose Plugin Package Directory',
+        placeHolder: 'Select the package directory whose plugin.json should be maintained',
         ignoreFocusOut: true,
     });
 
@@ -4521,57 +4569,57 @@ function buildCapabilityManifestStarterTemplateForName(capabilityName: string): 
     const normalizedName = capabilityName.trim() || 'Capability Name';
     return [
         '---',
-        `uid: ${randomUUID()}`,
         `name: ${normalizedName}`,
-        'description: Describe what this capability offers in one direct declarative sentence.',
-        'license: SEE-LICENSE-IN-REPO',
-        'agentPlugin: true',
+        'description: Describe what this package offers in one direct declarative sentence.',
         '---',
         '',
-        `# Capability: ${normalizedName}`,
+        `# ${normalizedName}`,
         '',
-        '## Mission',
+        '## Purpose',
         '',
-        'Describe the primary purpose of this capability.',
+        'Describe the primary purpose of this package.',
         '',
-        '## Scope',
+        '## Included Components',
         '',
-        '- List the main assets, workflows, or concerns this capability owns.',
+        '- List the main assets, workflows, or concerns this package provides.',
         '',
-        '## Non-Goals',
+        '## Compatibility',
         '',
-        '- List 2 to 4 plausible adjacent responsibilities this capability intentionally does not own.',
-        '- Keep these boundaries inside the same workflow or problem space; avoid unrelated disclaimer bullets.',
+        '- Describe prerequisites, supported hosts, and trust considerations when relevant.',
         '',
     ].join('\n');
 }
 
-function buildCapabilityPluginManifestStarterTemplate(
-    capabilityName: string,
-    capabilityDirectoryName: string,
-): string {
-    const normalizedCapabilityName = capabilityName.trim() || 'Capability Name';
-    const normalizedPluginName =
-        sanitizeCapabilityPluginName(capabilityDirectoryName) || 'capability';
+function buildReadmeDescriptorFromLegacyManifest(manifest: CapabilityMetadata): string {
+    const name = manifest.name?.trim() || 'Package Name';
+    const description = manifest.description?.trim() || 'Describe what this package offers.';
+    const body = manifest.body ?? `\n# ${name}\n`;
+    return `---\nname: ${name}\ndescription: ${description}\n---\n${body}`;
+}
 
-    return `${JSON.stringify(
-        {
-            name: normalizedPluginName,
-            version: '0.1.0',
-            description: `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`,
-            keywords: ['metaflow', 'agent-plugin', 'capability'],
-            agents: '.github/agents',
-            commands: '.github/commands',
-            skills: '.github/skills',
-            rules: '.github/instructions',
-            metaflow: {
-                pluginHosts: ['github-copilot'],
-                minimumMetaflowVersion: '^0.1.0-preview.0',
+async function promptForLegacyDescriptorMigration(): Promise<'migrate' | 'new' | undefined> {
+    const selected = await vscode.window.showQuickPick(
+        [
+            {
+                label: 'Migrate legacy CAPABILITY.md to README.md',
+                description: 'Preserve the legacy name, description, and Markdown body.',
+                detail: 'Legacy-only fields stay in CAPABILITY.md and are not copied into README.md.',
+                mode: 'migrate' as const,
             },
+            {
+                label: 'Create a new README.md',
+                description: 'Leave the legacy CAPABILITY.md unchanged.',
+                mode: 'new' as const,
+            },
+        ],
+        {
+            title: 'MetaFlow: Choose Descriptor Migration',
+            placeHolder: 'Select how to handle the existing legacy descriptor',
+            ignoreFocusOut: true,
         },
-        null,
-        2,
-    )}\n`;
+    );
+
+    return selected?.mode;
 }
 
 function isLikelySemverVersion(value: string): boolean {
@@ -4599,6 +4647,41 @@ function sanitizeCapabilityPluginName(value: string): string {
         .replace(/^-+|-+$/g, '');
 }
 
+function resolveMaintainedPluginComponentPath(
+    capabilityDirectoryPath: string | undefined,
+    currentValue: unknown,
+    defaultValue: string,
+): string | undefined {
+    const currentPath =
+        typeof currentValue === 'string' && currentValue.trim().length > 0
+            ? currentValue.trim()
+            : undefined;
+    if (!capabilityDirectoryPath) {
+        return currentPath ?? defaultValue;
+    }
+
+    for (const candidate of [currentPath, defaultValue]) {
+        if (!candidate) {
+            continue;
+        }
+
+        const resolvedCandidate = path.resolve(capabilityDirectoryPath, candidate);
+        const relativeCandidate = path.relative(capabilityDirectoryPath, resolvedCandidate);
+        if (
+            relativeCandidate.startsWith('..') ||
+            path.isAbsolute(relativeCandidate) ||
+            !fs.existsSync(resolvedCandidate) ||
+            !fs.statSync(resolvedCandidate).isDirectory()
+        ) {
+            continue;
+        }
+
+        return candidate;
+    }
+
+    return undefined;
+}
+
 export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
     content: string;
     changed: boolean;
@@ -4607,7 +4690,7 @@ export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
     const frontmatterMatch = normalized.match(/^(---\r?\n)([\s\S]*?)(\r?\n---\r?\n?[\s\S]*)$/);
     if (!frontmatterMatch) {
         throw new Error(
-            'CAPABILITY.md must contain valid frontmatter delimited by opening and closing --- markers.',
+            'The legacy descriptor must contain valid frontmatter delimited by opening and closing --- markers.',
         );
     }
 
@@ -4664,6 +4747,7 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     capabilityName: string;
     capabilityDescription?: string;
     capabilityDirectoryName: string;
+    capabilityDirectoryPath?: string;
     existingRawText?: string;
 }): { content: string; changed: boolean } {
     let packageObject: Record<string, unknown> = {};
@@ -4707,38 +4791,29 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
         options.capabilityDescription?.trim() ??
         `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`;
 
-    const currentAgents =
-        typeof packageObject.agents === 'string' && packageObject.agents.trim().length > 0
-            ? packageObject.agents.trim()
-            : undefined;
-    packageObject.agents = currentAgents ?? '.github/agents';
-
-    const currentCommands =
-        typeof packageObject.commands === 'string' && packageObject.commands.trim().length > 0
-            ? packageObject.commands.trim()
-            : undefined;
-    packageObject.commands = currentCommands ?? '.github/commands';
-
-    const currentSkills =
-        typeof packageObject.skills === 'string' && packageObject.skills.trim().length > 0
-            ? packageObject.skills.trim()
-            : undefined;
-    packageObject.skills = currentSkills ?? '.github/skills';
-
-    const currentRules =
-        typeof packageObject.rules === 'string' && packageObject.rules.trim().length > 0
-            ? packageObject.rules.trim()
-            : undefined;
-    packageObject.rules = currentRules ?? '.github/instructions';
-
-    const existingKeywords = normalizeStringArrayForPackage(packageObject.keywords) ?? [];
-    const nextKeywords = [...existingKeywords];
-    for (const keyword of ['metaflow', 'agent-plugin', 'capability']) {
-        if (!nextKeywords.includes(keyword)) {
-            nextKeywords.push(keyword);
+    const componentDefaults = [
+        ['agents', '.github/agents'],
+        ['commands', '.github/commands'],
+        ['skills', '.github/skills'],
+        ['rules', '.github/instructions'],
+    ] as const;
+    for (const [componentName, defaultPath] of componentDefaults) {
+        const componentPath = resolveMaintainedPluginComponentPath(
+            options.capabilityDirectoryPath,
+            packageObject[componentName],
+            defaultPath,
+        );
+        if (componentPath) {
+            packageObject[componentName] = componentPath;
+        } else {
+            delete packageObject[componentName];
         }
     }
-    packageObject.keywords = nextKeywords;
+
+    const legacyKeywords = new Set(['metaflow', 'agent-plugin', 'capability']);
+    packageObject.keywords = (normalizeStringArrayForPackage(packageObject.keywords) ?? []).filter(
+        (keyword) => !legacyKeywords.has(keyword),
+    );
 
     const existingMetaflow =
         packageObject.metaflow &&
@@ -4771,20 +4846,31 @@ export async function maintainCapabilityPluginMetadataInDirectory(
 ): Promise<{
     capabilityDirectoryPath: string;
     capabilityName: string;
+    descriptorPath: string;
+    descriptorKind: 'readme' | 'capability';
+    descriptorChanged: boolean;
+    /** @deprecated Use descriptorPath and descriptorChanged. */
     manifestPath: string;
     pluginJsonPath: string;
     manifestChanged: boolean;
     pluginJsonChanged: boolean;
 }> {
-    const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
-    if (!fs.existsSync(manifestPath)) {
+    const descriptor = resolveCapabilityDescriptorPath(capabilityDirectoryPath);
+    if (!descriptor) {
         throw new Error(
-            `${manifestPath} was not found. Choose a capability directory that already contains CAPABILITY.md.`,
+            `${capabilityDirectoryPath} has no README.md or legacy CAPABILITY.md descriptor. Choose a package directory with a descriptor.`,
         );
     }
 
-    const manifestRawText = await fsp.readFile(manifestPath, 'utf-8');
-    const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+    let descriptorChanged = false;
+    if (descriptor.kind === 'capability') {
+        const manifestRawText = await fsp.readFile(descriptor.absolutePath, 'utf-8');
+        const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+        descriptorChanged = manifestUpdate.changed;
+        if (manifestUpdate.changed) {
+            await fsp.writeFile(descriptor.absolutePath, manifestUpdate.content, 'utf-8');
+        }
+    }
 
     const capabilityId = path.basename(capabilityDirectoryPath);
     const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
@@ -4800,12 +4886,10 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityName,
         capabilityDescription,
         capabilityDirectoryName: path.basename(capabilityDirectoryPath),
+        capabilityDirectoryPath,
         existingRawText: existingPluginJsonRawText,
     });
 
-    if (manifestUpdate.changed) {
-        await fsp.writeFile(manifestPath, manifestUpdate.content, 'utf-8');
-    }
     if (pluginUpdate.changed) {
         await fsp.writeFile(pluginJsonPath, pluginUpdate.content, 'utf-8');
     }
@@ -4813,9 +4897,12 @@ export async function maintainCapabilityPluginMetadataInDirectory(
     return {
         capabilityDirectoryPath,
         capabilityName,
-        manifestPath,
+        descriptorPath: descriptor.absolutePath,
+        descriptorKind: descriptor.kind,
+        descriptorChanged,
+        manifestPath: descriptor.absolutePath,
         pluginJsonPath,
-        manifestChanged: manifestUpdate.changed,
+        manifestChanged: descriptorChanged,
         pluginJsonChanged: pluginUpdate.changed,
     };
 }
@@ -4902,13 +4989,8 @@ function toRepoRelativeLayerPath(repoRoot: string, capabilityDirectoryPath: stri
     return path.relative(repoRoot, absolutePath).replace(/\\/g, '/');
 }
 
-function hasCapabilityManifestAtPath(repoRoot: string, layerPath: string): boolean {
-    const manifestPath = path.join(repoRoot, layerPath, 'CAPABILITY.md');
-    try {
-        return fs.statSync(manifestPath).isFile();
-    } catch {
-        return false;
-    }
+function hasCapabilityDescriptorAtPath(repoRoot: string, layerPath: string): boolean {
+    return resolveCapabilityDescriptorPath(path.join(repoRoot, layerPath)) !== undefined;
 }
 
 function discoverCapabilityDirectoryPathsInRepo(
@@ -4916,7 +4998,7 @@ function discoverCapabilityDirectoryPathsInRepo(
     excludePatterns: string[] = [],
 ): string[] {
     return discoverLayersInRepo(repoRoot, excludePatterns).filter((layerPath) =>
-        hasCapabilityManifestAtPath(repoRoot, layerPath),
+        hasCapabilityDescriptorAtPath(repoRoot, layerPath),
     );
 }
 
@@ -5422,8 +5504,7 @@ export function registerCommands(
     );
 
     const withLoadedProfileConfig = ():
-        | { config: MetaFlowConfig; configPath: string }
-        | undefined => {
+        { config: MetaFlowConfig; configPath: string } | undefined => {
         if (!state.config || !state.configPath) {
             vscode.window.showWarningMessage('MetaFlow: No profiles available. Run Refresh first.');
             return undefined;
@@ -5664,7 +5745,7 @@ export function registerCommands(
             state.governanceCompliance = undefined;
             let shouldAdvanceCapabilityIdentitySnapshot = true;
             if (!refreshOptions.skipConfigMaintenance) {
-                const configNormalized = normalizeAndDeduplicateLayerPaths(result.config);
+                normalizeAndDeduplicateLayerPaths(result.config);
                 const discoveryResult = discoverAndPersistConfiguredRepoLayers(
                     result.config,
                     ws.uri.fsPath,
@@ -5684,7 +5765,6 @@ export function registerCommands(
                 if (
                     (legacyBuiltInConfigRemoved ||
                         result.migrated ||
-                        configNormalized ||
                         discoveryResult.totalAdded > 0 ||
                         (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
                     result.configPath
@@ -5700,12 +5780,9 @@ export function registerCommands(
                             'Migrate existing config to the current MetaFlow format.',
                         );
                     }
-                    if (configNormalized) {
-                        pendingConfigUpdateReasons.push('Normalize redundant layer path entries.');
-                    }
                     if (discoveryResult.totalAdded > 0) {
                         pendingConfigUpdateReasons.push(
-                            `Add ${discoveryResult.totalAdded} discovered capability layer(s).`,
+                            `Add ${discoveryResult.totalAdded} discovered ${discoveryResult.totalAdded === 1 ? 'capability' : 'capabilities'}.`,
                         );
                     }
                     const pendingRepairCount =
@@ -5754,18 +5831,13 @@ export function registerCommands(
                             getConfigMigrationNoticeMessage(),
                         );
                     }
-                    if (shouldPersistConfig && configNormalized) {
-                        logInfo(
-                            'Normalized layer paths in config (removed redundant .github suffix entries).',
-                        );
-                    }
                     if (shouldPersistConfig && discoveryResult.totalAdded > 0) {
                         const rescannedScope =
                             discoveryResult.rescannedRepoIds.length > 1
                                 ? `${discoveryResult.rescannedRepoIds.length} repositories`
                                 : (discoveryResult.rescannedRepoIds[0] ?? 'repository');
                         logInfo(
-                            `Discovered ${discoveryResult.totalAdded} new layer(s) while rescanning ${rescannedScope}.`,
+                            `Discovered ${discoveryResult.totalAdded} new ${discoveryResult.totalAdded === 1 ? 'capability' : 'capabilities'} while rescanning ${rescannedScope}.`,
                         );
                     }
                     for (const repair of shouldPersistConfig
@@ -6590,7 +6662,7 @@ export function registerCommands(
                           );
                 const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
                 const applied = await executeGovernedMutation({
-                    actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
+                    actionLabel: `toggling built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` at ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}`,
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -6618,7 +6690,7 @@ export function registerCommands(
                 }
 
                 logInfo(
-                    `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` layer ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
+                    `Toggled built-in MetaFlow capability${typeof requestedLayerPath === 'string' ? ` at ${normalizeBuiltInLayerPath(requestedLayerPath)}` : ''}: ${nextLayerEnabled ? 'enabled' : 'disabled'}`,
                 );
                 if (!deferRefresh) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
@@ -6678,12 +6750,12 @@ export function registerCommands(
                 }
 
                 if (typeof layerIndex !== 'number') {
-                    logWarn('Toggle layer requires a valid layer identity.');
+                    logWarn('Toggle capability requires a valid capability identity.');
                     return;
                 }
 
                 if (!layerSource) {
-                    logWarn(`Toggle layer failed: layer index ${layerIndex} not found.`);
+                    logWarn(`Toggle capability failed: capability index ${layerIndex} not found.`);
                     return;
                 }
 
@@ -6708,7 +6780,7 @@ export function registerCommands(
                     );
                     if (!runtimeLayerSource) {
                         logWarn(
-                            `Toggle layer failed: runtime layer ${layerSource.repoId}/${layerSource.path} not found.`,
+                            `Toggle capability failed: runtime capability ${layerSource.repoId}/${layerSource.path} not found.`,
                         );
                         return;
                     }
@@ -6729,7 +6801,7 @@ export function registerCommands(
                 }
 
                 const applied = await executeGovernedMutation({
-                    actionLabel: `toggling layer ${layerSource.repoId}/${layerSource.path}`,
+                    actionLabel: `toggling capability ${layerSource.repoId}/${layerSource.path}`,
                     state,
                     candidateConfig,
                     persist: async () => {
@@ -6745,10 +6817,10 @@ export function registerCommands(
                 }
 
                 logInfo(
-                    `Toggled layer ${layerSource.repoId}/${layerSource.path}: ${nextLayerEnabled ? 'enabled' : 'disabled'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Toggled capability ${layerSource.repoId}/${layerSource.path}: ${nextLayerEnabled ? 'enabled' : 'disabled'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 if (repoAutoEnabled) {
-                    logInfo(`Enabled repo source ${layerSource.repoId} because layer was enabled.`);
+                    logInfo(`Enabled repo source ${layerSource.repoId} because capability was enabled.`);
                 }
                 if (!deferRefresh) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
@@ -6759,7 +6831,7 @@ export function registerCommands(
                 return refreshOpenCapabilityDetailsPanel({ enabled: nextLayerEnabled });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Toggle layer failed: ${message}`);
+                logWarn(`Toggle capability failed: ${message}`);
             }
         }),
     );
@@ -6888,7 +6960,7 @@ export function registerCommands(
 
             if (updatedLayerIds.size === 0) {
                 logWarn(
-                    `toggleLayerBranch: no layers matched ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}.`,
+                    `toggleLayerBranch: no capabilities matched ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}.`,
                 );
                 return;
             }
@@ -6933,7 +7005,7 @@ export function registerCommands(
             }
 
             logInfo(
-                `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} layer(s))${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} ${updatedLayerIds.size === 1 ? 'capability' : 'capabilities'})${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
             );
             if (!deferRefresh) {
                 await vscode.commands.executeCommand('metaflow.refresh', {
@@ -6992,7 +7064,7 @@ export function registerCommands(
                           )
                         : state.builtInCapability;
                 const applied = await executeGovernedMutation({
-                    actionLabel: 'selecting all matched layers',
+                    actionLabel: 'selecting all matched capabilities',
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -7021,12 +7093,12 @@ export function registerCommands(
                     return;
                 }
                 logInfo(
-                    `Selected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Selected ${indices.length} ${indices.length === 1 ? 'capability' : 'capabilities'}.${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Select layers failed: ${message}`);
+                    logWarn(`Select capabilities failed: ${message}`);
             }
         }),
     );
@@ -7080,7 +7152,7 @@ export function registerCommands(
                           )
                         : state.builtInCapability;
                 const applied = await executeGovernedMutation({
-                    actionLabel: 'deselecting all matched layers',
+                    actionLabel: 'deselecting all matched capabilities',
                     state,
                     candidateConfig,
                     candidateBuiltInCapability,
@@ -7109,12 +7181,12 @@ export function registerCommands(
                     return;
                 }
                 logInfo(
-                    `Deselected ${indices.length} layer(s).${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                    `Deselected ${indices.length} ${indices.length === 1 ? 'capability' : 'capabilities'}.${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                logWarn(`Deselect layers failed: ${message}`);
+                    logWarn(`Deselect capabilities failed: ${message}`);
             }
         }),
     );
@@ -7624,7 +7696,7 @@ export function registerCommands(
             const addedLayers = discoverAndPersistRepoLayers(state.config, ws.uri.fsPath, repoId);
             if (addedLayers > 0 && state.configPath) {
                 await persistConfig(state.configPath, state.config, state);
-                logInfo(`Discovered ${addedLayers} new layer(s) for ${repoId} and updated config.`);
+                logInfo(`Discovered ${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'} for ${repoId} and updated config.`);
             }
 
             await vscode.commands.executeCommand('metaflow.refresh', {
@@ -7638,8 +7710,8 @@ export function registerCommands(
                 .get<boolean>('autoApply', true);
 
             const completionMessage = autoApplyEnabled
-                ? `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}.`
-                : `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new layer(s))` : ''}. Run Apply to synchronize .github changes (autoApply is off).`;
+                ? `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'})` : ''}.`
+                : `MetaFlow: Rescan complete for ${repoId}${addedLayers > 0 ? ` (${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'})` : ''}. Run Apply to synchronize .github changes (autoApply is off).`;
 
             logInfo(completionMessage);
             vscode.window.showInformationMessage(completionMessage);
@@ -8135,12 +8207,12 @@ export function registerCommands(
                 [
                     {
                         label: 'Use Existing Directory',
-                        description: 'Discover layers from existing .github directories',
+                        description: 'Discover capabilities from existing .github directories',
                         mode: 'existing' as InitSourceMode,
                     },
                     {
                         label: 'Clone from Git URL',
-                        description: 'Clone metadata repo locally, then discover layers',
+                        description: 'Clone metadata repo locally, then discover capabilities',
                         mode: 'url' as InitSourceMode,
                     },
                 ],
@@ -8195,7 +8267,7 @@ export function registerCommands(
 
             await persistConfig(state.configPath, state.config, state);
             logInfo(
-                `Added repo source ${repoId} with ${selection.layers.length} discovered layer(s).`,
+                `Added repo source ${repoId} with ${selection.layers.length} discovered ${selection.layers.length === 1 ? 'capability' : 'capabilities'}.`,
             );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             await vscode.commands.executeCommand('metaflow.offerGitRemotePromotion');
@@ -8263,7 +8335,7 @@ export function registerCommands(
                 (layer) => layer.repoId === repoId,
             ).length;
             const confirmation = await vscode.window.showWarningMessage(
-                `Remove source "${repoLabel}" and ${layerCount} associated layer(s)?`,
+                `Remove source "${repoLabel}" and ${layerCount} associated ${layerCount === 1 ? 'capability' : 'capabilities'}?`,
                 'Remove',
                 'Cancel',
             );
@@ -8310,7 +8382,7 @@ export function registerCommands(
             }
 
             await persistConfig(state.configPath, state.config, state);
-            logInfo(`Removed repo source ${repoId} and ${layerCount} layer(s).`);
+            logInfo(`Removed repo source ${repoId} and ${layerCount} ${layerCount === 1 ? 'capability' : 'capabilities'}.`);
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }),
     );
@@ -8383,36 +8455,43 @@ export function registerCommands(
         }),
     );
 
-    // ── metaflow.openCapabilityManifest ────────────────────────────
+    // ── metaflow.openCapabilityDescriptor ──────────────────────────
+    const openCapabilityDescriptor = async (arg?: unknown): Promise<string | undefined> => {
+        const descriptorPath =
+            typeof (arg as { descriptorPath?: unknown } | undefined)?.descriptorPath === 'string'
+                ? (arg as { descriptorPath: string }).descriptorPath
+                : typeof (arg as { manifestPath?: unknown } | undefined)?.manifestPath === 'string'
+                  ? (arg as { manifestPath: string }).manifestPath
+                  : undefined;
+
+        if (!descriptorPath) {
+            vscode.window.showWarningMessage(
+                'MetaFlow: No README.md or legacy CAPABILITY.md descriptor is available for the selected package.',
+            );
+            return undefined;
+        }
+
+        try {
+            const doc = await vscode.workspace.openTextDocument(descriptorPath);
+            await vscode.window.showTextDocument(doc);
+            return descriptorPath;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showWarningMessage(
+                `MetaFlow: Could not open the package descriptor. ${message}`,
+            );
+            return undefined;
+        }
+    };
+
     context.subscriptions.push(
         vscode.commands.registerCommand(
+            'metaflow.openCapabilityDescriptor',
+            openCapabilityDescriptor,
+        ),
+        vscode.commands.registerCommand(
             'metaflow.openCapabilityManifest',
-            async (arg?: unknown) => {
-                const manifestPath =
-                    typeof (arg as { manifestPath?: unknown } | undefined)?.manifestPath ===
-                    'string'
-                        ? ((arg as { manifestPath: string }).manifestPath as string)
-                        : undefined;
-
-                if (!manifestPath) {
-                    vscode.window.showWarningMessage(
-                        'MetaFlow: No CAPABILITY.md file is available for the selected capability.',
-                    );
-                    return;
-                }
-
-                try {
-                    const doc = await vscode.workspace.openTextDocument(manifestPath);
-                    await vscode.window.showTextDocument(doc);
-                    return manifestPath;
-                } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    vscode.window.showWarningMessage(
-                        `MetaFlow: Could not open CAPABILITY.md. ${message}`,
-                    );
-                    return;
-                }
-            },
+            openCapabilityDescriptor,
         ),
     );
 
@@ -8493,16 +8572,16 @@ export function registerCommands(
 
                 const guidancePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH,
                 );
                 const examplePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_EXAMPLE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_EXAMPLE_RELATIVE_PATH,
                 );
 
                 if (!fs.existsSync(guidancePath) || !fs.existsSync(examplePath)) {
                     vscode.window.showWarningMessage(
-                        'MetaFlow: Bundled CAPABILITY.md authoring guidance is unavailable in this extension build.',
+                        'MetaFlow: Bundled README.md descriptor authoring guidance is unavailable in this extension build.',
                     );
                     return;
                 }
@@ -8523,57 +8602,57 @@ export function registerCommands(
 
                 await fsp.mkdir(capabilityDirectoryPath, { recursive: true });
                 await fsp.mkdir(capabilityGithubDirectoryPath, { recursive: true });
-                const manifestPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
-                const pluginJsonPath = path.join(capabilityDirectoryPath, 'plugin.json');
-                const manifestExists = fs.existsSync(manifestPath);
-                if (!manifestExists) {
+                const descriptorPath = path.join(capabilityDirectoryPath, 'README.md');
+                const descriptorExists = fs.existsSync(descriptorPath);
+                const legacyDescriptorPath = path.join(capabilityDirectoryPath, 'CAPABILITY.md');
+                const legacyManifest =
+                    !descriptorExists && fs.existsSync(legacyDescriptorPath)
+                        ? loadCapabilityManifestForLayer(
+                              capabilityDirectoryPath,
+                              capabilityDirectoryName,
+                          )
+                        : undefined;
+                const migrationChoice =
+                    legacyManifest?.name && legacyManifest.description
+                        ? await promptForLegacyDescriptorMigration()
+                        : 'new';
+                if (!migrationChoice) {
+                    return;
+                }
+                if (!descriptorExists) {
                     await fsp.writeFile(
-                        manifestPath,
-                        buildCapabilityManifestStarterTemplateForName(capabilityName),
+                        descriptorPath,
+                        migrationChoice === 'migrate'
+                            ? buildReadmeDescriptorFromLegacyManifest(legacyManifest!)
+                            : buildCapabilityManifestStarterTemplateForName(capabilityName),
                         'utf-8',
                     );
                 }
 
-                const pluginJsonExists = fs.existsSync(pluginJsonPath);
-                if (!pluginJsonExists) {
-                    await fsp.writeFile(
-                        pluginJsonPath,
-                        buildCapabilityPluginManifestStarterTemplate(
-                            capabilityName,
-                            capabilityDirectoryName,
-                        ),
-                        'utf-8',
-                    );
-                }
-
-                const pluginJsonDoc = await vscode.workspace.openTextDocument(pluginJsonPath);
-                await vscode.window.showTextDocument(pluginJsonDoc, {
-                    viewColumn: vscode.ViewColumn.Beside,
-                    preview: true,
-                    preserveFocus: true,
-                });
-
-                const draftDoc = await vscode.workspace.openTextDocument(manifestPath);
+                const draftDoc = await vscode.workspace.openTextDocument(descriptorPath);
                 await vscode.window.showTextDocument(draftDoc, {
                     preview: false,
                     viewColumn: vscode.ViewColumn.Active,
                 });
 
                 vscode.window.showInformationMessage(
-                    `MetaFlow: Opened CAPABILITY.md authoring guidance, an example contract, and ${manifestExists ? 'opened' : 'created'} ${manifestPath} plus ${pluginJsonExists ? 'opened' : 'created'} ${pluginJsonPath}.`,
+                    `MetaFlow: Opened README.md descriptor guidance and an example, and ${descriptorExists ? 'opened' : migrationChoice === 'migrate' ? 'migrated' : 'created'} ${descriptorPath}. Plugin runtime metadata remains a separate flow: run Maintain Plugin Manifest (plugin.json) when needed.`,
                 );
 
                 return {
                     guidancePath,
                     examplePath,
                     draftUri: draftDoc.uri.toString(),
-                    manifestPath,
-                    pluginJsonPath,
+                    descriptorPath,
+                    descriptorKind: 'readme' as const,
+                    manifestPath: descriptorPath,
+                    pluginJsonPath: undefined,
                     targetDirectory,
                     capabilityDirectoryPath,
                     capabilityGithubDirectoryPath,
                     capabilityName: capabilityName.trim(),
                     capabilityDirectoryName,
+                    migratedFromLegacy: migrationChoice === 'migrate',
                 };
             },
         ),
@@ -8612,7 +8691,7 @@ export function registerCommands(
 
                 const guidancePath = path.join(
                     context.extensionPath,
-                    BUNDLED_CAPABILITY_CONTRACT_GUIDANCE_RELATIVE_PATH,
+                    BUNDLED_DESCRIPTOR_CONTRACT_GUIDANCE_RELATIVE_PATH,
                 );
                 if (fs.existsSync(guidancePath)) {
                     const guidanceDoc = await vscode.workspace.openTextDocument(guidancePath);
@@ -8630,9 +8709,22 @@ export function registerCommands(
                 } catch (error: unknown) {
                     const message = error instanceof Error ? error.message : String(error);
                     vscode.window.showWarningMessage(
-                        `MetaFlow: Could not maintain capability plugin metadata. ${message}`,
+                        `MetaFlow: Could not maintain plugin.json metadata for the package. ${message}`,
                     );
                     return;
+                }
+
+                let configCleanup: ConfigCleanupResult | undefined;
+                let configCleanupError: string | undefined;
+                try {
+                    configCleanup = await maintainWorkspaceConfigCleanup(ws.uri.fsPath, state);
+                } catch (error: unknown) {
+                    configCleanupError = error instanceof Error ? error.message : String(error);
+                }
+                if (configCleanup?.changed) {
+                    await vscode.commands.executeCommand('metaflow.refresh', {
+                        skipRepoSync: true,
+                    });
                 }
 
                 const pluginJsonDoc = await vscode.workspace.openTextDocument(
@@ -8650,11 +8742,24 @@ export function registerCommands(
                     viewColumn: vscode.ViewColumn.Active,
                 });
 
-                vscode.window.showInformationMessage(
-                    `MetaFlow: ${result.manifestChanged ? 'Updated' : 'Checked'} ${result.manifestPath} and ${result.pluginJsonChanged ? 'updated' : 'checked'} ${result.pluginJsonPath} for capability plugin compatibility.`,
-                );
+                const configCleanupSummary = configCleanupError
+                    ? `config cleanup failed: ${configCleanupError}`
+                    : configCleanup?.changed
+                      ? `updated config cleanup at ${configCleanup.configPath}`
+                      : 'config cleanup already up to date';
+                const summary =
+                    `MetaFlow: ${result.pluginJsonChanged ? 'Updated' : 'Checked'} plugin.json at ${result.pluginJsonPath}; ` +
+                    `${result.manifestChanged ? 'updated' : 'left unchanged'} descriptor compatibility data at ${result.descriptorPath}; ` +
+                    `${configCleanupSummary}.`;
+                if (configCleanupError) {
+                    vscode.window.showWarningMessage(summary);
+                } else {
+                    vscode.window.showInformationMessage(summary);
+                }
 
                 return {
+                    descriptorPath: result.descriptorPath,
+                    descriptorKind: result.descriptorKind,
                     manifestPath: result.manifestPath,
                     pluginJsonPath: result.pluginJsonPath,
                     capabilityDirectoryPath: result.capabilityDirectoryPath,
@@ -8662,6 +8767,9 @@ export function registerCommands(
                     guidancePath: fs.existsSync(guidancePath) ? guidancePath : undefined,
                     manifestChanged: result.manifestChanged,
                     pluginJsonChanged: result.pluginJsonChanged,
+                    configCleanupPath: configCleanup?.configPath,
+                    configCleanupChanged: configCleanup?.changed ?? false,
+                    configCleanupError,
                 };
             },
         ),
@@ -8708,7 +8816,7 @@ export function registerCommands(
                 ).sort((left, right) => left.localeCompare(right));
                 if (layerPaths.length === 0) {
                     vscode.window.showInformationMessage(
-                        `MetaFlow: No capability directories with CAPABILITY.md were found in ${repoRoot}.`,
+                        `MetaFlow: No package directories with README.md or legacy CAPABILITY.md descriptors were found in ${repoRoot}.`,
                     );
                     return;
                 }
@@ -8724,7 +8832,7 @@ export function registerCommands(
                 await vscode.window.withProgress(
                     {
                         location: vscode.ProgressLocation.Notification,
-                        title: 'MetaFlow: Maintaining capability plugin metadata',
+                        title: 'MetaFlow: Maintaining package plugin.json metadata',
                         cancellable: false,
                     },
                     async (progress) => {
@@ -8754,7 +8862,15 @@ export function registerCommands(
                     },
                 );
 
-                if (changedResults.length > 0) {
+                let configCleanup: ConfigCleanupResult | undefined;
+                let configCleanupError: string | undefined;
+                try {
+                    configCleanup = await maintainWorkspaceConfigCleanup(ws.uri.fsPath, state);
+                } catch (error: unknown) {
+                    configCleanupError = error instanceof Error ? error.message : String(error);
+                }
+
+                if (changedResults.length > 0 || configCleanup?.changed) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
                         skipRepoSync: true,
                     });
@@ -8782,10 +8898,11 @@ export function registerCommands(
                 }
 
                 const summary =
-                    `MetaFlow: Checked ${layerPaths.length} capability director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
-                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed.`;
+                    `MetaFlow: Checked ${layerPaths.length} package director${layerPaths.length === 1 ? 'y' : 'ies'} in ${repoId}. ` +
+                    `${changedResults.length} changed, ${unchangedResults.length} already up to date, ${failures.length} failed; ` +
+                    `${configCleanupError ? `config cleanup failed: ${configCleanupError}` : configCleanup?.changed ? 'config cleanup updated' : 'config cleanup already up to date'}.`;
 
-                if (failures.length > 0) {
+                if (failures.length > 0 || configCleanupError) {
                     vscode.window.showWarningMessage(summary);
                 } else {
                     vscode.window.showInformationMessage(summary);
@@ -8802,6 +8919,9 @@ export function registerCommands(
                         (result) => result.capabilityDirectoryPath,
                     ),
                     failures,
+                    configCleanupPath: configCleanup?.configPath,
+                    configCleanupChanged: configCleanup?.changed ?? false,
+                    configCleanupError,
                 };
             },
         ),
@@ -8840,7 +8960,7 @@ export function registerCommands(
         } catch {
             // Tests and partial activation hosts may not have registered the tree refresh hook.
         }
-        logInfo(`Layers view mode set to: ${nextMode}`);
+        logInfo(`Capabilities view mode set to: ${nextMode}`);
     }
 
     // ── metaflow.showLayersFlatMode ────────────────────────────────

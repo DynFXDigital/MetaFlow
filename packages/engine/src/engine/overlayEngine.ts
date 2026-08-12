@@ -213,7 +213,6 @@ function resolveMultiRepoLayers(
 
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
         repoMap.set(repo.id, repoRoot);
-
     }
 
     const allLayerSources = layerSources;
@@ -434,13 +433,27 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
 }
 
 function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string): boolean {
-    if (!childNames.has('CAPABILITY.md')) {
+    if (childNames.has('CAPABILITY.md')) {
+        const manifestPath = path.join(currentDir, 'CAPABILITY.md');
+        try {
+            if (fs.statSync(manifestPath).isFile()) {
+                return true;
+            }
+        } catch {
+            // Continue checking README/plugin scope.
+        }
+    }
+
+    if (!childNames.has('README.md')) {
         return false;
     }
 
-    const manifestPath = path.join(currentDir, 'CAPABILITY.md');
+    if (!childNames.has('plugin.json')) {
+        return false;
+    }
+
     try {
-        return fs.statSync(manifestPath).isFile();
+        return fs.statSync(path.join(currentDir, 'plugin.json')).isFile();
     } catch {
         return false;
     }

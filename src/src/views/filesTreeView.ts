@@ -246,7 +246,7 @@ function buildFileItemTooltip(
     details.push(`Path: \`${file.relativePath}\``);
     details.push(`Source: ${sourceLabel}`);
     details.push(`Source Path: \`${file.sourcePath}\``);
-    details.push(`Layer: ${displayLayerLabel}`);
+    details.push(`Capability: ${displayLayerLabel}`);
     details.push(`Realization: ${getClassificationLabel(file.classification)}`);
 
     if (file.sourceCapabilityName || file.sourceCapabilityId) {
@@ -1044,7 +1044,7 @@ export class FilesTreeViewProvider implements vscode.TreeDataProvider<FileTreeNo
             details.push(`Repository: \`${repoLabel}\``);
         }
         if (representative.sourceLayer) {
-            details.push(`Layer: \`${getDisplayLayerLabel(representative, sourceLabel)}\``);
+            details.push(`Capability: \`${getDisplayLayerLabel(representative, sourceLabel)}\``);
         }
         if (element.folderSourcePath) {
             details.push(`Folder: \`${element.folderSourcePath}\``);

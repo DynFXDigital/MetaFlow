@@ -8,7 +8,7 @@ AI metadata overlays for Copilot instructions, prompts, skills, and agents.
 - **Synchronization with Provenance**: Write files to `.github/` with machine-readable provenance headers for traceability.
 - **Profile Management**: Switch between profiles to select complete capability sets.
 - **Capability Management**: Toggle individual capabilities on/off, bulk-toggle folder branches in tree mode, browse artifact contents under each layer, and work across multiple repositories.
-- **Capability Details Webview**: Open a reusable capability-details panel that shows metadata, warnings, artifact inventory, and rendered `CAPABILITY.md` content.
+- **Capability Details Webview**: Open a reusable capability-details panel that shows metadata, warnings, artifact inventory, and rendered `README.md` descriptor content, with legacy `CAPABILITY.md` compatibility.
 - **Native VS Code AI Contributions**: The built-in MetaFlow capability is also exposed through a chat participant, participant slash commands, custom agents, skills, instructions, prompt files, and language-model tools without writing those registrations into workspace settings.
 - **Drift Detection**: Detect locally-edited synchronized files; protect from overwrite.
 - **Settings Injection**: Configure Copilot alternate-path settings for settings-backed artifacts.
@@ -118,7 +118,7 @@ After initialization succeeds, MetaFlow automatically enables the built-in MetaF
 - if the selected directory is not a git repository yet, MetaFlow offers to initialize it with `git init` plus an empty initial commit
 - update checks and pull actions stay limited to repositories that also have a configured remote URL
 
-For new capability authoring, `MetaFlow: Create CAPABILITY.md` opens the bundled contract guidance, a real example capability contract, and a seeded untitled `CAPABILITY.md` draft so authors can start from the shipped conventions instead of hunting for files manually.
+For new package authoring, create a root `README.md` as ordinary human-facing Markdown. Put package name, description, version, license, hosts, and component paths in the adjacent `plugin.json`; keep operational behavior in component files. Use `MetaFlow: Create README Descriptor` to seed the package-root documentation.
 
 Legacy preview configs that still use `metadataRepo`, `layers`, or flat `layerSources` are accepted during the pre-release window. Released configs authored against an older compatibility version are also upgraded automatically. On load/open, MetaFlow rewrites stale configs to the current contract, persists the current `compatibilityVersion`, and shows a migration notice.
 
@@ -126,21 +126,13 @@ If enabled capabilities surface the same effective relative path, MetaFlow repor
 
 ### Capability units and organizational containers
 
-A capability unit is a folder that contains both a `.github/` subdirectory with capability metadata and a required `CAPABILITY.md` contract at the folder root.
+A capability unit is a folder that contains both a `.github/` subdirectory with capability metadata and a package-root `README.md` documentation file. Agent-plugin packages also contain `plugin.json`, which owns their runtime identity and metadata. A configured package may still use `CAPABILITY.md` as a legacy fallback when README is absent.
 
-An organizational container only groups related descendant capabilities and has no `.github/` subdirectory of its own. It does not require `CAPABILITY.md`; it may include an optional `README.md` when human-oriented discovery or navigation would help.
+An organizational container only groups related descendant capabilities and has no `.github/` subdirectory of its own. It does not require a package descriptor; it may include an ordinary `README.md` when human-oriented discovery or navigation would help.
 
-```md
----
-name: SDLC Traceability
-description: Shared SDLC traceability metadata.
-license: MIT
----
-```
-
-- `name` and `description` are required.
-- `license` is optional (`MIT`, `Apache-2.0`, `MIT OR Apache-2.0`, or `SEE-LICENSE-IN-REPO`).
-- Unknown fields are tolerated with warning diagnostics.
+- README front matter is optional and is not a MetaFlow identity contract.
+- The Markdown body is free-form; recommended topics do not become required headings.
+- Plugin name, description, runtime, marketplace, and host metadata remain in `plugin.json` and its owning files.
 
 Classify each folder independently at every nesting level: descendant capabilities do not make their parent a capability unit. Capability-unit metadata is shown in `metaflow status`, in the Capabilities/Effective Files views, and in the capability details webview.
 
@@ -178,27 +170,29 @@ description: Shared repository-level metadata for this workspace.
 
 ## Commands
 
-| Command                                    | Description                                                                                                                | Keybinding     |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `MetaFlow: Refresh`                        | Reload config and re-resolve overlay                                                                                       | `Ctrl+Shift+R` |
-| `MetaFlow: Preview`                        | Show pending changes in output channel                                                                                     |                |
-| `MetaFlow: Apply`                          | Synchronize files to `.github/`                                                                                            |                |
-| `MetaFlow: Clean`                          | Remove synchronized files                                                                                                  |                |
-| `MetaFlow: Status`                         | Show current status in output channel                                                                                      |                |
-| `MetaFlow: Switch Profile`                 | Select active profile                                                                                                      |                |
-| `MetaFlow: Toggle Capability`              | Enable/disable a capability                                                                                                |                |
-| `Select All`                               | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu                  |                |
-| `Deselect All`                             | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu                 |                |
-| `MetaFlow: Rescan Repository`              | Force runtime discovery rescan for the selected metadata repo row                                                          |                |
-| `MetaFlow: Check Repository Updates`       | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                               |                |
-| `MetaFlow: Pull Repository Updates`        | Run `git pull --ff-only` for a selected git-backed metadata repo                                                           |                |
-| `MetaFlow: Initialize MetaFlow Capability` | Enable the built-in MetaFlow capability with plugin-first defaults persisted in workspace state                            |                |
-| `MetaFlow: Remove MetaFlow Capability`     | Disable built-in capability mode or remove tracked synchronized `.github` capability files                                 |                |
-| `MetaFlow: Open Config File`               | Open `.metaflow/config.jsonc` in editor                                                                                    |                |
-| `MetaFlow: View Capability Details`        | Open or reuse the capability details webview for the selected capability layer                                             |                |
-| `MetaFlow: Create CAPABILITY.md`           | Open bundled contract guidance, an example contract, and a seeded `CAPABILITY.md` draft                                    |                |
-| `MetaFlow: Initialize Configuration`       | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability with plugin-first defaults |                |
-| `MetaFlow: Promote`                        | Detect drifted files for upstream promotion                                                                                |                |
+| Command                                                 | Description                                                                                                                | Keybinding     |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `MetaFlow: Refresh`                                     | Reload config and re-resolve overlay                                                                                       | `Ctrl+Shift+R` |
+| `MetaFlow: Preview`                                     | Show pending changes in output channel                                                                                     |                |
+| `MetaFlow: Apply`                                       | Synchronize files to `.github/`                                                                                            |                |
+| `MetaFlow: Clean`                                       | Remove synchronized files                                                                                                  |                |
+| `MetaFlow: Status`                                      | Show current status in output channel                                                                                      |                |
+| `MetaFlow: Switch Profile`                              | Select active profile                                                                                                      |                |
+| `MetaFlow: Toggle Capability`                           | Enable/disable a capability                                                                                                |                |
+| `Select All`                                            | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu                  |                |
+| `Deselect All`                                          | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu                 |                |
+| `MetaFlow: Rescan Repository`                           | Force runtime discovery rescan for the selected metadata repo row                                                          |                |
+| `MetaFlow: Check Repository Updates`                    | Fetch and compute upstream ahead/behind status for git-backed metadata repos                                               |                |
+| `MetaFlow: Pull Repository Updates`                     | Run `git pull --ff-only` for a selected git-backed metadata repo                                                           |                |
+| `MetaFlow: Initialize MetaFlow Capability`              | Enable the built-in MetaFlow capability with plugin-first defaults persisted in workspace state                            |                |
+| `MetaFlow: Remove MetaFlow Capability`                  | Disable built-in capability mode or remove tracked synchronized `.github` capability files                                 |                |
+| `MetaFlow: Open Config File`                            | Open `.metaflow/config.jsonc` in editor                                                                                    |                |
+| `MetaFlow: View Capability Details`                     | Open or reuse the capability details webview for the selected capability layer                                             |                |
+| `MetaFlow: Create README Descriptor`                    | Create a package-root `README.md` descriptor with the portable front matter contract                                       |                |
+| `MetaFlow: Maintain Plugin Manifest (plugin.json)`      | Backfill or repair managed plugin manifest fields for one capability                                                       |                |
+| `MetaFlow: Maintain All Plugin Manifests (plugin.json)` | Backfill or repair managed plugin manifest fields for every capability in a repository                                     |                |
+| `MetaFlow: Initialize Configuration`                    | Scaffold new `.metaflow/config.jsonc` and automatically enable the built-in MetaFlow capability with plugin-first defaults |                |
+| `MetaFlow: Promote`                                     | Detect drifted files for upstream promotion                                                                                |                |
 
 ## Settings
 

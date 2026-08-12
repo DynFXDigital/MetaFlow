@@ -152,18 +152,25 @@ function renderToggleAction(model: CapabilityDetailModel): string {
     return `<a class="${buttonClass}" href="${href}">${model.enabled ? 'Disable' : 'Enable'}</a>`;
 }
 
-function renderOpenManifestAction(model: CapabilityDetailModel): string {
-    if (!model.manifestPath) {
+function renderOpenDescriptorAction(model: CapabilityDetailModel): string {
+    const descriptorPath = model.descriptorPath ?? model.manifestPath;
+    if (!descriptorPath) {
         return '';
     }
 
-    const href = buildCommandUri('metaflow.openCapabilityManifest', [
+    const href = buildCommandUri('metaflow.openCapabilityDescriptor', [
         {
-            manifestPath: model.manifestPath,
+            descriptorPath,
         },
     ]);
+    const label =
+        model.descriptorKind === 'capability'
+            ? 'Open legacy CAPABILITY.md'
+            : model.descriptorKind === 'readme'
+              ? 'Open README.md'
+              : 'Open package descriptor';
 
-    return `<a class="action-button action-button-secondary" href="${href}">Open CAPABILITY.md</a>`;
+    return `<a class="action-button action-button-secondary" href="${href}">${label}</a>`;
 }
 
 function formatLicenseLabel(license: string | undefined): string {
@@ -173,9 +180,16 @@ function formatLicenseLabel(license: string | undefined): string {
 function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, string]> {
     const items: Array<[string, string]> = [
         ['Repository', model.repoLabel],
-        ['Layer', model.layerPath],
+        ['Capability Path', model.layerPath],
         ['License', formatLicenseLabel(model.license)],
-        ['Manifest', model.manifestPath ? 'Present' : 'Missing'],
+        [
+            'Descriptor',
+            model.descriptorKind === 'capability'
+                ? 'Legacy CAPABILITY.md'
+                : model.descriptorKind === 'readme'
+                  ? 'README.md'
+                  : 'Missing',
+        ],
     ];
 
     if (model.agentPlugin) {
@@ -193,7 +207,7 @@ function buildPrimaryMetadata(model: CapabilityDetailModel): Array<[string, stri
 function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, string]> {
     const items: Array<[string, string]> = [
         ['Capability ID', model.capabilityId],
-        ['Layer ID', model.layerId],
+        ['Source ID', model.layerId],
         ['Source Root', model.layerRoot],
     ];
 
@@ -201,8 +215,9 @@ function buildTechnicalMetadata(model: CapabilityDetailModel): Array<[string, st
         items.push(['Repository ID', model.repoId]);
     }
 
-    if (model.manifestPath) {
-        items.push(['Manifest Path', model.manifestPath]);
+    const descriptorPath = model.descriptorPath ?? model.manifestPath;
+    if (descriptorPath) {
+        items.push(['Descriptor Path', descriptorPath]);
     }
     if (model.agentPluginManifest) {
         items.push(['Plugin Manifest Path', model.agentPluginManifest.pluginJsonPath]);
@@ -240,7 +255,7 @@ function renderMetadataRows(items: Array<[string, string]>): string {
 
 function renderWarningList(model: CapabilityDetailModel): string {
     if (model.warnings.length === 0) {
-        return '<p class="empty-state">No warnings were reported for this capability.</p>';
+        return '<p class="empty-state">No warnings were reported for this package.</p>';
     }
 
     return `
@@ -328,7 +343,7 @@ function renderNativeContributionsCard(model: CapabilityDetailModel): string {
     return `
                 <section class="sidebar-card">
                     <h2>Native VS Code registrations</h2>
-                    <p class="scope-risk-intro">This built-in capability is also exposed through native VS Code Chat and extension contribution points. MetaFlow remains the source of truth for its repository and layer state.</p>
+                    <p class="scope-risk-intro">This built-in capability is also exposed through native VS Code Chat and extension contribution points. MetaFlow remains the source of truth for its repository and capability state.</p>
                     <ul class="warning-list native-contribution-list">
                         ${contributions
                             .map(
@@ -342,7 +357,7 @@ function renderNativeContributionsCard(model: CapabilityDetailModel): string {
 
 function renderContentSections(model: CapabilityDetailModel): string {
     if (model.layerFiles.length === 0) {
-        return '<p class="empty-state">No source artifacts were found under this layer.</p>';
+        return '<p class="empty-state">No source artifacts were found under this capability.</p>';
     }
 
     return `
@@ -396,10 +411,10 @@ function renderHeroStats(model: CapabilityDetailModel): string {
 
 function renderHeroActions(model: CapabilityDetailModel): string {
     const toggleAction = renderToggleAction(model);
-    const openManifestAction = renderOpenManifestAction(model);
+    const openDescriptorAction = renderOpenDescriptorAction(model);
     const note = `<span class="action-note">${escapeHtml(getStatusDescription(model))}</span>`;
 
-    if (!toggleAction && !openManifestAction) {
+    if (!toggleAction && !openDescriptorAction) {
         return `
                     <div class="hero-actions hero-actions-static">
                         ${note}
@@ -409,13 +424,13 @@ function renderHeroActions(model: CapabilityDetailModel): string {
     return `
                     <div class="hero-actions">
                         ${toggleAction}
-                        ${openManifestAction}
+                        ${openDescriptorAction}
                         ${note}
                     </div>`;
 }
 
 function renderHeaderSubline(model: CapabilityDetailModel): string {
-    const sourceKind = model.builtIn ? 'Built-in capability' : 'Metadata repository layer';
+    const sourceKind = model.builtIn ? 'Built-in capability' : 'Metadata repository capability';
     const repository = model.repoLabel;
 
     return `
@@ -439,11 +454,11 @@ function renderCapabilityBody(model: CapabilityDetailModel): string {
         return markdownRenderer.render(normalizedBody);
     }
 
-    if (model.manifestPath) {
-        return '<p class="empty-state">The manifest does not contain markdown body content yet.</p>';
+    if (model.descriptorPath ?? model.manifestPath) {
+        return '<p class="empty-state">The package descriptor does not contain markdown body content yet.</p>';
     }
 
-    return '<p class="empty-state">No <code>CAPABILITY.md</code> file exists for this layer yet.</p>';
+    return '<p class="empty-state">No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.</p>';
 }
 
 export function renderCapabilityDetailsHtml(
@@ -454,7 +469,7 @@ export function renderCapabilityDetailsHtml(
     const monogram = escapeHtml(getCapabilityMonogram(model.title));
     const description = model.description
         ? `<p class="description">${escapeHtml(model.description)}</p>`
-        : '<p class="description description-empty">No description was provided in this capability manifest yet.</p>';
+        : '<p class="description description-empty">No description was provided in this package descriptor yet.</p>';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1138,6 +1153,10 @@ export function renderCapabilityDetailsHtml(
 
                 <section class="tab-panel tab-panel-details">
                     <section class="panel-surface">
+                        <div class="documentation-heading">
+                            <h2>Package Documentation</h2>
+                            <p class="section-caption">Rendered from the selected package descriptor.</p>
+                        </div>
                         <article class="markdown-body">
                             ${renderCapabilityBody(model)}
                         </article>
@@ -1146,7 +1165,7 @@ export function renderCapabilityDetailsHtml(
 
                 <section class="tab-panel tab-panel-contents">
                     <section class="panel-surface">
-                        <p class="section-caption">Source files found under this capability layer, grouped by artifact type, with the manifest excluded.</p>
+                        <p class="section-caption">Source files found under this capability package, grouped by artifact type, with package descriptors excluded.</p>
                         ${renderContentSections(model)}
                     </section>
                 </section>

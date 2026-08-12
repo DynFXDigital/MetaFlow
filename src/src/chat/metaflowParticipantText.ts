@@ -39,7 +39,7 @@ export function buildMetaFlowChatResponse(command: string | undefined, prompt: s
     return [
         `## ${commandHeading(command)}`,
         '',
-        'MetaFlow keeps the capability repository and layer model as the source of truth while exposing native VS Code Chat registrations for interactive use.',
+        'MetaFlow keeps the capability repository and capability model as the source of truth while exposing native VS Code Chat registrations for interactive use.',
         '',
         commandGuidance(command),
         requestContext,

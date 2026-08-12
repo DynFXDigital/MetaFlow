@@ -64,11 +64,11 @@ function cloneGovernanceComplianceResult(
 function diagnosticRemediationHint(diagnostic: ConfigDiagnosticEntry): string | undefined {
     switch (diagnostic.code) {
         case 'LAYER_PATH_MISSING':
-            return 'Create the configured capability path, mount the metadata source, or disable/remove the missing layer from .metaflow/config.jsonc.';
+            return 'Create the configured capability path, mount the metadata source, or disable/remove the missing capability from .metaflow/config.jsonc.';
         case 'LAYER_PATH_INVALID':
-            return 'Update the configured layer path so it points to a directory, or remove the invalid layer reference.';
+            return 'Update the configured capability path so it points to a directory, or remove the invalid capability reference.';
         case 'LAYER_PATH_UNREADABLE':
-            return 'Fix filesystem permissions or mount/accessibility for the configured layer path.';
+            return 'Fix filesystem permissions or mount/accessibility for the configured capability path.';
         case 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING':
             return 'Add the missing plugin.json package manifest for the agent plugin capability or disable agentPlugin for that capability.';
         default:
@@ -87,10 +87,10 @@ function capabilityWarningRemediationHint(message: string): string | undefined {
         return 'Fix filesystem permissions or mount/accessibility for the configured metadata repo path.';
     }
     if (message.includes('[LAYER_SOURCE_REPO_MISSING]')) {
-        return 'Add or enable the referenced metadata repo, or remove the layer source that points at it.';
+            return 'Add or enable the referenced metadata repo, or remove the capability source that points at it.';
     }
     if (message.includes('[SURFACED_FILE_CONFLICT]')) {
-        return 'Review duplicate surfaced file paths and adjust layer ordering or source content so the effective file is unambiguous.';
+            return 'Review duplicate surfaced file paths and adjust capability ordering or source content so the effective file is unambiguous.';
     }
 
     return undefined;

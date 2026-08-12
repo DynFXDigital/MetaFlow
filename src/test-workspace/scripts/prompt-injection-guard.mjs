@@ -1,0 +1,1 @@
+await import('../.github/hooks/scripts/prompt-injection-guard.mjs');

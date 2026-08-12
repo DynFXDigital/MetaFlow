@@ -111,7 +111,7 @@ export function resolveBuiltInRepoEnabled(
 ): boolean {
     // The repository checkbox controls whether the extension-owned source is
     // available at all. It must not become unchecked merely because the
-    // MetaFlow capability layer is disabled; nested capabilities remain
+    // MetaFlow capability is disabled; nested capabilities remain
     // independently selectable in that state.
     return state.enabled;
 }

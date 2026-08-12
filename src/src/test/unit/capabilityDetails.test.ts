@@ -28,7 +28,9 @@ function makeCapabilityDetailModel(
         layerRoot: 'C:/workspace/.ai/ai-metadata/review/capability-review',
         repoId: 'primary',
         repoLabel: 'Primary',
-        manifestPath: 'C:/workspace/.ai/ai-metadata/review/capability-review/CAPABILITY.md',
+        descriptorPath: 'C:/workspace/.ai/ai-metadata/review/capability-review/README.md',
+        descriptorKind: 'readme',
+        manifestPath: 'C:/workspace/.ai/ai-metadata/review/capability-review/README.md',
         enabled: true,
         builtIn: false,
         warnings: [],
@@ -75,14 +77,12 @@ suite('CapabilityDetails helpers', () => {
                 'utf-8',
             );
             fs.writeFileSync(
-                path.join(layerRoot, 'CAPABILITY.md'),
+                path.join(layerRoot, 'README.md'),
                 [
                     '---',
                     'name: SDLC Traceability',
                     'description: Shared traceability metadata.',
-                    'license: MIT',
-                    'experimental: true',
-                    'agentPlugin: true',
+                    'id: 123e4567-e89b-12d3-a456-426614174000',
                     '---',
                     '',
                     '## Mission',
@@ -195,13 +195,14 @@ suite('CapabilityDetails helpers', () => {
 
             assert.strictEqual(model.title, 'SDLC Traceability');
             assert.strictEqual(model.repoLabel, 'Team Metadata');
-            assert.strictEqual(model.artifactCount, 3);
-            assert.strictEqual(model.experimental, true);
-            assert.strictEqual(model.agentPlugin, true);
-            assert.strictEqual(
-                model.agentPluginManifest?.name,
-                'sdlc-traceability',
+            assert.strictEqual(model.descriptorKind, 'readme');
+            assert.ok(
+                model.descriptorPath?.replace(/\\/g, '/').endsWith('/standards/sdlc/README.md'),
             );
+            assert.strictEqual(model.artifactCount, 3);
+            assert.strictEqual(model.experimental, undefined);
+            assert.strictEqual(model.agentPlugin, true);
+            assert.strictEqual(model.agentPluginManifest?.name, 'sdlc-traceability');
             assert.ok(html.includes('capability-tab-details'));
             assert.ok(html.includes('capability-tab-contents'));
             assert.ok(html.includes('Contents'));
@@ -210,10 +211,9 @@ suite('CapabilityDetails helpers', () => {
             assert.ok(html.includes('trace.instructions.md'));
             assert.ok(html.includes('<h2>Mission</h2>'));
             assert.ok(html.includes('command:metaflow.toggleLayer?'));
-            assert.ok(html.includes('command:metaflow.openCapabilityManifest?'));
-            assert.ok(html.includes('Open CAPABILITY.md'));
+            assert.ok(html.includes('command:metaflow.openCapabilityDescriptor?'));
+            assert.ok(html.includes('Open README.md'));
             assert.ok(html.includes('<span class="stat-chip-label">Files</span>'));
-            assert.ok(html.includes('status-pill-warning">Experimental'));
             assert.ok(html.includes('status-pill-info">Agent Plugin'));
             assert.ok(html.includes('sdlc-traceability'));
             assert.ok(html.includes('<span class="stat-chip-label">Scope Risk</span>'));
@@ -223,7 +223,83 @@ suite('CapabilityDetails helpers', () => {
         }
     });
 
-    test('TC-0252: degrades gracefully when CAPABILITY.md is missing (Verifies: REQ-0311)', async () => {
+    test('README wins over legacy CAPABILITY and reports the duplicate without merging content', async () => {
+        const workspaceRoot = fs.mkdtempSync(
+            path.join(os.tmpdir(), 'metaflow-capability-details-duplicate-'),
+        );
+        try {
+            const repoRoot = path.join(workspaceRoot, '.ai', 'ai-metadata');
+            const layerRoot = path.join(repoRoot, 'duplicate-package');
+            fs.mkdirSync(layerRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(layerRoot, 'README.md'),
+                [
+                    '---',
+                    'name: README Package',
+                    'description: README is authoritative.',
+                    '---',
+                    '',
+                    '# README Documentation',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(layerRoot, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Legacy Package',
+                    'description: Legacy fallback content.',
+                    '---',
+                    '',
+                    '# Legacy Documentation',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const target = resolveCapabilityDetailTarget(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata', enabled: true }],
+                    layerSources: [{ repoId: 'primary', path: 'duplicate-package', enabled: true }],
+                },
+                workspaceRoot,
+                {
+                    enabled: false,
+                    layerEnabled: true,
+                    synchronizedFiles: [],
+                    sourceRoot: undefined,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow',
+                },
+                { layerPath: 'duplicate-package', repoId: 'primary' },
+            );
+
+            assert.ok(target, 'expected duplicate descriptor detail target');
+            const model = await loadCapabilityDetailModel(target!);
+            const html = renderCapabilityDetailsHtml(model, {
+                cspSource: 'https://webview.test',
+                nonce: 'nonce-duplicate',
+            });
+
+            assert.strictEqual(model.title, 'README Documentation');
+            assert.strictEqual(model.descriptorKind, 'readme');
+            assert.ok(
+                model.descriptorPath?.replace(/\\/g, '/').endsWith('/duplicate-package/README.md'),
+            );
+            assert.ok(
+                model.warnings.some((warning) =>
+                    warning.includes('CAPABILITY_DESCRIPTOR_DUPLICATE'),
+                ),
+            );
+            assert.ok(model.warnings.some((warning) => warning.includes('not merged')));
+            assert.ok(html.includes('Open README.md'));
+            assert.ok(html.includes('README Documentation'));
+            assert.ok(!html.includes('Legacy Documentation'));
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('TC-0252: degrades gracefully when README and legacy CAPABILITY descriptors are missing (Verifies: REQ-0311)', async () => {
         const workspaceRoot = fs.mkdtempSync(
             path.join(os.tmpdir(), 'metaflow-capability-details-missing-'),
         );
@@ -261,14 +337,14 @@ suite('CapabilityDetails helpers', () => {
                 nonce: 'nonce-456',
             });
 
+            assert.ok(model.warnings.some((warning) => warning.includes('DESCRIPTOR_MISSING')));
             assert.ok(
-                model.warnings.some((warning) => warning.includes('CAPABILITY_MANIFEST_MISSING')),
+                html.includes(
+                    'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.',
+                ),
             );
             assert.ok(
-                html.includes('No <code>CAPABILITY.md</code> file exists for this layer yet.'),
-            );
-            assert.ok(
-                !html.includes('Open CAPABILITY.md'),
+                !html.includes('Open README.md'),
                 'missing-manifest details should not render the open-manifest action',
             );
             assert.ok(html.includes('tone.instructions.md'));
@@ -334,12 +410,12 @@ suite('CapabilityDetails helpers', () => {
         try {
             fs.mkdirSync(path.join(sourceRoot, '.github', 'instructions'), { recursive: true });
             fs.writeFileSync(
-                path.join(sourceRoot, 'CAPABILITY.md'),
+                path.join(sourceRoot, 'README.md'),
                 [
                     '---',
                     'name: MetaFlow',
                     'description: Bundled MetaFlow guidance for authoring MetaFlow constructs and reviewing reusable AI metadata capabilities.',
-                    'license: MIT',
+                    'id: d7da7ee3-4ccf-42e8-a23f-c61e321ec612',
                     '---',
                     '',
                     '## Purpose',
@@ -383,7 +459,7 @@ suite('CapabilityDetails helpers', () => {
             });
 
             assert.strictEqual(model.title, 'MetaFlow');
-            assert.strictEqual(model.license, 'MIT');
+            assert.strictEqual(model.license, undefined);
             assert.strictEqual(model.builtIn, true);
             assert.strictEqual(model.warnings.length, 0);
             assert.ok(html.includes('metaflow-constructs.instructions.md'));
@@ -610,8 +686,12 @@ suite('CapabilityDetails helpers', () => {
             nonce: 'nonce-bundled',
         });
 
-        assert.strictEqual(model.title, 'MetaFlow');
+        assert.strictEqual(model.title, 'MetaFlow Metadata');
         assert.strictEqual(model.builtIn, true);
+        assert.strictEqual(model.descriptorKind, 'readme');
+        assert.ok(
+            model.descriptorPath?.replace(/\\/g, '/').endsWith('/metaflow-ai-metadata/README.md'),
+        );
         assert.strictEqual(model.warnings.length, 0);
         assert.ok(
             model.nativeContributions && model.nativeContributions.length >= 7,
@@ -688,6 +768,8 @@ suite('CapabilityDetails helpers', () => {
             layerIndex: undefined,
             repoId: '__metaflow_builtin__',
             repoLabel: 'MetaFlow Built-in',
+            descriptorPath: undefined,
+            descriptorKind: undefined,
             manifestPath: undefined,
             enabled: false,
             builtIn: true,
@@ -703,9 +785,13 @@ suite('CapabilityDetails helpers', () => {
 
         assert.ok(html.includes('<div class="hero-actions hero-actions-static">'));
         assert.ok(!html.includes('command:metaflow.toggleLayer?'));
-        assert.ok(html.includes('No description was provided in this capability manifest yet.'));
-        assert.ok(html.includes('No source artifacts were found under this layer.'));
-        assert.ok(html.includes('No <code>CAPABILITY.md</code> file exists for this layer yet.'));
+        assert.ok(html.includes('No description was provided in this package descriptor yet.'));
+        assert.ok(html.includes('No source artifacts were found under this capability.'));
+        assert.ok(
+            html.includes(
+                'No <code>README.md</code> or legacy <code>CAPABILITY.md</code> descriptor exists for this capability yet.',
+            ),
+        );
         assert.ok(html.includes('Excluded from the active MetaFlow capability set.'));
         assert.ok(html.includes('Built-in capability'));
         assert.match(html, /<div class="identity-badge" aria-hidden="true">\s*MF\s*<\/div>/);

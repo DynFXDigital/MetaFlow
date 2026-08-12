@@ -1,0 +1,9 @@
+{
+  "name": "metaflow-ai-metadata",
+  "version": "0.3.5",
+  "description": "MetaFlow's built-in AI metadata guardrails and authoring guidance.",
+  "agents": ".github/agents",
+  "commands": ".github/commands",
+  "skills": ".github/skills",
+  "rules": ".github/instructions"
+}

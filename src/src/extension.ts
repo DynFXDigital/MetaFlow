@@ -239,9 +239,7 @@ async function focusFirstTreeItem<T extends vscode.TreeItem>(
 
 let layersNativeFilterPreviousMode: LayersViewMode | undefined;
 
-async function restoreLayersViewModeAfterFilter(
-    provider: LayersTreeViewProvider,
-): Promise<void> {
+async function restoreLayersViewModeAfterFilter(provider: LayersTreeViewProvider): Promise<void> {
     const previousMode = layersNativeFilterPreviousMode;
     layersNativeFilterPreviousMode = undefined;
 
@@ -290,7 +288,9 @@ async function openLayersTreeFilter<T extends vscode.TreeItem>(
     await waitForTreeViewRefresh();
 
     try {
-        await vscode.commands.executeCommand('workbench.actions.treeView.metaflow-layers.collapseAll');
+        await vscode.commands.executeCommand(
+            'workbench.actions.treeView.metaflow-layers.collapseAll',
+        );
     } catch {
         // Some VS Code hosts may not expose generated collapse-all commands.
     }
@@ -606,7 +606,7 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         onRefreshError: (error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logWarn(`Layer tree checkbox idle refresh failed: ${message}`);
+            logWarn(`Capabilities tree checkbox idle refresh failed: ${message}`);
         },
     });
     context.subscriptions.push(layerTreeCheckboxIdleRefresh);
@@ -624,7 +624,7 @@ export function activate(context: vscode.ExtensionContext): void {
         },
         onSettleError: (error) => {
             const message = error instanceof Error ? error.message : String(error);
-            logWarn(`Layer tree checkbox settlement failed: ${message}`);
+            logWarn(`Capabilities tree checkbox settlement failed: ${message}`);
         },
     });
 

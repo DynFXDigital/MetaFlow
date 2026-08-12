@@ -1,6 +1,6 @@
 ---
 description: 'Requirements for agent plugin manifests and plugin-local skill, hook, MCP, and LSP paths across Copilot, OpenPlugin, and Claude formats.'
-applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/.github/hooks/*.json,**/.mcp.json,**/.github/mcp.json,**/lsp.json,**/.github/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
+applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/.github/hooks/*.json,**/mcp.json,**/.mcp.json,**/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
 ---
 
 # Agent Plugin Packaging

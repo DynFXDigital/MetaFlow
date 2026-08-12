@@ -2,11 +2,6 @@
   "name": "github-copilot-metadata-authoring",
   "version": "0.1.0",
   "description": "GitHub Copilot metadata standards, prompts, and skills support portable AI metadata artifacts and promotion workflows.",
-  "keywords": ["metaflow", "agent-plugin", "capability"],
-  "metaflow": {
-    "pluginHosts": ["github-copilot"],
-    "minimumMetaflowVersion": "^0.1.0-preview.0"
-  },
   "agents": ".github/agents",
   "skills": ".github/skills",
   "rules": ".github/instructions"

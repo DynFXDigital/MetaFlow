@@ -36,7 +36,11 @@ export class CapabilityDetailsPanelManager implements vscode.Disposable {
                 {
                     enableFindWidget: true,
                     enableScripts: false,
-                    enableCommandUris: ['metaflow.toggleLayer', 'metaflow.openCapabilityManifest'],
+                    enableCommandUris: [
+                        'metaflow.toggleLayer',
+                        'metaflow.openCapabilityDescriptor',
+                        'metaflow.openCapabilityManifest',
+                    ],
                     localResourceRoots: [],
                 },
             );

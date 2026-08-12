@@ -42,7 +42,7 @@ suite('metaFlowAiMetadata', () => {
             extensionPath,
             'assets',
             'metaflow-ai-metadata',
-            'CAPABILITY.md',
+            'README.md',
         );
         fs.mkdirSync(path.dirname(sourceInstruction), { recursive: true });
         fs.writeFileSync(sourceInstruction, '# starter\n', 'utf-8');
@@ -54,7 +54,7 @@ suite('metaFlowAiMetadata', () => {
         assert.ok(first);
         assert.strictEqual(first?.writtenFiles.length, 1);
         assert.strictEqual(first?.skippedFiles.length, 0);
-        assert.ok(!fs.existsSync(path.join(workspaceRoot, 'CAPABILITY.md')));
+        assert.ok(!fs.existsSync(path.join(workspaceRoot, 'README.md')));
 
         const targetInstruction = path.join(
             workspaceRoot,
@@ -78,7 +78,7 @@ suite('metaFlowAiMetadata', () => {
         assert.ok(third);
         assert.strictEqual(third?.writtenFiles.length, 1);
         assert.strictEqual(fs.readFileSync(targetInstruction, 'utf-8'), '# starter\n');
-        assert.ok(!fs.existsSync(path.join(workspaceRoot, 'CAPABILITY.md')));
+        assert.ok(!fs.existsSync(path.join(workspaceRoot, 'README.md')));
 
         fs.rmSync(tempRoot, { recursive: true, force: true });
     });
@@ -164,7 +164,7 @@ suite('metaFlowAiMetadata', () => {
             'capabilities',
             'metadata-authoring',
             'github-copilot-metadata-authoring',
-            'CAPABILITY.md',
+            'README.md',
         );
         const nestedPlugin = path.join(
             extensionPath,
@@ -199,7 +199,9 @@ suite('metaFlowAiMetadata', () => {
         try {
             const result = await scaffoldMetaFlowAiMetadata({ workspaceRoot, extensionPath });
             assert.ok(result, 'Expected scaffold result for bundled metadata assets');
-            assert.deepStrictEqual(result?.writtenFiles, ['.github/instructions/root.instructions.md']);
+            assert.deepStrictEqual(result?.writtenFiles, [
+                '.github/instructions/root.instructions.md',
+            ]);
             assert.strictEqual(
                 fs.readFileSync(
                     path.join(workspaceRoot, '.github', 'instructions', 'root.instructions.md'),
@@ -244,7 +246,7 @@ suite('metaFlowAiMetadata', () => {
             extensionPath,
             'assets',
             'metaflow-ai-metadata',
-            'CAPABILITY.md',
+            'README.md',
         );
         const nestedSourceInstruction = path.join(
             extensionPath,
@@ -286,7 +288,7 @@ suite('metaFlowAiMetadata', () => {
                 'instructions',
                 'starter.instructions.md',
             );
-            const targetManifest = path.join(cached!.targetRoot, 'CAPABILITY.md');
+            const targetManifest = path.join(cached!.targetRoot, 'README.md');
             const targetNestedInstruction = path.join(
                 cached!.targetRoot,
                 'capabilities',
@@ -332,7 +334,7 @@ suite('metaFlowAiMetadata', () => {
                 '# updated\n',
             );
             assert.strictEqual(
-                fs.readFileSync(path.join(refreshed!.targetRoot, 'CAPABILITY.md'), 'utf-8'),
+                fs.readFileSync(path.join(refreshed!.targetRoot, 'README.md'), 'utf-8'),
                 '# capability\n',
             );
 
@@ -355,7 +357,7 @@ suite('metaFlowAiMetadata', () => {
                 '# updated\n',
             );
             assert.strictEqual(
-                fs.readFileSync(path.join(updated!.targetRoot, 'CAPABILITY.md'), 'utf-8'),
+                fs.readFileSync(path.join(updated!.targetRoot, 'README.md'), 'utf-8'),
                 '# capability\n',
             );
         } finally {

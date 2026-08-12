@@ -1,3 +1,102 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { hasValidReadmeDescriptorAtRoot } from '@metaflow/engine';
+
+export const CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS = [
+    '**/README.md',
+    '**/CAPABILITY.md',
+    '**/plugin.json',
+    '**/instructions/**',
+    '**/commands/**',
+    '**/skills/**',
+    '**/agents/**',
+] as const;
+
+const KNOWN_CAPABILITY_ARTIFACT_ROOTS = [
+    'instructions',
+    'prompts',
+    'skills',
+    'agents',
+    'hooks',
+    'chatmodes',
+] as const;
+
+function isFile(candidatePath: string): boolean {
+    try {
+        return fs.statSync(candidatePath).isFile();
+    } catch {
+        return false;
+    }
+}
+
+function isDirectory(candidatePath: string): boolean {
+    try {
+        return fs.statSync(candidatePath).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+function hasKnownCapabilityArtifacts(directoryPath: string): boolean {
+    return KNOWN_CAPABILITY_ARTIFACT_ROOTS.some(
+        (artifactRoot) =>
+            isDirectory(path.join(directoryPath, artifactRoot)) ||
+            isDirectory(path.join(directoryPath, '.github', artifactRoot)),
+    );
+}
+
+function isRecognizedReadmePackageRoot(directoryPath: string): boolean {
+    if (!hasValidReadmeDescriptorAtRoot(directoryPath)) {
+        return false;
+    }
+
+    return (
+        isFile(path.join(directoryPath, 'plugin.json')) ||
+        hasKnownCapabilityArtifacts(directoryPath)
+    );
+}
+
+function isPathInside(parentPath: string, candidatePath: string): boolean {
+    const relative = path.relative(parentPath, candidatePath);
+    return (
+        relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
+    );
+}
+
+export function findNearestCapabilityDirectory(
+    repoRoot: string,
+    changedPath: string,
+): string | undefined {
+    let current = path.dirname(changedPath);
+    try {
+        if (fs.existsSync(changedPath) && fs.statSync(changedPath).isDirectory()) {
+            current = changedPath;
+        }
+    } catch {
+        current = path.dirname(changedPath);
+    }
+
+    while (isPathInside(repoRoot, current)) {
+        const readmePath = path.join(current, 'README.md');
+        if (isFile(readmePath) && isRecognizedReadmePackageRoot(current)) {
+            return current;
+        }
+
+        const legacyManifestPath = path.join(current, 'CAPABILITY.md');
+        if (isFile(legacyManifestPath)) {
+            return current;
+        }
+
+        const parent = path.dirname(current);
+        if (parent === current) {
+            return undefined;
+        }
+        current = parent;
+    }
+
+    return undefined;
+}
+
 export interface DirtyCapabilityPluginMetadataRepo {
     repoId: string;
     repoRoot: string;

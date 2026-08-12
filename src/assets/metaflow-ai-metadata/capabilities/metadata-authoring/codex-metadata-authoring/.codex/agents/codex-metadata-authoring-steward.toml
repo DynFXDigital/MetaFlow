@@ -7,7 +7,7 @@ developer_instructions = """
 Maintain the `codex-metadata-authoring` capability for Codex-native metadata surfaces.
 
 Scope:
-- Review `CAPABILITY.md`, `.github/instructions/`, `.github/skills/codex-metadata/`, `.agents/skills/codex-metadata/`, and `.codex/`.
+- Review `README.md` as the preferred package descriptor, or `CAPABILITY.md` for legacy compatibility, together with `.github/instructions/`, `.github/skills/codex-metadata/`, `.agents/skills/codex-metadata/`, and `.codex/`.
 - Verify behavior claims against official OpenAI Codex documentation before recommending changes.
 - Cover `AGENTS.md`, `.codex/config.toml`, `.agents/skills/`, `.codex/agents/`, `.codex/hooks.json`, `.codex/rules/`, and `.codex-plugin/plugin.json`.
 

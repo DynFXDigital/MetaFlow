@@ -1,8 +1,8 @@
 {
   "name": "metaflow-ai",
   "displayName": "MetaFlow: AI Metadata Overlay",
-  "description": "Layered AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
-  "version": "0.4.2",
+  "description": "Composable AI metadata overlays for Copilot instructions, prompts, skills, and agents.",
+  "version": "0.4.3",
   "publisher": "dynfxdigital",
   "license": "MIT",
   "repository": {
@@ -38,7 +38,7 @@
         "id": "dynfxdigital.metaflow-ai.metaflow",
         "name": "metaflow",
         "fullName": "MetaFlow",
-        "description": "Inspect, review, and author layered MetaFlow AI metadata capabilities.",
+        "description": "Inspect, review, and author MetaFlow AI metadata capabilities.",
         "commands": [
           {
             "name": "review",
@@ -267,17 +267,17 @@
       },
       {
         "command": "metaflow.createCapabilityManifest",
-        "title": "MetaFlow: Create CAPABILITY.md",
+        "title": "MetaFlow: Create README Descriptor",
         "icon": "$(new-file)"
       },
       {
         "command": "metaflow.maintainCapabilityPluginMetadata",
-        "title": "MetaFlow: Maintain Capability Plugin Metadata",
+        "title": "MetaFlow: Maintain Plugin Manifest (plugin.json)",
         "icon": "$(package)"
       },
       {
         "command": "metaflow.maintainAllCapabilityPluginMetadata",
-        "title": "MetaFlow: Maintain All Capability Plugin Metadata",
+        "title": "MetaFlow: Maintain All Plugin Manifests (plugin.json)",
         "icon": "$(repo)"
       },
       {
@@ -1078,24 +1078,24 @@
   },
   "dependencies": {
     "@metaflow/engine": "file:../packages/engine",
-    "flatted": "^3.4.2",
+    "flatted": "^3.4.3",
     "jsonc-parser": "^3.3.1",
-    "markdown-it": "^14.1.1"
+    "markdown-it": "^14.3.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/mocha": "^10.0.6",
     "@types/node": "^25.5.0",
     "@types/vscode": "^1.110.0",
-    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.57.2",
     "@vscode/test-electron": "^2.3.8",
-    "@vscode/vsce": "^3.7.1",
-    "c8": "^11.0.0",
+    "@vscode/vsce": "^3.9.2",
+    "c8": "^12.0.0",
     "esbuild": "^0.28.1",
-    "eslint": "^10.1.0",
+    "eslint": "^10.8.0",
     "glob": "^13.0.6",
-    "minimatch": "^10.2.4",
+    "minimatch": "^10.2.5",
     "mocha": "^11.7.5",
     "typescript": "^5.3.2",
     "vscode-extension-tester": "^8.23.0"

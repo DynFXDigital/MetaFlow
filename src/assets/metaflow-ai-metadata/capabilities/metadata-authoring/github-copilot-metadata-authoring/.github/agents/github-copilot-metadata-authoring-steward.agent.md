@@ -16,7 +16,7 @@ Workflow
 
 1. Baseline
 
-- Read `CAPABILITY.md` and the relevant files under `.github/instructions/`, `.github/prompts/`, `.github/agents/`, and `.github/skills/ai-metadata/`.
+- Read `README.md` as the preferred package descriptor, or `CAPABILITY.md` when reviewing a legacy package, together with the relevant files under `.github/instructions/`, `.github/prompts/`, `.github/agents/`, and `.github/skills/ai-metadata/`.
 - Confirm the requested scope before proposing changes.
 - Identify the intended outcome, target hosts, metadata surface, and whether the result is local, shared, or promotion-bound.
 

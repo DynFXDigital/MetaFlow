@@ -1,60 +1,46 @@
 ---
-description: Guidelines for authoring CAPABILITY.md contracts in MetaFlow metadata repositories.
-applyTo: 'CAPABILITY.md'
+description: Guidelines for authoring README.md package descriptors in MetaFlow metadata repositories.
+applyTo: 'README.md,CAPABILITY.md'
 ---
 
-# MetaFlow Capability Contracts
+# MetaFlow Package README Descriptors
 
-`CAPABILITY.md` defines the contract for a capability under `capabilities/<name>/`.
+`README.md` is the preferred human-facing descriptor at the root of a configured metadata package.
+It explains what people can use and trust in the package; component files define agent behavior.
 
-## Frontmatter guidance
+## Front matter guidance
 
-- Keep frontmatter present and valid YAML.
-- Include `uid` as a generated immutable UUID for the logical capability identity. Preserve it when moving or renaming a capability; generate a new `uid` only when intentionally forking or copying into a new logical capability.
-- Use `previousIds` or `previousPaths` when a published capability id or repo-relative path changes and existing MetaFlow configs need a migration hint.
-- Include `name`, `description`, and `license` when the repository convention expects them.
-- Write `description` as a single declarative sentence about what the capability offers.
-- Use the frontmatter `name` as the user-facing capability title throughout the file.
+- Keep front matter present and valid YAML.
+- README front matter is optional and should normally be omitted for agent-plugin packages.
+- Put plugin identity and runtime metadata in `plugin.json`, including `name`, `description`,
+  `version`, hosts, license, and component paths.
+- Keep README as ordinary human-facing Markdown; do not add GUID/UUID identity fields.
 
-## Description rules
+## README body guidance
 
-- Start with the subject matter, workflow, or artifact set the capability contributes.
-- Describe the offered guidance, assets, or outcomes directly.
-- Keep portability or sharing context in later sections such as `Reuse and Portability`, not in the description.
-- Avoid meta-framing prefixes such as `Reusable`, `Shared`, `Bundled`, `This capability`, or `Guidance for`.
-- Avoid describing how MetaFlow consumes the capability; describe the capability content itself.
+- Document purpose, when to use the package, included components, activation, trust considerations,
+  compatibility, and links to further documentation when those topics are useful.
+- Use free-form Markdown. These topics are recommendations, not required headings.
+- Keep detailed operational constraints and procedures in the appropriate skills, agents, instructions,
+  prompts, hooks, and reference files.
+- The README body is documentation, not an instruction-execution surface.
+- Keep detailed behavior in component files instead of duplicating it in prose.
+- Start with the package's subject matter, workflow, or artifact set rather than meta-framing such as
+  `Reusable`, `Shared`, `Bundled`, or `Guidance for`.
 
-Examples:
+## Authority and compatibility
 
-- `Planning standards, prompts, and skills support structured execution plans and project issue organization.`
-- `GitHub operation defaults and repository ownership guidance keep agent workflows consistent and safe.`
+- `README.md` owns human-facing documentation body.
+- `plugin.json` owns package name, description, runtime component paths, host declarations, and
+  plugin-specific metadata.
+- `marketplace.json` owns marketplace listing metadata.
+- `CAPABILITY.md` is a legacy compatibility descriptor only. Use it when README is absent; its
+  legacy `uid` may remain omitted during migration. Do not merge the two files or copy legacy-only
+  fields into README front matter.
+- When both files exist, README is preferred and the duplicate should be diagnosed.
 
-## Contract body guidance
+## Legacy CAPABILITY.md guidance
 
-- Set the first heading to `# Capability: <Frontmatter Name>` and keep it identical to the user-facing `name` value instead of falling back to the directory slug.
-- Keep the body aligned with the description: mission, scope, non-goals, and ownership boundaries should reinforce the same primary concern.
-- Keep the capability orthogonal and avoid claiming adjacent concerns that belong to another capability.
-
-## Non-Goals guidance
-
-- Treat `Non-Goals` as a boundary-setting section inside the capability's natural problem space, not as a generic disclaimer list.
-- Keep `Non-Goals` focused on plausible adjacent responsibilities a reasonable user might expect this capability to cover.
-- Prefer boundaries within the same tool, workflow family, or problem area.
-- Do not pad the section with unrelated exclusions or points that are already obvious from the capability name.
-- Keep the list short: usually 2 to 4 bullets.
-- Use plain language.
-- If you name another capability, workflow, or local policy, do it only when users might realistically confuse the ownership boundary.
-
-Ask before finalizing the section:
-
-1. What would a reasonable user assume this capability might include?
-2. Which of those plausible expectations are intentionally out of scope?
-3. Does each bullet clarify a real boundary instead of stating the obvious?
-
-Good pattern:
-
-> Someone might reasonably expect this capability to do this, but it intentionally does not.
-
-Bad pattern:
-
-> This capability does not do random unrelated things.
+When maintaining a repository that has not migrated yet, preserve its existing legacy fields and body
+until a deliberate migration is made. Treat those fields as compatibility data, not as additions to
+the README contract. New packages should create README.md instead.

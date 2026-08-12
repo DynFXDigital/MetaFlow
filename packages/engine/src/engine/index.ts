@@ -66,7 +66,11 @@ export {
 } from './settingsInjector';
 export {
     collectDuplicateCapabilityUidWarnings,
+    hasValidReadmeDescriptorAtRoot,
+    loadCapabilityDescriptorForLayer,
     parseCapabilityManifestContent,
+    parseReadmeDescriptorContent,
+    resolveCapabilityDescriptorPath,
     loadCapabilityManifestForLayer,
     capabilityManifestConstants,
 } from './capabilityManifest';
@@ -80,8 +84,12 @@ export type { FrontmatterResult } from './frontmatter';
 export type {
     LayerFile,
     LayerContent,
+    CapabilityDescriptorKind,
+    CapabilityDescriptorPath,
     EffectiveFile,
     CapabilityMetadata,
+    CapabilityAgentPluginAuthor,
+    CapabilityAgentPluginComponentValue,
     CapabilityAgentPluginManifest,
     CapabilityPluginCatalogEntry,
     CapabilityDiagnosticSeverity,

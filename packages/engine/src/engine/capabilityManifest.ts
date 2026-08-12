@@ -1,7 +1,10 @@
 /**
- * Capability manifest parser/loader.
+ * Capability descriptor parser/loader.
  *
- * CAPABILITY.md frontmatter contract (MVP):
+ * README.md is human-facing package documentation. Its frontmatter is optional
+ * and is retained only for compatibility while plugin.json owns plugin metadata.
+ *
+ * CAPABILITY.md remains a legacy compatibility format:
  * - required: name, description
  * - optional: uid, previousIds, previousPaths, license, experimental, agentPlugin
  *
@@ -11,16 +14,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+    CapabilityAgentPluginAuthor,
+    CapabilityAgentPluginComponentValue,
     CapabilityAgentPluginManifest,
+    CapabilityDescriptorKind,
+    CapabilityDescriptorPath,
     CapabilityDiagnosticSeverity,
     CapabilityMetadata,
     CapabilityWarning,
 } from './types';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
+const README_FILE_NAME = 'README.md';
 const AGENT_PLUGIN_MANIFEST_FILE_NAME = 'plugin.json';
 const FALLBACK_LICENSE_TOKEN = 'SEE-LICENSE-IN-REPO';
-const KNOWN_FIELDS = new Set([
+const LEGACY_KNOWN_FIELDS = new Set([
     'uid',
     'previousIds',
     'previousPaths',
@@ -30,6 +38,7 @@ const KNOWN_FIELDS = new Set([
     'experimental',
     'agentPlugin',
 ]);
+const README_KNOWN_FIELDS = new Set(['name', 'description', 'id']);
 
 type ManifestFields = {
     uid?: string;
@@ -40,6 +49,11 @@ type ManifestFields = {
     license?: string;
     experimental?: string;
     agentPlugin?: string;
+};
+
+type ReadmeDescriptorFields = {
+    name?: string;
+    description?: string;
 };
 
 function parseBooleanField(value: string | undefined): boolean | undefined {
@@ -99,7 +113,22 @@ function stripQuotes(value: string): string {
     return trimmed;
 }
 
-function parseFrontmatter(rawText: string, filePath?: string): ParseFrontmatterResult {
+function readmeHeadingTitle(body: string): string | undefined {
+    const heading = body.match(/^#\s+(.+)$/m)?.[1].trim();
+    if (!heading) {
+        return undefined;
+    }
+
+    return heading.replace(/^Capability:\s*/i, '').trim() || undefined;
+}
+
+function parseFrontmatter(
+    rawText: string,
+    filePath?: string,
+    descriptorFileName = CAPABILITY_FILE_NAME,
+    warningPrefix = 'CAPABILITY',
+    frontmatterRequired = true,
+): ParseFrontmatterResult {
     const warnings: CapabilityWarning[] = [];
     const normalized = rawText.replace(/^\uFEFF/, '');
 
@@ -107,13 +136,15 @@ function parseFrontmatter(rawText: string, filePath?: string): ParseFrontmatterR
         return {
             fields: {},
             body: normalized,
-            warnings: [
-                toWarning(
-                    'CAPABILITY_FRONTMATTER_MISSING',
-                    'CAPABILITY.md is missing required YAML frontmatter delimited by --- markers.',
-                    filePath,
-                ),
-            ],
+            warnings: frontmatterRequired
+                ? [
+                      toWarning(
+                          `${warningPrefix}_FRONTMATTER_MISSING`,
+                          `${descriptorFileName} is missing required YAML frontmatter delimited by --- markers.`,
+                          filePath,
+                      ),
+                  ]
+                : [],
         };
     }
 
@@ -124,8 +155,8 @@ function parseFrontmatter(rawText: string, filePath?: string): ParseFrontmatterR
             body: normalized,
             warnings: [
                 toWarning(
-                    'CAPABILITY_FRONTMATTER_MALFORMED',
-                    'CAPABILITY.md frontmatter could not be parsed. Ensure opening and closing --- markers are present.',
+                    `${warningPrefix}_FRONTMATTER_MALFORMED`,
+                    `${descriptorFileName} frontmatter could not be parsed. Ensure opening and closing --- markers are present.`,
                     filePath,
                 ),
             ],
@@ -146,8 +177,8 @@ function parseFrontmatter(rawText: string, filePath?: string): ParseFrontmatterR
         if (!keyValueMatch) {
             warnings.push(
                 toWarning(
-                    'CAPABILITY_FRONTMATTER_LINE_INVALID',
-                    `Invalid frontmatter line ${i + 1}: "${line}". Expected "key: value" format.`,
+                    `${warningPrefix}_FRONTMATTER_LINE_INVALID`,
+                    `Invalid ${descriptorFileName} frontmatter line ${i + 1}: "${line}". Expected "key: value" format.`,
                     filePath,
                 ),
             );
@@ -280,6 +311,35 @@ function isValidCapabilityUid(value: string): boolean {
     );
 }
 
+function descriptorFileName(kind: CapabilityDescriptorKind): string {
+    return kind === 'readme' ? README_FILE_NAME : CAPABILITY_FILE_NAME;
+}
+
+function descriptorWarningPrefix(kind: CapabilityDescriptorKind): string {
+    return kind === 'readme' ? 'README_DESCRIPTOR' : 'CAPABILITY';
+}
+
+function descriptorPathForLayer(layerPath: string, kind: CapabilityDescriptorKind): string {
+    return path.join(layerPath, descriptorFileName(kind));
+}
+
+/** Resolve the descriptor selected by README-first, absence-only fallback. */
+export function resolveCapabilityDescriptorPath(
+    layerPath: string,
+): CapabilityDescriptorPath | undefined {
+    const readmePath = descriptorPathForLayer(layerPath, 'readme');
+    if (fs.existsSync(readmePath)) {
+        return { kind: 'readme', absolutePath: readmePath };
+    }
+
+    const capabilityPath = descriptorPathForLayer(layerPath, 'capability');
+    if (fs.existsSync(capabilityPath)) {
+        return { kind: 'capability', absolutePath: capabilityPath };
+    }
+
+    return undefined;
+}
+
 function validateOptionalStringListField(
     value: string | undefined,
     fieldName: string,
@@ -325,6 +385,118 @@ function normalizeStringArray(value: unknown): string[] | undefined {
     return normalized;
 }
 
+function normalizeOptionalString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeAuthor(value: unknown): string | CapabilityAgentPluginAuthor | undefined {
+    const authorText = normalizeOptionalString(value);
+    if (authorText) {
+        return authorText;
+    }
+
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return undefined;
+    }
+
+    const authorObject = value as Record<string, unknown>;
+    const name = normalizeOptionalString(authorObject.name);
+    const email = normalizeOptionalString(authorObject.email);
+    const url = normalizeOptionalString(authorObject.url);
+    if (!name && !email && !url) {
+        return undefined;
+    }
+
+    return {
+        ...(name ? { name } : {}),
+        ...(email ? { email } : {}),
+        ...(url ? { url } : {}),
+    };
+}
+
+function normalizeComponentValue(value: unknown): CapabilityAgentPluginComponentValue | undefined {
+    const componentPath = normalizeOptionalString(value);
+    if (componentPath) {
+        return componentPath;
+    }
+
+    const componentPaths = normalizeStringArray(value);
+    return componentPaths && componentPaths.length > 0 ? componentPaths : undefined;
+}
+
+function normalizePluginComponents(
+    manifestObject: Record<string, unknown>,
+    pluginJsonPath: string,
+    warnings: CapabilityWarning[],
+): Record<string, CapabilityAgentPluginComponentValue> | undefined {
+    const components: Record<string, CapabilityAgentPluginComponentValue> = {};
+    const componentFields = [
+        'agents',
+        'commands',
+        'skills',
+        'rules',
+        'hooks',
+        'mcpServers',
+        'lspServers',
+    ];
+
+    const addComponent = (componentName: string, value: unknown): void => {
+        if (value === undefined) {
+            return;
+        }
+
+        const normalized = normalizeComponentValue(value);
+        if (!normalized) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_COMPONENT_INVALID',
+                    `plugin.json component "${componentName}" should be a path or an array of paths when present.`,
+                    pluginJsonPath,
+                    'warning',
+                ),
+            );
+            return;
+        }
+
+        components[componentName] = normalized;
+    };
+
+    const declaredComponents = manifestObject.components;
+    if (declaredComponents !== undefined) {
+        if (
+            !declaredComponents ||
+            typeof declaredComponents !== 'object' ||
+            Array.isArray(declaredComponents)
+        ) {
+            warnings.push(
+                toWarning(
+                    'CAPABILITY_AGENT_PLUGIN_MANIFEST_COMPONENTS_INVALID',
+                    'plugin.json "components" should be an object of paths or arrays of paths when present.',
+                    pluginJsonPath,
+                    'warning',
+                ),
+            );
+        } else {
+            for (const [componentName, value] of Object.entries(
+                declaredComponents as Record<string, unknown>,
+            )) {
+                addComponent(componentName, value);
+            }
+        }
+    }
+
+    for (const componentName of componentFields) {
+        addComponent(componentName, manifestObject[componentName]);
+    }
+
+    return Object.keys(components).length > 0 ? components : undefined;
+}
+
 function parseAgentPluginManifestContent(
     rawText: string,
     pluginJsonPath: string,
@@ -368,6 +540,8 @@ function parseAgentPluginManifestContent(
         typeof manifestObject.description === 'string'
             ? manifestObject.description.trim()
             : undefined;
+    const author = normalizeAuthor(manifestObject.author);
+    const license = normalizeOptionalString(manifestObject.license);
     const keywords = normalizeStringArray(manifestObject.keywords) ?? [];
 
     if (!pluginName) {
@@ -476,16 +650,10 @@ function parseAgentPluginManifestContent(
         }
     }
 
-    if (pluginHosts.length === 0) {
-        warnings.push(
-            toWarning(
-                'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED',
-                'plugin.json should declare "metaflow.pluginHosts" so plugin consumers can understand supported hosts.',
-                pluginJsonPath,
-                'warning',
-            ),
-        );
-    }
+    const components = normalizePluginComponents(manifestObject, pluginJsonPath, warnings);
+    const homepage = normalizeOptionalString(manifestObject.homepage);
+    const repository = normalizeOptionalString(manifestObject.repository);
+    const documentation = normalizeOptionalString(manifestObject.documentation);
 
     return {
         metadata: {
@@ -493,15 +661,24 @@ function parseAgentPluginManifestContent(
             name: pluginName,
             version,
             description,
+            author,
+            license,
             keywords,
+            components,
             pluginHosts,
             minimumMetaflowVersion,
+            homepage,
+            repository,
+            documentation,
         },
         warnings,
     };
 }
 
-function loadAgentPluginManifestForLayer(layerPath: string): {
+function loadAgentPluginManifestForLayer(
+    layerPath: string,
+    descriptorKind: CapabilityDescriptorKind,
+): {
     metadata?: CapabilityAgentPluginManifest;
     warnings: CapabilityWarning[];
 } {
@@ -511,7 +688,9 @@ function loadAgentPluginManifestForLayer(layerPath: string): {
             warnings: [
                 toWarning(
                     'CAPABILITY_AGENT_PLUGIN_MANIFEST_MISSING',
-                    'CAPABILITY.md declares "agentPlugin: true" but plugin.json is missing at the capability root.',
+                    descriptorKind === 'capability'
+                        ? 'CAPABILITY.md declares "agentPlugin: true" but plugin.json is missing at the capability root.'
+                        : 'README.md is associated with an agent-plugin package but plugin.json is missing at the package root.',
                     pluginJsonPath,
                     'error',
                 ),
@@ -638,7 +817,7 @@ export function parseCapabilityManifestContent(
     const warnings = [...parsed.warnings];
 
     for (const key of Object.keys(parsed.fields)) {
-        if (!KNOWN_FIELDS.has(key)) {
+        if (!LEGACY_KNOWN_FIELDS.has(key)) {
             warnings.push(
                 toWarning(
                     'CAPABILITY_UNKNOWN_FIELD',
@@ -668,6 +847,7 @@ export function parseCapabilityManifestContent(
         previousIds: parseStringListField(fields.previousIds),
         previousPaths: parseStringListField(fields.previousPaths),
         manifestPath,
+        descriptorKind: 'capability',
         name: fields.name?.trim() || undefined,
         description: fields.description?.trim() || undefined,
         license: fields.license?.trim() || undefined,
@@ -678,43 +858,162 @@ export function parseCapabilityManifestContent(
     };
 }
 
+/** Parse the portable README descriptor contract into normalized metadata. */
+export function parseReadmeDescriptorContent(
+    rawText: string,
+    capabilityId: string,
+    descriptorPath: string,
+): CapabilityMetadata {
+    const parsed = parseFrontmatter(
+        rawText,
+        descriptorPath,
+        README_FILE_NAME,
+        descriptorWarningPrefix('readme'),
+        false,
+    );
+    const warnings = [...parsed.warnings];
+
+    for (const key of Object.keys(parsed.fields)) {
+        if (!README_KNOWN_FIELDS.has(key)) {
+            warnings.push(
+                toWarning(
+                    'README_DESCRIPTOR_UNKNOWN_FIELD',
+                    `Unknown README.md frontmatter field: "${key}".`,
+                    descriptorPath,
+                ),
+            );
+        }
+    }
+
+    const fields: ReadmeDescriptorFields = {
+        name: readmeHeadingTitle(parsed.body) ?? parsed.fields.name,
+        description: parsed.fields.description,
+    };
+
+    return {
+        id: capabilityId,
+        manifestPath: descriptorPath,
+        descriptorKind: 'readme',
+        name: fields.name?.trim() || undefined,
+        description: fields.description?.trim() || undefined,
+        body: parsed.body,
+        warnings,
+    };
+}
+
+/** Return whether a package-root README has the required descriptor fields. */
+export function isValidReadmeDescriptor(metadata: CapabilityMetadata): boolean {
+    return !metadata.warnings.some((warning) =>
+        warning.code.startsWith('README_DESCRIPTOR_FRONTMATTER_'),
+    );
+}
+
+export function hasValidReadmeDescriptorAtRoot(layerPath: string): boolean {
+    const readmePath = descriptorPathForLayer(layerPath, 'readme');
+    try {
+        if (!fs.statSync(readmePath).isFile()) {
+            return false;
+        }
+
+        const rawText = fs.readFileSync(readmePath, 'utf-8');
+        const parsed = parseReadmeDescriptorContent(rawText, path.basename(layerPath), readmePath);
+        return isValidReadmeDescriptor(parsed);
+    } catch {
+        return false;
+    }
+}
+
+function hasDifferentDescriptorContents(readmePath: string, capabilityPath: string): boolean {
+    try {
+        return fs.readFileSync(readmePath, 'utf-8') !== fs.readFileSync(capabilityPath, 'utf-8');
+    } catch {
+        return true;
+    }
+}
+
+function duplicateDescriptorWarning(readmePath: string, capabilityPath: string): CapabilityWarning {
+    const differs = hasDifferentDescriptorContents(readmePath, capabilityPath);
+    return toWarning(
+        'CAPABILITY_DESCRIPTOR_DUPLICATE',
+        `Both README.md and CAPABILITY.md are present; README.md is selected and CAPABILITY.md is ignored.${
+            differs ? ' The descriptor contents differ and are not merged.' : ''
+        }`,
+        readmePath,
+    );
+}
+
 /**
- * Load CAPABILITY.md from a layer directory when present.
+ * Load the selected README.md or legacy CAPABILITY.md from a layer directory.
  */
-export function loadCapabilityManifestForLayer(
+export function loadCapabilityDescriptorForLayer(
     layerPath: string,
     capabilityId: string,
 ): CapabilityMetadata | undefined {
-    const manifestPath = path.join(layerPath, CAPABILITY_FILE_NAME);
-    if (!fs.existsSync(manifestPath)) {
+    const descriptor = resolveCapabilityDescriptorPath(layerPath);
+    if (!descriptor) {
         return undefined;
     }
 
     let rawText: string;
     try {
-        rawText = fs.readFileSync(manifestPath, 'utf-8');
+        rawText = fs.readFileSync(descriptor.absolutePath, 'utf-8');
     } catch (err) {
         return {
             id: capabilityId,
-            manifestPath,
+            manifestPath: descriptor.absolutePath,
+            descriptorKind: descriptor.kind,
             warnings: [
                 toWarning(
-                    'CAPABILITY_READ_ERROR',
-                    `Failed to read CAPABILITY.md: ${(err as Error).message}`,
-                    manifestPath,
+                    `${descriptorWarningPrefix(descriptor.kind)}_READ_ERROR`,
+                    `Failed to read ${descriptorFileName(descriptor.kind)}: ${(err as Error).message}`,
+                    descriptor.absolutePath,
                 ),
             ],
         };
     }
 
-    const manifest = parseCapabilityManifestContent(rawText, capabilityId, manifestPath);
-    if (manifest.agentPlugin) {
-        const pluginResult = loadAgentPluginManifestForLayer(layerPath);
-        manifest.agentPluginManifest = pluginResult.metadata;
+    const manifest =
+        descriptor.kind === 'readme'
+            ? parseReadmeDescriptorContent(rawText, capabilityId, descriptor.absolutePath)
+            : parseCapabilityManifestContent(rawText, capabilityId, descriptor.absolutePath);
+
+    if (descriptor.kind === 'readme') {
+        const capabilityPath = descriptorPathForLayer(layerPath, 'capability');
+        if (fs.existsSync(capabilityPath)) {
+            manifest.warnings.push(
+                duplicateDescriptorWarning(descriptor.absolutePath, capabilityPath),
+            );
+        }
+    }
+
+    const pluginJsonPath = path.join(layerPath, AGENT_PLUGIN_MANIFEST_FILE_NAME);
+    const shouldLoadPluginManifest =
+        descriptor.kind === 'readme'
+            ? fs.existsSync(pluginJsonPath)
+            : manifest.agentPlugin === true;
+    if (shouldLoadPluginManifest) {
+        const pluginResult = loadAgentPluginManifestForLayer(layerPath, descriptor.kind);
+        if (descriptor.kind === 'readme' && pluginResult.metadata) {
+            manifest.agentPlugin = true;
+            manifest.agentPluginManifest = pluginResult.metadata;
+            manifest.name = manifest.name || pluginResult.metadata.name;
+            manifest.description = pluginResult.metadata.description || manifest.description;
+            manifest.license = pluginResult.metadata.license || manifest.license;
+        } else if (descriptor.kind === 'capability') {
+            manifest.agentPluginManifest = pluginResult.metadata;
+        }
         manifest.warnings.push(...pluginResult.warnings);
     }
 
     return manifest;
+}
+
+/** Backward-compatible name for the capability descriptor loader. */
+export function loadCapabilityManifestForLayer(
+    layerPath: string,
+    capabilityId: string,
+): CapabilityMetadata | undefined {
+    return loadCapabilityDescriptorForLayer(layerPath, capabilityId);
 }
 
 export function collectDuplicateCapabilityUidWarnings(
@@ -759,6 +1058,7 @@ export function collectDuplicateCapabilityUidWarnings(
 
 export const capabilityManifestConstants = {
     CAPABILITY_FILE_NAME,
+    README_FILE_NAME,
     AGENT_PLUGIN_MANIFEST_FILE_NAME,
     FALLBACK_LICENSE_TOKEN,
 };

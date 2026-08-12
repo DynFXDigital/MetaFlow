@@ -14,6 +14,17 @@ export interface LayerFile {
     absolutePath: string;
 }
 
+/** Descriptor format selected for a capability layer. */
+export type CapabilityDescriptorKind = 'readme' | 'capability';
+
+/** Descriptor candidate selected at a capability layer root. */
+export interface CapabilityDescriptorPath {
+    /** Descriptor format represented by the path. */
+    kind: CapabilityDescriptorKind;
+    /** Absolute path to the descriptor file. */
+    absolutePath: string;
+}
+
 /** Resolved content of a single layer. */
 export interface LayerContent {
     /** Layer identifier (e.g., `company/core`). */
@@ -22,7 +33,7 @@ export interface LayerContent {
     repoId?: string;
     /** Files discovered in this layer. */
     files: LayerFile[];
-    /** Optional capability metadata loaded from CAPABILITY.md at layer root. */
+    /** Optional capability metadata loaded from the selected descriptor at layer root. */
     capability?: CapabilityMetadata;
 }
 
@@ -41,6 +52,15 @@ export interface CapabilityWarning {
     severity?: CapabilityDiagnosticSeverity;
 }
 
+/** Author metadata declared by an agent-plugin manifest. */
+export interface CapabilityAgentPluginAuthor {
+    name?: string;
+    email?: string;
+    url?: string;
+}
+
+export type CapabilityAgentPluginComponentValue = string | string[];
+
 /** Capability-local agent-plugin manifest metadata loaded from plugin.json. */
 export interface CapabilityAgentPluginManifest {
     /** Absolute path to the plugin.json file. */
@@ -51,12 +71,22 @@ export interface CapabilityAgentPluginManifest {
     version?: string;
     /** Plugin manifest description. */
     description?: string;
+    /** Optional plugin author metadata from plugin.json. */
+    author?: string | CapabilityAgentPluginAuthor;
+    /** Optional plugin license from plugin.json. */
+    license?: string;
     /** Optional discovery keywords. */
     keywords: string[];
+    /** Plugin component paths from plugin.json. */
+    components?: Record<string, CapabilityAgentPluginComponentValue>;
     /** Optional target plugin hosts. */
     pluginHosts: string[];
     /** Optional minimum MetaFlow version range. */
     minimumMetaflowVersion?: string;
+    /** Optional human-facing links declared by plugin.json. */
+    homepage?: string;
+    repository?: string;
+    documentation?: string;
 }
 
 /** A normalized agent-plugin catalog entry derived from a capability layer. */
@@ -75,7 +105,7 @@ export interface CapabilityPluginCatalogEntry {
     layerId: string;
     /** Repo identifier backing this plugin package. */
     repoId?: string;
-    /** Capability manifest path. */
+    /** Selected README.md or legacy CAPABILITY.md descriptor path. */
     manifestPath: string;
     /** plugin.json path. */
     pluginJsonPath: string;
@@ -85,22 +115,34 @@ export interface CapabilityPluginCatalogEntry {
     minimumMetaflowVersion?: string;
     /** Optional SPDX identifier/expression or fallback token. */
     license?: string;
+    /** Optional plugin author metadata from plugin.json. */
+    author?: string | CapabilityAgentPluginAuthor;
+    /** Optional discovery keywords from plugin.json. */
+    keywords?: string[];
+    /** Plugin component paths from plugin.json. */
+    components?: Record<string, CapabilityAgentPluginComponentValue>;
+    /** Optional human-facing links from plugin.json. */
+    homepage?: string;
+    repository?: string;
+    documentation?: string;
     /** Whether the capability is marked experimental. */
     experimental?: boolean;
 }
 
-/** Parsed CAPABILITY.md metadata associated with a layer. */
+/** Parsed README.md or legacy CAPABILITY.md metadata associated with a layer. */
 export interface CapabilityMetadata {
     /** Internal capability identifier (currently derived from folder name). */
     id: string;
-    /** Immutable generated capability identity used to survive path/id reorganizations. */
+    /** Stable descriptor identity: legacy CAPABILITY uid or portable README id. */
     uid?: string;
     /** Historical human-readable ids that can be used for migration/reconciliation. */
     previousIds?: string[];
     /** Historical repo-relative paths that can be used for migration/reconciliation. */
     previousPaths?: string[];
-    /** Absolute path to CAPABILITY.md. */
+    /** Absolute path to the selected descriptor. */
     manifestPath: string;
+    /** Descriptor format used to produce this metadata. */
+    descriptorKind?: CapabilityDescriptorKind;
     /** User-facing capability name. */
     name?: string;
     /** User-facing capability description. */

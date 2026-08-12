@@ -42,14 +42,8 @@ import {
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
-const CONFIG_PATH = path.resolve(
-    __dirname,
-    '../../../test-workspace/.metaflow/config.jsonc',
-);
-const STATE_PATH = path.resolve(
-    __dirname,
-    '../../../test-workspace/.metaflow/state.json',
-);
+const CONFIG_PATH = path.resolve(__dirname, '../../../test-workspace/.metaflow/config.jsonc');
+const STATE_PATH = path.resolve(__dirname, '../../../test-workspace/.metaflow/state.json');
 
 function readLayersViewMode(): string | undefined {
     try {
@@ -85,7 +79,7 @@ suite('Tree Filter Result Verification', function () {
         sideBar = await openMetaFlowSidebar();
 
         // Open and expand both sections so items are rendered
-        const capSection  = await getSection(sideBar, 'Capabilities');
+        const capSection = await getSection(sideBar, 'Capabilities');
         const filesSection = await getSection(sideBar, 'Effective Files');
         await waitForSectionReady(capSection, WAIT_TIMEOUT);
         await waitForSectionReady(filesSection, WAIT_TIMEOUT);
@@ -143,14 +137,17 @@ suite('Tree Filter Result Verification', function () {
         // Soft assertion: if the filter narrowed to items, they should contain "sdlc"
         if (hasAnyItem) {
             const allMatchSdlc = textsFiltered.every(
-                t => t.toLowerCase().includes('sdlc') || t.toLowerCase().includes('standards'),
+                (t) => t.toLowerCase().includes('sdlc') || t.toLowerCase().includes('standards'),
             );
             // Not all VS Code versions hide non-matching items — record the observation
             if (!allMatchSdlc) {
                 // Filter may be highlighting rather than hiding; still verify sdlc is present
             }
             assert.ok(
-                textsFiltered.some(t => t.toLowerCase().includes('sdlc') || t.toLowerCase().includes('standards')),
+                textsFiltered.some(
+                    (t) =>
+                        t.toLowerCase().includes('sdlc') || t.toLowerCase().includes('standards'),
+                ),
                 `Expected at least one sdlc item to remain visible after filtering for "sdlc". Visible: ${textsFiltered.join(', ')}`,
             );
         }
@@ -182,7 +179,9 @@ suite('Tree Filter Result Verification', function () {
         const textsFiltered = await getVisibleItemTexts(capSection);
         if (textsFiltered.length > 0) {
             assert.ok(
-                textsFiltered.some(t => t.toLowerCase().includes('core') || t.toLowerCase().includes('company')),
+                textsFiltered.some(
+                    (t) => t.toLowerCase().includes('core') || t.toLowerCase().includes('company'),
+                ),
                 `Expected at least one core item visible after filtering for "core". Visible: ${textsFiltered.join(', ')}`,
             );
         }
@@ -311,7 +310,7 @@ suite('Tree Filter Result Verification', function () {
         const textsFiltered = await getVisibleItemTexts(filesSection);
         if (textsFiltered.length > 0) {
             assert.ok(
-                textsFiltered.some(t => t.toLowerCase().includes('testing')),
+                textsFiltered.some((t) => t.toLowerCase().includes('testing')),
                 `Expected "testing" to appear in filtered Effective Files. Visible: ${textsFiltered.join(', ')}`,
             );
         }
@@ -365,7 +364,9 @@ suite('Tree Filter Result Verification', function () {
             return;
         }
 
-        if (!input) { return; }
+        if (!input) {
+            return;
+        }
 
         // Type several characters and verify each doesn't crash
         await input.setText('test');
@@ -398,7 +399,9 @@ suite('Tree Filter Result Verification', function () {
             return;
         }
 
-        if (!input) { return; }
+        if (!input) {
+            return;
+        }
 
         await input.setText('sdlc');
         await sleep(500);

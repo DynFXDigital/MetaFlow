@@ -1,9 +1,14 @@
 import * as assert from 'assert';
 import {
+    buildAgentPluginCatalog,
     capabilityManifestConstants,
     collectDuplicateCapabilityUidWarnings,
+    hasValidReadmeDescriptorAtRoot,
+    loadCapabilityDescriptorForLayer,
     loadCapabilityManifestForLayer,
+    parseReadmeDescriptorContent,
     parseCapabilityManifestContent,
+    resolveCapabilityDescriptorPath,
     type CapabilityMetadata,
 } from '../src/index';
 import * as fs from 'fs';
@@ -279,6 +284,375 @@ describe('capabilityManifest parser', () => {
         } finally {
             fs.rmSync(tmpDir, { recursive: true, force: true });
         }
+    });
+
+    it('loads a minimal README.md descriptor with body and selected path', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
+        try {
+            const descriptorId = '123e4567-e89b-42d3-a456-426614174000';
+            const readmePath = path.join(tmpDir, 'README.md');
+            fs.writeFileSync(
+                readmePath,
+                [
+                    '---',
+                    `id: ${descriptorId}`,
+                    'name: Portable Package',
+                    'description: A portable package descriptor.',
+                    '---',
+                    '',
+                    '# Portable Package',
+                    '',
+                    'Human-facing package documentation.',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityDescriptorForLayer(tmpDir, 'portable-package');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.id, 'portable-package');
+            assert.strictEqual(loaded?.uid, undefined);
+            assert.strictEqual(loaded?.descriptorKind, 'readme');
+            assert.strictEqual(loaded?.manifestPath, readmePath);
+            assert.strictEqual(loaded?.name, 'Portable Package');
+            assert.strictEqual(loaded?.description, 'A portable package descriptor.');
+            assert.ok(loaded?.body?.includes('Human-facing package documentation.'));
+            assert.strictEqual(loaded?.license, undefined);
+            assert.strictEqual(loaded?.experimental, undefined);
+            assert.strictEqual(loaded?.agentPlugin, undefined);
+            assert.deepStrictEqual(loaded?.warnings, []);
+            assert.deepStrictEqual(resolveCapabilityDescriptorPath(tmpDir), {
+                kind: 'readme',
+                absolutePath: readmePath,
+            });
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps CAPABILITY.md as the absence-only fallback', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
+        try {
+            const capabilityPath = path.join(tmpDir, 'CAPABILITY.md');
+            fs.writeFileSync(
+                capabilityPath,
+                [
+                    '---',
+                    'uid: 123e4567-e89b-42d3-a456-426614174000',
+                    'name: Legacy Package',
+                    'description: A legacy package descriptor.',
+                    'license: MIT',
+                    '---',
+                    '',
+                    'Legacy body.',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'legacy-package');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.descriptorKind, 'capability');
+            assert.strictEqual(loaded?.manifestPath, capabilityPath);
+            assert.strictEqual(loaded?.name, 'Legacy Package');
+            assert.strictEqual(loaded?.license, 'MIT');
+            assert.strictEqual(
+                resolveCapabilityDescriptorPath(tmpDir)?.absolutePath,
+                capabilityPath,
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('prefers README.md and emits a stable duplicate warning without merging', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'README.md'),
+                [
+                    '---',
+                    'id: 123e4567-e89b-42d3-a456-426614174000',
+                    'name: README Package',
+                    'description: README wins.',
+                    '---',
+                    '',
+                    'README body.',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, 'CAPABILITY.md'),
+                [
+                    '---',
+                    'name: Legacy Package',
+                    'description: Legacy loses.',
+                    'license: MIT',
+                    'agentPlugin: true',
+                    '---',
+                    '',
+                    'Legacy body.',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'duplicate-package');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.manifestPath, path.join(tmpDir, 'README.md'));
+            assert.strictEqual(loaded?.name, 'README Package');
+            assert.strictEqual(loaded?.description, 'README wins.');
+            assert.strictEqual(loaded?.license, undefined);
+            assert.strictEqual(loaded?.agentPlugin, undefined);
+            const duplicateWarnings = loaded?.warnings.filter(
+                (warning) => warning.code === 'CAPABILITY_DESCRIPTOR_DUPLICATE',
+            );
+            assert.strictEqual(duplicateWarnings?.length, 1);
+            assert.ok(duplicateWarnings?.[0].message.includes('contents differ'));
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('diagnoses malformed README.md without falling back to CAPABILITY.md', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
+        try {
+            const readmePath = path.join(tmpDir, 'README.md');
+            fs.writeFileSync(
+                readmePath,
+                ['---', 'name: Broken README', 'description: Missing closing delimiter'].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, 'CAPABILITY.md'),
+                ['---', 'name: Legacy Fallback', 'description: Must not be selected.', '---'].join(
+                    '\n',
+                ),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'broken-package');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.manifestPath, readmePath);
+            assert.strictEqual(loaded?.name, undefined);
+            assert.strictEqual(loaded?.description, undefined);
+            assert.ok(
+                loaded?.warnings.some(
+                    (warning) => warning.code === 'README_DESCRIPTOR_FRONTMATTER_MALFORMED',
+                ),
+            );
+            assert.ok(
+                loaded?.warnings.some(
+                    (warning) => warning.code === 'CAPABILITY_DESCRIPTOR_DUPLICATE',
+                ),
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('treats an ordinary README.md as documentation without front matter', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-test-'));
+        try {
+            const readmePath = path.join(tmpDir, 'README.md');
+            fs.writeFileSync(readmePath, '# Ordinary Repository\n\nDocumentation only.', 'utf-8');
+
+            assert.strictEqual(hasValidReadmeDescriptorAtRoot(tmpDir), true);
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'ordinary-repository');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.manifestPath, readmePath);
+            assert.strictEqual(loaded?.name, 'Ordinary Repository');
+            assert.deepStrictEqual(loaded?.warnings, []);
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('infers plugin metadata from README package plugin.json', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-manifest-plugin-test-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'README.md'),
+                '# Plugin Package\n\nHuman-facing plugin documentation.',
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, 'plugin.json'),
+                JSON.stringify(
+                    {
+                        name: 'plugin-package',
+                        version: '1.0.0',
+                        description: 'Runtime plugin metadata.',
+                        metaflow: { pluginHosts: ['github-copilot'] },
+                    },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'plugin-package');
+            assert.ok(loaded);
+            assert.strictEqual(loaded?.agentPlugin, true);
+            assert.strictEqual(loaded?.name, 'Plugin Package');
+            assert.strictEqual(loaded?.description, 'Runtime plugin metadata.');
+            assert.strictEqual(loaded?.agentPluginManifest?.name, 'plugin-package');
+            assert.strictEqual(loaded?.agentPluginManifest?.version, '1.0.0');
+            assert.deepStrictEqual(loaded?.agentPluginManifest?.pluginHosts, ['github-copilot']);
+            const catalog = buildAgentPluginCatalog([
+                { layerId: 'plugin-package', files: [], capability: loaded },
+            ]);
+            assert.strictEqual(catalog.entries.length, 1);
+            assert.strictEqual(catalog.entries[0].manifestPath, path.join(tmpDir, 'README.md'));
+            assert.strictEqual(catalog.entries[0].pluginJsonPath, path.join(tmpDir, 'plugin.json'));
+            assert.ok(
+                !loaded?.warnings.some(
+                    (warning) => warning.code === 'README_DESCRIPTOR_UNKNOWN_FIELD',
+                ),
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not activate or catalog plugin metadata for invalid README content', () => {
+        const cases = [
+            {
+                name: 'malformed-frontmatter',
+                readme: ['---', 'name: Broken', 'description: Missing closing delimiter'].join(
+                    '\n',
+                ),
+                warningCode: 'README_DESCRIPTOR_FRONTMATTER_MALFORMED',
+            },
+            {
+                name: 'missing-name',
+                readme: [
+                    '---',
+                    'id: 123e4567-e89b-42d3-a456-426614174000',
+                    'description: Missing name.',
+                    '---',
+                ].join('\n'),
+                warningCode: undefined,
+            },
+            {
+                name: 'missing-description',
+                readme: [
+                    '---',
+                    'id: 123e4567-e89b-42d3-a456-426614174000',
+                    'name: Missing Description',
+                    '---',
+                ].join('\n'),
+                warningCode: undefined,
+            },
+            {
+                name: 'ordinary-readme',
+                readme: '# Ordinary Repository\n\nDocumentation only.',
+                warningCode: undefined,
+            },
+            {
+                name: 'invalid-id',
+                readme: [
+                    '---',
+                    'name: Invalid Identifier',
+                    'description: The optional identifier is malformed.',
+                    'id: not-a-uuid',
+                    '---',
+                ].join('\n'),
+                warningCode: undefined,
+            },
+            {
+                name: 'missing-id',
+                readme: [
+                    '---',
+                    'name: Missing Identifier',
+                    'description: The required identifier is absent.',
+                    '---',
+                ].join('\n'),
+                warningCode: undefined,
+            },
+        ];
+
+        for (const testCase of cases) {
+            const tmpDir = fs.mkdtempSync(
+                path.join(os.tmpdir(), 'capability-manifest-plugin-test-'),
+            );
+            try {
+                fs.writeFileSync(path.join(tmpDir, 'README.md'), testCase.readme, 'utf-8');
+                fs.writeFileSync(
+                    path.join(tmpDir, 'plugin.json'),
+                    JSON.stringify(
+                        {
+                            name: `${testCase.name}-plugin`,
+                            version: '1.0.0',
+                            metaflow: { pluginHosts: ['github-copilot'] },
+                        },
+                        null,
+                        2,
+                    ),
+                    'utf-8',
+                );
+
+                const loaded = loadCapabilityManifestForLayer(tmpDir, testCase.name);
+                assert.ok(loaded);
+                assert.strictEqual(loaded?.agentPlugin, true);
+                assert.ok(loaded?.agentPluginManifest);
+                if (testCase.warningCode) {
+                    assert.ok(
+                        loaded?.warnings.some((warning) => warning.code === testCase.warningCode),
+                    );
+                }
+
+                const catalog = buildAgentPluginCatalog([
+                    { layerId: testCase.name, files: [], capability: loaded },
+                ]);
+                assert.strictEqual(catalog.entries.length, 1);
+            } finally {
+                fs.rmSync(tmpDir, { recursive: true, force: true });
+            }
+        }
+    });
+
+    it('accepts optional README frontmatter without a GUID contract', () => {
+        const parsed = parseReadmeDescriptorContent(
+            [
+                '---',
+                'id: 123e4567-e89b-42d3-a456-426614174000',
+                'name: Minimal',
+                'description: Minimal description.',
+                '---',
+                '',
+                'Body',
+            ].join('\n'),
+            'minimal',
+            '/tmp/README.md',
+        );
+
+        assert.strictEqual(parsed.name, 'Minimal');
+        assert.strictEqual(parsed.description, 'Minimal description.');
+        assert.strictEqual(parsed.uid, undefined);
+        assert.strictEqual(parsed.agentPlugin, undefined);
+        assert.strictEqual(parsed.experimental, undefined);
+        assert.strictEqual(parsed.previousIds, undefined);
+        assert.deepStrictEqual(parsed.warnings, []);
+    });
+
+    it('accepts incomplete README frontmatter as documentation', () => {
+        const parsed = parseReadmeDescriptorContent(
+            [
+                '---',
+                'id: 123e4567-e89b-42d3-a456-426614174000',
+                'name: Incomplete',
+                '---',
+                '',
+                'Body',
+            ].join('\n'),
+            'incomplete',
+            '/tmp/README.md',
+        );
+
+        assert.strictEqual(parsed.name, 'Incomplete');
+        assert.strictEqual(parsed.description, undefined);
+        assert.deepStrictEqual(parsed.warnings, []);
+        assert.strictEqual(parsed.agentPlugin, undefined);
+        assert.strictEqual(parsed.experimental, undefined);
+        assert.strictEqual(parsed.previousIds, undefined);
     });
 
     it('returns CAPABILITY_READ_ERROR warning when file cannot be read', () => {
@@ -571,10 +945,15 @@ describe('capabilityManifest parser', () => {
             JSON.stringify({
                 name: 'good-name',
                 version: '1.0.0',
-                metaflow: { pluginHosts: ['github-copilot'], minimumMetaflowVersion: 'not-a-range' },
+                metaflow: {
+                    pluginHosts: ['github-copilot'],
+                    minimumMetaflowVersion: 'not-a-range',
+                },
             }),
         );
-        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'));
+        assert.ok(
+            hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'),
+        );
     });
 
     it('emits an error when metaflow.minimumMetaflowVersion is not a string', () => {
@@ -585,12 +964,18 @@ describe('capabilityManifest parser', () => {
                 metaflow: { pluginHosts: ['github-copilot'], minimumMetaflowVersion: 14 },
             }),
         );
-        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'));
+        assert.ok(
+            hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_MINIMUM_METAFLOW_VERSION_INVALID'),
+        );
     });
 
-    it('recommends declaring pluginHosts when none are present', () => {
+    it('accepts a portable plugin manifest without MetaFlow metadata', () => {
         const loaded = loadWithPluginJson(JSON.stringify({ name: 'good-name', version: '1.0.0' }));
-        assert.ok(hasCode(loaded, 'CAPABILITY_AGENT_PLUGIN_MANIFEST_HOSTS_RECOMMENDED'));
+        assert.ok(loaded);
+        assert.ok(
+            !loaded.warnings.some((warning) => warning.code.startsWith('CAPABILITY_AGENT_PLUGIN')),
+            `expected no plugin metadata warnings, got: ${JSON.stringify(loaded.warnings)}`,
+        );
     });
 
     it('emits a read error when plugin.json cannot be read as a file', () => {

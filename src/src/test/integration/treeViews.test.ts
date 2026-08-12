@@ -1419,7 +1419,7 @@ suite('TreeView Providers', () => {
             .then((resolvedItem) => {
                 const tooltip = resolvedItem.tooltip as vscode.MarkdownString;
                 assert.ok(
-                    tooltip.value.includes('Layer: metaflow-source-ai-metadata'),
+                    tooltip.value.includes('Capability: metaflow-source-ai-metadata'),
                     'Tooltip should use the resolved repository display label for root layers',
                 );
             });

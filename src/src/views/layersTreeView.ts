@@ -362,6 +362,7 @@ interface LayerEntry {
         id?: string;
         name?: string;
         description?: string;
+        keywords?: string[];
         license?: string;
         experimental?: boolean;
     };
@@ -516,6 +517,9 @@ class LayerItem extends vscode.TreeItem {
     readonly repoId?: string;
     readonly pathKey?: string;
     readonly layerPath?: string;
+    readonly capabilityId?: string;
+    readonly capabilityDescription?: string;
+    readonly capabilityKeywords: string[];
 
     constructor(
         label: string,
@@ -535,6 +539,7 @@ class LayerItem extends vscode.TreeItem {
             capabilityName?: string;
             capabilityId?: string;
             capabilityDescription?: string;
+            capabilityKeywords?: string[];
             capabilityLicense?: string;
             capabilityExperimental?: boolean;
             folderDescription?: string;
@@ -560,6 +565,9 @@ class LayerItem extends vscode.TreeItem {
         this.repoId = options?.repoId;
         this.pathKey = options?.path;
         this.layerPath = options?.layerPath;
+        this.capabilityId = options?.capabilityId;
+        this.capabilityDescription = options?.capabilityDescription;
+        this.capabilityKeywords = [...(options?.capabilityKeywords ?? [])];
 
         if (typeof layerIndex === 'number') {
             this.contextValue = 'layer';
@@ -623,13 +631,12 @@ class LayerItem extends vscode.TreeItem {
               : qualifiers.length > 0
                 ? `(${qualifiers.join(', ')})`
                 : '';
-
         const contextLines: string[] = [];
         if (options?.repoLabel) {
             contextLines.push(`Repository: \`${options.repoLabel}\``);
         }
         if (options?.layerPath) {
-            contextLines.push(`Layer: \`${options.layerPath}\``);
+            contextLines.push(`Capability: \`${options.layerPath}\``);
         }
         if (options?.branchToggleSummary) {
             contextLines.push(`Branch state: ${formatBranchStatus(options.branchToggleSummary)}`);
@@ -789,7 +796,7 @@ class ArtifactTypeLayerItem extends vscode.TreeItem {
         }
 
         if (options?.layerPath) {
-            detailLines.push(`Layer: \`${options.layerPath}\``);
+            detailLines.push(`Capability: \`${options.layerPath}\``);
         }
 
         this.tooltip = buildMarkdownTooltip(`**Artifact Type**: ${artifactType}`, detailLines);
@@ -997,6 +1004,9 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 element.pathKey,
                 element.layerPath,
                 element.description,
+                element.capabilityId,
+                element.capabilityDescription,
+                ...element.capabilityKeywords,
             ]
                 .filter((value): value is string => typeof value === 'string')
                 .join(' ')
@@ -1423,7 +1433,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             ? [`Id: \`${metadata.internalId.trim()}\``]
                             : []),
                         ...(repoLabel ? [`Repository: \`${repoLabel}\``] : []),
-                        `Layer: \`${layerPath}\``,
+                        `Capability: \`${layerPath}\``,
                     ],
                     metadata.description ? `*${metadata.description}*` : undefined,
                 );
@@ -1460,7 +1470,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     [
                         `Path: \`${artifactType}/${normalizedArtifactPath}\``,
                         ...(repoLabel ? [`Repository: \`${repoLabel}\``] : []),
-                        `Layer: \`${layerPath}\``,
+                        `Capability: \`${layerPath}\``,
                     ],
                     metadata?.fields?.description?.trim()
                         ? `*${metadata.fields.description.trim()}*`
@@ -1496,6 +1506,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
             id?: string;
             name?: string;
             description?: string;
+            keywords?: string[];
             license?: string;
             experimental?: boolean;
         }
@@ -1506,6 +1517,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                 id?: string;
                 name?: string;
                 description?: string;
+                keywords?: string[];
                 license?: string;
                 experimental?: boolean;
             }
@@ -2038,6 +2050,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityName: matchingEntry?.capability?.name,
                         capabilityId: matchingEntry?.capability?.id,
                         capabilityDescription: matchingEntry?.capability?.description,
+                        capabilityKeywords: matchingEntry?.capability?.keywords,
                         capabilityLicense: matchingEntry?.capability?.license,
                         capabilityExperimental: matchingEntry?.capability?.experimental,
                         folderDescription: directoryMetadata?.description,
@@ -2123,6 +2136,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                         capabilityName: rootEntry.capability?.name,
                         capabilityId: rootEntry.capability?.id,
                         capabilityDescription: rootEntry.capability?.description,
+                        capabilityKeywords: rootEntry.capability?.keywords,
                         capabilityLicense: rootEntry.capability?.license,
                         summary: rootSummary,
                         scopeSummary: rootScopeSummary,
@@ -2320,6 +2334,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                             capabilityName: entry.capability?.name,
                             capabilityId: entry.capability?.id,
                             capabilityDescription: entry.capability?.description,
+                            capabilityKeywords: entry.capability?.keywords,
                             capabilityLicense: entry.capability?.license,
                             capabilityExperimental: entry.capability?.experimental,
                             summary: this.summarizeConcreteLayer(
@@ -2384,7 +2399,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     return this.trackChildren(artifactChildren, element);
                 }
 
-                return this.trackChildren(
+                return this.trackChildren<LayerTreeItem>(
                     folderChildren.length > 0 ? folderChildren : artifactChildren,
                     element,
                 );

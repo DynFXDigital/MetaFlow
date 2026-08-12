@@ -14,7 +14,7 @@ Use this prompt to review the `capabilities/metadata-authoring/github-copilot-me
 
 Evaluate and update:
 
-- `capabilities/metadata-authoring/github-copilot-metadata-authoring/CAPABILITY.md`
+- `capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/instructions/ai-metadata-*.instructions.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/prompts/create-agents-md.prompt.md`
 - `capabilities/metadata-authoring/github-copilot-metadata-authoring/.github/prompts/review-metadata-authoring-capability.prompt.md`

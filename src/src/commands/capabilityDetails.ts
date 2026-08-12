@@ -2,11 +2,12 @@ import * as fsp from 'fs/promises';
 import * as path from 'path';
 import {
     getArtifactType,
-    loadCapabilityManifestForLayer,
+    loadCapabilityDescriptorForLayer,
     loadRepoManifestForRoot,
     MetaFlowConfig,
     resolvePathFromWorkspace,
 } from '@metaflow/engine';
+import type { CapabilityDescriptorKind } from '@metaflow/engine';
 import {
     InstructionScopeSummary,
     summarizeLayerContentInstructionScope,
@@ -30,13 +31,7 @@ import {
 } from '../nativeContributions';
 
 type DetailArtifactType =
-    | 'instructions'
-    | 'prompts'
-    | 'commands'
-    | 'agents'
-    | 'skills'
-    | 'hooks'
-    | 'other';
+    'instructions' | 'prompts' | 'commands' | 'agents' | 'skills' | 'hooks' | 'other';
 
 const DETAIL_ARTIFACT_ORDER: DetailArtifactType[] = [
     'instructions',
@@ -96,6 +91,9 @@ export interface CapabilityDetailModel {
     layerRoot: string;
     repoId?: string;
     repoLabel: string;
+    descriptorPath?: string;
+    descriptorKind?: CapabilityDescriptorKind;
+    /** @deprecated Use descriptorPath. */
     manifestPath?: string;
     enabled: boolean;
     builtIn: boolean;
@@ -147,7 +145,11 @@ async function collectLayerFiles(layerRoot: string): Promise<string[]> {
             }
 
             const relativePath = toPosixPath(path.relative(layerRoot, absolutePath));
-            if (relativePath.length > 0 && relativePath !== 'CAPABILITY.md') {
+            if (
+                relativePath.length > 0 &&
+                relativePath !== 'README.md' &&
+                relativePath !== 'CAPABILITY.md'
+            ) {
                 files.push(relativePath);
             }
         }
@@ -217,7 +219,7 @@ export function resolveCapabilityDetailTarget(
             layerPath,
             builtInCapability.sourceRoot,
         );
-        const manifest = loadCapabilityManifestForLayer(
+        const manifest = loadCapabilityDescriptorForLayer(
             path.join(builtInCapability.sourceRoot, layerPath),
             derivedCapabilityId,
         );
@@ -278,7 +280,7 @@ export function resolveCapabilityDetailTarget(
             loadRepoManifestForRoot(repoRoot)?.name,
         );
         const derivedCapabilityId = deriveCapabilityIdFromLayerPath(source.path, repoRoot);
-        const manifest = loadCapabilityManifestForLayer(
+        const manifest = loadCapabilityDescriptorForLayer(
             path.join(repoRoot, source.path),
             derivedCapabilityId,
         );
@@ -317,7 +319,7 @@ export function resolveCapabilityDetailTarget(
             loadRepoManifestForRoot(repoRoot)?.name,
         );
         const derivedCapabilityId = deriveCapabilityIdFromLayerPath(capability.path, repoRoot);
-        const manifest = loadCapabilityManifestForLayer(
+        const manifest = loadCapabilityDescriptorForLayer(
             path.join(repoRoot, capability.path),
             derivedCapabilityId,
         );
@@ -352,7 +354,7 @@ export function resolveCapabilityDetailTarget(
 
         const repoRoot = resolvePathFromWorkspace(workspaceRoot, config.metadataRepo.localPath);
         const capabilityId = deriveCapabilityIdFromLayerPath(layerPath, repoRoot);
-        const manifest = loadCapabilityManifestForLayer(
+        const manifest = loadCapabilityDescriptorForLayer(
             path.join(repoRoot, layerPath),
             capabilityId,
         );
@@ -384,14 +386,16 @@ export async function loadCapabilityDetailModel(
     treeSummaryCache?: TreeSummaryCache,
     governanceState?: GovernanceUiState,
 ): Promise<CapabilityDetailModel> {
-    const manifest = loadCapabilityManifestForLayer(target.layerRoot, target.capabilityId);
+    const descriptor = loadCapabilityDescriptorForLayer(target.layerRoot, target.capabilityId);
     const layerFiles = await collectLayerFiles(target.layerRoot);
     const artifactBuckets = buildArtifactBuckets(layerFiles);
-    const warnings = manifest
-        ? manifest.warnings.map((warning) =>
+    const warnings = descriptor
+        ? descriptor.warnings.map((warning) =>
               formatWarning(warning.code, warning.message, warning.severity),
           )
-        : ['[CAPABILITY_MANIFEST_MISSING] CAPABILITY.md was not found at the layer root.'];
+        : [
+              '[DESCRIPTOR_MISSING] No README.md or legacy CAPABILITY.md descriptor was found at the capability package root.',
+          ];
     const instructionScopeSummary = summarizeLayerContentInstructionScope(
         treeSummaryCache,
         target.repoId,
@@ -404,20 +408,20 @@ export async function loadCapabilityDetailModel(
     );
 
     return {
-        title: manifest?.name?.trim() || target.fallbackTitle,
-        capabilityId: manifest?.id ?? target.capabilityId,
-        description: manifest?.description?.trim(),
-        license: manifest?.license?.trim(),
-        experimental: manifest?.experimental,
-        agentPlugin: manifest?.agentPlugin,
-        agentPluginManifest: manifest?.agentPluginManifest
+        title: descriptor?.name?.trim() || target.fallbackTitle,
+        capabilityId: target.capabilityId,
+        description: descriptor?.description?.trim(),
+        license: descriptor?.license?.trim(),
+        experimental: descriptor?.experimental,
+        agentPlugin: descriptor?.agentPlugin,
+        agentPluginManifest: descriptor?.agentPluginManifest
             ? {
-                  pluginJsonPath: manifest.agentPluginManifest.pluginJsonPath,
-                  name: manifest.agentPluginManifest.name,
-                  version: manifest.agentPluginManifest.version,
-                  description: manifest.agentPluginManifest.description,
-                  pluginHosts: manifest.agentPluginManifest.pluginHosts,
-                  minimumMetaflowVersion: manifest.agentPluginManifest.minimumMetaflowVersion,
+                  pluginJsonPath: descriptor.agentPluginManifest.pluginJsonPath,
+                  name: descriptor.agentPluginManifest.name,
+                  version: descriptor.agentPluginManifest.version,
+                  description: descriptor.agentPluginManifest.description,
+                  pluginHosts: descriptor.agentPluginManifest.pluginHosts,
+                  minimumMetaflowVersion: descriptor.agentPluginManifest.minimumMetaflowVersion,
               }
             : undefined,
         layerId: target.layerId,
@@ -426,7 +430,9 @@ export async function loadCapabilityDetailModel(
         layerRoot: target.layerRoot,
         repoId: target.repoId,
         repoLabel: target.repoLabel,
-        manifestPath: manifest?.manifestPath,
+        descriptorPath: descriptor?.manifestPath,
+        descriptorKind: descriptor?.descriptorKind,
+        manifestPath: descriptor?.manifestPath,
         enabled: target.enabled,
         builtIn: target.builtIn,
         warnings,
@@ -439,7 +445,7 @@ export async function loadCapabilityDetailModel(
             normalizeBuiltInLayerPath(target.layerPath) === BUILT_IN_CAPABILITY_LAYER_PATH
                 ? METAFLOW_NATIVE_CONTRIBUTIONS
                 : undefined,
-        body: manifest?.body?.trim(),
+        body: descriptor?.body,
         ...(governance.summary
             ? {
                   governance: {
