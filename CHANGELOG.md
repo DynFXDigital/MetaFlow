@@ -4,6 +4,12 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.4
+
+### Fixed
+
+- Marketplace-level README files are no longer surfaced as toggleable MetaFlow capabilities.
+
 ## 0.4.3
 
 ### Highlights

@@ -1,5 +1,11 @@
 # @metaflow/cli
 
+## 0.4.4
+
+### Patch Changes
+
+- Exclude marketplace-level README files from MetaFlow capability discovery and metadata loading.
+
 ## 0.4.3
 
 ### Maintenance
