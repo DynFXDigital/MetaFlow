@@ -10,6 +10,11 @@ import * as path from 'path';
 import { RepoMetadata } from './types';
 
 const REPO_MANIFEST_FILE_NAME = 'METAFLOW.md';
+const MARKETPLACE_MANIFEST_RELATIVE_PATH = path.join(
+    '.github',
+    'plugin',
+    'marketplace.json',
+);
 
 function stripQuotes(value: string): string {
     const trimmed = value.trim();
@@ -85,6 +90,16 @@ export function loadRepoManifestForRoot(repoRoot: string): RepoMetadata | undefi
     }
 }
 
+/** Return whether a directory is the root of a generated agent-plugin marketplace. */
+export function isMarketplaceRepositoryRoot(directoryPath: string): boolean {
+    try {
+        return fs.statSync(path.join(directoryPath, MARKETPLACE_MANIFEST_RELATIVE_PATH)).isFile();
+    } catch {
+        return false;
+    }
+}
+
 export const repoManifestConstants = {
     REPO_MANIFEST_FILE_NAME,
+    MARKETPLACE_MANIFEST_RELATIVE_PATH,
 };

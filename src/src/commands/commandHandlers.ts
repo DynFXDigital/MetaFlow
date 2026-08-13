@@ -3606,7 +3606,11 @@ function loadLatestConfigForMutation(
     if (loaded.ok) {
         const config = cloneConfig(loaded.config);
         const managedState = loadManagedState(workspaceRoot);
-        restoreCapabilityCatalog(config, managedState.capabilityCatalog?.entries);
+        restoreCapabilityCatalog(
+            config,
+            workspaceRoot,
+            managedState.capabilityCatalog?.entries,
+        );
         return config;
     }
 
@@ -5733,6 +5737,7 @@ export function registerCommands(
             const managedStateForCapabilityCatalog = loadManagedState(ws.uri.fsPath);
             restoreCapabilityCatalog(
                 result.config,
+                ws.uri.fsPath,
                 managedStateForCapabilityCatalog.capabilityCatalog?.entries,
             );
             const governanceResult = loadGovernanceContract(ws.uri.fsPath);

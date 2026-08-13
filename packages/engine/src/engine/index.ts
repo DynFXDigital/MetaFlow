@@ -77,6 +77,7 @@ export {
 export {
     parseRepoManifestContent,
     loadRepoManifestForRoot,
+    isMarketplaceRepositoryRoot,
     repoManifestConstants,
 } from './repoManifest';
 export { parseFrontmatter } from './frontmatter';

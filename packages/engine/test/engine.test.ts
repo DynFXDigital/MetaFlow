@@ -551,6 +551,36 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['plugins/portable-package']);
     });
 
+    it('does not discover a marketplace-level README as a capability', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'readme-marketplace-repo');
+        const pluginRoot = path.join(repoRoot, 'plugins', 'portable-package');
+        fs.mkdirSync(pluginRoot, { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, '.github', 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(repoRoot, '.github', 'plugin'), { recursive: true });
+        fs.writeFileSync(
+            path.join(repoRoot, 'README.md'),
+            ['---', 'name: Plugin Marketplace', 'description: Marketplace overview.', '---'].join(
+                '\n',
+            ),
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(repoRoot, 'plugin.json'), '{}', 'utf-8');
+        fs.writeFileSync(
+            path.join(repoRoot, '.github', 'plugin', 'marketplace.json'),
+            JSON.stringify({ name: 'plugin-marketplace', owner: { name: 'Example' }, plugins: [] }),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(pluginRoot, 'README.md'),
+            ['---', 'name: Portable Package', 'description: Plugin package.', '---'].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(pluginRoot, 'plugin.json'), '{}', 'utf-8');
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['plugins/portable-package']);
+    });
+
     it('does not discover artifact roots as standalone layer directories', () => {
         const repoRoot = path.join(tmpDir, '.ai', 'discover-artifact-root-repo');
         fs.mkdirSync(path.join(repoRoot, 'instructions', 'nested-capability'), {

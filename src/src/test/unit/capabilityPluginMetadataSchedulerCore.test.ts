@@ -90,6 +90,33 @@ suite('Capability plugin metadata scheduler core', () => {
         }
     });
 
+    test('does not treat a marketplace README as a package root', () => {
+        const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-marketplace-scheduler-'));
+        try {
+            fs.mkdirSync(path.join(repoRoot, '.github', 'plugin'), { recursive: true });
+            fs.writeFileSync(
+                path.join(repoRoot, 'README.md'),
+                [
+                    '---',
+                    'name: Plugin Marketplace',
+                    'description: Marketplace overview.',
+                    '---',
+                ].join('\n'),
+                'utf-8',
+            );
+            fs.writeFileSync(path.join(repoRoot, 'plugin.json'), '{}', 'utf-8');
+            fs.writeFileSync(
+                path.join(repoRoot, '.github', 'plugin', 'marketplace.json'),
+                '{}',
+                'utf-8',
+            );
+
+            assert.strictEqual(findNearestCapabilityDirectory(repoRoot, repoRoot), undefined);
+        } finally {
+            fs.rmSync(repoRoot, { recursive: true, force: true });
+        }
+    });
+
     test('debounces dirty repo maintenance and keeps latest capability set', async () => {
         const callbacks: Array<() => void> = [];
         const cleared = new Set<number>();

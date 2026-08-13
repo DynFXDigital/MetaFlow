@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { hasValidReadmeDescriptorAtRoot } from '@metaflow/engine';
+import { hasValidReadmeDescriptorAtRoot, isMarketplaceRepositoryRoot } from '@metaflow/engine';
 
 export const CAPABILITY_PLUGIN_METADATA_WATCH_PATTERNS = [
     '**/README.md',
@@ -37,6 +37,10 @@ function isDirectory(candidatePath: string): boolean {
     }
 }
 
+function isMarketplaceRoot(directoryPath: string): boolean {
+    return isMarketplaceRepositoryRoot(directoryPath);
+}
+
 function hasKnownCapabilityArtifacts(directoryPath: string): boolean {
     return KNOWN_CAPABILITY_ARTIFACT_ROOTS.some(
         (artifactRoot) =>
@@ -46,6 +50,10 @@ function hasKnownCapabilityArtifacts(directoryPath: string): boolean {
 }
 
 function isRecognizedReadmePackageRoot(directoryPath: string): boolean {
+    if (isMarketplaceRoot(directoryPath)) {
+        return false;
+    }
+
     if (!hasValidReadmeDescriptorAtRoot(directoryPath)) {
         return false;
     }
