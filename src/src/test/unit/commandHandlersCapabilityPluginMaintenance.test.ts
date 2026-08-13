@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { buildTreeSummaryCache, summarizeLayerContents, summarizeRepo } from '../../treeSummary';
 
 function loadCommandHandlers(
     vscodeOverride?: unknown,
@@ -61,6 +62,72 @@ function loadCommandHandlers(
 }
 
 suite('Command handler capability plugin maintenance helpers', () => {
+    test('projects enabled built-in metadata into active tree counts', async () => {
+        const { withBuiltInCapabilityProjected } = loadCommandHandlers();
+        const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-built-in-counts-'));
+        const builtInRoot = path.join(workspaceRoot, 'built-in');
+        const instructionPath = path.join(
+            builtInRoot,
+            '.github',
+            'instructions',
+            'built-in.instructions.md',
+        );
+        fs.mkdirSync(path.dirname(instructionPath), { recursive: true });
+        fs.writeFileSync(instructionPath, '# built-in\n');
+
+        try {
+            const projectedConfig = withBuiltInCapabilityProjected(
+                {
+                    metadataRepos: [{ id: 'primary', localPath: 'metadata', enabled: true }],
+                    layerSources: [{ repoId: 'primary', path: '.', enabled: true }],
+                    profiles: { default: {} },
+                    activeProfile: 'default',
+                },
+                {
+                    enabled: true,
+                    layerEnabled: true,
+                    synchronizedFiles: [],
+                    sourceRoot: builtInRoot,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            );
+
+            const effectiveFiles = [
+                {
+                    relativePath: 'instructions/built-in.instructions.md',
+                    sourcePath: instructionPath,
+                    sourceLayer: '__metaflow_builtin__/.',
+                    sourceRepo: '__metaflow_builtin__',
+                    classification: 'plugin' as const,
+                },
+            ];
+            const cache = await buildTreeSummaryCache(
+                projectedConfig,
+                workspaceRoot,
+                effectiveFiles,
+                effectiveFiles,
+                {
+                    enabled: true,
+                    layerEnabled: true,
+                    synchronizedFiles: [],
+                    sourceRoot: builtInRoot,
+                    sourceId: 'dynfxdigital.metaflow-ai',
+                    sourceDisplayName: 'MetaFlow: AI Metadata Overlay',
+                },
+            );
+
+            assert.strictEqual(summarizeRepo(cache, '__metaflow_builtin__').totalActive, 1);
+            assert.strictEqual(summarizeRepo(cache, '__metaflow_builtin__').totalAvailable, 1);
+            assert.strictEqual(
+                summarizeLayerContents(cache, '__metaflow_builtin__', '.').totalActive,
+                1,
+            );
+        } finally {
+            fs.rmSync(workspaceRoot, { recursive: true, force: true });
+        }
+    });
+
     test('filterSettingsEligibleEffectiveFiles keeps built-in native contributions out of settings', () => {
         const { filterSettingsEligibleEffectiveFiles } = loadCommandHandlers();
         const effectiveFiles = [

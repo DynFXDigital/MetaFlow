@@ -2598,7 +2598,7 @@ function cloneConfig(config: MetaFlowConfig): MetaFlowConfig {
     return JSON.parse(JSON.stringify(config)) as MetaFlowConfig;
 }
 
-function withBuiltInCapabilityProjected(
+export function withBuiltInCapabilityProjected(
     config: MetaFlowConfig,
     builtInState: BuiltInCapabilityRuntimeState,
 ): MetaFlowConfig {
@@ -5943,7 +5943,15 @@ export function registerCommands(
                 const injectionConfig = resolveInjectionConfig(ws, result.config);
                 const shouldEnableDiscovery =
                     autoApplyEnabled || refreshOptions.forceDiscovery === true;
-                const activeProfileConfig = projectConfigForProfile(result.config);
+                // The built-in capability is runtime-owned rather than authored in
+                // metaflow.config. Project it into the refresh pipeline before
+                // resolving effective files; otherwise the tree can discover its
+                // available artifacts while the active side remains at zero.
+                const projectedConfig = withBuiltInCapabilityProjected(
+                    result.config,
+                    state.builtInCapability,
+                );
+                const activeProfileConfig = projectConfigForProfile(projectedConfig);
                 if (shouldAdvanceCapabilityIdentitySnapshot) {
                     saveCapabilityIdentitySnapshot(result.config, ws.uri.fsPath);
                 }
@@ -6014,7 +6022,7 @@ export function registerCommands(
                     overlay.capabilityDiagnostics,
                 );
                 const profileEffectiveFilesByName = buildProfileEffectiveFilesLookup(
-                    result.config,
+                    projectedConfig,
                     ws.uri.fsPath,
                     injectionConfig,
                     result.config.activeProfile,
@@ -6028,7 +6036,7 @@ export function registerCommands(
                     },
                 );
                 state.treeSummaryCache = await buildTreeSummaryCache(
-                    result.config,
+                    projectedConfig,
                     ws.uri.fsPath,
                     state.effectiveFiles,
                     state.baseProfileFiles,
