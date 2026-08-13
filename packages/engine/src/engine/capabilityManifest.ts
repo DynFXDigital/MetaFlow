@@ -23,6 +23,7 @@ import {
     CapabilityMetadata,
     CapabilityWarning,
 } from './types';
+import { isMarketplaceRepositoryRoot } from './repoManifest';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
 const README_FILE_NAME = 'README.md';
@@ -951,6 +952,10 @@ export function loadCapabilityDescriptorForLayer(
 ): CapabilityMetadata | undefined {
     const descriptor = resolveCapabilityDescriptorPath(layerPath);
     if (!descriptor) {
+        return undefined;
+    }
+
+    if (descriptor.kind === 'readme' && isMarketplaceRepositoryRoot(layerPath)) {
         return undefined;
     }
 

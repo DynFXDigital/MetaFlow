@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadManagedState, saveManagedState, resolvePathFromWorkspace } from '@metaflow/engine';
+import {
+    isMarketplaceRepositoryRoot,
+    loadManagedState,
+    saveManagedState,
+    resolvePathFromWorkspace,
+} from '@metaflow/engine';
 import type {
     LayerSource,
     MetaFlowConfig,
@@ -543,6 +548,7 @@ export function extractApplyCommandOptions(arg: unknown): ApplyCommandOptions {
 /** Restore the discovered capability catalog held in state.json into runtime config. */
 export function restoreCapabilityCatalog(
     config: MetaFlowConfig,
+    workspaceRoot: string,
     catalogEntries: Array<{ repoId: string; path: string }> | undefined,
 ): void {
     if (!config.metadataRepos) {
@@ -569,6 +575,12 @@ export function restoreCapabilityCatalog(
         if (!repo) {
             continue;
         }
+
+        const repoRoot = resolvePathFromWorkspace(workspaceRoot, repo.localPath);
+        if (entry.path === '.' && isMarketplaceRepositoryRoot(repoRoot)) {
+            continue;
+        }
+
         addSource({
             repoId: entry.repoId,
             path: entry.path,

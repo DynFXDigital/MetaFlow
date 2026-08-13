@@ -23,6 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
+import { isMarketplaceRepositoryRoot } from './repoManifest';
 
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
@@ -402,7 +403,10 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
         const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
 
-        if (hasArtifactAtRoot || hasGithubArtifacts || hasCapabilityManifest) {
+        if (
+            !isMarketplaceRepositoryRoot(currentDir) &&
+            (hasArtifactAtRoot || hasGithubArtifacts || hasCapabilityManifest)
+        ) {
             const rel = path.relative(repoRoot, currentDir).replace(/\\/g, '/');
             const layerPath = normalizeDiscoveredLayerPath(rel === '' ? '.' : rel);
             if (!matchesAnyExclude(layerPath, excludePatterns)) {
@@ -445,6 +449,13 @@ function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string
     }
 
     if (!childNames.has('README.md')) {
+        return false;
+    }
+
+    // A marketplace repository README documents the collection, not a
+    // capability package. The generated marketplace manifest is the stable
+    // marker for that repository-level boundary.
+    if (isMarketplaceRepositoryRoot(currentDir)) {
         return false;
     }
 
