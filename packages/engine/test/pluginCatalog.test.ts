@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    canonicalizePluginMetadataJson,
     loadCapabilityDescriptorForLayer,
     LayerContent,
 } from '../src/index';
@@ -317,6 +318,16 @@ describe('pluginCatalog', () => {
         const secondLayer = makeLayer('repo/review/second', 'repo', 'example-second');
         const forwardCatalog = buildAgentPluginCatalog([firstLayer, secondLayer]);
         const reverseCatalog = buildAgentPluginCatalog([secondLayer, firstLayer]);
+        forwardCatalog.entries[0].keywords = ['zeta', 'alpha'];
+        forwardCatalog.entries[0].author = {
+            url: 'https://example.test',
+            name: 'Example',
+        };
+        reverseCatalog.entries[0].keywords = ['alpha', 'zeta'];
+        reverseCatalog.entries[0].author = {
+            name: 'Example',
+            url: 'https://example.test',
+        };
 
         const forwardMarketplace = buildCapabilityPluginMarketplaceManifest(
             forwardCatalog.entries,
@@ -332,6 +343,35 @@ describe('pluginCatalog', () => {
             JSON.stringify(reverseMarketplace.manifest),
         );
         assert.deepStrictEqual(forwardMarketplace.warnings, reverseMarketplace.warnings);
+    });
+
+    it('canonicalizes nested plugin metadata fields and string arrays', () => {
+        const forward = canonicalizePluginMetadataJson({
+            zExtension: { z: 1, a: 2 },
+            keywords: ['zeta', 'alpha'],
+            author: { url: 'https://example.test', name: 'Example' },
+            metaflow: {
+                minimumMetaflowVersion: '^0.1.0',
+                pluginHosts: ['github-copilot', 'claude-code'],
+            },
+        });
+        const reverse = canonicalizePluginMetadataJson({
+            metaflow: {
+                pluginHosts: ['claude-code', 'github-copilot'],
+                minimumMetaflowVersion: '^0.1.0',
+            },
+            author: { name: 'Example', url: 'https://example.test' },
+            keywords: ['alpha', 'zeta'],
+            zExtension: { a: 2, z: 1 },
+        });
+
+        assert.strictEqual(JSON.stringify(forward), JSON.stringify(reverse));
+        assert.deepStrictEqual(Object.keys(forward as Record<string, unknown>), [
+            'author',
+            'keywords',
+            'metaflow',
+            'zExtension',
+        ]);
     });
 
     it('omits marketplace entries whose generated host plugin names collide', () => {

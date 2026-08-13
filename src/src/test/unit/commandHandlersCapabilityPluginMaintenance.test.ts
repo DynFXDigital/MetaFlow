@@ -1002,8 +1002,66 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.commands, '.github/commands');
         assert.strictEqual(parsed.skills, '.github/skills');
         assert.strictEqual(parsed.rules, '.github/instructions');
-        assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['github-copilot', 'claude-code']);
+        assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['claude-code', 'github-copilot']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
+    });
+
+    test('buildMaintainedCapabilityPluginManifestJson canonicalizes equivalent field and array order', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const first = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'Demo Capability',
+            capabilityDescription: 'Demo package description.',
+            capabilityDirectoryName: 'demo-capability',
+            existingRawText: JSON.stringify({
+                metaflow: {
+                    minimumMetaflowVersion: '^0.1.0',
+                    pluginHosts: ['github-copilot', 'claude-code'],
+                },
+                keywords: ['zeta', 'alpha'],
+                author: { url: 'https://example.test', name: 'Example' },
+                name: 'demo-capability',
+                version: '1.0.0',
+                description: 'Demo package description.',
+                customMetadata: { z: 1, a: 2 },
+                agents: '.github/agents',
+                commands: '.github/commands',
+                skills: '.github/skills',
+                rules: '.github/instructions',
+            }),
+        });
+        const second = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'Demo Capability',
+            capabilityDescription: 'Demo package description.',
+            capabilityDirectoryName: 'demo-capability',
+            existingRawText: JSON.stringify({
+                name: 'demo-capability',
+                version: '1.0.0',
+                description: 'Demo package description.',
+                author: { name: 'Example', url: 'https://example.test' },
+                keywords: ['alpha', 'zeta'],
+                agents: '.github/agents',
+                commands: '.github/commands',
+                skills: '.github/skills',
+                rules: '.github/instructions',
+                metaflow: {
+                    pluginHosts: ['claude-code', 'github-copilot'],
+                    minimumMetaflowVersion: '^0.1.0',
+                },
+                customMetadata: { a: 2, z: 1 },
+            }),
+        });
+        const third = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'Demo Capability',
+            capabilityDescription: 'Demo package description.',
+            capabilityDirectoryName: 'demo-capability',
+            existingRawText: first.content,
+        });
+
+        assert.strictEqual(first.content, second.content);
+        assert.deepStrictEqual(JSON.parse(first.content).keywords, ['alpha', 'zeta']);
+        assert.strictEqual(first.changed, true);
+        assert.strictEqual(second.changed, true);
+        assert.strictEqual(third.changed, false);
     });
 
     test('buildMaintainedCapabilityPluginManifestJson omits component paths absent from the package', () => {

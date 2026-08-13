@@ -38,6 +38,7 @@ import {
     buildEffectiveFileMap,
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
+    canonicalizePluginMetadataJson,
     collectAgentPluginHookWarnings,
     resolveCapabilityDescriptorPath,
     resolvePathFromWorkspace,
@@ -4838,7 +4839,7 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     existingMetaflow.minimumMetaflowVersion = minimumMetaflowVersion;
     packageObject.metaflow = existingMetaflow;
 
-    const nextContent = `${JSON.stringify(packageObject, null, 2)}\n`;
+    const nextContent = `${JSON.stringify(canonicalizePluginMetadataJson(packageObject), null, 2)}\n`;
     return {
         content: nextContent,
         changed: existingRawText !== nextContent,

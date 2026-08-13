@@ -157,6 +157,82 @@ function compareText(left: string, right: string): number {
     return 0;
 }
 
+const PLUGIN_METADATA_KEY_ORDER = [
+    'name',
+    'version',
+    'description',
+    'author',
+    'license',
+    'keywords',
+    'homepage',
+    'repository',
+    'documentation',
+    'agents',
+    'commands',
+    'skills',
+    'rules',
+    'hooks',
+    'mcpServers',
+    'lspServers',
+    'components',
+    'metaflow',
+    'pluginHosts',
+    'minimumMetaflowVersion',
+    'source',
+    'owner',
+    'plugins',
+    'metadata',
+] as const;
+
+function compareCanonicalKeys(left: string, right: string): number {
+    const leftIndex = PLUGIN_METADATA_KEY_ORDER.indexOf(
+        left as (typeof PLUGIN_METADATA_KEY_ORDER)[number],
+    );
+    const rightIndex = PLUGIN_METADATA_KEY_ORDER.indexOf(
+        right as (typeof PLUGIN_METADATA_KEY_ORDER)[number],
+    );
+    if (leftIndex !== -1 || rightIndex !== -1) {
+        if (leftIndex === -1) {
+            return 1;
+        }
+        if (rightIndex === -1) {
+            return -1;
+        }
+        if (leftIndex !== rightIndex) {
+            return leftIndex - rightIndex;
+        }
+    }
+    return compareText(left, right);
+}
+
+/**
+ * Return a stable JSON-compatible representation of plugin metadata.
+ *
+ * Object fields use the documented manifest order where known and lexical
+ * order for extension fields. String arrays are treated as metadata sets and
+ * sorted after their values are recursively canonicalized.
+ */
+export function canonicalizePluginMetadataJson(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        const normalized = value.map((entry) => canonicalizePluginMetadataJson(entry));
+        return normalized.every((entry) => typeof entry === 'string')
+            ? normalized.sort((left, right) => compareText(left as string, right as string))
+            : normalized;
+    }
+
+    if (!value || typeof value !== 'object') {
+        return value;
+    }
+
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort(compareCanonicalKeys)) {
+        normalized[key] = canonicalizePluginMetadataJson(
+            (value as Record<string, unknown>)[key],
+        );
+    }
+    return normalized;
+}
+
 function normalizePluginName(value: string): string {
     return value
         .trim()
@@ -383,15 +459,17 @@ export function buildCapabilityPluginMarketplaceManifest(
         .replace(/[^a-z0-9._-]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-    return {
-        manifest: {
-            name: normalizedMarketplaceName || 'metaflow-marketplace',
-            owner: {
-                name: options.ownerName?.trim() || 'MetaFlow',
-            },
-            plugins,
-            ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+    const manifest: CapabilityPluginMarketplaceManifest = {
+        name: normalizedMarketplaceName || 'metaflow-marketplace',
+        owner: {
+            name: options.ownerName?.trim() || 'MetaFlow',
         },
+        plugins,
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+    };
+
+    return {
+        manifest: canonicalizePluginMetadataJson(manifest) as CapabilityPluginMarketplaceManifest,
         warnings,
     };
 }
