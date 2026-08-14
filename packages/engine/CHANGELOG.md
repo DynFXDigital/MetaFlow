@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.4.5
+
+### Patch Changes
+
+- Canonicalize plugin and marketplace metadata serialization so equivalent manifests produce stable, reviewable JSON output.
+
 ## 0.4.4
 
 ### Patch Changes

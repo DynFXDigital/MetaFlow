@@ -4,6 +4,13 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.5
+
+### Fixed
+
+- Canonicalize plugin and marketplace metadata serialization so equivalent manifests produce stable JSON output.
+- Keep marketplace-level README files out of capability discovery and metadata loading.
+
 ## 0.4.4
 
 ### Fixed
