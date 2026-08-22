@@ -6066,13 +6066,29 @@ suite('Command Execution', function () {
                 wsFolder!,
             );
             fs.writeFileSync(configPath, JSON.stringify(legacyConfig, null, 2), 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh', {
+                skipConfigMaintenance: true,
+                skipAutoApply: true,
+                skipBuiltInAutoApply: true,
+                skipRepoSync: true,
+                skipSettingsInjection: true,
+            });
+            assert.strictEqual(
+                (
+                    JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                        compatibilityVersion?: number;
+                    }
+                ).compatibilityVersion,
+                undefined,
+                'The fixture should remain migration-required before the checkbox transition',
+            );
+
             await updateConfigAndWait(
                 'metaflow.synchronization.repoWideCopilotInstructions',
                 true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await vscode.commands.executeCommand('metaflow.refresh');
             await waitFor(() => {
                 const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
