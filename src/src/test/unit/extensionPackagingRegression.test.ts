@@ -406,7 +406,6 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(commands, 'Expected commands injection mode setting to be contributed');
         assert.deepStrictEqual(commands?.enum, ['synchronize', 'plugin']);
         assert.strictEqual(commands?.default, 'plugin');
-
         const injectionTarget =
             packageJson.contributes?.configuration?.properties?.['metaflow.injection.target'];
         assert.strictEqual(injectionTarget?.scope, 'resource');
