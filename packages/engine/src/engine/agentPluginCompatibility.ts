@@ -33,15 +33,28 @@ export interface AgentPluginManifestInventory {
     readonly keywords?: readonly string[];
 }
 
-export interface AgentPluginSkillInventory {
+export interface AgentSkillMetadataInventory {
     readonly name: string;
     readonly description: string;
-    readonly skillPath: string;
     readonly license?: string;
     readonly compatibility?: string;
     readonly metadata?: Readonly<Record<string, string>>;
     readonly allowedTools?: string;
 }
+
+export interface AgentPluginSkillInventory extends AgentSkillMetadataInventory {
+    readonly skillPath: string;
+}
+
+export type AgentSkillContentValidation =
+    | {
+          readonly valid: true;
+          readonly metadata: AgentSkillMetadataInventory;
+      }
+    | {
+          readonly valid: false;
+          readonly reason: 'frontmatter' | 'metadata';
+      };
 
 export interface AgentPluginMcpServerInventory {
     readonly name: string;
@@ -111,6 +124,11 @@ const LEGACY_HOST_FIELDS = new Set([
     'prompts',
     'skills',
 ]);
+
+/** Return whether a name satisfies the Agent Skills directory/name contract. */
+export function isValidAgentSkillName(value: string): boolean {
+    return value.length >= 1 && value.length <= 64 && SKILL_NAME_PATTERN.test(value);
+}
 
 function diagnostic(
     code: string,
@@ -352,6 +370,52 @@ function skillFrontmatter(content: string): unknown {
     return document.toJS();
 }
 
+/** Validate Agent Skills frontmatter without reading from or writing to the filesystem. */
+export function validateAgentSkillContent(
+    skillDirectoryName: string,
+    content: string,
+): AgentSkillContentValidation {
+    const frontmatter = skillFrontmatter(content);
+    if (!isObject(frontmatter)) {
+        return { valid: false, reason: 'frontmatter' };
+    }
+    const name = frontmatter.name;
+    const description = frontmatter.description;
+    const license = frontmatter.license;
+    const compatibility = frontmatter.compatibility;
+    const metadata = frontmatter.metadata;
+    const allowedTools = frontmatter['allowed-tools'];
+    const valid =
+        Object.keys(frontmatter).every((field) => SKILL_FRONTMATTER_FIELDS.has(field)) &&
+        typeof name === 'string' &&
+        isValidAgentSkillName(name) &&
+        name === skillDirectoryName &&
+        typeof description === 'string' &&
+        description.length >= 1 &&
+        description.length <= 1024 &&
+        (license === undefined || typeof license === 'string') &&
+        (compatibility === undefined ||
+            (typeof compatibility === 'string' &&
+                compatibility.length >= 1 &&
+                compatibility.length <= 500)) &&
+        (metadata === undefined || isStringMap(metadata)) &&
+        (allowedTools === undefined || typeof allowedTools === 'string');
+    if (!valid) {
+        return { valid: false, reason: 'metadata' };
+    }
+    return {
+        valid: true,
+        metadata: {
+            name,
+            description,
+            ...(typeof license === 'string' ? { license } : {}),
+            ...(typeof compatibility === 'string' ? { compatibility } : {}),
+            ...(isStringMap(metadata) ? { metadata } : {}),
+            ...(typeof allowedTools === 'string' ? { allowedTools } : {}),
+        },
+    };
+}
+
 function inspectSkills(
     rootPath: string,
     diagnostics: CapabilityWarning[],
@@ -435,9 +499,12 @@ function inspectSkills(
             continue;
         }
 
-        let frontmatter: unknown;
+        let validation: AgentSkillContentValidation;
         try {
-            frontmatter = skillFrontmatter(fs.readFileSync(realSkillPath, 'utf8'));
+            validation = validateAgentSkillContent(
+                entry.name,
+                fs.readFileSync(realSkillPath, 'utf8'),
+            );
         } catch (error) {
             diagnostics.push(
                 diagnostic(
@@ -448,7 +515,7 @@ function inspectSkills(
             );
             continue;
         }
-        if (!isObject(frontmatter)) {
+        if (!validation.valid && validation.reason === 'frontmatter') {
             diagnostics.push(
                 diagnostic(
                     'AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID',
@@ -458,30 +525,7 @@ function inspectSkills(
             );
             continue;
         }
-        const name = frontmatter.name;
-        const description = frontmatter.description;
-        const license = frontmatter.license;
-        const compatibility = frontmatter.compatibility;
-        const metadata = frontmatter.metadata;
-        const allowedTools = frontmatter['allowed-tools'];
-        const valid =
-            Object.keys(frontmatter).every((field) => SKILL_FRONTMATTER_FIELDS.has(field)) &&
-            typeof name === 'string' &&
-            name.length >= 1 &&
-            name.length <= 64 &&
-            SKILL_NAME_PATTERN.test(name) &&
-            name === entry.name &&
-            typeof description === 'string' &&
-            description.length >= 1 &&
-            description.length <= 1024 &&
-            (license === undefined || typeof license === 'string') &&
-            (compatibility === undefined ||
-                (typeof compatibility === 'string' &&
-                    compatibility.length >= 1 &&
-                    compatibility.length <= 500)) &&
-            (metadata === undefined || isStringMap(metadata)) &&
-            (allowedTools === undefined || typeof allowedTools === 'string');
-        if (!valid) {
+        if (!validation.valid) {
             diagnostics.push(
                 diagnostic(
                     'AGENT_PLUGIN_SKILL_INVALID',
@@ -492,13 +536,8 @@ function inspectSkills(
             continue;
         }
         skills.push({
-            name,
-            description,
             skillPath: realSkillPath,
-            ...(typeof license === 'string' ? { license } : {}),
-            ...(typeof compatibility === 'string' ? { compatibility } : {}),
-            ...(isStringMap(metadata) ? { metadata } : {}),
-            ...(typeof allowedTools === 'string' ? { allowedTools } : {}),
+            ...validation.metadata,
         });
     }
     return skills.sort((left, right) => compareCodeUnits(left.name, right.name));

@@ -91,6 +91,8 @@ export {
     AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    isValidAgentSkillName,
+    validateAgentSkillContent,
 } from './agentPluginCompatibility';
 export type {
     AgentPluginCompatibilityInspection,
@@ -98,7 +100,28 @@ export type {
     AgentPluginManifestInventory,
     AgentPluginMcpServerInventory,
     AgentPluginSkillInventory,
+    AgentSkillContentValidation,
+    AgentSkillMetadataInventory,
 } from './agentPluginCompatibility';
+export {
+    PI_PROJECT_PLUGIN_BASE_VERSION,
+    PI_PROJECT_PLUGIN_NAME,
+    PI_SKILLS_PROJECTION_SCHEMA,
+    projectPiAgentPluginSkills,
+} from './piSkillsProjection';
+export type {
+    PiAgentPluginManifest,
+    PiProjectedFile,
+    PiProjectionOmission,
+    PiProjectionOmissionReason,
+    PiSkillProjectionInput,
+    PiSkillsProjectionConflict,
+    PiSkillsProjectionDiagnostic,
+    PiSkillsProjectionInput,
+    PiSkillsProjectionPackage,
+    PiSkillsProjectionResult,
+    PiSkillsProjectionSource,
+} from './piSkillsProjection';
 export type {
     LayerFile,
     LayerContent,
