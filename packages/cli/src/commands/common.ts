@@ -12,7 +12,12 @@ import {
     MetaFlowConfig,
     ConfigLoadResult,
     EffectiveFile,
+    LayerContent,
+    PiProjectPluginSynchronizationPlan,
     SurfacedFileConflict,
+    isPiTargetEnabled,
+    planPiProjectPluginSynchronization,
+    projectResolvedPiAgentPluginSkills,
     toAuthoredConfig,
 } from '@metaflow/engine';
 
@@ -98,16 +103,76 @@ export function resolveEffectiveFiles(
     config: MetaFlowConfig,
     workspaceRoot: string,
 ): EffectiveFile[] {
-    const layers = resolveLayers(config, workspaceRoot);
+    return resolveWorkspaceArtifacts(config, workspaceRoot).effectiveFiles;
+}
+
+export interface ResolvedWorkspaceArtifacts {
+    layers: LayerContent[];
+    effectiveFiles: EffectiveFile[];
+}
+
+function projectConfigForActiveCapabilityProfile(config: MetaFlowConfig): MetaFlowConfig {
+    const profile = config.activeProfile ? config.profiles?.[config.activeProfile] : undefined;
+    if (profile?.enabledCapabilities === undefined || config.layerSources === undefined) {
+        return config;
+    }
+    const selected = new Set(profile.enabledCapabilities);
+    return {
+        ...config,
+        layerSources: config.layerSources.map((source) => ({
+            ...source,
+            enabled: selected.has(`${source.repoId}:${source.path.replace(/\\/g, '/')}`),
+        })),
+    };
+}
+
+export function resolveWorkspaceArtifacts(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): ResolvedWorkspaceArtifacts {
+    const effectiveConfig = projectConfigForActiveCapabilityProfile(config);
+    const layers = resolveLayers(effectiveConfig, workspaceRoot);
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
 
-    const profileName = config.activeProfile;
-    const profile = profileName && config.profiles ? config.profiles[profileName] : undefined;
+    const profileName = effectiveConfig.activeProfile;
+    const profile =
+        profileName && effectiveConfig.profiles ? effectiveConfig.profiles[profileName] : undefined;
     files = applyProfile(files, profile);
 
-    classifyFiles(files, config.injection, config.layerSources);
-    return files;
+    classifyFiles(files, effectiveConfig.injection, effectiveConfig.layerSources);
+    return { layers, effectiveFiles: files };
+}
+
+export function resolvePiTargetPlan(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    layers?: readonly LayerContent[],
+): PiProjectPluginSynchronizationPlan {
+    const enabled = isPiTargetEnabled(config);
+    return planPiProjectPluginSynchronization({
+        workspaceRoot,
+        enabled,
+        ...(enabled
+            ? {
+                  projection: projectResolvedPiAgentPluginSkills(
+                      layers ??
+                          resolveLayers(
+                              projectConfigForActiveCapabilityProfile(config),
+                              workspaceRoot,
+                          ),
+                  ),
+              }
+            : {}),
+    });
+}
+
+export function formatPiTargetDiagnostics(plan: PiProjectPluginSynchronizationPlan): string[] {
+    return plan.diagnostics.map((entry) =>
+        entry.filePath
+            ? `[${entry.code}] ${entry.message} (${entry.filePath})`
+            : `[${entry.code}] ${entry.message}`,
+    );
 }
 
 export function resolveSurfacedFileConflicts(

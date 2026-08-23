@@ -13,6 +13,7 @@ import { createTestWorkspace, runCli, standardConfig, TestWorkspace } from './he
 import { startWatch, WatchCycleResult } from '../src/commands/watch';
 import { promoteAuto } from '../src/commands/promote';
 import { execSync } from 'child_process';
+import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID } from '@metaflow/engine';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -27,6 +28,35 @@ const STANDARD_LAYERS = {
         { relativePath: 'prompts/review.prompt.md', content: '# Review Prompt\nReview the PR.' },
     ],
 };
+
+const PI_PLUGIN_LAYERS = {
+    'company/core': [
+        {
+            relativePath: 'plugin.json',
+            content: JSON.stringify({
+                $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                name: 'company.core',
+            }),
+        },
+        {
+            relativePath: 'skills/testing/SKILL.md',
+            content:
+                '---\nname: testing\ndescription: Test the current workspace\n---\n\n# Testing\n',
+        },
+    ],
+};
+
+function piConfig(overrides?: Partial<Record<string, unknown>>): Record<string, unknown> {
+    return standardConfig({ targets: { pi: { enabled: true } }, ...overrides });
+}
+
+function piTargetPath(root: string, relativePath = ''): string {
+    return path.join(root, '.pi', 'plugins', 'metaflow.project', ...relativePath.split('/'));
+}
+
+function piStatePath(root: string): string {
+    return path.join(root, '.metaflow', 'pi-target-state.json');
+}
 
 function synchronizedPath(relativePath: string, layer = 'company/core', repo = 'default'): string {
     const normalized = relativePath.replace(/\\/g, '/');
@@ -531,6 +561,223 @@ describe('CLI: apply', () => {
         // The file should still exist and contain the original body
         const contentAfterSecond = fs.readFileSync(skillPath, 'utf-8');
         assert.ok(contentAfterSecond.includes('# Testing Skill'));
+    });
+});
+
+describe('CLI: Pi Agent Plugin target', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    it('previews an enabled package without writing target output', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.piTarget.enabled, true);
+        assert.strictEqual(data.piTarget.blocked, false);
+        assert.deepStrictEqual(
+            data.piTarget.pendingChanges.map(
+                (entry: { relativePath: string }) => entry.relativePath,
+            ),
+            ['plugin.json', 'skills/testing/SKILL.md'],
+        );
+        assert.strictEqual(data.piTarget.stateAction, 'write');
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+    });
+
+    it('applies idempotently and validates the strict generated package', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+
+        const first = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(first.exitCode, 0);
+        assert.ok(first.stdout.includes('pi write'));
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'plugin.json')), true);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'skills/testing/SKILL.md')), true);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), true);
+        assert.deepStrictEqual(fs.readdirSync(piTargetPath(ws.root)).sort(), [
+            'plugin.json',
+            'skills',
+        ]);
+
+        const second = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(second.exitCode, 0);
+        assert.ok(second.stdout.includes('Pi 0 written, 0 removed'));
+
+        const validated = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(validated.exitCode, 0);
+        const data = JSON.parse(validated.stdout);
+        assert.strictEqual(data.piTarget.valid, true);
+        assert.strictEqual(data.piTarget.stateAction, 'none');
+        assert.deepStrictEqual(data.piTarget.pendingChanges, []);
+    });
+
+    it('projects only capabilities selected by the active profile', async () => {
+        const duplicateSkill = (label: string) =>
+            `---\nname: testing\ndescription: ${label}\n---\n\n# ${label}\n`;
+        ws = createTestWorkspace({
+            config: piConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/inactive' },
+                ],
+                profiles: {
+                    default: { enabledCapabilities: ['primary:company/core'] },
+                    inactive: { enabledCapabilities: ['primary:company/inactive'] },
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                            name: 'company.core',
+                        }),
+                    },
+                    {
+                        relativePath: 'skills/testing/SKILL.md',
+                        content: duplicateSkill('Active skill'),
+                    },
+                ],
+                'company/inactive': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                            name: 'company.inactive',
+                        }),
+                    },
+                    {
+                        relativePath: 'skills/testing/SKILL.md',
+                        content: duplicateSkill('Inactive skill'),
+                    },
+                ],
+            },
+        });
+
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        assert.ok(
+            fs
+                .readFileSync(piTargetPath(ws.root, 'skills/testing/SKILL.md'), 'utf8')
+                .includes('# Active skill'),
+        );
+
+        assert.strictEqual(
+            (await runCli(['profile', 'set', 'inactive', '-w', ws.root])).exitCode,
+            0,
+        );
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        assert.ok(
+            fs
+                .readFileSync(piTargetPath(ws.root, 'skills/testing/SKILL.md'), 'utf8')
+                .includes('# Inactive skill'),
+        );
+    });
+
+    it('removes stale skills, then disables only the managed package and ledger', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const sourceSkill = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            'skills',
+            'testing',
+            'SKILL.md',
+        );
+        fs.rmSync(sourceSkill);
+
+        const staleApply = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(staleApply.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'skills/testing/SKILL.md')), false);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'plugin.json')), true);
+
+        const neighboringPlugin = path.join(ws.root, '.pi', 'plugins', 'neighbor', 'plugin.json');
+        const mcpPath = path.join(ws.root, '.pi', 'mcp.json');
+        fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+        fs.writeFileSync(neighboringPlugin, 'neighbor\n');
+        fs.writeFileSync(mcpPath, 'user mcp\n');
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        config.targets.pi.enabled = false;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+        const disabled = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(disabled.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+        assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf8'), 'neighbor\n');
+        assert.strictEqual(fs.readFileSync(mcpPath, 'utf8'), 'user mcp\n');
+    });
+
+    it('blocks an untracked package before writing ordinary overlay output', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        fs.mkdirSync(piTargetPath(ws.root), { recursive: true });
+        fs.writeFileSync(piTargetPath(ws.root, 'plugin.json'), 'user package\n');
+
+        const result = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('PI_TARGET_ROOT_UNTRACKED'));
+        assert.strictEqual(
+            fs.readFileSync(piTargetPath(ws.root, 'plugin.json'), 'utf8'),
+            'user package\n',
+        );
+        assert.strictEqual(fs.existsSync(path.join(ws.root, '.github')), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+    });
+
+    it('reports target drift and blocks apply and clean without force override', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const generatedSkill = piTargetPath(ws.root, 'skills/testing/SKILL.md');
+        fs.writeFileSync(generatedSkill, 'user edit\n');
+        const synchronizedSkill = path.join(
+            ws.root,
+            '.github',
+            synchronizedPath('skills/testing/SKILL.md'),
+        );
+
+        const validated = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(validated.exitCode, 1);
+        const data = JSON.parse(validated.stdout);
+        assert.strictEqual(data.piTarget.blocked, true);
+        assert.ok(
+            data.piTarget.diagnostics.some(
+                (entry: { code: string }) => entry.code === 'PI_TARGET_DRIFT',
+            ),
+        );
+
+        const reapplied = await runCli(['apply', '--force', '-w', ws.root]);
+        assert.strictEqual(reapplied.exitCode, 1);
+        assert.strictEqual(fs.readFileSync(generatedSkill, 'utf8'), 'user edit\n');
+
+        const cleaned = await runCli(['clean', '-w', ws.root]);
+        assert.strictEqual(cleaned.exitCode, 1);
+        assert.strictEqual(fs.readFileSync(generatedSkill, 'utf8'), 'user edit\n');
+        assert.strictEqual(fs.existsSync(synchronizedSkill), true);
+    });
+
+    it('clean removes managed Pi output while preserving unrelated .pi content', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const neighboringPlugin = path.join(ws.root, '.pi', 'plugins', 'neighbor', 'plugin.json');
+        const mcpPath = path.join(ws.root, '.pi', 'mcp.json');
+        fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+        fs.writeFileSync(neighboringPlugin, 'neighbor\n');
+        fs.writeFileSync(mcpPath, 'user mcp\n');
+
+        const result = await runCli(['clean', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+        assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf8'), 'neighbor\n');
+        assert.strictEqual(fs.readFileSync(mcpPath, 'utf8'), 'user mcp\n');
     });
 });
 

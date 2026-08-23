@@ -6,7 +6,13 @@ import {
     withReadOnlyRootSynchronizationAuthorization,
 } from '@metaflow/engine';
 import type { RootSynchronizationAuthorization } from '@metaflow/engine';
-import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+import {
+    formatPiTargetDiagnostics,
+    getWorkspaceRoot,
+    loadConfigOrExit,
+    resolvePiTargetPlan,
+    resolveWorkspaceArtifacts,
+} from './common';
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -28,7 +34,14 @@ export function registerValidateCommand(program: Command): void {
                     migrationRequired = loaded.migrationRequired,
                 ) => {
                     // Resolve expected overlay state
-                    const files = resolveEffectiveFiles(config, workspaceRoot);
+                    const resolved = resolveWorkspaceArtifacts(config, workspaceRoot);
+                    const files = resolved.effectiveFiles;
+                    const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
+                    const piDiagnostics = formatPiTargetDiagnostics(piPlan);
+                    const piValid =
+                        !piPlan.blocked &&
+                        piPlan.changes.length === 0 &&
+                        piPlan.stateAction === 'none';
                     const plan = planSynchronization({
                         workspaceRoot,
                         effectiveFiles: files,
@@ -77,7 +90,8 @@ export function registerValidateCommand(program: Command): void {
                         relevantDrifted.length === 0 &&
                         relevantMissing.length === 0 &&
                         unmanaged.length === 0 &&
-                        stale.length === 0;
+                        stale.length === 0 &&
+                        piValid;
 
                     if (options.json) {
                         const data = {
@@ -90,12 +104,20 @@ export function registerValidateCommand(program: Command): void {
                                 retained: retained.length,
                                 unmanaged: unmanaged.length,
                                 stale: stale.length,
+                                piPending: piPlan.changes.length,
                             },
                             drifted: relevantDrifted.map((d) => d.relativePath),
                             missing: relevantMissing.map((d) => d.relativePath),
                             retained,
                             unmanaged,
                             stale,
+                            piTarget: {
+                                valid: piValid,
+                                blocked: piPlan.blocked,
+                                stateAction: piPlan.stateAction,
+                                pendingChanges: piPlan.changes,
+                                diagnostics: piPlan.diagnostics,
+                            },
                         };
                         console.log(JSON.stringify(data, null, 2));
                     } else {
@@ -131,6 +153,17 @@ export function registerValidateCommand(program: Command): void {
                                 );
                                 for (const f of stale) {
                                     console.log(`    - ${f}`);
+                                }
+                            }
+                            if (!piValid) {
+                                console.log(
+                                    `  Pi target requires reconciliation (${piPlan.changes.length} pending change(s), state ${piPlan.stateAction}):`,
+                                );
+                                for (const diagnostic of piDiagnostics) {
+                                    console.log(`    - ${diagnostic}`);
+                                }
+                                for (const change of piPlan.changes) {
+                                    console.log(`    - ${change.action} ${change.relativePath}`);
                                 }
                             }
                         }

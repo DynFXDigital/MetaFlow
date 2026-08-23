@@ -3,12 +3,55 @@ import * as path from 'path';
 import { Command } from 'commander';
 import {
     apply,
+    applyPiProjectPluginSynchronization,
     discoverConfigPath,
     loadConfig,
     normalizeInputPath,
+    isPiTargetEnabled,
     withRootSynchronizationAuthorization,
 } from '@metaflow/engine';
-import { getWorkspaceRoot, resolveEffectiveFiles } from './common';
+import {
+    formatPiTargetDiagnostics,
+    getWorkspaceRoot,
+    resolvePiTargetPlan,
+    resolveWorkspaceArtifacts,
+} from './common';
+
+function applyWorkspaceTargets(
+    workspaceRoot: string,
+    configPath: string,
+    config: Parameters<typeof resolveWorkspaceArtifacts>[0],
+    migrationRequired: boolean,
+    authorization: Parameters<typeof apply>[0]['rootSynchronizationAuthorization'],
+    force: boolean,
+) {
+    const resolved = resolveWorkspaceArtifacts(config, workspaceRoot);
+    const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
+    if (piPlan.blocked) {
+        throw new Error(formatPiTargetDiagnostics(piPlan).join('; '));
+    }
+    const pi = applyPiProjectPluginSynchronization({
+        workspaceRoot,
+        enabled: isPiTargetEnabled(config),
+        ...(piPlan.projection ? { projection: piPlan.projection } : {}),
+    });
+    if (pi.plan.blocked) {
+        throw new Error(formatPiTargetDiagnostics(pi.plan).join('; '));
+    }
+    const synchronization = apply({
+        workspaceRoot,
+        effectiveFiles: resolved.effectiveFiles,
+        activeProfile: config.activeProfile,
+        fileNamingStrategy: config.fileNamingStrategy,
+        layerSources: config.layerSources,
+        synchronizationPolicy:
+            !migrationRequired && config.synchronization?.repoWideCopilotInstructions === true,
+        rootSynchronizationAuthorization: authorization,
+        rootSynchronizationConfigPath: configPath,
+        force,
+    });
+    return { synchronization, pi };
+}
 
 /**
  * Debounce a function — only invoke after `delay` ms of inactivity.
@@ -66,26 +109,22 @@ export function startWatch(
             const applyResult = withRootSynchronizationAuthorization(
                 configResult.configPath!,
                 (authorization, attested) => {
-                    const files = resolveEffectiveFiles(attested.config, workspaceRoot);
-                    return apply({
+                    return applyWorkspaceTargets(
                         workspaceRoot,
-                        effectiveFiles: files,
-                        activeProfile: attested.config.activeProfile,
-                        fileNamingStrategy: attested.config.fileNamingStrategy,
-                        layerSources: attested.config.layerSources,
-                        synchronizationPolicy:
-                            attested.migrationRequired !== true &&
-                            attested.config.synchronization?.repoWideCopilotInstructions === true,
-                        rootSynchronizationAuthorization: authorization,
-                        rootSynchronizationConfigPath: configResult.configPath,
+                        configResult.configPath!,
+                        attested.config,
+                        attested.migrationRequired === true,
+                        authorization,
                         force,
-                    });
+                    );
                 },
             );
 
-            result.written = applyResult.written.length;
-            result.removed = applyResult.removed.length;
-            result.skipped = applyResult.skipped.length;
+            result.written =
+                applyResult.synchronization.written.length + applyResult.pi.written.length;
+            result.removed =
+                applyResult.synchronization.removed.length + applyResult.pi.removed.length;
+            result.skipped = applyResult.synchronization.skipped.length;
         } catch (err: unknown) {
             result.error = err instanceof Error ? err.message : String(err);
         }
@@ -201,25 +240,18 @@ export function registerWatchCommand(program: Command): void {
                 const initial = withRootSynchronizationAuthorization(
                     configResult.configPath!,
                     (authorization, attested) => {
-                        const files = resolveEffectiveFiles(attested.config, workspaceRoot);
-                        return apply({
+                        return applyWorkspaceTargets(
                             workspaceRoot,
-                            effectiveFiles: files,
-                            activeProfile: attested.config.activeProfile,
-                            fileNamingStrategy: attested.config.fileNamingStrategy,
-                            layerSources: attested.config.layerSources,
-                            synchronizationPolicy:
-                                attested.migrationRequired !== true &&
-                                attested.config.synchronization?.repoWideCopilotInstructions ===
-                                    true,
-                            rootSynchronizationAuthorization: authorization,
-                            rootSynchronizationConfigPath: configResult.configPath,
-                            force: options.force ?? false,
-                        });
+                            configResult.configPath!,
+                            attested.config,
+                            attested.migrationRequired === true,
+                            authorization,
+                            options.force ?? false,
+                        );
                     },
                 );
                 console.log(
-                    `Initial apply: ${initial.written.length} written, ${initial.removed.length} removed, ${initial.skipped.length} skipped.`,
+                    `Initial apply: ${initial.synchronization.written.length} written, ${initial.synchronization.removed.length} removed, ${initial.synchronization.skipped.length} skipped; Pi ${initial.pi.written.length} written, ${initial.pi.removed.length} removed.`,
                 );
             } catch (err: unknown) {
                 console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

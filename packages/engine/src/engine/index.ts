@@ -113,6 +113,14 @@ export {
     collectPiSkillsProjectionInput,
     projectResolvedPiAgentPluginSkills,
 } from './piSkillsProjectionCollector';
+export {
+    PI_PROJECT_PLUGIN_RELATIVE_ROOT,
+    PI_TARGET_STATE_RELATIVE_PATH,
+    PI_TARGET_STATE_SCHEMA_VERSION,
+    applyPiProjectPluginSynchronization,
+    loadPiTargetState,
+    planPiProjectPluginSynchronization,
+} from './piProjectPluginSynchronizer';
 export type {
     PiAgentPluginManifest,
     PiProjectedFile,
@@ -126,6 +134,18 @@ export type {
     PiSkillsProjectionResult,
     PiSkillsProjectionSource,
 } from './piSkillsProjection';
+export type {
+    PiProjectPluginApplyResult,
+    PiProjectPluginPlanOptions,
+    PiProjectPluginSynchronizationPlan,
+    PiTargetChange,
+    PiTargetChangeAction,
+    PiTargetDiagnostic,
+    PiTargetManagedFileState,
+    PiTargetState,
+    PiTargetStateAction,
+    PiTargetStateLoadResult,
+} from './piProjectPluginSynchronizer';
 export type {
     LayerFile,
     LayerContent,
