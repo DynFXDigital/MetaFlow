@@ -102,3 +102,28 @@ deferred, while instructions, prompts, commands, agents, hooks, LSP, monitors,
 and MetaFlow governance metadata remain host-specific. Compatibility diagnostics
 make omissions visible; MetaFlow never treats those artifacts as Pi-supported or
 mutates global Pi state.
+
+## Troubleshooting
+
+- No package after Preview: Preview never writes. Run Apply after confirming the
+  config uses compatibility version 5 and the Pi target is explicitly enabled.
+- No skill in Pi: confirm `pi-agent-plugins` is installed, the project is trusted,
+  and the capability is selected by the active profile. Use `/plugin list` or
+  `/plugin doctor`, then `/plugin reload` after changing generated content.
+- Projection is blocked: read the MetaFlow diagnostic for a duplicate skill,
+  invalid portable package, untracked generated root, or drifted managed file.
+  MetaFlow will not choose a duplicate winner or overwrite that content.
+- No MCP server appears: this is expected. The first target is skills-only and
+  does not require or configure `pi-mcp-adapter`.
+- Disable or Clean is blocked: restore the recorded managed bytes or preserve and
+  relocate user-authored content before retrying. MetaFlow does not delete
+  content whose ownership it cannot prove.
+
+## Extending the target
+
+Contributors must keep portable serialization separate from the legacy
+Copilot/MetaFlow manifest path. New portable components must be validated by the
+shared Agent Plugins inspector, represented by deterministic projection inputs,
+and covered by containment, ownership, loss-diagnostic, and host-client tests.
+Do not add MetaFlow fields to the strict root manifest. MCP output requires a
+separately accepted trust-change contract before implementation.
