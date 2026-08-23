@@ -87,6 +87,10 @@ export interface CapabilityAgentPluginManifest {
     homepage?: string;
     repository?: string;
     documentation?: string;
+    /** Manifest family selected without collapsing portable and host-specific contracts. */
+    compatibilityProfile?: import('./agentPluginCompatibility').AgentPluginCompatibilityProfile;
+    /** Read-only portable compatibility inventory and diagnostics for this package root. */
+    compatibilityInspection?: import('./agentPluginCompatibility').AgentPluginCompatibilityInspection;
 }
 
 /** A normalized agent-plugin catalog entry derived from a capability layer. */

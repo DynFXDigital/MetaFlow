@@ -258,6 +258,16 @@ describe('pluginCatalog', () => {
         assert.deepStrictEqual(result.warnings, []);
     });
 
+    it('keeps strict Agent Plugins v1 packages out of the legacy marketplace catalog', () => {
+        const portable = makeLayer('repo/portable/tools', 'repo', 'portable.tools');
+        portable.capability!.agentPluginManifest!.compatibilityProfile = 'agent-plugins-v1';
+
+        const result = buildAgentPluginCatalog([portable]);
+
+        assert.deepStrictEqual(result.entries, []);
+        assert.deepStrictEqual(result.warnings, []);
+    });
+
     it('emits duplicate package-name warnings and omits conflicting entries from the catalog', () => {
         const result = buildAgentPluginCatalog([
             makeLayer('repo/review/first', 'repo', 'example-shared'),

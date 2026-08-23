@@ -24,6 +24,7 @@ import {
     CapabilityWarning,
 } from './types';
 import { isMarketplaceRepositoryRoot } from './repoManifest';
+import { inspectAgentPluginPackage } from './agentPluginCompatibility';
 
 const CAPABILITY_FILE_NAME = 'CAPABILITY.md';
 const README_FILE_NAME = 'README.md';
@@ -699,6 +700,50 @@ function loadAgentPluginManifestForLayer(
         };
     }
 
+    const compatibilityInspection = inspectAgentPluginPackage(layerPath);
+    if (compatibilityInspection.profile === 'unsupported') {
+        return { warnings: [...compatibilityInspection.diagnostics] };
+    }
+    if (compatibilityInspection.profile === 'invalid') {
+        const compatibilityCodeMap: Readonly<Record<string, string>> = {
+            AGENT_PLUGIN_MANIFEST_JSON_INVALID: 'CAPABILITY_AGENT_PLUGIN_MANIFEST_JSON_INVALID',
+            AGENT_PLUGIN_MANIFEST_OBJECT_REQUIRED:
+                'CAPABILITY_AGENT_PLUGIN_MANIFEST_OBJECT_REQUIRED',
+            AGENT_PLUGIN_MANIFEST_PATH_INVALID: 'CAPABILITY_AGENT_PLUGIN_MANIFEST_READ_ERROR',
+        };
+        return {
+            warnings: compatibilityInspection.diagnostics.map((warning) => ({
+                ...warning,
+                code: compatibilityCodeMap[warning.code] ?? warning.code,
+            })),
+        };
+    }
+
+    if (compatibilityInspection.profile === 'agent-plugins-v1') {
+        const portableManifest = compatibilityInspection.manifest;
+        return {
+            ...(portableManifest
+                ? {
+                      metadata: {
+                          pluginJsonPath,
+                          name: portableManifest.name,
+                          version: portableManifest.version,
+                          description: portableManifest.description,
+                          author: portableManifest.author,
+                          license: portableManifest.license,
+                          keywords: [...(portableManifest.keywords ?? [])],
+                          pluginHosts: [],
+                          homepage: portableManifest.homepage,
+                          repository: portableManifest.repository,
+                          compatibilityProfile: compatibilityInspection.profile,
+                          compatibilityInspection,
+                      },
+                  }
+                : {}),
+            warnings: [...compatibilityInspection.diagnostics],
+        };
+    }
+
     let rawText: string;
     try {
         rawText = fs.readFileSync(pluginJsonPath, 'utf-8');
@@ -715,7 +760,12 @@ function loadAgentPluginManifestForLayer(
         };
     }
 
-    return parseAgentPluginManifestContent(rawText, pluginJsonPath);
+    const parsed = parseAgentPluginManifestContent(rawText, pluginJsonPath);
+    if (parsed.metadata) {
+        parsed.metadata.compatibilityProfile = 'legacy-host';
+        parsed.metadata.compatibilityInspection = compatibilityInspection;
+    }
+    return parsed;
 }
 
 function validateManifestFields(fields: ManifestFields, filePath?: string): CapabilityWarning[] {

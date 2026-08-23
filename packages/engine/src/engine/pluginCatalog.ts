@@ -226,9 +226,7 @@ export function canonicalizePluginMetadataJson(value: unknown): unknown {
 
     const normalized: Record<string, unknown> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort(compareCanonicalKeys)) {
-        normalized[key] = canonicalizePluginMetadataJson(
-            (value as Record<string, unknown>)[key],
-        );
+        normalized[key] = canonicalizePluginMetadataJson((value as Record<string, unknown>)[key]);
     }
     return normalized;
 }
@@ -293,6 +291,8 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
         if (
             !capability ||
             capability?.agentPlugin === false ||
+            (pluginManifest?.compatibilityProfile !== undefined &&
+                pluginManifest.compatibilityProfile !== 'legacy-host') ||
             !pluginManifest?.name ||
             !pluginManifest.version
         ) {
