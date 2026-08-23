@@ -1167,7 +1167,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(migratedConfig.compatibilityVersion, 4);
+            assert.strictEqual(migratedConfig.compatibilityVersion, 5);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -1245,7 +1245,7 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 4;
+                return migratedConfig.compatibilityVersion === 5;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -1256,7 +1256,7 @@ suite('Command Execution', function () {
 
             assert.strictEqual(
                 migratedConfig.compatibilityVersion,
-                4,
+                5,
                 'Refresh should persist the current compatibilityVersion for released configs',
             );
             assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
@@ -5260,7 +5260,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(updatedConfig.compatibilityVersion, 4);
+            assert.strictEqual(updatedConfig.compatibilityVersion, 5);
             assert.strictEqual(
                 path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
                 path.normalize(path.relative(workspaceRoot, repoPath)),
@@ -6095,7 +6095,7 @@ suite('Command Execution', function () {
                     synchronization?: { repoWideCopilotInstructions?: boolean };
                 };
                 return (
-                    parsed.compatibilityVersion === 4 &&
+                    parsed.compatibilityVersion === 5 &&
                     parsed.synchronization?.repoWideCopilotInstructions === true
                 );
             });

@@ -9,6 +9,7 @@ import {
     loadConfigFromPath,
     planSynchronization,
     preview,
+    withReadOnlyRootSynchronizationAuthorization,
     withRootSynchronizationAuthorization,
     EffectiveFile,
 } from '../src/index';
@@ -31,7 +32,7 @@ function rootFile(root: string): EffectiveFile {
     };
 }
 
-function writeConfig(root: string, policy: unknown, version = 4): string {
+function writeConfig(root: string, policy: unknown, version = 5): string {
     const configPath = path.join(root, '.metaflow', 'config.jsonc');
     const synchronization =
         policy === undefined
@@ -84,7 +85,7 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
         }
     });
 
-    it('requires a live path-bound v4 authorization for enabled root planning', () => {
+    it('requires a live path-bound current-version authorization for enabled root planning', () => {
         const root = workspace();
         try {
             const file = rootFile(root);
@@ -95,12 +96,12 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
                     effectiveFiles: [file],
                     synchronizationPolicy: true,
                     rootSynchronizationAuthorization: {
-                        kind: 'active-persisted-v4',
+                        kind: 'active-persisted-current',
                     },
                     rootSynchronizationConfigPath: configPath,
                 }),
             );
-            assert.match(message, /fresh active v4 authorization/);
+            assert.match(message, /fresh active current-version authorization/);
 
             withRootSynchronizationAuthorization(configPath, (authorization) => {
                 const plan = planSynchronization({
@@ -126,7 +127,7 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
                     rootSynchronizationConfigPath: configPath,
                 }),
             );
-            assert.match(reusedMessage, /fresh active v4 authorization/);
+            assert.match(reusedMessage, /fresh active current-version authorization/);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
@@ -189,12 +190,29 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
 
             const persisted = fs.readFileSync(configPath, 'utf-8');
             assert.match(persisted, /keep this comment/);
-            assert.match(persisted, /"compatibilityVersion"\s*:\s*4/);
+            assert.match(persisted, /"compatibilityVersion"\s*:\s*5/);
             assert.match(persisted, /"repoWideCopilotInstructions"\s*:\s*false/);
             assert.strictEqual(
                 fs.existsSync(path.join(root, '.github', 'copilot-instructions.md')),
                 false,
             );
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('read-only authorization rejects stale config without persisting migration', () => {
+        const root = workspace();
+        try {
+            const configPath = writeConfig(root, true, 4);
+            const before = fs.readFileSync(configPath, 'utf-8');
+
+            const message = captureError(() =>
+                withReadOnlyRootSynchronizationAuthorization(configPath, () => undefined),
+            );
+
+            assert.match(message, /compatibilityVersion v5 is not persisted/);
+            assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

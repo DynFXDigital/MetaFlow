@@ -427,7 +427,7 @@ describe('Engine package: overlay pipeline', () => {
         fs.writeFileSync(
             configPath,
             JSON.stringify({
-                compatibilityVersion: 4,
+                compatibilityVersion: 5,
                 metadataRepo: { localPath: '.ai/ai-metadata' },
                 synchronization: { repoWideCopilotInstructions: true },
             }),
@@ -1745,10 +1745,10 @@ describe('Engine: config validation', () => {
         const result = loadConfigFromPath(configPath);
         assert.strictEqual(result.ok, true);
         if (result.ok) {
-            assert.strictEqual(result.config.compatibilityVersion, 4);
+            assert.strictEqual(result.config.compatibilityVersion, 5);
             assert.strictEqual(result.migrated, true);
             assert.ok(
-                result.migrationMessages?.some((message) => message.includes('implicit v1 to v4')),
+                result.migrationMessages?.some((message) => message.includes('implicit v1 to v5')),
             );
         }
     });
@@ -2056,7 +2056,7 @@ describe('Engine: synchronizer advanced', () => {
         fs.writeFileSync(
             configPath,
             JSON.stringify({
-                compatibilityVersion: 4,
+                compatibilityVersion: 5,
                 metadataRepo: { localPath: '.ai/ai-metadata' },
                 synchronization: { repoWideCopilotInstructions: true },
             }),
@@ -2123,7 +2123,7 @@ describe('Engine: synchronizer advanced', () => {
         fs.writeFileSync(
             configPath,
             JSON.stringify({
-                compatibilityVersion: 4,
+                compatibilityVersion: 5,
                 metadataRepo: { localPath: '.ai/ai-metadata' },
                 synchronization: { repoWideCopilotInstructions: true },
             }),

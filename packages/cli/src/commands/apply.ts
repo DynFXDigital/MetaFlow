@@ -26,7 +26,7 @@ export function registerApplyCommand(program: Command): void {
                             fileNamingStrategy: config.fileNamingStrategy,
                             layerSources: config.layerSources,
                             synchronizationPolicy:
-                                !loaded.migrationRequired &&
+                                attested.migrationRequired !== true &&
                                 config.synchronization?.repoWideCopilotInstructions === true,
                             rootSynchronizationAuthorization: authorization,
                             rootSynchronizationConfigPath: loaded.configPath,

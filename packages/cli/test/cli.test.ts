@@ -59,6 +59,8 @@ describe('CLI: init', () => {
         assert.ok(fs.existsSync(configPath), '.metaflow/config.jsonc should exist');
 
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        assert.strictEqual(config.compatibilityVersion, 5);
+        assert.strictEqual(config.targets, undefined);
         assert.ok(config.metadataRepos, 'config should have metadataRepos');
         assert.strictEqual(config.metadataRepos[0].capabilities, undefined);
         assert.deepStrictEqual(config.profiles?.default?.enabledCapabilities, []);
@@ -239,6 +241,61 @@ describe('CLI: preview', () => {
         assert.ok(result.stdout.includes('No files in overlay'));
     });
 
+    it('previews an enabled current-version root instruction without writing config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.ok(
+            data.pendingChanges.some(
+                (change: { relativePath: string }) =>
+                    change.relativePath === 'copilot-instructions.md',
+            ),
+        );
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
+    });
+
+    it('fails a stale root-enabled preview clearly without migrating config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['preview', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Configuration migration is required'));
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
+    });
+
     it('should preserve original relative paths when fileNamingStrategy is original-unless-conflict', async () => {
         ws = createTestWorkspace({
             config: standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
@@ -393,6 +450,33 @@ describe('CLI: apply', () => {
         // Settings files should NOT be synchronized into .github
         const instrPath = path.join(ws.root, '.github', 'instructions', 'coding.md');
         assert.ok(!fs.existsSync(instrPath), 'settings file should not be synchronized');
+    });
+
+    it('migrates v4 and applies an existing root opt-in on the first invocation', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(fs.existsSync(path.join(ws.root, '.github', 'copilot-instructions.md')));
+        const persisted = JSON.parse(
+            fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
+        );
+        assert.strictEqual(persisted.compatibilityVersion, 5);
+        assert.strictEqual(persisted.synchronization?.repoWideCopilotInstructions, true);
     });
 
     it('should create managed state after apply', async () => {
@@ -623,7 +707,7 @@ describe('CLI: profile', () => {
 
     it('should set active profile', async () => {
         ws = createTestWorkspace({
-            config: standardConfig(),
+            config: standardConfig({ targets: { pi: { enabled: true } } }),
             layers: STANDARD_LAYERS,
         });
 
@@ -636,6 +720,7 @@ describe('CLI: profile', () => {
         const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         assert.strictEqual(config.activeProfile, 'lean');
+        assert.deepStrictEqual(config.targets, { pi: { enabled: true } });
     });
 
     it('should reject unknown profile name', async () => {
@@ -745,7 +830,7 @@ describe('CLI: --json output', () => {
         assert.ok(Array.isArray(data.injection.settingsEntries));
         assert.ok(Array.isArray(data.sources));
         assert.strictEqual(data.synchronization.repoWideCopilotInstructions, false);
-        assert.strictEqual(data.synchronization.migrationRequired, true);
+        assert.strictEqual(data.synchronization.migrationRequired, false);
         assert.ok(Array.isArray(data.synchronization.retained));
         assert.ok(typeof data.files.total === 'number');
         assert.ok(typeof data.files.settings === 'number');
@@ -919,7 +1004,7 @@ describe('CLI: validate', () => {
     it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 4,
+                compatibilityVersion: 5,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {
@@ -944,6 +1029,33 @@ describe('CLI: validate', () => {
         assert.strictEqual(afterDrift.exitCode, 1);
         const afterData = JSON.parse(afterDrift.stdout);
         assert.ok(afterData.drifted.includes('copilot-instructions.md'));
+    });
+
+    it('fails stale root-enabled validation clearly without migrating config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['validate', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.valid, false);
+        assert.ok(data.error.includes('Configuration migration is required'));
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
     });
 });
 
@@ -1600,6 +1712,52 @@ describe('CLI: watch', () => {
         });
     });
 
+    it('startWatch migrates v4 and applies an existing root opt-in in the first cycle', (done) => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        let changeTimer: ReturnType<typeof setTimeout> | undefined;
+        const handle = startWatch(ws.root, {
+            debounceMs: 50,
+            onCycle(result) {
+                if (changeTimer) {
+                    clearTimeout(changeTimer);
+                    changeTimer = undefined;
+                }
+                handle.close();
+                try {
+                    assert.strictEqual(result.error, undefined);
+                    assert.ok(
+                        fs.existsSync(path.join(ws.root, '.github', 'copilot-instructions.md')),
+                    );
+                    const persisted = JSON.parse(
+                        fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
+                    );
+                    assert.strictEqual(persisted.compatibilityVersion, 5);
+                    done();
+                } catch (error) {
+                    done(error);
+                }
+            },
+        });
+
+        changeTimer = setTimeout(() => {
+            fs.appendFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), ' ');
+        }, 30);
+    });
+
     it('close() stops the watcher', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
@@ -2026,7 +2184,7 @@ describe('CLI: promote --auto', () => {
     it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 4,
+                compatibilityVersion: 5,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {

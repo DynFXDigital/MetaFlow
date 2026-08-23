@@ -1,7 +1,9 @@
 export { loadConfig, loadConfigFromPath, parseAndValidate, validateConfig } from './configLoader';
 export {
+    persistCurrentCompatibilityConfig,
     persistCompatibilityV4Config,
     withRootSynchronizationAuthorization,
+    withReadOnlyRootSynchronizationAuthorization,
     isRootSynchronizationAuthorizationActive,
 } from './configMigration';
 export {
@@ -20,6 +22,7 @@ export {
 } from './configPathUtils';
 export {
     CURRENT_CONFIG_COMPATIBILITY_VERSION,
+    isPiTargetEnabled,
     normalizeConfigShape,
     toAuthoredConfig,
 } from './configNormalization';
@@ -37,6 +40,8 @@ export type {
     SettingsInjectionTarget,
     HooksConfig,
     SynchronizationConfig,
+    PiTargetConfig,
+    MetaFlowTargetsConfig,
     ConfigError,
     ConfigLoadResult,
 } from './configSchema';

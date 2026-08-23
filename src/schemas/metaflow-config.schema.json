@@ -8,7 +8,7 @@
     "compatibilityVersion": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 4,
+      "maximum": 5,
       "description": "Config compatibility version used by MetaFlow for release-aware automatic migration."
     },
     "metadataRepos": {
@@ -69,6 +69,10 @@
     "synchronization": {
       "$ref": "#/definitions/synchronizationConfig",
       "description": "Workspace-wide synchronization policy. Root Copilot instructions require explicit true consent."
+    },
+    "targets": {
+      "$ref": "#/definitions/targetsConfig",
+      "description": "Explicit project-local output targets. Omitted targets are disabled."
     }
   },
   "anyOf": [
@@ -77,6 +81,26 @@
     },
     {
       "required": ["metadataRepo"]
+    }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": ["targets"],
+        "properties": {
+          "targets": {
+            "required": ["pi"]
+          }
+        }
+      },
+      "then": {
+        "required": ["compatibilityVersion"],
+        "properties": {
+          "compatibilityVersion": {
+            "const": 5
+          }
+        }
+      }
     }
   ],
   "definitions": {
@@ -323,6 +347,26 @@
           "type": "boolean",
           "default": false,
           "description": "Allow MetaFlow to write the canonical .github/copilot-instructions.md output."
+        }
+      }
+    },
+    "targetsConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pi": {
+          "$ref": "#/definitions/piTargetConfig"
+        }
+      }
+    },
+    "piTargetConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Explicitly project the active capability profile as a skills-only Agent Plugins v1 package for Pi."
         }
       }
     }

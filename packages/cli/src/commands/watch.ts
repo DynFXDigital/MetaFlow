@@ -74,7 +74,7 @@ export function startWatch(
                         fileNamingStrategy: attested.config.fileNamingStrategy,
                         layerSources: attested.config.layerSources,
                         synchronizationPolicy:
-                            !configResult.migrationRequired &&
+                            attested.migrationRequired !== true &&
                             attested.config.synchronization?.repoWideCopilotInstructions === true,
                         rootSynchronizationAuthorization: authorization,
                         rootSynchronizationConfigPath: configResult.configPath,
@@ -209,7 +209,7 @@ export function registerWatchCommand(program: Command): void {
                             fileNamingStrategy: attested.config.fileNamingStrategy,
                             layerSources: attested.config.layerSources,
                             synchronizationPolicy:
-                                !configResult.migrationRequired &&
+                                attested.migrationRequired !== true &&
                                 attested.config.synchronization?.repoWideCopilotInstructions ===
                                     true,
                             rootSynchronizationAuthorization: authorization,

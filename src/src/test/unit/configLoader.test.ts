@@ -70,7 +70,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
                 assert.strictEqual(result.config.layerSources?.length, 3);
-                assert.strictEqual(result.config.compatibilityVersion, 4);
+                assert.strictEqual(result.config.compatibilityVersion, 5);
             }
         });
 
@@ -89,7 +89,7 @@ suite('Config Loader', () => {
             );
             assert.strictEqual(result.ok, true);
             if (result.ok) {
-                assert.strictEqual(result.config.compatibilityVersion, 4);
+                assert.strictEqual(result.config.compatibilityVersion, 5);
                 assert.strictEqual(result.migrated, true);
                 assert.ok(
                     result.migrationMessages?.some((message) =>

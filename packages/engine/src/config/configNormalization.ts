@@ -4,6 +4,7 @@ import {
     InjectionConfig,
     LayerSource,
     MetaFlowConfig,
+    MetaFlowTargetsConfig,
     NamedMetadataRepo,
     ProfileConfig,
     ProfileLayerOverride,
@@ -20,7 +21,7 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
-export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 4;
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 5;
 const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
 
 function cloneJson<T>(value: T): T {
@@ -126,6 +127,32 @@ function orderHooksConfig(config: HooksConfig | undefined): HooksConfig | undefi
         ...(config.preApply !== undefined ? { preApply: config.preApply } : {}),
         ...(config.postApply !== undefined ? { postApply: config.postApply } : {}),
     };
+}
+
+function orderTargetsConfig(
+    config: MetaFlowTargetsConfig | undefined,
+): MetaFlowTargetsConfig | undefined {
+    if (config === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(config.pi !== undefined
+            ? {
+                  pi: {
+                      ...(config.pi.enabled !== undefined ? { enabled: config.pi.enabled } : {}),
+                  },
+              }
+            : {}),
+    };
+}
+
+/** Return true only for an explicitly enabled target persisted at the current contract version. */
+export function isPiTargetEnabled(config: MetaFlowConfig): boolean {
+    return (
+        config.compatibilityVersion === CURRENT_CONFIG_COMPATIBILITY_VERSION &&
+        config.targets?.pi?.enabled === true
+    );
 }
 
 function orderSynchronizationConfig(
@@ -546,6 +573,10 @@ export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConf
         canonical.layers = canonicalizeLegacyLayers(config.layers);
     }
 
+    if (config.targets !== undefined) {
+        canonical.targets = orderTargetsConfig(config.targets);
+    }
+
     return canonical;
 }
 
@@ -560,6 +591,7 @@ function buildRestOfConfig(
         compatibilityVersion: compatibility.compatibilityVersion,
         profiles: orderProfiles(profiles) ?? {},
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
+        ...(config.targets !== undefined ? { targets: orderTargetsConfig(config.targets) } : {}),
         ...(config.capabilityOverrides !== undefined
             ? { capabilityOverrides: cloneJson(config.capabilityOverrides) }
             : {}),

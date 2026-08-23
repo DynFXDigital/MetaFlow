@@ -1,5 +1,10 @@
 import { Command } from 'commander';
-import { computeSettingsEntries, preview } from '@metaflow/engine';
+import {
+    computeSettingsEntries,
+    preview,
+    withReadOnlyRootSynchronizationAuthorization,
+} from '@metaflow/engine';
+import type { RootSynchronizationAuthorization } from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
@@ -55,26 +60,69 @@ export function registerPreviewCommand(program: Command): void {
                 return;
             }
             try {
-                const { config } = loaded;
-                const files = resolveEffectiveFiles(config, workspaceRoot);
-                const changes = preview(
-                    workspaceRoot,
-                    files,
-                    undefined,
-                    config.fileNamingStrategy,
-                    config.layerSources,
-                    !loaded.migrationRequired &&
+                const calculatePreview = (
+                    config: typeof loaded.config,
+                    authorization?: RootSynchronizationAuthorization,
+                ) => {
+                    const files = resolveEffectiveFiles(config, workspaceRoot);
+                    const changes = preview(
+                        workspaceRoot,
+                        files,
+                        undefined,
+                        config.fileNamingStrategy,
+                        config.layerSources,
                         config.synchronization?.repoWideCopilotInstructions === true,
-                );
-                const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
-                const warnings = formatSurfacedConflictWarnings(conflicts);
-                const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
-                const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
-                const sourceSummary = summarizeSources(files);
-                const settingsCount = files.filter(
-                    (file) => file.classification === 'settings',
-                ).length;
-                const synchronizedCount = files.length - settingsCount;
+                        authorization,
+                        loaded.configPath,
+                    );
+                    const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
+                    const warnings = formatSurfacedConflictWarnings(conflicts);
+                    const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
+                    const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
+                    const sourceSummary = summarizeSources(files);
+                    const settingsCount = files.filter(
+                        (file) => file.classification === 'settings',
+                    ).length;
+                    const synchronizedCount = files.length - settingsCount;
+                    return {
+                        files,
+                        changes,
+                        conflicts,
+                        warnings,
+                        settingsEntries,
+                        settingsEntrySummary,
+                        sourceSummary,
+                        settingsCount,
+                        synchronizedCount,
+                    };
+                };
+
+                const rootPolicyEnabled =
+                    loaded.config.synchronization?.repoWideCopilotInstructions === true;
+                if (loaded.migrationRequired && rootPolicyEnabled) {
+                    throw new Error(
+                        'Configuration migration is required before repository-wide Copilot instruction synchronization can be previewed; run metaflow apply first.',
+                    );
+                }
+
+                const calculated = rootPolicyEnabled
+                    ? withReadOnlyRootSynchronizationAuthorization(
+                          loaded.configPath,
+                          (authorization, attested) =>
+                              calculatePreview(attested.config, authorization),
+                      )
+                    : calculatePreview(loaded.config);
+                const {
+                    files,
+                    changes,
+                    conflicts,
+                    warnings,
+                    settingsEntries,
+                    settingsEntrySummary,
+                    sourceSummary,
+                    settingsCount,
+                    synchronizedCount,
+                } = calculated;
 
                 if (options.json) {
                     const data = {

@@ -6,7 +6,7 @@ import { CURRENT_CONFIG_COMPATIBILITY_VERSION } from './configNormalization';
 
 /** Opaque proof that a root synchronization operation passed raw-disk checks. */
 export interface RootSynchronizationAuthorization {
-    readonly kind: 'active-persisted-v4';
+    readonly kind: 'active-persisted-current' | 'active-persisted-v4';
 }
 
 const activeAuthorizations = new WeakSet<object>();
@@ -44,7 +44,7 @@ function validateRawConfig(config: MetaFlowConfig, configPath: string): void {
  * Persist only the compatibility barrier and explicit root policy fields.
  * jsonc.modify/applyEdits preserves unrelated comments and authored nodes.
  */
-export function persistCompatibilityV4Config(configPath: string): boolean {
+export function persistCurrentCompatibilityConfig(configPath: string): boolean {
     const existing = fs.readFileSync(configPath, 'utf-8');
     const raw = parseRawConfig(existing, configPath);
     validateRawConfig(raw, configPath);
@@ -87,7 +87,12 @@ export function persistCompatibilityV4Config(configPath: string): boolean {
     return true;
 }
 
-function assertPersistedV4(configPath: string): ConfigLoadResult & { ok: true } {
+/** @deprecated Use persistCurrentCompatibilityConfig. */
+export function persistCompatibilityV4Config(configPath: string): boolean {
+    return persistCurrentCompatibilityConfig(configPath);
+}
+
+function assertPersistedCurrent(configPath: string): ConfigLoadResult & { ok: true } {
     const rawText = fs.readFileSync(configPath, 'utf-8');
     const raw = parseRawConfig(rawText, configPath);
     validateRawConfig(raw, configPath);
@@ -96,7 +101,9 @@ function assertPersistedV4(configPath: string): ConfigLoadResult & { ok: true } 
         !Number.isInteger(raw.compatibilityVersion) ||
         raw.compatibilityVersion !== CURRENT_CONFIG_COMPATIBILITY_VERSION
     ) {
-        throw new Error(`Cannot attest ${configPath}: compatibilityVersion v4 is not persisted.`);
+        throw new Error(
+            `Cannot attest ${configPath}: compatibilityVersion v${CURRENT_CONFIG_COMPATIBILITY_VERSION} is not persisted.`,
+        );
     }
 
     const loaded = loadConfigFromPath(configPath);
@@ -111,33 +118,21 @@ function assertPersistedV4(configPath: string): ConfigLoadResult & { ok: true } 
     return loaded;
 }
 
-/**
- * Read, minimally migrate, re-read, and execute one operation-local callback.
- * The authorization object remains active until a synchronous or asynchronous
- * callback has completed, then is revoked unconditionally.
- */
-export function withRootSynchronizationAuthorization<T>(
+function executeWithRootSynchronizationAuthorization<T>(
     configPath: string,
+    loaded: ConfigLoadResult & { ok: true },
     callback: (
         authorization: RootSynchronizationAuthorization | undefined,
         loaded: ConfigLoadResult & { ok: true },
     ) => T,
 ): T {
-    const first = loadConfigFromPath(configPath);
-    if (!first.ok) {
-        throw new Error(first.errors.map((error) => error.message).join('; '));
-    }
-    if (first.migrationRequired) {
-        persistCompatibilityV4Config(configPath);
-    }
-    const loaded = assertPersistedV4(configPath);
     const policyEnabled = loaded.config.synchronization?.repoWideCopilotInstructions === true;
     if (!policyEnabled) {
         return callback(undefined, loaded);
     }
 
     const authorization = Object.freeze({
-        kind: 'active-persisted-v4',
+        kind: 'active-persisted-current',
     }) as RootSynchronizationAuthorization;
     const key = authorization as object;
     activeAuthorizations.add(key);
@@ -170,6 +165,47 @@ export function withRootSynchronizationAuthorization<T>(
         revoke();
         throw error;
     }
+}
+
+/**
+ * Fresh-read an already-current config and execute one operation-local callback
+ * without persisting migration or policy defaults.
+ */
+export function withReadOnlyRootSynchronizationAuthorization<T>(
+    configPath: string,
+    callback: (
+        authorization: RootSynchronizationAuthorization | undefined,
+        loaded: ConfigLoadResult & { ok: true },
+    ) => T,
+): T {
+    return executeWithRootSynchronizationAuthorization(
+        configPath,
+        assertPersistedCurrent(configPath),
+        callback,
+    );
+}
+
+/**
+ * Read, minimally migrate, re-read, and execute one operation-local callback.
+ * The authorization object remains active until a synchronous or asynchronous
+ * callback has completed, then is revoked unconditionally.
+ */
+export function withRootSynchronizationAuthorization<T>(
+    configPath: string,
+    callback: (
+        authorization: RootSynchronizationAuthorization | undefined,
+        loaded: ConfigLoadResult & { ok: true },
+    ) => T,
+): T {
+    const first = loadConfigFromPath(configPath);
+    if (!first.ok) {
+        throw new Error(first.errors.map((error) => error.message).join('; '));
+    }
+    if (first.migrationRequired) {
+        persistCurrentCompatibilityConfig(configPath);
+    }
+    const loaded = assertPersistedCurrent(configPath);
+    return executeWithRootSynchronizationAuthorization(configPath, loaded, callback);
 }
 
 export function isRootSynchronizationAuthorizationActive(

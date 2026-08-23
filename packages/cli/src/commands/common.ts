@@ -24,6 +24,7 @@ export interface LoadedConfig {
 }
 
 const CONFIG_ROOT_KEYS = new Set([
+    'compatibilityVersion',
     'metadataRepo',
     'layers',
     'metadataRepos',
@@ -36,6 +37,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'settingsInjectionTarget',
     'hooks',
     'synchronization',
+    'targets',
 ]);
 
 function isMetaFlowConfigDocument(data: unknown): data is MetaFlowConfig {

@@ -3,7 +3,7 @@ import {
     checkAllDrift,
     loadManagedState,
     planSynchronization,
-    withRootSynchronizationAuthorization,
+    withReadOnlyRootSynchronizationAuthorization,
 } from '@metaflow/engine';
 import type { RootSynchronizationAuthorization } from '@metaflow/engine';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
@@ -25,6 +25,7 @@ export function registerValidateCommand(program: Command): void {
                 const validateWithConfig = (
                     config: typeof loaded.config,
                     authorization?: RootSynchronizationAuthorization,
+                    migrationRequired = loaded.migrationRequired,
                 ) => {
                     // Resolve expected overlay state
                     const files = resolveEffectiveFiles(config, workspaceRoot);
@@ -34,7 +35,7 @@ export function registerValidateCommand(program: Command): void {
                         fileNamingStrategy: config.fileNamingStrategy,
                         layerSources: config.layerSources,
                         synchronizationPolicy:
-                            !loaded.migrationRequired &&
+                            !migrationRequired &&
                             config.synchronization?.repoWideCopilotInstructions === true,
                         rootSynchronizationAuthorization: authorization,
                         rootSynchronizationConfigPath: loaded.configPath,
@@ -53,7 +54,7 @@ export function registerValidateCommand(program: Command): void {
                     const missing = drift.filter((d) => d.status === 'missing');
                     const retained = plan.retainedFiles;
                     const rootPolicyDisabled =
-                        loaded.migrationRequired ||
+                        migrationRequired ||
                         config.synchronization?.repoWideCopilotInstructions !== true;
                     const relevantDrift = rootPolicyDisabled
                         ? drift.filter((d) => d.relativePath !== 'copilot-instructions.md')
@@ -141,12 +142,21 @@ export function registerValidateCommand(program: Command): void {
                 };
 
                 if (loaded.migrationRequired) {
+                    if (loaded.config.synchronization?.repoWideCopilotInstructions === true) {
+                        throw new Error(
+                            'Configuration migration is required before repository-wide Copilot instruction synchronization can be validated; run metaflow apply first.',
+                        );
+                    }
                     validateWithConfig(loaded.config);
                 } else {
-                    withRootSynchronizationAuthorization(
+                    withReadOnlyRootSynchronizationAuthorization(
                         loaded.configPath,
                         (authorization, attested) => {
-                            validateWithConfig(attested.config, authorization);
+                            validateWithConfig(
+                                attested.config,
+                                authorization,
+                                attested.migrationRequired === true,
+                            );
                         },
                     );
                 }

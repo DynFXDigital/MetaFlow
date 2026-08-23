@@ -724,7 +724,7 @@ async function updateManagedCopilotPluginSettings(
 export interface ExtensionState {
     config?: MetaFlowConfig;
     configPath?: string;
-    /** Raw config is not yet persisted at compatibility v4. */
+    /** Raw config is not yet persisted at the current compatibility version. */
     migrationRequired: boolean;
     /** True while a refresh is actively resolving configuration for the workspace. */
     isLoading: boolean;
@@ -3273,6 +3273,7 @@ async function persistConfig(
 ): Promise<boolean> {
     const authoredConfig = toAuthoredConfig(config);
     const topLevelKeys = [
+        'compatibilityVersion',
         'metadataRepo',
         'layers',
         'metadataRepos',
@@ -3285,6 +3286,7 @@ async function persistConfig(
         'settingsInjectionTarget',
         'hooks',
         'synchronization',
+        'targets',
     ];
     let existing: string | undefined;
     try {
@@ -6400,7 +6402,7 @@ export function registerCommands(
                             undefined,
                             attested.config.fileNamingStrategy,
                             attested.config.layerSources,
-                            !state.migrationRequired &&
+                            attested.migrationRequired !== true &&
                                 attested.config.synchronization?.repoWideCopilotInstructions ===
                                     true,
                             authorization,
@@ -6461,7 +6463,7 @@ export function registerCommands(
                                     fileNamingStrategy: attested.config.fileNamingStrategy,
                                     layerSources: attested.config.layerSources,
                                     synchronizationPolicy:
-                                        !state.migrationRequired &&
+                                        attested.migrationRequired !== true &&
                                         attested.config.synchronization
                                             ?.repoWideCopilotInstructions === true,
                                     rootSynchronizationAuthorization: authorization,

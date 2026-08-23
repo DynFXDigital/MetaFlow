@@ -114,7 +114,8 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
         configPath,
         migrationRequired:
             !Object.prototype.hasOwnProperty.call(parsed, 'compatibilityVersion') ||
-            (parsed as MetaFlowConfig).compatibilityVersion !== CURRENT_CONFIG_COMPATIBILITY_VERSION,
+            (parsed as MetaFlowConfig).compatibilityVersion !==
+                CURRENT_CONFIG_COMPATIBILITY_VERSION,
         ...(validationWarnings.length > 0 ? { warnings: validationWarnings } : {}),
         ...(normalized.migrated
             ? {
@@ -135,18 +136,13 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
     const errors: ConfigError[] = [];
 
     if (config.compatibilityVersion !== undefined) {
-        if (
-            !Number.isInteger(config.compatibilityVersion) ||
-            config.compatibilityVersion < 1
-        ) {
+        if (!Number.isInteger(config.compatibilityVersion) || config.compatibilityVersion < 1) {
             errors.push({
-                message:
-                    '"compatibilityVersion" must be an integer greater than or equal to 1.',
+                message: '"compatibilityVersion" must be an integer greater than or equal to 1.',
             });
         } else if (config.compatibilityVersion > CURRENT_CONFIG_COMPATIBILITY_VERSION) {
             errors.push({
-                message:
-                    `"compatibilityVersion" ${config.compatibilityVersion} is newer than the supported version ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+                message: `"compatibilityVersion" ${config.compatibilityVersion} is newer than the supported version ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
             });
         }
     }
@@ -175,9 +171,67 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 typeof synchronization.repoWideCopilotInstructions !== 'boolean'
             ) {
                 errors.push({
-                    message:
-                        '"synchronization.repoWideCopilotInstructions" must be a boolean.',
+                    message: '"synchronization.repoWideCopilotInstructions" must be a boolean.',
                 });
+            }
+        }
+    }
+
+    if (config.targets !== undefined) {
+        if (
+            typeof config.targets !== 'object' ||
+            config.targets === null ||
+            Array.isArray(config.targets)
+        ) {
+            errors.push({
+                code: 'CONFIG_TARGETS_INVALID',
+                message: '"targets" must be an object when provided.',
+            });
+        } else {
+            const targets = config.targets as Record<string, unknown>;
+            for (const key of Object.keys(targets)) {
+                if (key !== 'pi') {
+                    errors.push({
+                        code: 'CONFIG_TARGET_UNSUPPORTED',
+                        message: `"targets.${key}" is not a supported project target.`,
+                    });
+                }
+            }
+
+            if (Object.prototype.hasOwnProperty.call(targets, 'pi')) {
+                if (config.compatibilityVersion !== CURRENT_CONFIG_COMPATIBILITY_VERSION) {
+                    errors.push({
+                        code: 'CONFIG_PI_TARGET_VERSION_REQUIRED',
+                        message: `"targets.pi" requires "compatibilityVersion": ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+                    });
+                }
+
+                const pi = targets.pi;
+                if (typeof pi !== 'object' || pi === null || Array.isArray(pi)) {
+                    errors.push({
+                        code: 'CONFIG_PI_TARGET_INVALID',
+                        message: '"targets.pi" must be an object.',
+                    });
+                } else {
+                    const piTarget = pi as Record<string, unknown>;
+                    for (const key of Object.keys(piTarget)) {
+                        if (key !== 'enabled') {
+                            errors.push({
+                                code: 'CONFIG_PI_TARGET_KEY_UNSUPPORTED',
+                                message: `"targets.pi.${key}" is not supported; the skills-only Pi target accepts only "enabled".`,
+                            });
+                        }
+                    }
+                    if (
+                        Object.prototype.hasOwnProperty.call(piTarget, 'enabled') &&
+                        typeof piTarget.enabled !== 'boolean'
+                    ) {
+                        errors.push({
+                            code: 'CONFIG_PI_TARGET_ENABLED_INVALID',
+                            message: '"targets.pi.enabled" must be a boolean.',
+                        });
+                    }
+                }
             }
         }
     }
@@ -272,8 +326,7 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                     Object.prototype.hasOwnProperty.call(capability, 'excludedTypes')
                 ) {
                     errors.push({
-                        message:
-                            `"metadataRepos" entry "${repo.id}" capability "${(capability as { path?: unknown }).path ?? '<unknown>'}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
+                        message: `"metadataRepos" entry "${repo.id}" capability "${(capability as { path?: unknown }).path ?? '<unknown>'}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
                     });
                 }
             }
@@ -284,8 +337,7 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 repo.fileNamingStrategy !== 'original-unless-conflict'
             ) {
                 errors.push({
-                    message:
-                        `"metadataRepos" entry "${repo.id}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
+                    message: `"metadataRepos" entry "${repo.id}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
                 });
             }
         }
@@ -330,8 +382,7 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 }
                 if (Object.prototype.hasOwnProperty.call(ls, 'excludedTypes')) {
                     errors.push({
-                        message:
-                            `"layerSources" entry "${ls.repoId}/${ls.path}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
+                        message: `"layerSources" entry "${ls.repoId}/${ls.path}" uses unsupported "excludedTypes". Capabilities are atomic; split the capability or disable it entirely.`,
                     });
                 }
                 if (
@@ -340,8 +391,7 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                     ls.fileNamingStrategy !== 'original-unless-conflict'
                 ) {
                     errors.push({
-                        message:
-                            `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
+                        message: `"layerSources" entry "${ls.repoId}/${ls.path}" has invalid "fileNamingStrategy" (must be "prefixed" or "original-unless-conflict").`,
                     });
                 }
             }

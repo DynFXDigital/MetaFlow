@@ -46,7 +46,7 @@ suite('Command handler config update consent', () => {
         assert.match(confirmHelper, /'Later'/);
     });
 
-    test('persistence removes the obsolete top-level filters property', () => {
+    test('persistence removes omitted canonical top-level properties', () => {
         const source = readCommandHandlersSource();
         const persistenceBlock = sourceSlice(
             source,
@@ -55,11 +55,31 @@ suite('Command handler config update consent', () => {
         );
 
         assert.match(persistenceBlock, /'filters',/);
+        assert.match(persistenceBlock, /'targets',/);
         assert.match(persistenceBlock, /const authoredConfig = toAuthoredConfig\(config\);/);
         assert.match(
             persistenceBlock,
             /if \(!\(key in authoredConfig\)\) \{[\s\S]*jsonc\.modify\(updated, \[key\], undefined,/,
         );
+    });
+
+    test('root preview and apply use the freshly attested migration state', () => {
+        const source = readCommandHandlersSource();
+        const previewBlock = sourceSlice(
+            source,
+            "vscode.commands.registerCommand('metaflow.preview'",
+            "vscode.commands.registerCommand('metaflow.apply'",
+        );
+        const applyBlock = sourceSlice(
+            source,
+            "vscode.commands.registerCommand('metaflow.apply'",
+            "vscode.commands.registerCommand('metaflow.clean'",
+        );
+
+        assert.match(previewBlock, /attested\.migrationRequired !== true/);
+        assert.doesNotMatch(previewBlock, /state\.migrationRequired/);
+        assert.match(applyBlock, /attested\.migrationRequired !== true/);
+        assert.doesNotMatch(applyBlock, /state\.migrationRequired/);
     });
 
     test('test-mode refresh accepts pending updates without opening modal dialogs', () => {
