@@ -52,7 +52,7 @@ The CLI accepts preview-era configs that still use `metadataRepo`, `layers`, or 
 
 #### `preview`
 
-List effective files and pending changes without writing anything.
+List effective files and pending overlay or project-target changes without writing anything.
 
 ```bash
 metaflow preview
@@ -63,16 +63,21 @@ If enabled capabilities surface the same effective path, `preview` reports warni
 
 #### `apply`
 
-Synchronize overlay outputs to `.github/` with provenance headers.
+Synchronize overlay outputs to `.github/` with provenance headers and reconcile any explicitly enabled project targets.
 
 ```bash
 metaflow apply                 # skip drifted files
 metaflow apply --force         # overwrite drifted files
 ```
 
+With compatibility version 5 and `targets.pi.enabled: true`, `apply` also
+reconciles the skills-only `.pi/plugins/metaflow.project` package. Pi target
+drift and untracked content always fail closed; `--force` does not override that
+ownership boundary. See [Pi Agent Plugins v1 target](../../docs/pi-agent-plugins-v1.md).
+
 #### `clean`
 
-Remove all managed files (preserves drifted files).
+Remove all verified managed files and project targets (preserves drifted or untracked content).
 
 ```bash
 metaflow clean
@@ -103,7 +108,7 @@ metaflow promote --auto --json                 # machine-readable output
 
 #### `validate`
 
-Validate managed files match expected overlay state. Designed for CI pipelines.
+Validate managed files and enabled project targets match expected state. Designed for CI pipelines.
 
 ```bash
 metaflow validate              # human-readable output

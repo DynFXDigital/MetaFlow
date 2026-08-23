@@ -140,6 +140,12 @@ MetaFlow treats the published Agent Plugins 1.0 contract as a separate compatibi
 - Client-specific manifest data belongs under reverse-domain keys in `extensions`; MetaFlow/Copilot fields are not added to the portable root schema.
 - Portable packages are not serialized through MetaFlow's existing Copilot marketplace projection. Classification and compatibility do not imply installation, enablement, trust, or host-effective activation.
 
+### Pi project target
+
+Projects can explicitly enable a skills-only Pi target with compatibility version 5 and `targets.pi.enabled: true`. MetaFlow aggregates valid portable skills from the active capability profile into `.pi/plugins/metaflow.project`, records ownership separately in `.metaflow/pi-target-state.json`, and leaves Pi discovery to `pi-agent-plugins`. Preview is read-only; apply, validate, watch, disable, and clean share the same fail-closed ownership contract. MetaFlow does not generate Pi MCP configuration or mutate global Pi state.
+
+See [Pi Agent Plugins v1 target](docs/pi-agent-plugins-v1.md) for prerequisites, configuration, lifecycle, cleanup, and portability limits.
+
 Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, `agents`, and Copilot hook artifacts to `plugin`; prompts remain settings-backed because Copilot plugin discovery does not consume MetaFlow prompt directories directly.
 
 An explicit config looks like this:
@@ -166,13 +172,14 @@ Current scope:
 
 ## Where to go next
 
-| Topic                                                                         | Document                                           |
-| ----------------------------------------------------------------------------- | -------------------------------------------------- |
-| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                     |
-| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md)   |
-| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                           |
-| Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) |
-| Release process                                                               | [RELEASING.md](RELEASING.md)                       |
+| Topic                                                                         | Document                                                   |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                             |
+| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md)           |
+| Pi Agent Plugins v1 target setup, lifecycle, and safety boundaries            | [docs/pi-agent-plugins-v1.md](docs/pi-agent-plugins-v1.md) |
+| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                                   |
+| Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)         |
+| Release process                                                               | [RELEASING.md](RELEASING.md)                               |
 
 ## Support
 
