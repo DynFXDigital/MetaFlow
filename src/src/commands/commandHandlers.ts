@@ -6629,10 +6629,14 @@ export function registerCommands(
                         }
 
                         if (result.written.length > 0 || piResult.written.length > 0) {
+                            const appliedFileSummary =
+                                piResult.written.length === 0
+                                    ? `${result.written.length} files`
+                                    : `${result.written.length} overlay and ${piResult.written.length} Pi target files`;
                             vscode.window.showInformationMessage(
                                 state.capabilityWarnings.length > 0
-                                    ? `MetaFlow: Applied ${result.written.length} overlay and ${piResult.written.length} Pi target files with ${state.capabilityWarnings.length} non-blocking warning(s).`
-                                    : `MetaFlow: Applied ${result.written.length} overlay and ${piResult.written.length} Pi target files.`,
+                                    ? `MetaFlow: Applied ${appliedFileSummary} with ${state.capabilityWarnings.length} non-blocking warning(s).`
+                                    : `MetaFlow: Applied ${appliedFileSummary}.`,
                             );
                         }
 

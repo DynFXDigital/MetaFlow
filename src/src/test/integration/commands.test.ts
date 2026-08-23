@@ -1850,15 +1850,17 @@ suite('Command Execution', function () {
             'plugin.json',
         );
         const mcpPath = path.join(workspaceRoot, '.pi', 'mcp.json');
-        const metaflowConfig = vscode.workspace.getConfiguration(
-            'metaflow',
-            vscode.workspace.workspaceFolders?.[0]?.uri,
-        );
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const originalAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const windowAny = vscode.window as unknown as {
             showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showErrorMessage: (...items: unknown[]) => Thenable<string | undefined>;
         };
         const originalWarning = windowAny.showWarningMessage;
+        const originalError = windowAny.showErrorMessage;
+        const errorMessages: string[] = [];
 
         removeDirectoryRecursive(repoRoot);
         fs.mkdirSync(path.join(capabilityRoot, 'skills', 'portable'), { recursive: true });
@@ -1881,7 +1883,12 @@ suite('Command Execution', function () {
         );
 
         try {
-            await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+            await updateConfigAndWait(
+                'metaflow.autoApply',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
             fs.writeFileSync(
                 configPath,
                 JSON.stringify(
@@ -1916,6 +1923,10 @@ suite('Command Execution', function () {
             );
 
             await vscode.commands.executeCommand('metaflow.refresh');
+            // Let the watcher refresh queued by the fixture write settle before
+            // exercising lifecycle commands against the loaded target state.
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
             assert.strictEqual(fs.existsSync(targetRoot), false, 'refresh should only plan');
             await vscode.commands.executeCommand('metaflow.preview');
             assert.strictEqual(fs.existsSync(targetRoot), false, 'preview should remain read-only');
@@ -1976,19 +1987,26 @@ suite('Command Execution', function () {
             fs.writeFileSync(neighboringPlugin, 'neighbor\n', 'utf-8');
             fs.writeFileSync(mcpPath, 'user mcp\n', 'utf-8');
             windowAny.showWarningMessage = async () => 'Remove';
+            windowAny.showErrorMessage = async (message: unknown) => {
+                errorMessages.push(String(message));
+                return undefined;
+            };
             await vscode.commands.executeCommand('metaflow.clean');
 
+            assert.deepStrictEqual(errorMessages, []);
             assert.strictEqual(fs.existsSync(targetRoot), false);
             assert.strictEqual(fs.existsSync(targetState), false);
             assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf-8'), 'neighbor\n');
             assert.strictEqual(fs.readFileSync(mcpPath, 'utf-8'), 'user mcp\n');
         } finally {
             windowAny.showWarningMessage = originalWarning;
+            windowAny.showErrorMessage = originalError;
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            await metaflowConfig.update(
-                'autoApply',
+            await updateConfigAndWait(
+                'metaflow.autoApply',
                 originalAutoApply,
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
             removeKnownCommandTestArtifacts();
             await vscode.commands.executeCommand('metaflow.refresh');
@@ -6244,13 +6262,9 @@ suite('Command Execution', function () {
                 wsFolder!,
             );
             fs.writeFileSync(configPath, JSON.stringify(legacyConfig, null, 2), 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh', {
-                skipConfigMaintenance: true,
-                skipAutoApply: true,
-                skipBuiltInAutoApply: true,
-                skipRepoSync: true,
-                skipSettingsInjection: true,
-            });
+            // Inspect the just-authored legacy fixture before yielding to the
+            // config watcher. The setting transition below is the operation
+            // under test and is responsible for persisting the migrated policy.
             assert.strictEqual(
                 (
                     JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
