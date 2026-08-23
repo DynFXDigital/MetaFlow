@@ -109,6 +109,10 @@ export {
     PI_SKILLS_PROJECTION_SCHEMA,
     projectPiAgentPluginSkills,
 } from './piSkillsProjection';
+export {
+    collectPiSkillsProjectionInput,
+    projectResolvedPiAgentPluginSkills,
+} from './piSkillsProjectionCollector';
 export type {
     PiAgentPluginManifest,
     PiProjectedFile,

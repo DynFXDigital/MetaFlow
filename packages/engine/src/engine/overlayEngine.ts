@@ -22,6 +22,7 @@ import {
     normalizeInputPath,
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
+import { inspectAgentPluginPackage } from './agentPluginCompatibility';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { isMarketplaceRepositoryRoot } from './repoManifest';
 
@@ -157,6 +158,39 @@ function getEntryKind(entry: fs.Dirent, fullPath: string): EntryKind {
     return 'other';
 }
 
+function hasFileSystemEntry(entryPath: string): boolean {
+    try {
+        fs.lstatSync(entryPath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function resolveLayerContent(
+    layerId: string,
+    layerAbsPath: string,
+    capabilityId: string,
+    repoId?: string,
+): LayerContent {
+    const capability = loadCapabilityManifestForLayer(layerAbsPath, capabilityId);
+    const pluginJsonPath = path.join(layerAbsPath, 'plugin.json');
+    const agentPluginCompatibilityInspection =
+        capability?.agentPluginManifest?.compatibilityInspection ??
+        (hasFileSystemEntry(pluginJsonPath) ? inspectAgentPluginPackage(layerAbsPath) : undefined);
+    return {
+        layerId,
+        ...(repoId !== undefined ? { repoId } : {}),
+        rootPath: layerAbsPath,
+        capabilityId,
+        files: walkDirectory(layerAbsPath, layerAbsPath),
+        ...(capability !== undefined ? { capability } : {}),
+        ...(agentPluginCompatibilityInspection !== undefined
+            ? { agentPluginCompatibilityInspection }
+            : {}),
+    };
+}
+
 // ── Internal helpers ───────────────────────────────────────────────
 
 function resolveSingleRepoLayers(
@@ -188,11 +222,7 @@ function resolveSingleRepoLayers(
             continue;
         }
 
-        const layerContent: LayerContent = {
-            layerId: normalizedLayerPath,
-            files: walkDirectory(layerAbsPath, layerAbsPath),
-            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-        };
+        const layerContent = resolveLayerContent(normalizedLayerPath, layerAbsPath, capabilityId);
         options.cache?.layerContents.set(cacheKey, layerContent);
         result.push(layerContent);
     }
@@ -249,12 +279,12 @@ function resolveMultiRepoLayers(
             continue;
         }
 
-        const layerContent: LayerContent = {
-            layerId: `${ls.repoId}/${normalizedLayerPath}`,
-            repoId: ls.repoId,
-            files: walkDirectory(layerAbsPath, layerAbsPath),
-            capability: loadCapabilityManifestForLayer(layerAbsPath, capabilityId),
-        };
+        const layerContent = resolveLayerContent(
+            `${ls.repoId}/${normalizedLayerPath}`,
+            layerAbsPath,
+            capabilityId,
+            ls.repoId,
+        );
         options.cache?.layerContents.set(cacheKey, layerContent);
         result.push(layerContent);
     }

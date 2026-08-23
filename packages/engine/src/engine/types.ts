@@ -31,10 +31,16 @@ export interface LayerContent {
     layerId: string;
     /** Repo ID (for multi-repo; undefined for single-repo). */
     repoId?: string;
+    /** Absolute layer root populated by the resolver. */
+    rootPath?: string;
+    /** Stable capability identity even when the layer has no README/CAPABILITY descriptor. */
+    capabilityId?: string;
     /** Files discovered in this layer. */
     files: LayerFile[];
     /** Optional capability metadata loaded from the selected descriptor at layer root. */
     capability?: CapabilityMetadata;
+    /** Plugin inspection populated independently of optional capability documentation. */
+    agentPluginCompatibilityInspection?: import('./agentPluginCompatibility').AgentPluginCompatibilityInspection;
 }
 
 /** Warning emitted while parsing/validating capability metadata. */
