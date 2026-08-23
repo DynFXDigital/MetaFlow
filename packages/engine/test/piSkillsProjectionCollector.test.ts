@@ -8,6 +8,7 @@ import {
     collectPiSkillsProjectionInput,
     inspectAgentPluginPackage,
     MetaFlowConfig,
+    projectPiAgentPluginSkills,
     projectResolvedPiAgentPluginSkills,
     resolveLayers,
 } from '../src';
@@ -82,7 +83,7 @@ describe('Pi skills projection collector', () => {
         fs.rmSync(workspaceRoot, { recursive: true, force: true });
     });
 
-    it('collects exact strict skill bytes plus host and deferred MCP omissions', () => {
+    it('collects exact manifest and skill bytes while blocking deferred MCP behavior', () => {
         const skillBytes = validSkill('review', 'Réview exact bytes');
         writePortableCapability(
             repoRoot,
@@ -94,11 +95,16 @@ describe('Pi skills projection collector', () => {
         const layers = resolveLayers(config(repoRoot, ['capabilities/review']), workspaceRoot);
 
         const input = collectPiSkillsProjectionInput(layers);
-        assert.strictEqual(input.skills.length, 1);
-        assert.strictEqual(Buffer.from(input.skills[0].content).toString('utf8'), skillBytes);
-        assert.strictEqual(input.skills[0].source.repoId, 'metadata');
-        assert.strictEqual(input.skills[0].source.capabilityId, 'review');
-        assert.strictEqual(input.skills[0].source.sourcePath, 'skills/review/SKILL.md');
+        assert.strictEqual(input.plugins.length, 1);
+        assert.strictEqual(input.plugins[0].manifest.name, 'portable.review');
+        assert.strictEqual(input.plugins[0].skills.length, 1);
+        assert.strictEqual(
+            Buffer.from(input.plugins[0].skills[0].content).toString('utf8'),
+            skillBytes,
+        );
+        assert.strictEqual(input.plugins[0].skills[0].source.repoId, 'metadata');
+        assert.strictEqual(input.plugins[0].skills[0].source.capabilityId, 'review');
+        assert.strictEqual(input.plugins[0].skills[0].source.sourcePath, 'skills/review/SKILL.md');
         assert.ok(input.omissions?.some((entry) => entry.reason === 'mcp-deferred'));
         assert.ok(
             input.omissions?.some(
@@ -109,12 +115,43 @@ describe('Pi skills projection collector', () => {
         );
 
         const projection = projectResolvedPiAgentPluginSkills(layers);
-        assert.strictEqual(projection.blocked, false);
-        assert.deepStrictEqual(
-            projection.package.files.map((file) => file.relativePath),
-            ['plugin.json', 'skills/review/SKILL.md'],
+        assert.strictEqual(projection.blocked, true);
+        assert.strictEqual(projection.packages, undefined);
+        assert.ok(
+            projection.diagnostics.some(
+                (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_PLUGIN_MCP_UNSUPPORTED',
+            ),
         );
-        assert.ok(!projection.package.files.some((file) => file.relativePath === 'mcp.json'));
+    });
+
+    it('blocks a dangling root mcp.json instead of projecting an incomplete package', function () {
+        const root = writePortableCapability(
+            repoRoot,
+            'capabilities/dangling-mcp',
+            'portable.dangling-mcp',
+            { review: validSkill('review') },
+        );
+        const mcpPath = path.join(root, 'mcp.json');
+        try {
+            fs.symlinkSync(path.join(workspaceRoot, 'missing-mcp.json'), mcpPath, 'file');
+        } catch {
+            this.skip();
+            return;
+        }
+        const layers = resolveLayers(
+            config(repoRoot, ['capabilities/dangling-mcp']),
+            workspaceRoot,
+        );
+
+        const input = collectPiSkillsProjectionInput(layers);
+        assert.strictEqual(input.plugins[0].mcpSource?.sourcePath, 'mcp.json');
+        const result = projectPiAgentPluginSkills(input);
+        assert.strictEqual(result.blocked, true);
+        assert.ok(
+            result.diagnostics.some(
+                (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_MCP_DEFERRED',
+            ),
+        );
     });
 
     it('collects a descriptorless strict plugin from resolver-owned package metadata', () => {
@@ -144,7 +181,7 @@ describe('Pi skills projection collector', () => {
 
         const input = collectPiSkillsProjectionInput(layers);
         assert.deepStrictEqual(
-            input.skills.map((entry) => [entry.name, entry.source.capabilityId]),
+            input.plugins[0].skills.map((entry) => [entry.name, entry.source.capabilityId]),
             [['review', 'descriptorless']],
         );
     });
@@ -158,7 +195,7 @@ describe('Pi skills projection collector', () => {
         const layers = resolveLayers(config(repoRoot, ['capabilities/ordinary']), workspaceRoot);
         const input = collectPiSkillsProjectionInput(layers);
 
-        assert.deepStrictEqual(input.skills, []);
+        assert.deepStrictEqual(input.plugins, []);
         assert.ok(!input.omissions?.some((entry) => entry.artifactType === 'plugin'));
         assert.ok(
             input.omissions?.some(
@@ -239,7 +276,7 @@ describe('Pi skills projection collector', () => {
         const layers = resolveLayers(config(repoRoot, ['capabilities/legacy']), workspaceRoot);
 
         const input = collectPiSkillsProjectionInput(layers);
-        assert.deepStrictEqual(input.skills, []);
+        assert.deepStrictEqual(input.plugins, []);
         assert.ok(input.omissions?.some((entry) => entry.reason === 'unsupported-profile'));
         assert.ok(
             input.omissions?.some(
@@ -259,7 +296,7 @@ describe('Pi skills projection collector', () => {
 
         const input = collectPiSkillsProjectionInput(layers);
         assert.deepStrictEqual(
-            input.skills.map((entry) => entry.name),
+            input.plugins[0].skills.map((entry) => entry.name),
             ['valid'],
         );
         assert.ok(input.diagnostics?.some((entry) => entry.code === 'AGENT_PLUGIN_SKILL_INVALID'));
@@ -283,7 +320,7 @@ describe('Pi skills projection collector', () => {
         fs.rmSync(path.join(root, 'skills', 'volatile', 'SKILL.md'));
 
         const input = collectPiSkillsProjectionInput(layers);
-        assert.deepStrictEqual(input.skills, []);
+        assert.deepStrictEqual(input.plugins[0].skills, []);
         assert.ok(
             input.diagnostics?.some(
                 (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_READ_FAILED',
@@ -333,7 +370,7 @@ describe('Pi skills projection collector', () => {
         }
 
         const input = collectPiSkillsProjectionInput(layers);
-        assert.deepStrictEqual(input.skills, []);
+        assert.deepStrictEqual(input.plugins[0].skills, []);
         assert.ok(
             input.diagnostics?.some(
                 (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_READ_FAILED',
@@ -356,7 +393,7 @@ describe('Pi skills projection collector', () => {
 
         const result = projectResolvedPiAgentPluginSkills(layers);
         assert.strictEqual(result.blocked, true);
-        assert.strictEqual(result.package, undefined);
+        assert.strictEqual(result.packages, undefined);
         assert.deepStrictEqual(
             result.conflicts[0].contenders.map((entry) => entry.capabilityId),
             ['first', 'second'],
@@ -402,12 +439,16 @@ describe('Pi skills projection collector', () => {
         const result = projectResolvedPiAgentPluginSkills(layers);
         assert.strictEqual(result.blocked, false);
         assert.deepStrictEqual(
-            result.package.files.map((file) => file.relativePath),
+            result.packages.map((entry) => entry.name),
+            ['portable.enabled'],
+        );
+        assert.deepStrictEqual(
+            result.packages[0].files.map((file) => file.relativePath),
             ['plugin.json', 'skills/enabled/SKILL.md'],
         );
 
         const materialized = path.join(workspaceRoot, 'projected');
-        for (const file of result.package.files) {
+        for (const file of result.packages[0].files) {
             const destination = path.join(materialized, ...file.relativePath.split('/'));
             fs.mkdirSync(path.dirname(destination), { recursive: true });
             fs.writeFileSync(destination, file.content);

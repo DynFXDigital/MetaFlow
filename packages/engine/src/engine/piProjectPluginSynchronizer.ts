@@ -1,36 +1,36 @@
 /**
- * Managed lifecycle for MetaFlow's project-local Pi Agent Plugin package.
+ * Managed lifecycle for project-local Pi Agent Plugins packages.
  *
- * The pure projector and resolved-layer collector remain separate. This module
- * owns only the fixed generated package root and its dedicated target ledger.
- * It preflights the complete root before mutation and publishes a complete
- * staged package through same-volume renames.
+ * MetaFlow owns only plugin roots recorded in its dedicated target ledger.
+ * Reconciliation preflights the complete managed set, stages every changed
+ * package, and journals a multi-root swap plus state publication so interrupted
+ * work can be rolled back or finalized without touching unrelated Pi plugins.
  */
 
 import { createHash, randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { projectPiAgentPluginSkills } from './piSkillsProjection';
+import { isValidAgentPluginName } from './agentPluginCompatibility';
+import { PI_PROJECT_PLUGINS_RELATIVE_ROOT, projectPiAgentPluginSkills } from './piSkillsProjection';
 import type {
+    PiAgentPluginManifest,
     PiSkillsProjectionDiagnostic,
     PiSkillsProjectionPackage,
     PiSkillsProjectionResult,
     PiSkillsProjectionSource,
 } from './piSkillsProjection';
 
-export const PI_PROJECT_PLUGIN_RELATIVE_ROOT = '.pi/plugins/metaflow.project';
 export const PI_TARGET_STATE_RELATIVE_PATH = '.metaflow/pi-target-state.json';
-export const PI_TARGET_STATE_SCHEMA_VERSION = 1;
+export const PI_TARGET_STATE_SCHEMA_VERSION = 2;
 
+const LEGACY_PI_PROJECT_PLUGIN_RELATIVE_ROOT = '.pi/plugins/metaflow.project';
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const PI_TARGET_LOCK_RELATIVE_PATH = '.metaflow/pi-target.lock';
+const PI_TARGET_LOCK_SCHEMA_VERSION = 1;
 const PI_TARGET_JOURNAL_RELATIVE_PATH = '.metaflow/pi-target-transaction.json';
-const PI_TARGET_TRANSACTION_SCHEMA_VERSION = 1;
+const PI_TARGET_TRANSACTION_SCHEMA_VERSION = 2;
 const TRANSACTION_ID_PATTERN =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const STATE_TOP_LEVEL_KEYS = ['schemaVersion', 'outputRoot', 'projection', 'files'] as const;
-const STATE_PROJECTION_KEYS = ['contentSha', 'version'] as const;
-const STATE_FILE_KEYS = ['contentHash', 'sources'] as const;
 const STATE_SOURCE_KEYS = [
     'layerId',
     'repoId',
@@ -44,14 +44,17 @@ export interface PiTargetManagedFileState {
     readonly sources: readonly PiSkillsProjectionSource[];
 }
 
-export interface PiTargetState {
-    readonly schemaVersion: typeof PI_TARGET_STATE_SCHEMA_VERSION;
-    readonly outputRoot: typeof PI_PROJECT_PLUGIN_RELATIVE_ROOT;
+export interface PiTargetManagedPluginState {
+    readonly outputRoot: string;
     readonly projection: {
         readonly contentSha: string;
-        readonly version: string;
     };
     readonly files: Readonly<Record<string, PiTargetManagedFileState>>;
+}
+
+export interface PiTargetState {
+    readonly schemaVersion: typeof PI_TARGET_STATE_SCHEMA_VERSION;
+    readonly plugins: Readonly<Record<string, PiTargetManagedPluginState>>;
 }
 
 export interface PiTargetStateLoadResult {
@@ -65,6 +68,7 @@ export type PiTargetChangeAction = 'add' | 'update' | 'remove';
 export type PiTargetStateAction = 'none' | 'write' | 'remove';
 
 export interface PiTargetChange {
+    /** Workspace-relative path, including `.pi/plugins/<plugin-name>`. */
     readonly relativePath: string;
     readonly action: PiTargetChangeAction;
 }
@@ -93,18 +97,21 @@ export interface PiProjectPluginApplyResult {
     readonly stateChanged: boolean;
 }
 
-interface ObservedTargetRoot {
+interface ObservedPluginRoot {
     readonly exists: boolean;
     readonly files: ReadonlyMap<string, string>;
     readonly directories: ReadonlySet<string>;
-    readonly diagnostics: readonly PiTargetDiagnostic[];
 }
 
 interface PiTargetLock {
-    readonly descriptor: number;
     readonly lockPath: string;
-    readonly workspaceRoot: string;
     readonly identity: PiTargetPathIdentity;
+}
+
+interface PiTargetLockOwner {
+    readonly schemaVersion: typeof PI_TARGET_LOCK_SCHEMA_VERSION;
+    readonly pid: number;
+    readonly token: string;
 }
 
 interface PiTargetPathIdentity {
@@ -126,22 +133,28 @@ interface PiTargetRootSnapshot {
     readonly directories: Readonly<Record<string, PiTargetPathIdentity>>;
 }
 
+interface PiTargetRootTransaction {
+    readonly pluginName: string;
+    readonly action: 'replace' | 'remove';
+    readonly previousRoot?: PiTargetRootSnapshot;
+    readonly nextRoot?: PiTargetRootSnapshot;
+}
+
 interface PiTargetTransactionJournal {
     readonly schemaVersion: typeof PI_TARGET_TRANSACTION_SCHEMA_VERSION;
     readonly transactionId: string;
     readonly committed: boolean;
-    readonly rootAction: 'none' | 'replace' | 'remove';
-    readonly stateAction: 'write' | 'remove';
+    readonly rootActions: readonly PiTargetRootTransaction[];
+    readonly stateAction: PiTargetStateAction;
     readonly transactionRootIdentity: PiTargetPathIdentity;
-    readonly previousRoot?: PiTargetRootSnapshot;
     readonly previousState?: PiTargetFileSnapshot;
-    readonly nextRoot?: PiTargetRootSnapshot;
     readonly nextState?: PiTargetFileSnapshot;
 }
 
-interface PiTargetRecoveryResult {
-    readonly recovered: boolean;
-    readonly diagnostics: readonly PiTargetDiagnostic[];
+interface LoadedJournal {
+    readonly exists: boolean;
+    readonly journal?: PiTargetTransactionJournal;
+    readonly diagnostic?: PiTargetDiagnostic;
 }
 
 function compareCodeUnits(left: string, right: string): number {
@@ -152,9 +165,24 @@ function normalizeRelativePath(value: string): string {
     return value.replace(/\\/g, '/');
 }
 
-function canonicalPath(value: string): string {
-    const normalized = path.normalize(value);
-    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function pathEntryExists(candidatePath: string): boolean {
+    try {
+        fs.lstatSync(candidatePath);
+        return true;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return false;
+        }
+        throw error;
+    }
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+    return Object.keys(value).every((key) => allowed.includes(key));
 }
 
 function isInside(rootPath: string, candidatePath: string): boolean {
@@ -163,14 +191,6 @@ function isInside(rootPath: string, candidatePath: string): boolean {
         relative === '' ||
         (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
     );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-    return Object.keys(value).every((key) => allowed.includes(key));
 }
 
 function isSafePackagePath(value: string): boolean {
@@ -187,6 +207,10 @@ function isSafePackagePath(value: string): boolean {
     );
 }
 
+function pluginRelativeRoot(pluginName: string): string {
+    return `${PI_PROJECT_PLUGINS_RELATIVE_ROOT}/${pluginName}`;
+}
+
 function targetDiagnostic(
     code: string,
     message: string,
@@ -199,6 +223,34 @@ function targetDiagnostic(
         severity,
         ...(filePath !== undefined ? { filePath } : {}),
     };
+}
+
+function sourceKey(source: PiSkillsProjectionSource): string {
+    return [
+        source.repoId ?? '',
+        source.layerId,
+        source.capabilityId,
+        source.capabilityName ?? '',
+        source.sourcePath,
+    ].join('\u0000');
+}
+
+function cloneSource(source: PiSkillsProjectionSource): PiSkillsProjectionSource {
+    return {
+        layerId: source.layerId,
+        ...(source.repoId !== undefined ? { repoId: source.repoId } : {}),
+        capabilityId: source.capabilityId,
+        ...(source.capabilityName !== undefined ? { capabilityName: source.capabilityName } : {}),
+        sourcePath: source.sourcePath,
+    };
+}
+
+function canonicalSources(
+    sources: readonly PiSkillsProjectionSource[],
+): readonly PiSkillsProjectionSource[] {
+    return sources
+        .map(cloneSource)
+        .sort((left, right) => compareCodeUnits(sourceKey(left), sourceKey(right)));
 }
 
 function canonicalDiagnostics(
@@ -219,58 +271,6 @@ function canonicalDiagnostics(
 
 function sha256(content: Uint8Array): string {
     return createHash('sha256').update(content).digest('hex');
-}
-
-function cloneSource(source: PiSkillsProjectionSource): PiSkillsProjectionSource {
-    return {
-        layerId: source.layerId,
-        ...(source.repoId !== undefined ? { repoId: source.repoId } : {}),
-        capabilityId: source.capabilityId,
-        ...(source.capabilityName !== undefined ? { capabilityName: source.capabilityName } : {}),
-        sourcePath: source.sourcePath,
-    };
-}
-
-function sourceKey(source: PiSkillsProjectionSource): string {
-    return [
-        source.repoId ?? '',
-        source.layerId,
-        source.capabilityId,
-        source.capabilityName ?? '',
-        source.sourcePath,
-    ].join('\u0000');
-}
-
-function canonicalSources(
-    sources: readonly PiSkillsProjectionSource[],
-): readonly PiSkillsProjectionSource[] {
-    return sources
-        .map(cloneSource)
-        .sort((left, right) => compareCodeUnits(sourceKey(left), sourceKey(right)));
-}
-
-function canonicalState(state: PiTargetState): PiTargetState {
-    const files: Record<string, PiTargetManagedFileState> = {};
-    for (const relativePath of Object.keys(state.files).sort(compareCodeUnits)) {
-        const entry = state.files[relativePath];
-        files[relativePath] = {
-            contentHash: entry.contentHash,
-            sources: canonicalSources(entry.sources),
-        };
-    }
-    return {
-        schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION,
-        outputRoot: PI_PROJECT_PLUGIN_RELATIVE_ROOT,
-        projection: {
-            contentSha: state.projection.contentSha,
-            version: state.projection.version,
-        },
-        files,
-    };
-}
-
-function serializeState(state: PiTargetState): string {
-    return `${JSON.stringify(canonicalState(state), null, 2)}\n`;
 }
 
 function parseSource(value: unknown): PiSkillsProjectionSource | undefined {
@@ -298,30 +298,19 @@ function parseSource(value: unknown): PiSkillsProjectionSource | undefined {
     };
 }
 
-function parseState(value: unknown): PiTargetState | undefined {
-    if (!isRecord(value) || !hasOnlyKeys(value, STATE_TOP_LEVEL_KEYS)) {
-        return undefined;
-    }
-    if (
-        value.schemaVersion !== PI_TARGET_STATE_SCHEMA_VERSION ||
-        value.outputRoot !== PI_PROJECT_PLUGIN_RELATIVE_ROOT ||
-        !isRecord(value.projection) ||
-        !hasOnlyKeys(value.projection, STATE_PROJECTION_KEYS) ||
-        typeof value.projection.contentSha !== 'string' ||
-        !HASH_PATTERN.test(value.projection.contentSha) ||
-        typeof value.projection.version !== 'string' ||
-        value.projection.version.length === 0 ||
-        !isRecord(value.files)
-    ) {
+function parseManagedFiles(
+    value: unknown,
+): Readonly<Record<string, PiTargetManagedFileState>> | undefined {
+    if (!isRecord(value)) {
         return undefined;
     }
     const files: Record<string, PiTargetManagedFileState> = {};
-    for (const relativePath of Object.keys(value.files)) {
-        const entry = value.files[relativePath];
+    for (const relativePath of Object.keys(value).sort(compareCodeUnits)) {
+        const entry = value[relativePath];
         if (
             !isSafePackagePath(relativePath) ||
             !isRecord(entry) ||
-            !hasOnlyKeys(entry, STATE_FILE_KEYS) ||
+            !hasOnlyKeys(entry, ['contentHash', 'sources']) ||
             typeof entry.contentHash !== 'string' ||
             !HASH_PATTERN.test(entry.contentHash) ||
             !Array.isArray(entry.sources)
@@ -337,28 +326,377 @@ function parseState(value: unknown): PiTargetState | undefined {
             sources: canonicalSources(sources as PiSkillsProjectionSource[]),
         };
     }
-    if (!Object.prototype.hasOwnProperty.call(files, 'plugin.json')) {
+    return Object.prototype.hasOwnProperty.call(files, 'plugin.json') ? files : undefined;
+}
+
+function canonicalState(state: PiTargetState): PiTargetState {
+    const plugins: Record<string, PiTargetManagedPluginState> = {};
+    for (const pluginName of Object.keys(state.plugins).sort(compareCodeUnits)) {
+        const plugin = state.plugins[pluginName];
+        const files: Record<string, PiTargetManagedFileState> = {};
+        for (const relativePath of Object.keys(plugin.files).sort(compareCodeUnits)) {
+            files[relativePath] = {
+                contentHash: plugin.files[relativePath].contentHash,
+                sources: canonicalSources(plugin.files[relativePath].sources),
+            };
+        }
+        plugins[pluginName] = {
+            outputRoot: pluginRelativeRoot(pluginName),
+            projection: { contentSha: plugin.projection.contentSha },
+            files,
+        };
+    }
+    return { schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION, plugins };
+}
+
+function serializeState(state: PiTargetState): string {
+    return `${JSON.stringify(canonicalState(state), null, 2)}\n`;
+}
+
+function parseStateV2(value: unknown): PiTargetState | undefined {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(value, ['schemaVersion', 'plugins']) ||
+        value.schemaVersion !== PI_TARGET_STATE_SCHEMA_VERSION ||
+        !isRecord(value.plugins)
+    ) {
+        return undefined;
+    }
+    const plugins: Record<string, PiTargetManagedPluginState> = {};
+    for (const pluginName of Object.keys(value.plugins).sort(compareCodeUnits)) {
+        const entry = value.plugins[pluginName];
+        if (
+            !isValidAgentPluginName(pluginName) ||
+            !isRecord(entry) ||
+            !hasOnlyKeys(entry, ['outputRoot', 'projection', 'files']) ||
+            entry.outputRoot !== pluginRelativeRoot(pluginName) ||
+            !isRecord(entry.projection) ||
+            !hasOnlyKeys(entry.projection, ['contentSha']) ||
+            typeof entry.projection.contentSha !== 'string' ||
+            !HASH_PATTERN.test(entry.projection.contentSha)
+        ) {
+            return undefined;
+        }
+        const files = parseManagedFiles(entry.files);
+        if (!files) {
+            return undefined;
+        }
+        plugins[pluginName] = {
+            outputRoot: pluginRelativeRoot(pluginName),
+            projection: { contentSha: entry.projection.contentSha },
+            files,
+        };
+    }
+    return canonicalState({ schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION, plugins });
+}
+
+function parseLegacyStateV1(value: unknown): PiTargetState | undefined {
+    if (
+        !isRecord(value) ||
+        !hasOnlyKeys(value, ['schemaVersion', 'outputRoot', 'projection', 'files']) ||
+        value.schemaVersion !== 1 ||
+        value.outputRoot !== LEGACY_PI_PROJECT_PLUGIN_RELATIVE_ROOT ||
+        !isRecord(value.projection) ||
+        !hasOnlyKeys(value.projection, ['contentSha', 'version']) ||
+        typeof value.projection.contentSha !== 'string' ||
+        !HASH_PATTERN.test(value.projection.contentSha) ||
+        typeof value.projection.version !== 'string'
+    ) {
+        return undefined;
+    }
+    const files = parseManagedFiles(value.files);
+    if (!files) {
         return undefined;
     }
     return canonicalState({
         schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION,
-        outputRoot: PI_PROJECT_PLUGIN_RELATIVE_ROOT,
-        projection: {
-            contentSha: value.projection.contentSha,
-            version: value.projection.version,
+        plugins: {
+            'metaflow.project': {
+                outputRoot: LEGACY_PI_PROJECT_PLUGIN_RELATIVE_ROOT,
+                projection: { contentSha: value.projection.contentSha },
+                files,
+            },
         },
-        files,
     });
+}
+
+function statePath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, ...PI_TARGET_STATE_RELATIVE_PATH.split('/'));
+}
+
+function lockPath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, ...PI_TARGET_LOCK_RELATIVE_PATH.split('/'));
+}
+
+function journalPath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, ...PI_TARGET_JOURNAL_RELATIVE_PATH.split('/'));
+}
+
+function transactionRootPath(workspaceRoot: string, transactionId: string): string {
+    return path.join(workspaceRoot, '.metaflow', `.pi-target-transaction-${transactionId}`);
+}
+
+function pluginRootPath(workspaceRoot: string, pluginName: string): string {
+    return path.join(workspaceRoot, ...pluginRelativeRoot(pluginName).split('/'));
+}
+
+function transactionPluginPath(
+    transactionRoot: string,
+    kind: 'next' | 'previous',
+    pluginName: string,
+): string {
+    return path.join(transactionRoot, kind, pluginName);
+}
+
+function safeRealWorkspace(workspaceRoot: string): string {
+    const resolved = fs.realpathSync(workspaceRoot);
+    if (!fs.statSync(resolved).isDirectory()) {
+        throw new Error('workspace root is not a directory');
+    }
+    return resolved;
+}
+
+function assertSafeExistingPath(
+    workspaceRealPath: string,
+    candidatePath: string,
+    expectedKind: 'file' | 'directory',
+): void {
+    const stats = fs.lstatSync(candidatePath);
+    if (stats.isSymbolicLink()) {
+        throw new Error('symbolic links, junctions, and reparse-point aliases are not supported');
+    }
+    if (expectedKind === 'file' ? !stats.isFile() : !stats.isDirectory()) {
+        throw new Error(`expected a regular ${expectedKind}`);
+    }
+    const realCandidate = fs.realpathSync(candidatePath);
+    if (!isInside(workspaceRealPath, realCandidate)) {
+        throw new Error('filesystem-resolved path escapes the workspace');
+    }
+}
+
+function assertSafeDirectoryChain(workspaceRoot: string, relativeDirectory: string): void {
+    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
+    let current = workspaceRoot;
+    for (const segment of normalizeRelativePath(relativeDirectory).split('/').filter(Boolean)) {
+        current = path.join(current, segment);
+        if (!pathEntryExists(current)) {
+            break;
+        }
+        assertSafeExistingPath(workspaceRealPath, current, 'directory');
+    }
+}
+
+function controlPathDiagnostics(workspaceRoot: string): readonly PiTargetDiagnostic[] {
+    try {
+        safeRealWorkspace(workspaceRoot);
+        assertSafeDirectoryChain(workspaceRoot, '.metaflow');
+        assertSafeDirectoryChain(workspaceRoot, PI_PROJECT_PLUGINS_RELATIVE_ROOT);
+        for (const relativePath of [
+            PI_TARGET_STATE_RELATIVE_PATH,
+            PI_TARGET_LOCK_RELATIVE_PATH,
+            PI_TARGET_JOURNAL_RELATIVE_PATH,
+        ]) {
+            const absolutePath = path.join(workspaceRoot, ...relativePath.split('/'));
+            if (pathEntryExists(absolutePath)) {
+                assertSafeExistingPath(safeRealWorkspace(workspaceRoot), absolutePath, 'file');
+            }
+        }
+        return [];
+    } catch {
+        return [
+            targetDiagnostic(
+                'PI_TARGET_PATH_UNSAFE',
+                'Pi target control or output paths include an unsupported link, alias, or filesystem kind.',
+                'error',
+                PI_PROJECT_PLUGINS_RELATIVE_ROOT,
+            ),
+        ];
+    }
+}
+
+/** Load the dedicated per-plugin target ledger without mutating the workspace. */
+export function loadPiTargetState(workspaceRoot: string): PiTargetStateLoadResult {
+    const targetStatePath = statePath(workspaceRoot);
+    if (!pathEntryExists(targetStatePath)) {
+        return { exists: false, diagnostics: [] };
+    }
+    try {
+        assertSafeExistingPath(safeRealWorkspace(workspaceRoot), targetStatePath, 'file');
+        const parsed = JSON.parse(fs.readFileSync(targetStatePath, 'utf8')) as unknown;
+        const state = parseStateV2(parsed);
+        if (state) {
+            return { exists: true, state, diagnostics: [] };
+        }
+        const legacy = parseLegacyStateV1(parsed);
+        if (legacy) {
+            return {
+                exists: true,
+                state: legacy,
+                diagnostics: [
+                    targetDiagnostic(
+                        'PI_TARGET_STATE_LEGACY_MIGRATION_PENDING',
+                        'The aggregate Pi target ledger will be migrated to per-plugin ownership on the next successful apply.',
+                        'info',
+                        PI_TARGET_STATE_RELATIVE_PATH,
+                    ),
+                ],
+            };
+        }
+        if (isRecord(parsed) && parsed.schemaVersion !== PI_TARGET_STATE_SCHEMA_VERSION) {
+            return {
+                exists: true,
+                diagnostics: [
+                    targetDiagnostic(
+                        'PI_TARGET_STATE_VERSION_UNSUPPORTED',
+                        `Pi target state schema version "${String(parsed.schemaVersion)}" is unsupported.`,
+                        'error',
+                        PI_TARGET_STATE_RELATIVE_PATH,
+                    ),
+                ],
+            };
+        }
+        return {
+            exists: true,
+            diagnostics: [
+                targetDiagnostic(
+                    'PI_TARGET_STATE_INVALID',
+                    'Pi target state is malformed or does not describe safe per-plugin roots.',
+                    'error',
+                    PI_TARGET_STATE_RELATIVE_PATH,
+                ),
+            ],
+        };
+    } catch {
+        return {
+            exists: true,
+            diagnostics: [
+                targetDiagnostic(
+                    'PI_TARGET_STATE_INVALID',
+                    'Pi target state could not be safely read and parsed.',
+                    'error',
+                    PI_TARGET_STATE_RELATIVE_PATH,
+                ),
+            ],
+        };
+    }
+}
+
+function pathIdentity(stats: fs.Stats): PiTargetPathIdentity {
+    return {
+        dev: stats.dev,
+        ino: stats.ino,
+        size: stats.size,
+        birthtimeMs: stats.birthtimeMs,
+        mtimeMs: stats.mtimeMs,
+    };
+}
+
+function sameIdentity(left: PiTargetPathIdentity, right: PiTargetPathIdentity): boolean {
+    if (left.dev !== right.dev || left.ino !== right.ino) {
+        return false;
+    }
+    if (left.ino !== 0 || right.ino !== 0) {
+        return true;
+    }
+    return (
+        left.size === right.size &&
+        left.birthtimeMs === right.birthtimeMs &&
+        left.mtimeMs === right.mtimeMs
+    );
+}
+
+function captureFileSnapshot(workspaceRoot: string, absolutePath: string): PiTargetFileSnapshot {
+    assertSafeExistingPath(safeRealWorkspace(workspaceRoot), absolutePath, 'file');
+    return {
+        identity: pathIdentity(fs.lstatSync(absolutePath)),
+        contentHash: sha256(fs.readFileSync(absolutePath)),
+    };
+}
+
+function captureRootSnapshot(workspaceRoot: string, absoluteRoot: string): PiTargetRootSnapshot {
+    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
+    assertSafeExistingPath(workspaceRealPath, absoluteRoot, 'directory');
+    const files: Record<string, PiTargetFileSnapshot> = {};
+    const directories: Record<string, PiTargetPathIdentity> = {};
+    const visit = (directory: string, relativeDirectory: string): void => {
+        for (const entry of fs
+            .readdirSync(directory, { withFileTypes: true })
+            .sort((left, right) => compareCodeUnits(left.name, right.name))) {
+            const absolutePath = path.join(directory, entry.name);
+            const relativePath = relativeDirectory
+                ? `${relativeDirectory}/${entry.name}`
+                : entry.name;
+            const stats = fs.lstatSync(absolutePath);
+            if (stats.isSymbolicLink()) {
+                throw new Error('linked entries are not supported in managed roots');
+            }
+            if (entry.isDirectory()) {
+                assertSafeExistingPath(workspaceRealPath, absolutePath, 'directory');
+                directories[relativePath] = pathIdentity(stats);
+                visit(absolutePath, relativePath);
+            } else if (entry.isFile()) {
+                files[relativePath] = captureFileSnapshot(workspaceRoot, absolutePath);
+            } else {
+                throw new Error('unsupported filesystem entry in managed root');
+            }
+        }
+    };
+    visit(absoluteRoot, '');
+    return { identity: pathIdentity(fs.lstatSync(absoluteRoot)), files, directories };
+}
+
+function sameFileSnapshot(left: PiTargetFileSnapshot, right: PiTargetFileSnapshot): boolean {
+    return sameIdentity(left.identity, right.identity) && left.contentHash === right.contentHash;
+}
+
+function sameRootSnapshot(left: PiTargetRootSnapshot, right: PiTargetRootSnapshot): boolean {
+    if (!sameIdentity(left.identity, right.identity)) {
+        return false;
+    }
+    const leftFiles = Object.keys(left.files).sort(compareCodeUnits);
+    const rightFiles = Object.keys(right.files).sort(compareCodeUnits);
+    const leftDirectories = Object.keys(left.directories).sort(compareCodeUnits);
+    const rightDirectories = Object.keys(right.directories).sort(compareCodeUnits);
+    return (
+        JSON.stringify(leftFiles) === JSON.stringify(rightFiles) &&
+        JSON.stringify(leftDirectories) === JSON.stringify(rightDirectories) &&
+        leftFiles.every((name) => sameFileSnapshot(left.files[name], right.files[name])) &&
+        leftDirectories.every((name) =>
+            sameIdentity(left.directories[name], right.directories[name]),
+        )
+    );
+}
+
+function matchesFileSnapshot(
+    workspaceRoot: string,
+    absolutePath: string,
+    expected: PiTargetFileSnapshot,
+): boolean {
+    try {
+        return sameFileSnapshot(captureFileSnapshot(workspaceRoot, absolutePath), expected);
+    } catch {
+        return false;
+    }
+}
+
+function matchesRootSnapshot(
+    workspaceRoot: string,
+    absoluteRoot: string,
+    expected: PiTargetRootSnapshot,
+): boolean {
+    try {
+        return sameRootSnapshot(captureRootSnapshot(workspaceRoot, absoluteRoot), expected);
+    } catch {
+        return false;
+    }
 }
 
 function parseIdentity(value: unknown): PiTargetPathIdentity | undefined {
     if (!isRecord(value) || !hasOnlyKeys(value, ['dev', 'ino', 'size', 'birthtimeMs', 'mtimeMs'])) {
         return undefined;
     }
-    const fields = ['dev', 'ino', 'size', 'birthtimeMs', 'mtimeMs'] as const;
-    if (
-        fields.some((field) => typeof value[field] !== 'number' || !Number.isFinite(value[field]))
-    ) {
+    const keys = ['dev', 'ino', 'size', 'birthtimeMs', 'mtimeMs'] as const;
+    if (keys.some((key) => typeof value[key] !== 'number' || !Number.isFinite(value[key]))) {
         return undefined;
     }
     return {
@@ -406,385 +744,122 @@ function parseRootSnapshot(value: unknown): PiTargetRootSnapshot | undefined {
     }
     const directories: Record<string, PiTargetPathIdentity> = {};
     for (const relativePath of Object.keys(value.directories).sort(compareCodeUnits)) {
-        const directoryIdentity = parseIdentity(value.directories[relativePath]);
-        if (!isSafePackagePath(relativePath) || !directoryIdentity) {
+        const identityValue = parseIdentity(value.directories[relativePath]);
+        if (!isSafePackagePath(relativePath) || !identityValue) {
             return undefined;
         }
-        directories[relativePath] = directoryIdentity;
+        directories[relativePath] = identityValue;
     }
     return { identity, files, directories };
 }
 
-function parseTransactionJournal(value: unknown): PiTargetTransactionJournal | undefined {
+function parseJournal(value: unknown): PiTargetTransactionJournal | undefined {
     if (
         !isRecord(value) ||
         !hasOnlyKeys(value, [
             'schemaVersion',
             'transactionId',
             'committed',
-            'rootAction',
+            'rootActions',
             'stateAction',
             'transactionRootIdentity',
-            'previousRoot',
             'previousState',
-            'nextRoot',
             'nextState',
         ]) ||
         value.schemaVersion !== PI_TARGET_TRANSACTION_SCHEMA_VERSION ||
         typeof value.transactionId !== 'string' ||
         !TRANSACTION_ID_PATTERN.test(value.transactionId) ||
-        (typeof value.committed !== 'boolean' && value.committed !== 0 && value.committed !== 1) ||
-        (value.rootAction !== 'none' &&
-            value.rootAction !== 'replace' &&
-            value.rootAction !== 'remove') ||
-        (value.stateAction !== 'write' && value.stateAction !== 'remove')
+        typeof value.committed !== 'boolean' ||
+        !Array.isArray(value.rootActions) ||
+        !['none', 'write', 'remove'].includes(String(value.stateAction))
     ) {
         return undefined;
     }
-    const previousRoot =
-        value.previousRoot === undefined ? undefined : parseRootSnapshot(value.previousRoot);
+    const transactionRootIdentity = parseIdentity(value.transactionRootIdentity);
+    if (!transactionRootIdentity) {
+        return undefined;
+    }
+    const rootActions: PiTargetRootTransaction[] = [];
+    const seen = new Set<string>();
+    for (const rawAction of value.rootActions) {
+        if (
+            !isRecord(rawAction) ||
+            !hasOnlyKeys(rawAction, ['pluginName', 'action', 'previousRoot', 'nextRoot']) ||
+            typeof rawAction.pluginName !== 'string' ||
+            !isValidAgentPluginName(rawAction.pluginName) ||
+            seen.has(rawAction.pluginName) ||
+            (rawAction.action !== 'replace' && rawAction.action !== 'remove')
+        ) {
+            return undefined;
+        }
+        seen.add(rawAction.pluginName);
+        const previousRoot =
+            rawAction.previousRoot === undefined
+                ? undefined
+                : parseRootSnapshot(rawAction.previousRoot);
+        const nextRoot =
+            rawAction.nextRoot === undefined ? undefined : parseRootSnapshot(rawAction.nextRoot);
+        if (
+            (rawAction.previousRoot !== undefined && !previousRoot) ||
+            (rawAction.nextRoot !== undefined && !nextRoot) ||
+            (rawAction.action === 'replace') !== (nextRoot !== undefined)
+        ) {
+            return undefined;
+        }
+        rootActions.push({
+            pluginName: rawAction.pluginName,
+            action: rawAction.action,
+            ...(previousRoot ? { previousRoot } : {}),
+            ...(nextRoot ? { nextRoot } : {}),
+        });
+    }
+    rootActions.sort((left, right) => compareCodeUnits(left.pluginName, right.pluginName));
     const previousState =
         value.previousState === undefined ? undefined : parseFileSnapshot(value.previousState);
-    const nextRoot = value.nextRoot === undefined ? undefined : parseRootSnapshot(value.nextRoot);
     const nextState =
         value.nextState === undefined ? undefined : parseFileSnapshot(value.nextState);
-    const transactionRootIdentity = parseIdentity(value.transactionRootIdentity);
     if (
-        !transactionRootIdentity ||
-        (value.previousRoot !== undefined && !previousRoot) ||
         (value.previousState !== undefined && !previousState) ||
-        (value.nextRoot !== undefined && !nextRoot) ||
         (value.nextState !== undefined && !nextState) ||
-        (value.rootAction === 'replace') !== (nextRoot !== undefined) ||
-        (value.rootAction !== 'replace' && nextRoot !== undefined) ||
         (value.stateAction === 'write') !== (nextState !== undefined) ||
-        (value.stateAction === 'remove' && nextState !== undefined)
+        (value.stateAction !== 'write' && nextState !== undefined)
     ) {
         return undefined;
     }
     return {
         schemaVersion: PI_TARGET_TRANSACTION_SCHEMA_VERSION,
         transactionId: value.transactionId,
-        committed: value.committed === true || value.committed === 1,
-        rootAction: value.rootAction,
-        stateAction: value.stateAction,
+        committed: value.committed,
+        rootActions,
+        stateAction: value.stateAction as PiTargetStateAction,
         transactionRootIdentity,
-        ...(previousRoot ? { previousRoot } : {}),
         ...(previousState ? { previousState } : {}),
-        ...(nextRoot ? { nextRoot } : {}),
         ...(nextState ? { nextState } : {}),
     };
 }
 
-function statePath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...PI_TARGET_STATE_RELATIVE_PATH.split('/'));
+function serializeJournal(journal: PiTargetTransactionJournal): string {
+    return `${JSON.stringify(journal, null, 2)}\n`;
 }
 
-function journalPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...PI_TARGET_JOURNAL_RELATIVE_PATH.split('/'));
-}
-
-function transactionRootPath(workspaceRoot: string, transactionId: string): string {
-    return path.join(workspaceRoot, '.metaflow', `.pi-target-transaction-${transactionId}`);
-}
-
-function outputRootPath(workspaceRoot: string): string {
-    return path.join(workspaceRoot, ...PI_PROJECT_PLUGIN_RELATIVE_ROOT.split('/'));
-}
-
-function safeRealWorkspace(workspaceRoot: string): string {
-    const resolved = fs.realpathSync(workspaceRoot);
-    if (!fs.statSync(resolved).isDirectory()) {
-        throw new Error('workspace root is not a directory');
-    }
-    return resolved;
-}
-
-function assertSafeExistingPath(
-    workspaceRealPath: string,
-    candidatePath: string,
-    expectedKind: 'file' | 'directory',
-): void {
-    const stats = fs.lstatSync(candidatePath);
-    if (stats.isSymbolicLink()) {
-        throw new Error('symbolic links, junctions, and reparse-point aliases are not supported');
-    }
-    if (expectedKind === 'file' ? !stats.isFile() : !stats.isDirectory()) {
-        throw new Error(`expected a regular ${expectedKind}`);
-    }
-    const realCandidate = fs.realpathSync(candidatePath);
-    if (!isInside(workspaceRealPath, realCandidate)) {
-        throw new Error('filesystem-resolved path escapes the workspace');
-    }
-}
-
-function pathIdentity(stats: fs.Stats): PiTargetPathIdentity {
-    return {
-        dev: stats.dev,
-        ino: stats.ino,
-        size: stats.size,
-        birthtimeMs: stats.birthtimeMs,
-        mtimeMs: stats.mtimeMs,
-    };
-}
-
-function sameIdentity(left: PiTargetPathIdentity, right: PiTargetPathIdentity): boolean {
-    if (left.dev !== right.dev || left.ino !== right.ino) {
-        return false;
-    }
-    if (left.ino !== 0 || right.ino !== 0) {
-        return true;
-    }
-    return (
-        left.size === right.size &&
-        left.birthtimeMs === right.birthtimeMs &&
-        left.mtimeMs === right.mtimeMs
-    );
-}
-
-function captureFileSnapshot(workspaceRoot: string, absolutePath: string): PiTargetFileSnapshot {
-    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-    assertSafeExistingPath(workspaceRealPath, absolutePath, 'file');
-    const stats = fs.lstatSync(absolutePath);
-    return {
-        identity: pathIdentity(stats),
-        contentHash: sha256(fs.readFileSync(absolutePath)),
-    };
-}
-
-function captureRootSnapshot(workspaceRoot: string, absoluteRoot: string): PiTargetRootSnapshot {
-    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-    assertSafeExistingPath(workspaceRealPath, absoluteRoot, 'directory');
-    const realRootPath = fs.realpathSync(absoluteRoot);
-    const files: Record<string, PiTargetFileSnapshot> = {};
-    const directories: Record<string, PiTargetPathIdentity> = {};
-    const visit = (absoluteDirectory: string, relativeDirectory: string): void => {
-        const entries = fs
-            .readdirSync(absoluteDirectory, { withFileTypes: true })
-            .sort((left, right) => compareCodeUnits(left.name, right.name));
-        for (const entry of entries) {
-            const relativePath = relativeDirectory
-                ? `${relativeDirectory}/${entry.name}`
-                : entry.name;
-            if (!isSafePackagePath(relativePath)) {
-                throw new Error('snapshot contains an unsupported path');
-            }
-            const absolutePath = path.join(absoluteDirectory, entry.name);
-            const stats = fs.lstatSync(absolutePath);
-            if (stats.isSymbolicLink()) {
-                throw new Error('snapshot contains a symbolic link or junction');
-            }
-            const realPath = fs.realpathSync(absolutePath);
-            if (!isInside(workspaceRealPath, realPath) || !isInside(realRootPath, realPath)) {
-                throw new Error('snapshot contains a filesystem-resolved escape');
-            }
-            if (stats.isDirectory()) {
-                directories[relativePath] = pathIdentity(stats);
-                visit(absolutePath, relativePath);
-            } else if (stats.isFile()) {
-                files[relativePath] = {
-                    identity: pathIdentity(stats),
-                    contentHash: sha256(fs.readFileSync(absolutePath)),
-                };
-            } else {
-                throw new Error('snapshot contains a non-regular filesystem entry');
-            }
-        }
-    };
-    visit(absoluteRoot, '');
-    return {
-        identity: pathIdentity(fs.lstatSync(absoluteRoot)),
-        files,
-        directories,
-    };
-}
-
-function matchesFileSnapshot(
-    workspaceRoot: string,
-    absolutePath: string,
-    expected: PiTargetFileSnapshot,
-): boolean {
-    try {
-        const current = captureFileSnapshot(workspaceRoot, absolutePath);
-        return sameFileSnapshot(current, expected);
-    } catch {
-        return false;
-    }
-}
-
-function sameFileSnapshot(current: PiTargetFileSnapshot, expected: PiTargetFileSnapshot): boolean {
-    return (
-        current.contentHash === expected.contentHash &&
-        sameIdentity(current.identity, expected.identity)
-    );
-}
-
-function sameRootSnapshot(current: PiTargetRootSnapshot, expected: PiTargetRootSnapshot): boolean {
-    if (!sameIdentity(current.identity, expected.identity)) {
-        return false;
-    }
-    const currentFilePaths = Object.keys(current.files).sort(compareCodeUnits);
-    const expectedFilePaths = Object.keys(expected.files).sort(compareCodeUnits);
-    const currentDirectoryPaths = Object.keys(current.directories).sort(compareCodeUnits);
-    const expectedDirectoryPaths = Object.keys(expected.directories).sort(compareCodeUnits);
-    if (
-        JSON.stringify(currentFilePaths) !== JSON.stringify(expectedFilePaths) ||
-        JSON.stringify(currentDirectoryPaths) !== JSON.stringify(expectedDirectoryPaths)
-    ) {
-        return false;
-    }
-    return (
-        currentFilePaths.every((relativePath) =>
-            sameFileSnapshot(current.files[relativePath], expected.files[relativePath]),
-        ) &&
-        currentDirectoryPaths.every((relativePath) =>
-            sameIdentity(current.directories[relativePath], expected.directories[relativePath]),
-        )
-    );
-}
-
-function matchesRootSnapshot(
-    workspaceRoot: string,
-    absoluteRoot: string,
-    expected: PiTargetRootSnapshot,
-): boolean {
-    try {
-        const current = captureRootSnapshot(workspaceRoot, absoluteRoot);
-        return sameRootSnapshot(current, expected);
-    } catch {
-        return false;
-    }
-}
-
-function assertSafeDirectoryChain(workspaceRoot: string, relativeDirectory: string): void {
-    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-    let current = workspaceRoot;
-    for (const segment of normalizeRelativePath(relativeDirectory).split('/')) {
-        current = path.join(current, segment);
-        if (!fs.existsSync(current)) {
-            break;
-        }
-        assertSafeExistingPath(workspaceRealPath, current, 'directory');
-    }
-}
-
-function inspectControlPaths(workspaceRoot: string): readonly PiTargetDiagnostic[] {
-    try {
-        safeRealWorkspace(workspaceRoot);
-        assertSafeDirectoryChain(workspaceRoot, '.metaflow');
-        assertSafeDirectoryChain(
-            workspaceRoot,
-            path.posix.dirname(PI_PROJECT_PLUGIN_RELATIVE_ROOT),
-        );
-        return [];
-    } catch {
-        return [
-            targetDiagnostic(
-                'PI_TARGET_PATH_CONTAINMENT',
-                'The Pi target state or generated package path uses an unsafe, escaping, or unsupported ancestor.',
-            ),
-        ];
-    }
-}
-
-/** Load and strictly validate the separate Pi target ledger. */
-export function loadPiTargetState(workspaceRoot: string): PiTargetStateLoadResult {
-    const targetStatePath = statePath(workspaceRoot);
-    if (!fs.existsSync(targetStatePath)) {
-        return { exists: false, diagnostics: [] };
-    }
-    try {
-        const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-        assertSafeExistingPath(workspaceRealPath, targetStatePath, 'file');
-        const raw = fs.readFileSync(targetStatePath, 'utf8');
-        const parsed = JSON.parse(raw) as unknown;
-        if (isRecord(parsed) && parsed.schemaVersion !== PI_TARGET_STATE_SCHEMA_VERSION) {
-            return {
-                exists: true,
-                diagnostics: [
-                    targetDiagnostic(
-                        'PI_TARGET_STATE_VERSION_UNSUPPORTED',
-                        `Pi target state schema version "${String(parsed.schemaVersion)}" is unsupported. Remove or migrate the state before reconciliation.`,
-                        'error',
-                        PI_TARGET_STATE_RELATIVE_PATH,
-                    ),
-                ],
-            };
-        }
-        const state = parseState(parsed);
-        if (!state) {
-            return {
-                exists: true,
-                diagnostics: [
-                    targetDiagnostic(
-                        'PI_TARGET_STATE_INVALID',
-                        'Pi target state is malformed or does not describe the fixed managed package root.',
-                        'error',
-                        PI_TARGET_STATE_RELATIVE_PATH,
-                    ),
-                ],
-            };
-        }
-        return { exists: true, state, diagnostics: [] };
-    } catch {
-        return {
-            exists: true,
-            diagnostics: [
-                targetDiagnostic(
-                    'PI_TARGET_STATE_INVALID',
-                    'Pi target state could not be safely read or parsed.',
-                    'error',
-                    PI_TARGET_STATE_RELATIVE_PATH,
-                ),
-            ],
-        };
-    }
-}
-
-function loadTransactionJournal(workspaceRoot: string):
-    | { readonly exists: false }
-    | {
-          readonly exists: true;
-          readonly journal?: PiTargetTransactionJournal;
-          readonly diagnostic: PiTargetDiagnostic;
-      } {
-    const targetJournalPath = journalPath(workspaceRoot);
-    if (!fs.existsSync(targetJournalPath)) {
+function loadJournal(workspaceRoot: string): LoadedJournal {
+    const target = journalPath(workspaceRoot);
+    if (!pathEntryExists(target)) {
         return { exists: false };
     }
     try {
-        const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-        assertSafeExistingPath(workspaceRealPath, targetJournalPath, 'file');
-        const parsed = parseTransactionJournal(
-            JSON.parse(fs.readFileSync(targetJournalPath, 'utf8')) as unknown,
-        );
+        assertSafeExistingPath(safeRealWorkspace(workspaceRoot), target, 'file');
+        const parsed = parseJournal(JSON.parse(fs.readFileSync(target, 'utf8')) as unknown);
         if (!parsed) {
-            return {
-                exists: true,
-                diagnostic: targetDiagnostic(
-                    'PI_TARGET_TRANSACTION_INVALID',
-                    'The pending Pi target transaction journal is invalid; no target mutation is allowed.',
-                    'error',
-                    PI_TARGET_JOURNAL_RELATIVE_PATH,
-                ),
-            };
+            throw new Error('invalid journal');
         }
-        return {
-            exists: true,
-            journal: parsed,
-            diagnostic: targetDiagnostic(
-                'PI_TARGET_RECOVERY_REQUIRED',
-                'A pending Pi target transaction must be recovered before normal reconciliation.',
-                'error',
-                PI_TARGET_JOURNAL_RELATIVE_PATH,
-            ),
-        };
+        return { exists: true, journal: parsed };
     } catch {
         return {
             exists: true,
             diagnostic: targetDiagnostic(
-                'PI_TARGET_TRANSACTION_INVALID',
-                'The pending Pi target transaction journal could not be safely read or parsed.',
+                'PI_TARGET_RECOVERY_JOURNAL_INVALID',
+                'Pending Pi target transaction metadata is invalid; recovery artifacts were preserved.',
                 'error',
                 PI_TARGET_JOURNAL_RELATIVE_PATH,
             ),
@@ -792,316 +867,216 @@ function loadTransactionJournal(workspaceRoot: string):
     }
 }
 
-function fsyncDirectoryBestEffort(directoryPath: string): void {
-    let descriptor: number | undefined;
-    try {
-        descriptor = fs.openSync(directoryPath, 'r');
-        fs.fsyncSync(descriptor);
-    } catch {
-        // Windows may reject directory fsync even though file fsync and rename
-        // remain available. Recovery still relies on the durable journal file.
-    } finally {
-        if (descriptor !== undefined) {
-            fs.closeSync(descriptor);
-        }
+function collectRootInventory(workspaceRoot: string, pluginName: string): ObservedPluginRoot {
+    const root = pluginRootPath(workspaceRoot, pluginName);
+    if (!pathEntryExists(root)) {
+        return { exists: false, files: new Map(), directories: new Set() };
     }
-}
-
-function serializeTransactionJournal(journal: PiTargetTransactionJournal): string {
-    return `${JSON.stringify({ ...journal, committed: journal.committed ? 1 : 0 }, null, 2)}\n`;
-}
-
-function writeTransactionJournal(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
-    if (journal.committed) {
-        throw new Error('A Pi target transaction journal must be published uncommitted');
-    }
-    const targetJournalPath = journalPath(workspaceRoot);
-    const temporaryPath = `${targetJournalPath}.tmp-${randomUUID()}`;
-    let descriptor: number | undefined;
-    let temporaryIdentity: PiTargetPathIdentity | undefined;
-    try {
-        descriptor = fs.openSync(temporaryPath, 'wx');
-        temporaryIdentity = pathIdentity(fs.fstatSync(descriptor));
-        fs.writeFileSync(descriptor, serializeTransactionJournal(journal), 'utf8');
-        fs.fsyncSync(descriptor);
-        temporaryIdentity = pathIdentity(fs.fstatSync(descriptor));
-        fs.closeSync(descriptor);
-        descriptor = undefined;
-        fs.linkSync(temporaryPath, targetJournalPath);
-        fsyncDirectoryBestEffort(path.dirname(targetJournalPath));
-    } finally {
-        if (descriptor !== undefined) {
-            try {
-                temporaryIdentity = pathIdentity(fs.fstatSync(descriptor));
-            } catch {
-                // Preserve the last identity captured for fail-closed cleanup.
-            }
-            fs.closeSync(descriptor);
-        }
-        if (temporaryIdentity && fs.existsSync(temporaryPath)) {
-            try {
-                removeVerifiedIdentityFile(workspaceRoot, temporaryPath, temporaryIdentity);
-            } catch {
-                // A changed or inaccessible temporary journal is preserved.
-            }
-        }
-    }
-}
-
-function markTransactionJournalCommitted(
-    workspaceRoot: string,
-    expected: PiTargetTransactionJournal,
-): PiTargetTransactionJournal {
-    if (expected.committed) {
-        throw new Error('Pi target transaction journal is already committed');
-    }
-    const targetJournalPath = journalPath(workspaceRoot);
-    const expectedContent = serializeTransactionJournal(expected);
-    const marker = '"committed": 0';
-    const markerIndex = expectedContent.indexOf(marker);
-    if (markerIndex < 0) {
-        throw new Error('Pi target transaction journal commit marker is missing');
-    }
-    const markerOffset = Buffer.byteLength(expectedContent.slice(0, markerIndex));
-    const descriptor = fs.openSync(targetJournalPath, 'r+');
-    let openedIdentity: PiTargetPathIdentity;
-    try {
-        openedIdentity = pathIdentity(fs.fstatSync(descriptor));
-        const currentContent = fs.readFileSync(descriptor, 'utf8');
-        if (currentContent !== expectedContent) {
-            throw new Error('Pi target transaction journal changed before commit');
-        }
-        fs.writeSync(
-            descriptor,
-            Buffer.from('1', 'utf8'),
-            0,
-            1,
-            markerOffset + Buffer.byteLength('"committed": '),
-        );
-        fs.fsyncSync(descriptor);
-        if (!sameIdentity(pathIdentity(fs.fstatSync(descriptor)), openedIdentity)) {
-            throw new Error('Pi target transaction journal identity changed during commit');
-        }
-    } finally {
-        fs.closeSync(descriptor);
-    }
-    const committed = loadTransactionJournal(workspaceRoot);
-    const expectedCommitted = { ...expected, committed: true };
-    if (
-        !committed.exists ||
-        !committed.journal ||
-        JSON.stringify(committed.journal) !== JSON.stringify(expectedCommitted)
-    ) {
-        throw new Error('Pi target transaction journal path changed during commit');
-    }
-    return expectedCommitted;
-}
-
-function collectRootInventory(workspaceRoot: string): ObservedTargetRoot {
-    const rootPath = outputRootPath(workspaceRoot);
-    if (!fs.existsSync(rootPath)) {
-        return { exists: false, files: new Map(), directories: new Set(), diagnostics: [] };
-    }
+    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
+    assertSafeExistingPath(workspaceRealPath, root, 'directory');
     const files = new Map<string, string>();
     const directories = new Set<string>();
-    try {
-        const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-        assertSafeDirectoryChain(
-            workspaceRoot,
-            path.posix.dirname(PI_PROJECT_PLUGIN_RELATIVE_ROOT),
-        );
-        assertSafeExistingPath(workspaceRealPath, rootPath, 'directory');
-        const realRootPath = fs.realpathSync(rootPath);
-
-        const visit = (absoluteDirectory: string, relativeDirectory: string): void => {
-            const entries = fs
-                .readdirSync(absoluteDirectory, { withFileTypes: true })
-                .sort((left, right) => compareCodeUnits(left.name, right.name));
-            for (const entry of entries) {
-                const relativePath = relativeDirectory
-                    ? `${relativeDirectory}/${entry.name}`
-                    : entry.name;
-                if (!isSafePackagePath(relativePath)) {
-                    throw new Error('generated root contains an unsupported path');
-                }
-                const absolutePath = path.join(absoluteDirectory, entry.name);
-                const stats = fs.lstatSync(absolutePath);
-                if (stats.isSymbolicLink()) {
-                    throw new Error('generated root contains a symbolic link or junction');
-                }
-                const realPath = fs.realpathSync(absolutePath);
-                if (!isInside(workspaceRealPath, realPath) || !isInside(realRootPath, realPath)) {
-                    throw new Error('generated root contains a filesystem-resolved escape');
-                }
-                if (stats.isDirectory()) {
-                    directories.add(relativePath);
-                    visit(absolutePath, relativePath);
-                } else if (stats.isFile()) {
-                    files.set(relativePath, sha256(fs.readFileSync(absolutePath)));
-                } else {
-                    throw new Error('generated root contains a non-regular filesystem entry');
-                }
+    const visit = (directory: string, relativeDirectory: string): void => {
+        for (const entry of fs
+            .readdirSync(directory, { withFileTypes: true })
+            .sort((left, right) => compareCodeUnits(left.name, right.name))) {
+            const absolutePath = path.join(directory, entry.name);
+            const relativePath = relativeDirectory
+                ? `${relativeDirectory}/${entry.name}`
+                : entry.name;
+            const stats = fs.lstatSync(absolutePath);
+            if (stats.isSymbolicLink()) {
+                throw new Error('managed roots cannot contain links');
             }
-        };
-        visit(rootPath, '');
-        return { exists: true, files, directories, diagnostics: [] };
-    } catch {
-        return {
-            exists: true,
-            files,
-            directories,
-            diagnostics: [
-                targetDiagnostic(
-                    'PI_TARGET_PATH_CONTAINMENT',
-                    'The generated Pi package root contains an unsafe, escaping, or unsupported filesystem entry.',
-                    'error',
-                    PI_PROJECT_PLUGIN_RELATIVE_ROOT,
-                ),
-            ],
-        };
-    }
+            if (entry.isDirectory()) {
+                assertSafeExistingPath(workspaceRealPath, absolutePath, 'directory');
+                directories.add(relativePath);
+                visit(absolutePath, relativePath);
+            } else if (entry.isFile()) {
+                assertSafeExistingPath(workspaceRealPath, absolutePath, 'file');
+                files.set(relativePath, sha256(fs.readFileSync(absolutePath)));
+            } else {
+                throw new Error('managed roots cannot contain special files');
+            }
+        }
+    };
+    visit(root, '');
+    return { exists: true, files, directories };
 }
 
 function expectedDirectories(relativePaths: readonly string[]): ReadonlySet<string> {
-    const directories = new Set<string>();
+    const result = new Set<string>();
     for (const relativePath of relativePaths) {
         const segments = relativePath.split('/');
         for (let index = 1; index < segments.length; index += 1) {
-            directories.add(segments.slice(0, index).join('/'));
+            result.add(segments.slice(0, index).join('/'));
         }
     }
-    return directories;
+    return result;
 }
 
-function desiredStateFor(projectedPackage: PiSkillsProjectionPackage): PiTargetState {
-    verifyProjectedPackage(projectedPackage);
+function stateForPackage(projectedPackage: PiSkillsProjectionPackage): PiTargetManagedPluginState {
     const files: Record<string, PiTargetManagedFileState> = {};
     for (const file of projectedPackage.files) {
-        if (!isSafePackagePath(file.relativePath) || !HASH_PATTERN.test(file.contentHash)) {
-            throw new Error(`Projected file path or hash is invalid: ${file.relativePath}`);
-        }
-        if (files[file.relativePath]) {
-            throw new Error(`Projected file path is duplicated: ${file.relativePath}`);
-        }
         files[file.relativePath] = {
             contentHash: file.contentHash,
             sources: canonicalSources(file.sources),
         };
     }
-    if (!files['plugin.json']) {
-        throw new Error('Projected package does not contain plugin.json');
-    }
-    return canonicalState({
-        schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION,
-        outputRoot: PI_PROJECT_PLUGIN_RELATIVE_ROOT,
-        projection: {
-            contentSha: projectedPackage.contentSha,
-            version: projectedPackage.version,
-        },
+    return {
+        outputRoot: pluginRelativeRoot(projectedPackage.name),
+        projection: { contentSha: projectedPackage.contentSha },
         files,
-    });
+    };
+}
+
+function comparableManifest(manifest: PiAgentPluginManifest): PiAgentPluginManifest {
+    return JSON.parse(JSON.stringify(manifest)) as PiAgentPluginManifest;
 }
 
 function verifyProjectedPackage(projectedPackage: PiSkillsProjectionPackage): void {
-    const skillInputs = projectedPackage.files
-        .filter((file) => file.relativePath !== 'plugin.json')
-        .map((file) => {
-            const match = /^skills\/([^/]+)\/SKILL\.md$/.exec(file.relativePath);
-            if (!match || file.sources.length !== 1) {
-                throw new Error(`Unsupported projected Pi package path: ${file.relativePath}`);
-            }
-            return {
-                name: match[1],
-                content: Buffer.from(file.content),
-                source: cloneSource(file.sources[0]),
-            };
-        });
-    if (projectedPackage.files.filter((file) => file.relativePath === 'plugin.json').length !== 1) {
-        throw new Error('Projected Pi package must contain exactly one plugin.json');
-    }
-    const verified = projectPiAgentPluginSkills({ skills: skillInputs });
-    if (verified.blocked) {
-        throw new Error('Projected Pi package does not re-project successfully');
-    }
     if (
-        projectedPackage.contentSha !== verified.package.contentSha ||
-        projectedPackage.version !== verified.package.version ||
-        JSON.stringify(projectedPackage.manifest) !== JSON.stringify(verified.package.manifest) ||
-        projectedPackage.files.length !== verified.package.files.length
+        !isValidAgentPluginName(projectedPackage.name) ||
+        projectedPackage.relativeRoot !== pluginRelativeRoot(projectedPackage.name) ||
+        projectedPackage.manifest.name !== projectedPackage.name ||
+        !HASH_PATTERN.test(projectedPackage.contentSha)
     ) {
-        throw new Error('Projected Pi package identity does not match its verified skill bytes');
+        throw new Error('Projected package identity is invalid');
     }
-    const actualFiles = [...projectedPackage.files].sort((left, right) =>
-        compareCodeUnits(left.relativePath, right.relativePath),
-    );
-    for (let index = 0; index < verified.package.files.length; index += 1) {
-        const actual = actualFiles[index];
-        const expected = verified.package.files[index];
+    const manifestFile = projectedPackage.files.find((file) => file.relativePath === 'plugin.json');
+    if (!manifestFile || manifestFile.sources.length !== 1) {
+        throw new Error('Projected package requires one sourced plugin.json');
+    }
+    const seen = new Set<string>();
+    const skills = [];
+    for (const file of projectedPackage.files) {
         if (
-            actual.relativePath !== expected.relativePath ||
-            actual.contentHash !== expected.contentHash ||
-            sha256(actual.content) !== actual.contentHash ||
-            !Buffer.from(actual.content).equals(Buffer.from(expected.content)) ||
-            JSON.stringify(canonicalSources(actual.sources)) !==
-                JSON.stringify(canonicalSources(expected.sources))
+            seen.has(file.relativePath) ||
+            !isSafePackagePath(file.relativePath) ||
+            !HASH_PATTERN.test(file.contentHash) ||
+            sha256(file.content) !== file.contentHash
         ) {
-            throw new Error(
-                `Projected Pi package file failed verification: ${actual.relativePath}`,
-            );
+            throw new Error('Projected package file inventory is invalid');
+        }
+        seen.add(file.relativePath);
+        if (file.relativePath === 'plugin.json') {
+            continue;
+        }
+        const match = /^skills\/([^/]+)\/SKILL\.md$/.exec(file.relativePath);
+        if (!match || file.sources.length !== 1) {
+            throw new Error('Projected package contains unsupported output');
+        }
+        skills.push({ name: match[1], content: file.content, source: file.sources[0] });
+    }
+    const { $schema: _schema, ...manifest } = projectedPackage.manifest;
+    const regenerated = projectPiAgentPluginSkills({
+        plugins: [
+            {
+                manifest,
+                source: manifestFile.sources[0],
+                skills,
+            },
+        ],
+    });
+    if (regenerated.blocked || regenerated.packages.length !== 1) {
+        throw new Error('Projected package does not reproduce from its exact files');
+    }
+    const expected = regenerated.packages[0];
+    if (
+        expected.contentSha !== projectedPackage.contentSha ||
+        JSON.stringify(comparableManifest(expected.manifest)) !==
+            JSON.stringify(comparableManifest(projectedPackage.manifest)) ||
+        expected.files.length !== projectedPackage.files.length
+    ) {
+        throw new Error('Projected package content identity is forged');
+    }
+    for (let index = 0; index < expected.files.length; index += 1) {
+        const left = expected.files[index];
+        const right = projectedPackage.files[index];
+        if (
+            left.relativePath !== right.relativePath ||
+            left.contentHash !== right.contentHash ||
+            !Buffer.from(left.content).equals(Buffer.from(right.content)) ||
+            JSON.stringify(canonicalSources(left.sources)) !==
+                JSON.stringify(canonicalSources(right.sources))
+        ) {
+            throw new Error('Projected package files do not match deterministic output');
         }
     }
 }
 
-function validateObservedOwnership(
-    observed: ObservedTargetRoot,
-    state: PiTargetState,
+function desiredStateFor(
+    projectedPackages: readonly PiSkillsProjectionPackage[],
+): PiTargetState | undefined {
+    if (projectedPackages.length === 0) {
+        return undefined;
+    }
+    const plugins: Record<string, PiTargetManagedPluginState> = {};
+    for (const projectedPackage of projectedPackages) {
+        verifyProjectedPackage(projectedPackage);
+        if (plugins[projectedPackage.name]) {
+            throw new Error('Projected plugin name is duplicated');
+        }
+        plugins[projectedPackage.name] = stateForPackage(projectedPackage);
+    }
+    return canonicalState({ schemaVersion: PI_TARGET_STATE_SCHEMA_VERSION, plugins });
+}
+
+function ownershipDiagnostics(
+    currentState: PiTargetState | undefined,
+    observed: ReadonlyMap<string, ObservedPluginRoot>,
 ): readonly PiTargetDiagnostic[] {
-    const diagnostics: PiTargetDiagnostic[] = [...observed.diagnostics];
-    if (!observed.exists || diagnostics.length > 0) {
-        return diagnostics;
+    if (!currentState) {
+        return [];
     }
-    const trackedPaths = Object.keys(state.files);
-    const allowedDirectories = expectedDirectories(trackedPaths);
-    for (const relativePath of observed.directories) {
-        if (!allowedDirectories.has(relativePath)) {
-            diagnostics.push(
-                targetDiagnostic(
-                    'PI_TARGET_UNMANAGED_CONTENT',
-                    `Generated Pi package directory "${relativePath}" is not recorded in target state.`,
-                    'error',
-                    `${PI_PROJECT_PLUGIN_RELATIVE_ROOT}/${relativePath}`,
-                ),
-            );
+    const diagnostics: PiTargetDiagnostic[] = [];
+    for (const pluginName of Object.keys(currentState.plugins).sort(compareCodeUnits)) {
+        const tracked = currentState.plugins[pluginName];
+        const root = observed.get(pluginName)!;
+        if (!root.exists) {
+            continue;
+        }
+        for (const [relativePath, contentHash] of root.files) {
+            const trackedFile = tracked.files[relativePath];
+            if (!trackedFile) {
+                diagnostics.push(
+                    targetDiagnostic(
+                        'PI_TARGET_UNMANAGED_CONTENT',
+                        `Managed Pi plugin "${pluginName}" contains untracked content.`,
+                        'error',
+                        `${tracked.outputRoot}/${relativePath}`,
+                    ),
+                );
+            } else if (trackedFile.contentHash !== contentHash) {
+                diagnostics.push(
+                    targetDiagnostic(
+                        'PI_TARGET_DRIFT',
+                        `Managed Pi plugin "${pluginName}" contains changed tracked content.`,
+                        'error',
+                        `${tracked.outputRoot}/${relativePath}`,
+                    ),
+                );
+            }
+        }
+        const expected = expectedDirectories(Object.keys(tracked.files));
+        for (const directory of root.directories) {
+            if (!expected.has(directory)) {
+                diagnostics.push(
+                    targetDiagnostic(
+                        'PI_TARGET_UNMANAGED_CONTENT',
+                        `Managed Pi plugin "${pluginName}" contains an untracked directory.`,
+                        'error',
+                        `${tracked.outputRoot}/${directory}`,
+                    ),
+                );
+            }
         }
     }
-    for (const [relativePath, currentHash] of observed.files) {
-        const expected = state.files[relativePath];
-        if (!expected) {
-            diagnostics.push(
-                targetDiagnostic(
-                    'PI_TARGET_UNMANAGED_CONTENT',
-                    `Generated Pi package file "${relativePath}" is not recorded in target state.`,
-                    'error',
-                    `${PI_PROJECT_PLUGIN_RELATIVE_ROOT}/${relativePath}`,
-                ),
-            );
-        } else if (currentHash !== expected.contentHash) {
-            diagnostics.push(
-                targetDiagnostic(
-                    'PI_TARGET_DRIFT',
-                    `Generated Pi package file "${relativePath}" differs from its recorded managed hash.`,
-                    'error',
-                    `${PI_PROJECT_PLUGIN_RELATIVE_ROOT}/${relativePath}`,
-                ),
-            );
-        }
-    }
-    return diagnostics.sort((left, right) =>
-        compareCodeUnits(
-            `${left.code}:${left.filePath ?? ''}`,
-            `${right.code}:${right.filePath ?? ''}`,
-        ),
-    );
+    return diagnostics;
+}
+
+function hasErrors(diagnostics: readonly PiTargetDiagnostic[]): boolean {
+    return diagnostics.some((entry) => entry.severity === 'error');
 }
 
 function emptyPlan(
@@ -1121,127 +1096,150 @@ function emptyPlan(
     };
 }
 
-/** Build a read-only, complete preflight plan for the fixed Pi package root. */
+/** Plan the complete per-plugin reconciliation without writing the workspace. */
 export function planPiProjectPluginSynchronization(
     options: PiProjectPluginPlanOptions,
 ): PiProjectPluginSynchronizationPlan {
-    const controlPathDiagnostics = inspectControlPaths(options.workspaceRoot);
-    const transactionLoad = loadTransactionJournal(options.workspaceRoot);
-    const stateLoad = loadPiTargetState(options.workspaceRoot);
-    const observed = collectRootInventory(options.workspaceRoot);
-    const diagnostics: PiTargetDiagnostic[] = [
-        ...controlPathDiagnostics,
-        ...(transactionLoad.exists ? [transactionLoad.diagnostic] : []),
-        ...stateLoad.diagnostics,
-        ...observed.diagnostics,
-        ...(options.projection?.diagnostics ?? []),
-    ];
-    if (
-        controlPathDiagnostics.length > 0 ||
-        transactionLoad.exists ||
-        stateLoad.diagnostics.length > 0 ||
-        observed.diagnostics.length > 0
-    ) {
-        return emptyPlan(options, diagnostics, true, stateLoad.state);
+    const pathDiagnostics = controlPathDiagnostics(options.workspaceRoot);
+    if (hasErrors(pathDiagnostics)) {
+        return emptyPlan(options, pathDiagnostics, true);
+    }
+    const loaded = loadPiTargetState(options.workspaceRoot);
+    if (hasErrors(loaded.diagnostics)) {
+        return emptyPlan(options, loaded.diagnostics, true);
+    }
+    const currentState = loaded.state;
+    const projectionDiagnostics = options.projection?.diagnostics ?? [];
+    if (options.enabled && !options.projection) {
+        return emptyPlan(
+            options,
+            [
+                ...loaded.diagnostics,
+                targetDiagnostic(
+                    'PI_TARGET_PROJECTION_REQUIRED',
+                    'The enabled Pi target requires a resolved projection.',
+                ),
+            ],
+            true,
+            currentState,
+        );
+    }
+    if (options.enabled && options.projection?.blocked) {
+        return emptyPlan(
+            options,
+            [
+                ...loaded.diagnostics,
+                ...projectionDiagnostics,
+                targetDiagnostic(
+                    'PI_TARGET_PROJECTION_BLOCKED',
+                    'The active plugin set cannot be projected safely; existing managed output was preserved.',
+                ),
+            ],
+            true,
+            currentState,
+        );
     }
 
-    const currentState = stateLoad.state;
-    if (!currentState) {
-        if (!options.enabled) {
-            if (observed.exists) {
-                diagnostics.push(
-                    targetDiagnostic(
-                        'PI_TARGET_ROOT_UNTRACKED',
-                        'An unmanaged Pi package root exists and is preserved while the target is disabled.',
-                        'info',
-                        PI_PROJECT_PLUGIN_RELATIVE_ROOT,
-                    ),
-                );
-            }
-            return emptyPlan(options, diagnostics, false);
+    let desiredState: PiTargetState | undefined;
+    try {
+        desiredState =
+            options.enabled && options.projection && !options.projection.blocked
+                ? desiredStateFor(options.projection.packages)
+                : undefined;
+    } catch {
+        return emptyPlan(
+            options,
+            [
+                ...loaded.diagnostics,
+                ...projectionDiagnostics,
+                targetDiagnostic(
+                    'PI_TARGET_PROJECTION_INVALID',
+                    'The supplied Pi projection failed deterministic package verification.',
+                ),
+            ],
+            true,
+            currentState,
+        );
+    }
+
+    const pluginNames = new Set<string>([
+        ...Object.keys(currentState?.plugins ?? {}),
+        ...Object.keys(desiredState?.plugins ?? {}),
+    ]);
+    const observed = new Map<string, ObservedPluginRoot>();
+    const diagnostics: PiTargetDiagnostic[] = [...loaded.diagnostics, ...projectionDiagnostics];
+    for (const pluginName of [...pluginNames].sort(compareCodeUnits)) {
+        try {
+            observed.set(pluginName, collectRootInventory(options.workspaceRoot, pluginName));
+        } catch {
+            diagnostics.push(
+                targetDiagnostic(
+                    'PI_TARGET_ROOT_INVALID',
+                    `Pi plugin root "${pluginRelativeRoot(pluginName)}" could not be safely inventoried.`,
+                    'error',
+                    pluginRelativeRoot(pluginName),
+                ),
+            );
         }
-        if (observed.exists) {
+    }
+    if (hasErrors(diagnostics)) {
+        return emptyPlan(options, diagnostics, true, currentState);
+    }
+    diagnostics.push(...ownershipDiagnostics(currentState, observed));
+    for (const pluginName of Object.keys(desiredState?.plugins ?? {}).sort(compareCodeUnits)) {
+        if (!currentState?.plugins[pluginName] && observed.get(pluginName)?.exists) {
             diagnostics.push(
                 targetDiagnostic(
                     'PI_TARGET_ROOT_UNTRACKED',
-                    'The fixed Pi package root already exists without MetaFlow target state.',
+                    `Pi plugin root "${pluginRelativeRoot(pluginName)}" already exists without MetaFlow ownership.`,
                     'error',
-                    PI_PROJECT_PLUGIN_RELATIVE_ROOT,
+                    pluginRelativeRoot(pluginName),
                 ),
             );
-            return emptyPlan(options, diagnostics, true);
-        }
-    } else {
-        const ownershipDiagnostics = validateObservedOwnership(observed, currentState);
-        diagnostics.push(...ownershipDiagnostics);
-        if (ownershipDiagnostics.length > 0) {
-            return emptyPlan(options, diagnostics, true, currentState);
         }
     }
-
-    if (!options.enabled) {
-        if (!currentState) {
-            return emptyPlan(options, diagnostics, false);
-        }
-        const changes = [...observed.files.keys()]
-            .sort(compareCodeUnits)
-            .map((relativePath) => ({ relativePath, action: 'remove' as const }));
-        return {
-            enabled: false,
-            blocked: false,
-            changes,
-            stateAction: 'remove',
-            diagnostics: canonicalDiagnostics(diagnostics),
-            currentState,
-            ...(options.projection ? { projection: options.projection } : {}),
-        };
-    }
-
-    if (!options.projection) {
-        diagnostics.push(
-            targetDiagnostic(
-                'PI_TARGET_PROJECTION_REQUIRED',
-                'An enabled Pi target requires a resolved skills projection before reconciliation.',
-            ),
-        );
-        return emptyPlan(options, diagnostics, true, currentState);
-    }
-    if (options.projection.blocked) {
-        diagnostics.push(
-            targetDiagnostic(
-                'PI_TARGET_PROJECTION_BLOCKED',
-                'The Pi package projection is blocked; existing managed output is preserved.',
-            ),
-        );
-        return emptyPlan(options, diagnostics, true, currentState);
-    }
-
-    let desiredState: PiTargetState;
-    try {
-        desiredState = desiredStateFor(options.projection.package);
-    } catch {
-        diagnostics.push(
-            targetDiagnostic(
-                'PI_TARGET_PROJECTION_INVALID',
-                'The projected Pi package contains an invalid or duplicate managed path.',
-            ),
-        );
+    if (hasErrors(diagnostics)) {
         return emptyPlan(options, diagnostics, true, currentState);
     }
 
     const changes: PiTargetChange[] = [];
-    for (const relativePath of Object.keys(desiredState.files).sort(compareCodeUnits)) {
-        const currentHash = observed.files.get(relativePath);
-        if (currentHash === undefined) {
-            changes.push({ relativePath, action: 'add' });
-        } else if (currentHash !== desiredState.files[relativePath].contentHash) {
-            changes.push({ relativePath, action: 'update' });
-        }
-    }
-    if (currentState) {
-        for (const relativePath of Object.keys(currentState.files).sort(compareCodeUnits)) {
-            if (!desiredState.files[relativePath] && observed.files.has(relativePath)) {
-                changes.push({ relativePath, action: 'remove' });
+    for (const pluginName of [...pluginNames].sort(compareCodeUnits)) {
+        const desired = desiredState?.plugins[pluginName];
+        const root = observed.get(pluginName)!;
+        if (desired) {
+            for (const relativePath of Object.keys(desired.files).sort(compareCodeUnits)) {
+                const actual = root.files.get(relativePath);
+                if (actual === undefined) {
+                    changes.push({
+                        relativePath: `${desired.outputRoot}/${relativePath}`,
+                        action: 'add',
+                    });
+                } else if (actual !== desired.files[relativePath].contentHash) {
+                    changes.push({
+                        relativePath: `${desired.outputRoot}/${relativePath}`,
+                        action: 'update',
+                    });
+                }
+            }
+            for (const relativePath of [...root.files.keys()].sort(compareCodeUnits)) {
+                if (!desired.files[relativePath]) {
+                    changes.push({
+                        relativePath: `${desired.outputRoot}/${relativePath}`,
+                        action: 'remove',
+                    });
+                }
+            }
+        } else if (root.exists) {
+            const currentRoot = currentState!.plugins[pluginName].outputRoot;
+            if (root.files.size === 0) {
+                changes.push({ relativePath: currentRoot, action: 'remove' });
+            } else {
+                for (const relativePath of [...root.files.keys()].sort(compareCodeUnits)) {
+                    changes.push({
+                        relativePath: `${currentRoot}/${relativePath}`,
+                        action: 'remove',
+                    });
+                }
             }
         }
     }
@@ -1250,20 +1248,25 @@ export function planPiProjectPluginSynchronization(
             compareCodeUnits(left.relativePath, right.relativePath) ||
             compareCodeUnits(left.action, right.action),
     );
-    const stateAction: PiTargetStateAction =
-        !currentState || serializeState(currentState) !== serializeState(desiredState)
-            ? 'write'
-            : 'none';
 
+    const desiredSerialized = desiredState ? serializeState(desiredState) : undefined;
+    const currentSerialized = currentState ? serializeState(currentState) : undefined;
+    const stateAction: PiTargetStateAction = desiredState
+        ? desiredSerialized === currentSerialized
+            ? 'none'
+            : 'write'
+        : currentState
+          ? 'remove'
+          : 'none';
     return {
-        enabled: true,
+        enabled: options.enabled,
         blocked: false,
         changes,
         stateAction,
         diagnostics: canonicalDiagnostics(diagnostics),
         ...(currentState ? { currentState } : {}),
-        desiredState,
-        projection: options.projection,
+        ...(desiredState ? { desiredState } : {}),
+        ...(options.projection ? { projection: options.projection } : {}),
     };
 }
 
@@ -1277,642 +1280,602 @@ function planIdentity(plan: PiProjectPluginSynchronizationPlan): string {
     });
 }
 
-function quarantinePath(targetPath: string): string {
-    return path.join(
-        path.dirname(targetPath),
-        `.${path.basename(targetPath)}.metaflow-delete-${randomUUID()}`,
-    );
-}
-
-function restoreQuarantinedPath(originalPath: string, quarantinedPath: string): void {
-    if (!fs.existsSync(quarantinedPath)) {
-        return;
-    }
-    if (fs.existsSync(originalPath)) {
-        throw new Error('A replacement appeared while a Pi target artifact was quarantined');
-    }
-    const stats = fs.lstatSync(quarantinedPath);
-    if (stats.isFile() && !stats.isSymbolicLink()) {
-        fs.linkSync(quarantinedPath, originalPath);
-        return;
-    }
-    fs.renameSync(quarantinedPath, originalPath);
-}
-
-function removeVerifiedIdentityFile(
-    workspaceRoot: string,
-    absolutePath: string,
-    expectedIdentity: PiTargetPathIdentity,
-): void {
+function ensureDirectory(workspaceRoot: string, relativeDirectory: string): string {
     const workspaceRealPath = safeRealWorkspace(workspaceRoot);
-    assertSafeExistingPath(workspaceRealPath, absolutePath, 'file');
-    if (!sameIdentity(pathIdentity(fs.lstatSync(absolutePath)), expectedIdentity)) {
-        throw new Error('Refusing to remove a Pi target file whose identity changed');
-    }
-    const quarantinedPath = quarantinePath(absolutePath);
-    fs.renameSync(absolutePath, quarantinedPath);
-    try {
-        assertSafeExistingPath(workspaceRealPath, quarantinedPath, 'file');
-        if (!sameIdentity(pathIdentity(fs.lstatSync(quarantinedPath)), expectedIdentity)) {
-            throw new Error('Quarantined Pi target file identity changed');
+    let current = workspaceRoot;
+    for (const segment of relativeDirectory.split('/').filter(Boolean)) {
+        current = path.join(current, segment);
+        if (pathEntryExists(current)) {
+            assertSafeExistingPath(workspaceRealPath, current, 'directory');
+        } else {
+            fs.mkdirSync(current);
+            assertSafeExistingPath(workspaceRealPath, current, 'directory');
         }
-    } catch (error) {
-        restoreQuarantinedPath(absolutePath, quarantinedPath);
-        throw error;
     }
-    fs.rmSync(quarantinedPath, { force: false });
+    return current;
 }
 
-function createTransactionRoot(workspaceRoot: string, transactionId: string): string {
-    assertSafeDirectoryChain(workspaceRoot, '.metaflow');
-    const metaflowDirectory = path.join(workspaceRoot, '.metaflow');
-    fs.mkdirSync(metaflowDirectory, { recursive: true });
-    assertSafeDirectoryChain(workspaceRoot, '.metaflow');
-    const transactionRoot = transactionRootPath(workspaceRoot, transactionId);
-    fs.mkdirSync(transactionRoot, { recursive: false });
-    return transactionRoot;
-}
-
-function acquireTargetLock(
-    workspaceRoot: string,
-): { readonly lock: PiTargetLock } | { readonly diagnostic: PiTargetDiagnostic } {
-    let descriptor: number | undefined;
-    let lockPath: string | undefined;
-    let lockIdentity: PiTargetPathIdentity | undefined;
+function fsyncDirectoryBestEffort(directoryPath: string): void {
     try {
-        assertSafeDirectoryChain(workspaceRoot, '.metaflow');
-        const metaflowDirectory = path.join(workspaceRoot, '.metaflow');
-        fs.mkdirSync(metaflowDirectory, { recursive: true });
-        assertSafeDirectoryChain(workspaceRoot, '.metaflow');
-        lockPath = path.join(workspaceRoot, ...PI_TARGET_LOCK_RELATIVE_PATH.split('/'));
-        descriptor = fs.openSync(lockPath, 'wx');
-        lockIdentity = pathIdentity(fs.fstatSync(descriptor));
-        fs.writeFileSync(descriptor, 'MetaFlow Pi target reconciliation lock\n', 'utf8');
-        fs.fsyncSync(descriptor);
-        lockIdentity = pathIdentity(fs.fstatSync(descriptor));
-        return { lock: { descriptor, lockPath, workspaceRoot, identity: lockIdentity } };
-    } catch (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (descriptor !== undefined) {
-            try {
-                fs.closeSync(descriptor);
-            } catch {
-                // Preserve the original acquisition failure below.
-            }
-        }
-        if (lockPath && lockIdentity && fs.existsSync(lockPath)) {
-            try {
-                removeVerifiedIdentityFile(workspaceRoot, lockPath, lockIdentity);
-            } catch {
-                // A residual or replaced lock remains fail-closed.
-            }
-        }
-        return {
-            diagnostic: targetDiagnostic(
-                code === 'EEXIST' ? 'PI_TARGET_RECONCILIATION_BUSY' : 'PI_TARGET_LOCK_FAILED',
-                code === 'EEXIST'
-                    ? 'Another Pi target reconciliation may be active. If no MetaFlow process is running, remove the stale .metaflow/pi-target.lock file and retry.'
-                    : 'MetaFlow could not acquire the project-local Pi target reconciliation lock.',
-                'error',
-                PI_TARGET_LOCK_RELATIVE_PATH,
-            ),
-        };
-    }
-}
-
-function releaseTargetLock(lock: PiTargetLock): void {
-    try {
-        fs.closeSync(lock.descriptor);
-    } finally {
+        const descriptor = fs.openSync(directoryPath, 'r');
         try {
-            removeVerifiedIdentityFile(lock.workspaceRoot, lock.lockPath, lock.identity);
-        } catch {
-            // A replaced or stale lock fails closed on the next operation.
-        }
-    }
-}
-
-function stagePackage(
-    transactionRoot: string,
-    projectedPackage: PiSkillsProjectionPackage,
-): string {
-    verifyProjectedPackage(projectedPackage);
-    const stagedRoot = path.join(transactionRoot, 'next-package');
-    fs.mkdirSync(stagedRoot, { recursive: false });
-    for (const file of projectedPackage.files) {
-        if (!isSafePackagePath(file.relativePath)) {
-            throw new Error(`Invalid projected path: ${file.relativePath}`);
-        }
-        const destination = path.join(stagedRoot, ...file.relativePath.split('/'));
-        fs.mkdirSync(path.dirname(destination), { recursive: true });
-        const descriptor = fs.openSync(destination, 'wx');
-        try {
-            fs.writeFileSync(descriptor, file.content);
             fs.fsyncSync(descriptor);
         } finally {
             fs.closeSync(descriptor);
         }
-        if (sha256(fs.readFileSync(destination)) !== file.contentHash) {
-            throw new Error(`Staged file hash mismatch: ${file.relativePath}`);
-        }
+    } catch {
+        // Some platforms do not permit opening directories for fsync.
     }
-    return stagedRoot;
 }
 
-function stageState(transactionRoot: string, state: PiTargetState): string {
-    const stagedState = path.join(transactionRoot, 'next-state.json');
-    const descriptor = fs.openSync(stagedState, 'wx');
+function writeFileExclusiveDurably(target: string, content: string | Uint8Array): void {
+    const descriptor = fs.openSync(target, 'wx');
     try {
-        fs.writeFileSync(descriptor, serializeState(state), 'utf8');
+        fs.writeFileSync(descriptor, content);
         fs.fsyncSync(descriptor);
     } finally {
         fs.closeSync(descriptor);
     }
-    return stagedState;
+    fsyncDirectoryBestEffort(path.dirname(target));
 }
 
-function ensureOutputParent(workspaceRoot: string): void {
-    const parentRelative = path.posix.dirname(PI_PROJECT_PLUGIN_RELATIVE_ROOT);
-    assertSafeDirectoryChain(workspaceRoot, parentRelative);
-    fs.mkdirSync(path.join(workspaceRoot, ...parentRelative.split('/')), { recursive: true });
-    assertSafeDirectoryChain(workspaceRoot, parentRelative);
+function serializeLockOwner(owner: PiTargetLockOwner): string {
+    return `${JSON.stringify(owner)}\n`;
 }
 
-function assertKnownTransactionEntries(transactionRoot: string): void {
-    const allowed = new Set([
-        'next-package',
-        'next-state.json',
-        'previous-package',
-        'previous-state.json',
-    ]);
-    for (const entry of fs.readdirSync(transactionRoot)) {
-        if (!allowed.has(entry)) {
-            throw new Error(`Unexpected Pi target transaction entry: ${entry}`);
+function parseLockOwner(content: string): PiTargetLockOwner | undefined {
+    try {
+        const value = JSON.parse(content) as unknown;
+        if (
+            !isRecord(value) ||
+            !hasOnlyKeys(value, ['schemaVersion', 'pid', 'token']) ||
+            value.schemaVersion !== PI_TARGET_LOCK_SCHEMA_VERSION ||
+            !Number.isSafeInteger(value.pid) ||
+            (value.pid as number) <= 0 ||
+            typeof value.token !== 'string' ||
+            !TRANSACTION_ID_PATTERN.test(value.token)
+        ) {
+            return undefined;
         }
+        return {
+            schemaVersion: PI_TARGET_LOCK_SCHEMA_VERSION,
+            pid: value.pid as number,
+            token: value.token,
+        };
+    } catch {
+        return undefined;
     }
 }
 
-function expectedPreparedTransactionSnapshot(
-    transactionRootIdentity: PiTargetPathIdentity,
-    nextRoot?: PiTargetRootSnapshot,
-    nextState?: PiTargetFileSnapshot,
-): PiTargetRootSnapshot {
-    const files: Record<string, PiTargetFileSnapshot> = {};
-    const directories: Record<string, PiTargetPathIdentity> = {};
-    if (nextRoot) {
-        directories['next-package'] = nextRoot.identity;
-        for (const [relativePath, identity] of Object.entries(nextRoot.directories)) {
-            directories[`next-package/${relativePath}`] = identity;
+function isProcessAlive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+    }
+}
+
+function reclaimStaleTargetLock(workspaceRoot: string, target: string): boolean {
+    const workspaceRealPath = safeRealWorkspace(workspaceRoot);
+    assertSafeExistingPath(workspaceRealPath, target, 'file');
+    const snapshot = captureFileSnapshot(workspaceRoot, target);
+    const owner = parseLockOwner(fs.readFileSync(target, 'utf8'));
+    if (!owner || isProcessAlive(owner.pid)) {
+        return false;
+    }
+
+    const quarantine = `${target}.${owner.token}.stale`;
+    if (pathEntryExists(quarantine)) {
+        return false;
+    }
+    fs.renameSync(target, quarantine);
+    if (!matchesFileSnapshot(workspaceRoot, quarantine, snapshot)) {
+        try {
+            if (!pathEntryExists(target)) {
+                fs.renameSync(quarantine, target);
+            }
+        } catch {
+            // Preserve both paths for a fail-closed follow-up when ownership changed mid-reclaim.
         }
-        for (const [relativePath, snapshot] of Object.entries(nextRoot.files)) {
-            files[`next-package/${relativePath}`] = snapshot;
+        return false;
+    }
+    removeVerifiedFile(workspaceRoot, quarantine, snapshot);
+    fsyncDirectoryBestEffort(path.dirname(target));
+    return true;
+}
+
+function acquireTargetLock(
+    workspaceRoot: string,
+): { lock: PiTargetLock } | { diagnostic: PiTargetDiagnostic } {
+    ensureDirectory(workspaceRoot, '.metaflow');
+    const target = lockPath(workspaceRoot);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+            const owner: PiTargetLockOwner = {
+                schemaVersion: PI_TARGET_LOCK_SCHEMA_VERSION,
+                pid: process.pid,
+                token: randomUUID(),
+            };
+            writeFileExclusiveDurably(target, serializeLockOwner(owner));
+            return { lock: { lockPath: target, identity: pathIdentity(fs.lstatSync(target)) } };
+        } catch (error) {
+            if (attempt === 0 && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+                try {
+                    if (reclaimStaleTargetLock(workspaceRoot, target)) {
+                        continue;
+                    }
+                } catch {
+                    // Unsafe or changed lock paths remain a fail-closed busy result.
+                }
+            }
+            break;
         }
     }
-    if (nextState) {
-        files['next-state.json'] = nextState;
+    return {
+        diagnostic: targetDiagnostic(
+            'PI_TARGET_RECONCILIATION_BUSY',
+            'Another Pi target reconciliation is active or the lock path is unsafe.',
+            'error',
+            PI_TARGET_LOCK_RELATIVE_PATH,
+        ),
+    };
+}
+
+function releaseTargetLock(workspaceRoot: string, lock: PiTargetLock): void {
+    try {
+        if (
+            pathEntryExists(lock.lockPath) &&
+            sameIdentity(pathIdentity(fs.lstatSync(lock.lockPath)), lock.identity)
+        ) {
+            assertSafeExistingPath(safeRealWorkspace(workspaceRoot), lock.lockPath, 'file');
+            fs.unlinkSync(lock.lockPath);
+        }
+    } catch {
+        // A changed lock is deliberately preserved for the next fail-closed attempt.
     }
-    return { identity: transactionRootIdentity, files, directories };
+}
+
+function createTransactionRoot(workspaceRoot: string, transactionId: string): string {
+    ensureDirectory(workspaceRoot, '.metaflow');
+    const target = transactionRootPath(workspaceRoot, transactionId);
+    fs.mkdirSync(target);
+    assertSafeExistingPath(safeRealWorkspace(workspaceRoot), target, 'directory');
+    return target;
+}
+
+function stagePackage(
+    workspaceRoot: string,
+    transactionRoot: string,
+    projectedPackage: PiSkillsProjectionPackage,
+): string {
+    verifyProjectedPackage(projectedPackage);
+    const nextParent = path.join(transactionRoot, 'next');
+    if (!pathEntryExists(nextParent)) {
+        fs.mkdirSync(nextParent);
+    }
+    const root = path.join(nextParent, projectedPackage.name);
+    fs.mkdirSync(root);
+    for (const file of projectedPackage.files) {
+        const destination = path.join(root, ...file.relativePath.split('/'));
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        writeFileExclusiveDurably(destination, file.content);
+    }
+    const snapshot = captureRootSnapshot(workspaceRoot, root);
+    const expected = stateForPackage(projectedPackage);
+    if (
+        Object.keys(snapshot.files).some(
+            (relativePath) =>
+                snapshot.files[relativePath].contentHash !==
+                expected.files[relativePath]?.contentHash,
+        ) ||
+        Object.keys(snapshot.files).length !== Object.keys(expected.files).length
+    ) {
+        throw new Error('Staged Pi plugin does not match projection');
+    }
+    return root;
+}
+
+function stageState(workspaceRoot: string, transactionRoot: string, state: PiTargetState): string {
+    const target = path.join(transactionRoot, 'next-state.json');
+    writeFileExclusiveDurably(target, serializeState(state));
+    const parsed = parseStateV2(JSON.parse(fs.readFileSync(target, 'utf8')) as unknown);
+    if (!parsed || serializeState(parsed) !== serializeState(state)) {
+        throw new Error('Staged Pi target state failed canonical verification');
+    }
+    captureFileSnapshot(workspaceRoot, target);
+    return target;
+}
+
+function writeJournal(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
+    const target = journalPath(workspaceRoot);
+    writeFileExclusiveDurably(target, serializeJournal(journal));
+}
+
+function markJournalCommitted(
+    workspaceRoot: string,
+    journal: PiTargetTransactionJournal,
+): PiTargetTransactionJournal {
+    const target = journalPath(workspaceRoot);
+    const current = fs.readFileSync(target, 'utf8');
+    if (current !== serializeJournal(journal)) {
+        throw new Error('Pi target journal changed before commit marking');
+    }
+    const committed = { ...journal, committed: true };
+    const temporary = `${target}.${journal.transactionId}.committed`;
+    writeFileExclusiveDurably(temporary, serializeJournal(committed));
+    fs.renameSync(temporary, target);
+    fsyncDirectoryBestEffort(path.dirname(target));
+    return committed;
 }
 
 function removeVerifiedRoot(
     workspaceRoot: string,
-    absoluteRoot: string,
+    target: string,
     snapshot: PiTargetRootSnapshot,
 ): void {
-    if (!matchesRootSnapshot(workspaceRoot, absoluteRoot, snapshot)) {
-        throw new Error(
-            'Refusing to remove a Pi target directory whose identity or inventory changed',
-        );
+    if (!matchesRootSnapshot(workspaceRoot, target, snapshot)) {
+        throw new Error('Refusing to remove a changed Pi target root');
     }
-    const quarantinedRoot = quarantinePath(absoluteRoot);
-    fs.renameSync(absoluteRoot, quarantinedRoot);
-    if (!matchesRootSnapshot(workspaceRoot, quarantinedRoot, snapshot)) {
-        restoreQuarantinedPath(absoluteRoot, quarantinedRoot);
-        throw new Error(
-            'Refusing to remove a quarantined Pi target directory whose identity or inventory changed',
-        );
-    }
-    fs.rmSync(quarantinedRoot, { recursive: true, force: false });
+    fs.rmSync(target, { recursive: true });
 }
 
 function removeVerifiedFile(
     workspaceRoot: string,
-    absolutePath: string,
+    target: string,
     snapshot: PiTargetFileSnapshot,
 ): void {
-    if (!matchesFileSnapshot(workspaceRoot, absolutePath, snapshot)) {
-        throw new Error('Refusing to remove a Pi target file whose identity or bytes changed');
+    if (!matchesFileSnapshot(workspaceRoot, target, snapshot)) {
+        throw new Error('Refusing to remove a changed Pi target file');
     }
-    const quarantinedPath = quarantinePath(absolutePath);
-    fs.renameSync(absolutePath, quarantinedPath);
-    if (!matchesFileSnapshot(workspaceRoot, quarantinedPath, snapshot)) {
-        restoreQuarantinedPath(absolutePath, quarantinedPath);
-        throw new Error(
-            'Refusing to remove a quarantined Pi target file whose identity or bytes changed',
-        );
-    }
-    fs.rmSync(quarantinedPath, { force: false });
+    fs.unlinkSync(target);
 }
 
-function linkVerifiedFileNoReplace(
-    workspaceRoot: string,
-    sourcePath: string,
-    destinationPath: string,
-    snapshot: PiTargetFileSnapshot,
-): void {
-    if (!matchesFileSnapshot(workspaceRoot, sourcePath, snapshot)) {
-        throw new Error('Source Pi target file changed before no-replace publication');
+function removeEmptyDirectory(workspaceRoot: string, target: string): void {
+    if (!pathEntryExists(target)) {
+        return;
     }
-    fs.linkSync(sourcePath, destinationPath);
-    if (!matchesFileSnapshot(workspaceRoot, destinationPath, snapshot)) {
-        throw new Error('Published Pi target file identity or bytes changed');
+    assertSafeExistingPath(safeRealWorkspace(workspaceRoot), target, 'directory');
+    if (fs.readdirSync(target).length !== 0) {
+        throw new Error('Transaction directory contains unrecognized content');
     }
+    fs.rmdirSync(target);
 }
 
-function removeJournal(workspaceRoot: string, expected: PiTargetTransactionJournal): void {
-    const loaded = loadTransactionJournal(workspaceRoot);
-    if (
-        !loaded.exists ||
-        !loaded.journal ||
-        JSON.stringify(loaded.journal) !== JSON.stringify(expected)
-    ) {
-        throw new Error('Pi target transaction journal changed during recovery');
-    }
-    const targetJournalPath = journalPath(workspaceRoot);
-    const snapshot = captureFileSnapshot(workspaceRoot, targetJournalPath);
-    removeVerifiedFile(workspaceRoot, targetJournalPath, snapshot);
-    fsyncDirectoryBestEffort(path.dirname(journalPath(workspaceRoot)));
+function cleanupTransactionDirectories(workspaceRoot: string, transactionRoot: string): void {
+    removeEmptyDirectory(workspaceRoot, path.join(transactionRoot, 'next'));
+    removeEmptyDirectory(workspaceRoot, path.join(transactionRoot, 'previous'));
+    removeEmptyDirectory(workspaceRoot, transactionRoot);
 }
 
-function removeTransactionDirectoryIfEmpty(
-    workspaceRoot: string,
-    transactionRoot: string,
-    expectedIdentity: PiTargetPathIdentity,
-): void {
-    const snapshot = captureRootSnapshot(workspaceRoot, transactionRoot);
-    if (
-        !sameIdentity(snapshot.identity, expectedIdentity) ||
-        Object.keys(snapshot.files).length !== 0 ||
-        Object.keys(snapshot.directories).length !== 0
-    ) {
-        throw new Error('Pi target transaction directory still contains recovery artifacts');
+function removeJournal(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
+    const target = journalPath(workspaceRoot);
+    if (fs.readFileSync(target, 'utf8') !== serializeJournal(journal)) {
+        throw new Error('Pi target journal changed during recovery');
     }
-    removeVerifiedRoot(workspaceRoot, transactionRoot, snapshot);
+    fs.unlinkSync(target);
 }
 
-function rollbackUncommittedTransaction(
-    workspaceRoot: string,
-    journal: PiTargetTransactionJournal,
-): void {
+function rollbackUncommitted(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
     const transactionRoot = transactionRootPath(workspaceRoot, journal.transactionId);
-    const rootPath = outputRootPath(workspaceRoot);
-    const targetStatePath = statePath(workspaceRoot);
-    const previousRootPath = path.join(transactionRoot, 'previous-package');
+    const targetState = statePath(workspaceRoot);
     const previousStatePath = path.join(transactionRoot, 'previous-state.json');
-    const stagedRootPath = path.join(transactionRoot, 'next-package');
-    const stagedStatePath = path.join(transactionRoot, 'next-state.json');
-    assertSafeExistingPath(safeRealWorkspace(workspaceRoot), transactionRoot, 'directory');
-    assertKnownTransactionEntries(transactionRoot);
+    const nextStatePath = path.join(transactionRoot, 'next-state.json');
 
-    if (journal.rootAction !== 'none') {
-        if (journal.previousRoot) {
-            if (fs.existsSync(previousRootPath)) {
-                if (fs.existsSync(rootPath)) {
+    if (journal.stateAction !== 'none') {
+        if (journal.previousState) {
+            if (pathEntryExists(previousStatePath)) {
+                if (pathEntryExists(targetState)) {
                     if (
-                        !journal.nextRoot ||
-                        !matchesRootSnapshot(workspaceRoot, rootPath, journal.nextRoot)
+                        !journal.nextState ||
+                        !matchesFileSnapshot(workspaceRoot, targetState, journal.nextState)
                     ) {
-                        throw new Error(
-                            'Current Pi target root is not the staged package during rollback',
-                        );
+                        throw new Error('Changed Pi target state blocks rollback');
                     }
-                    removeVerifiedRoot(workspaceRoot, rootPath, journal.nextRoot);
+                    removeVerifiedFile(workspaceRoot, targetState, journal.nextState);
                 }
-                fs.renameSync(previousRootPath, rootPath);
+                fs.renameSync(previousStatePath, targetState);
+                if (!matchesFileSnapshot(workspaceRoot, targetState, journal.previousState)) {
+                    throw new Error('Previous Pi target state failed restoration');
+                }
             } else if (
-                !fs.existsSync(rootPath) ||
-                !matchesRootSnapshot(workspaceRoot, rootPath, journal.previousRoot)
+                !pathEntryExists(targetState) ||
+                !matchesFileSnapshot(workspaceRoot, targetState, journal.previousState)
             ) {
-                throw new Error('Previous Pi target root cannot be located for rollback');
+                throw new Error('Previous Pi target state cannot be located');
             }
-        } else {
-            if (fs.existsSync(previousRootPath)) {
-                throw new Error('Unexpected previous Pi target root exists during rollback');
-            }
-            if (fs.existsSync(rootPath)) {
-                if (
-                    !journal.nextRoot ||
-                    !matchesRootSnapshot(workspaceRoot, rootPath, journal.nextRoot)
-                ) {
-                    throw new Error('Untracked Pi target root appeared during rollback');
-                }
-                removeVerifiedRoot(workspaceRoot, rootPath, journal.nextRoot);
-            }
-        }
-    }
-
-    if (journal.previousState) {
-        if (fs.existsSync(previousStatePath)) {
-            let previousStateAlreadyLive = false;
-            if (fs.existsSync(targetStatePath)) {
-                if (matchesFileSnapshot(workspaceRoot, targetStatePath, journal.previousState)) {
-                    removeVerifiedFile(workspaceRoot, previousStatePath, journal.previousState);
-                    previousStateAlreadyLive = true;
-                } else if (
-                    journal.nextState &&
-                    matchesFileSnapshot(workspaceRoot, targetStatePath, journal.nextState)
-                ) {
-                    removeVerifiedFile(workspaceRoot, targetStatePath, journal.nextState);
-                } else {
-                    throw new Error(
-                        'Current Pi target state is neither the previous nor staged state during rollback',
-                    );
-                }
-            }
-            if (!previousStateAlreadyLive) {
-                linkVerifiedFileNoReplace(
-                    workspaceRoot,
-                    previousStatePath,
-                    targetStatePath,
-                    journal.previousState,
-                );
-                removeVerifiedFile(workspaceRoot, previousStatePath, journal.previousState);
-            }
-        } else if (
-            !fs.existsSync(targetStatePath) ||
-            !matchesFileSnapshot(workspaceRoot, targetStatePath, journal.previousState)
-        ) {
-            throw new Error('Previous Pi target state cannot be located for rollback');
-        }
-    } else {
-        if (fs.existsSync(previousStatePath)) {
-            throw new Error('Unexpected previous Pi target state exists during rollback');
-        }
-        if (fs.existsSync(targetStatePath)) {
+        } else if (pathEntryExists(targetState)) {
             if (
                 !journal.nextState ||
-                !matchesFileSnapshot(workspaceRoot, targetStatePath, journal.nextState)
+                !matchesFileSnapshot(workspaceRoot, targetState, journal.nextState)
             ) {
-                throw new Error('Untracked Pi target state appeared during rollback');
+                throw new Error('Untracked Pi target state blocks rollback');
             }
-            removeVerifiedFile(workspaceRoot, targetStatePath, journal.nextState);
+            removeVerifiedFile(workspaceRoot, targetState, journal.nextState);
+        }
+        if (pathEntryExists(nextStatePath)) {
+            if (!journal.nextState) {
+                throw new Error('Unexpected staged state exists');
+            }
+            removeVerifiedFile(workspaceRoot, nextStatePath, journal.nextState);
         }
     }
 
-    if (fs.existsSync(stagedRootPath)) {
-        if (!journal.nextRoot) {
-            throw new Error('Unexpected staged Pi target package exists during rollback');
+    for (const action of [...journal.rootActions].reverse()) {
+        const output = pluginRootPath(workspaceRoot, action.pluginName);
+        const previous = transactionPluginPath(transactionRoot, 'previous', action.pluginName);
+        const next = transactionPluginPath(transactionRoot, 'next', action.pluginName);
+        if (action.previousRoot) {
+            if (pathEntryExists(previous)) {
+                if (pathEntryExists(output)) {
+                    if (
+                        !action.nextRoot ||
+                        !matchesRootSnapshot(workspaceRoot, output, action.nextRoot)
+                    ) {
+                        throw new Error('Changed Pi plugin blocks rollback');
+                    }
+                    removeVerifiedRoot(workspaceRoot, output, action.nextRoot);
+                }
+                ensureDirectory(workspaceRoot, PI_PROJECT_PLUGINS_RELATIVE_ROOT);
+                fs.renameSync(previous, output);
+                if (!matchesRootSnapshot(workspaceRoot, output, action.previousRoot)) {
+                    throw new Error('Previous Pi plugin failed restoration');
+                }
+            } else if (
+                !pathEntryExists(output) ||
+                !matchesRootSnapshot(workspaceRoot, output, action.previousRoot)
+            ) {
+                throw new Error('Previous Pi plugin cannot be located');
+            }
+        } else if (pathEntryExists(output)) {
+            if (!action.nextRoot || !matchesRootSnapshot(workspaceRoot, output, action.nextRoot)) {
+                throw new Error('Untracked Pi plugin blocks rollback');
+            }
+            removeVerifiedRoot(workspaceRoot, output, action.nextRoot);
         }
-        removeVerifiedRoot(workspaceRoot, stagedRootPath, journal.nextRoot);
-    }
-    if (fs.existsSync(stagedStatePath)) {
-        if (!journal.nextState) {
-            throw new Error('Unexpected staged Pi target state exists during rollback');
+        if (pathEntryExists(next)) {
+            if (!action.nextRoot) {
+                throw new Error('Unexpected staged Pi plugin exists');
+            }
+            removeVerifiedRoot(workspaceRoot, next, action.nextRoot);
         }
-        removeVerifiedFile(workspaceRoot, stagedStatePath, journal.nextState);
     }
-    assertKnownTransactionEntries(transactionRoot);
-    removeTransactionDirectoryIfEmpty(
-        workspaceRoot,
-        transactionRoot,
-        journal.transactionRootIdentity,
-    );
+    cleanupTransactionDirectories(workspaceRoot, transactionRoot);
     removeJournal(workspaceRoot, journal);
 }
 
-function finalizeCommittedTransaction(
-    workspaceRoot: string,
-    journal: PiTargetTransactionJournal,
-): void {
+function finalizeCommitted(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
     const transactionRoot = transactionRootPath(workspaceRoot, journal.transactionId);
-    const rootPath = outputRootPath(workspaceRoot);
-    const targetStatePath = statePath(workspaceRoot);
-    const previousRootPath = path.join(transactionRoot, 'previous-package');
-    const previousStatePath = path.join(transactionRoot, 'previous-state.json');
-    const stagedRootPath = path.join(transactionRoot, 'next-package');
-    const stagedStatePath = path.join(transactionRoot, 'next-state.json');
-    assertSafeExistingPath(safeRealWorkspace(workspaceRoot), transactionRoot, 'directory');
-    assertKnownTransactionEntries(transactionRoot);
-
-    if (journal.rootAction === 'replace') {
-        if (!journal.nextRoot || !matchesRootSnapshot(workspaceRoot, rootPath, journal.nextRoot)) {
-            throw new Error('Committed Pi target package is missing or changed');
-        }
-    } else if (journal.rootAction === 'remove' && fs.existsSync(rootPath)) {
-        throw new Error('Committed Pi target cleanup still has a target root');
-    }
+    const targetState = statePath(workspaceRoot);
     if (journal.stateAction === 'write') {
         if (
             !journal.nextState ||
-            !matchesFileSnapshot(workspaceRoot, targetStatePath, journal.nextState)
+            !matchesFileSnapshot(workspaceRoot, targetState, journal.nextState)
         ) {
             throw new Error('Committed Pi target state is missing or changed');
         }
-    } else if (fs.existsSync(targetStatePath)) {
-        throw new Error('Committed Pi target cleanup still has target state');
+    } else if (journal.stateAction === 'remove' && pathEntryExists(targetState)) {
+        throw new Error('Committed Pi target state removal is incomplete');
     }
-
-    if (fs.existsSync(previousRootPath)) {
-        if (!journal.previousRoot) {
-            throw new Error('Unexpected previous Pi target package exists after commit');
+    for (const action of journal.rootActions) {
+        const output = pluginRootPath(workspaceRoot, action.pluginName);
+        if (action.action === 'replace') {
+            if (!action.nextRoot || !matchesRootSnapshot(workspaceRoot, output, action.nextRoot)) {
+                throw new Error('Committed Pi plugin is missing or changed');
+            }
+        } else if (pathEntryExists(output)) {
+            throw new Error('Committed Pi plugin removal is incomplete');
         }
-        removeVerifiedRoot(workspaceRoot, previousRootPath, journal.previousRoot);
-    } else if (journal.previousRoot && journal.rootAction !== 'none') {
-        throw new Error('Previous Pi target package disappeared before committed cleanup');
     }
-    if (fs.existsSync(previousStatePath)) {
+    for (const action of journal.rootActions) {
+        const previous = transactionPluginPath(transactionRoot, 'previous', action.pluginName);
+        const next = transactionPluginPath(transactionRoot, 'next', action.pluginName);
+        if (pathEntryExists(previous)) {
+            if (!action.previousRoot) {
+                throw new Error('Unexpected previous Pi plugin exists');
+            }
+            removeVerifiedRoot(workspaceRoot, previous, action.previousRoot);
+        }
+        if (pathEntryExists(next)) {
+            if (!action.nextRoot) {
+                throw new Error('Unexpected staged Pi plugin exists');
+            }
+            removeVerifiedRoot(workspaceRoot, next, action.nextRoot);
+        }
+    }
+    const previousStatePath = path.join(transactionRoot, 'previous-state.json');
+    const nextStatePath = path.join(transactionRoot, 'next-state.json');
+    if (pathEntryExists(previousStatePath)) {
         if (!journal.previousState) {
-            throw new Error('Unexpected previous Pi target state exists after commit');
+            throw new Error('Unexpected previous Pi target state exists');
         }
         removeVerifiedFile(workspaceRoot, previousStatePath, journal.previousState);
-    } else if (journal.previousState) {
-        throw new Error('Previous Pi target state disappeared before committed cleanup');
     }
-    if (fs.existsSync(stagedRootPath)) {
-        if (!journal.nextRoot) {
-            throw new Error('Unexpected staged Pi target package exists after commit');
-        }
-        removeVerifiedRoot(workspaceRoot, stagedRootPath, journal.nextRoot);
-    }
-    if (fs.existsSync(stagedStatePath)) {
+    if (pathEntryExists(nextStatePath)) {
         if (!journal.nextState) {
-            throw new Error('Unexpected staged Pi target state exists after commit');
+            throw new Error('Unexpected staged Pi target state exists');
         }
-        removeVerifiedFile(workspaceRoot, stagedStatePath, journal.nextState);
+        removeVerifiedFile(workspaceRoot, nextStatePath, journal.nextState);
     }
-    removeTransactionDirectoryIfEmpty(
-        workspaceRoot,
-        transactionRoot,
-        journal.transactionRootIdentity,
-    );
+    cleanupTransactionDirectories(workspaceRoot, transactionRoot);
     removeJournal(workspaceRoot, journal);
 }
 
-function transactionOutcomeIsCoherentWithoutArtifacts(
+function coherentWithoutTransactionRoot(
     workspaceRoot: string,
     journal: PiTargetTransactionJournal,
 ): boolean {
-    const rootPath = outputRootPath(workspaceRoot);
-    const targetStatePath = statePath(workspaceRoot);
-    if (journal.committed) {
-        const rootCoherent =
-            journal.rootAction === 'none' ||
-            (journal.rootAction === 'remove'
-                ? !fs.existsSync(rootPath)
-                : journal.nextRoot !== undefined &&
-                  matchesRootSnapshot(workspaceRoot, rootPath, journal.nextRoot));
-        const stateCoherent =
-            journal.stateAction === 'remove'
-                ? !fs.existsSync(targetStatePath)
-                : journal.nextState !== undefined &&
-                  matchesFileSnapshot(workspaceRoot, targetStatePath, journal.nextState);
-        return rootCoherent && stateCoherent;
-    }
-    const rootCoherent =
-        journal.rootAction === 'none' ||
-        (journal.previousRoot
-            ? matchesRootSnapshot(workspaceRoot, rootPath, journal.previousRoot)
-            : !fs.existsSync(rootPath));
-    const stateCoherent = journal.previousState
-        ? matchesFileSnapshot(workspaceRoot, targetStatePath, journal.previousState)
-        : !fs.existsSync(targetStatePath);
-    return rootCoherent && stateCoherent;
+    const targetState = statePath(workspaceRoot);
+    const stateCoherent = journal.committed
+        ? journal.stateAction === 'none' ||
+          (journal.stateAction === 'remove'
+              ? !pathEntryExists(targetState)
+              : journal.nextState !== undefined &&
+                matchesFileSnapshot(workspaceRoot, targetState, journal.nextState))
+        : journal.stateAction === 'none' ||
+          (journal.previousState
+              ? matchesFileSnapshot(workspaceRoot, targetState, journal.previousState)
+              : !pathEntryExists(targetState));
+    return (
+        stateCoherent &&
+        journal.rootActions.every((action) => {
+            const output = pluginRootPath(workspaceRoot, action.pluginName);
+            if (journal.committed) {
+                return action.action === 'remove'
+                    ? !pathEntryExists(output)
+                    : action.nextRoot !== undefined &&
+                          matchesRootSnapshot(workspaceRoot, output, action.nextRoot);
+            }
+            return action.previousRoot
+                ? matchesRootSnapshot(workspaceRoot, output, action.previousRoot)
+                : !pathEntryExists(output);
+        })
+    );
 }
 
-function recoverPendingTransaction(workspaceRoot: string): PiTargetRecoveryResult {
-    const loaded = loadTransactionJournal(workspaceRoot);
+function recoverPendingTransaction(workspaceRoot: string): readonly PiTargetDiagnostic[] {
+    const loaded = loadJournal(workspaceRoot);
     if (!loaded.exists) {
-        return { recovered: false, diagnostics: [] };
+        return [];
     }
     if (!loaded.journal) {
-        return { recovered: false, diagnostics: [loaded.diagnostic] };
+        return [loaded.diagnostic!];
     }
+    const journal = loaded.journal;
     try {
-        const transactionRoot = transactionRootPath(workspaceRoot, loaded.journal.transactionId);
-        if (!fs.existsSync(transactionRoot)) {
-            if (!transactionOutcomeIsCoherentWithoutArtifacts(workspaceRoot, loaded.journal)) {
+        const transactionRoot = transactionRootPath(workspaceRoot, journal.transactionId);
+        if (!pathEntryExists(transactionRoot)) {
+            if (!coherentWithoutTransactionRoot(workspaceRoot, journal)) {
                 throw new Error('Transaction artifacts disappeared before a coherent outcome');
             }
-            removeJournal(workspaceRoot, loaded.journal);
-            return { recovered: true, diagnostics: [] };
+            removeJournal(workspaceRoot, journal);
+            return [];
         }
-        if (loaded.journal.committed) {
-            finalizeCommittedTransaction(workspaceRoot, loaded.journal);
+        assertSafeExistingPath(safeRealWorkspace(workspaceRoot), transactionRoot, 'directory');
+        if (
+            !sameIdentity(
+                pathIdentity(fs.lstatSync(transactionRoot)),
+                journal.transactionRootIdentity,
+            )
+        ) {
+            throw new Error('Transaction root identity changed');
+        }
+        if (journal.committed) {
+            finalizeCommitted(workspaceRoot, journal);
         } else {
-            rollbackUncommittedTransaction(workspaceRoot, loaded.journal);
+            rollbackUncommitted(workspaceRoot, journal);
         }
-        return { recovered: true, diagnostics: [] };
+        return [];
     } catch {
-        return {
-            recovered: false,
-            diagnostics: [
-                targetDiagnostic(
-                    'PI_TARGET_RECOVERY_CONFLICT',
-                    'Pending Pi target recovery encountered changed or unrecognized content; all recovery artifacts were preserved.',
-                    'error',
-                    PI_TARGET_JOURNAL_RELATIVE_PATH,
-                ),
-            ],
-        };
+        return [
+            targetDiagnostic(
+                'PI_TARGET_RECOVERY_CONFLICT',
+                'Pending Pi target recovery encountered changed or unrecognized content; all recovery artifacts were preserved.',
+                'error',
+                PI_TARGET_JOURNAL_RELATIVE_PATH,
+            ),
+        ];
     }
 }
 
-function commitJournaledTransaction(
-    workspaceRoot: string,
-    journal: PiTargetTransactionJournal,
-): void {
+function changedPluginNames(plan: PiProjectPluginSynchronizationPlan): readonly string[] {
+    const names = new Set<string>();
+    for (const change of plan.changes) {
+        const segments = change.relativePath.split('/');
+        if (segments[0] === '.pi' && segments[1] === 'plugins' && segments[2]) {
+            names.add(segments[2]);
+        }
+    }
+    return [...names].sort(compareCodeUnits);
+}
+
+function commitTransaction(workspaceRoot: string, journal: PiTargetTransactionJournal): void {
     const transactionRoot = transactionRootPath(workspaceRoot, journal.transactionId);
-    const rootPath = outputRootPath(workspaceRoot);
-    const targetStatePath = statePath(workspaceRoot);
-    const previousRootPath = path.join(transactionRoot, 'previous-package');
-    const previousStatePath = path.join(transactionRoot, 'previous-state.json');
-    const stagedRootPath = path.join(transactionRoot, 'next-package');
-    const stagedStatePath = path.join(transactionRoot, 'next-state.json');
+    ensureDirectory(workspaceRoot, PI_PROJECT_PLUGINS_RELATIVE_ROOT);
+    const previousParent = path.join(transactionRoot, 'previous');
+    if (
+        journal.rootActions.some((action) => action.previousRoot) &&
+        !pathEntryExists(previousParent)
+    ) {
+        fs.mkdirSync(previousParent);
+    }
     try {
-        if (journal.rootAction !== 'none') {
-            ensureOutputParent(workspaceRoot);
-            if (journal.previousRoot) {
-                fs.renameSync(rootPath, previousRootPath);
-                if (!matchesRootSnapshot(workspaceRoot, previousRootPath, journal.previousRoot)) {
-                    throw new Error(
-                        'Moved Pi target root no longer matches its preflight identity',
-                    );
+        for (const action of journal.rootActions) {
+            const output = pluginRootPath(workspaceRoot, action.pluginName);
+            const previous = transactionPluginPath(transactionRoot, 'previous', action.pluginName);
+            const next = transactionPluginPath(transactionRoot, 'next', action.pluginName);
+            if (action.previousRoot) {
+                if (!matchesRootSnapshot(workspaceRoot, output, action.previousRoot)) {
+                    throw new Error('Pi plugin changed after final preflight');
                 }
-            } else if (fs.existsSync(rootPath)) {
-                throw new Error('An untracked Pi target root appeared after preflight');
+                fs.renameSync(output, previous);
+                if (!matchesRootSnapshot(workspaceRoot, previous, action.previousRoot)) {
+                    throw new Error('Moved Pi plugin changed during transaction');
+                }
+            } else if (pathEntryExists(output)) {
+                throw new Error('Untracked Pi plugin appeared after final preflight');
             }
-            if (journal.rootAction === 'replace') {
+            if (action.action === 'replace') {
                 if (
-                    !journal.nextRoot ||
-                    !matchesRootSnapshot(workspaceRoot, stagedRootPath, journal.nextRoot)
+                    !action.nextRoot ||
+                    !matchesRootSnapshot(workspaceRoot, next, action.nextRoot)
                 ) {
-                    throw new Error('Staged Pi target package changed before installation');
+                    throw new Error('Staged Pi plugin changed before installation');
                 }
-                fs.renameSync(stagedRootPath, rootPath);
-                if (!matchesRootSnapshot(workspaceRoot, rootPath, journal.nextRoot)) {
-                    throw new Error('Installed Pi target package changed during installation');
+                fs.renameSync(next, output);
+                if (!matchesRootSnapshot(workspaceRoot, output, action.nextRoot)) {
+                    throw new Error('Installed Pi plugin changed during installation');
                 }
             }
         }
-        if (journal.previousState) {
-            linkVerifiedFileNoReplace(
-                workspaceRoot,
-                targetStatePath,
-                previousStatePath,
-                journal.previousState,
-            );
-            removeVerifiedFile(workspaceRoot, targetStatePath, journal.previousState);
-        } else if (fs.existsSync(targetStatePath)) {
-            throw new Error('Untracked Pi target state appeared after preflight');
-        }
-        if (journal.stateAction === 'write') {
-            if (
-                !journal.nextState ||
-                !matchesFileSnapshot(workspaceRoot, stagedStatePath, journal.nextState)
-            ) {
-                throw new Error('Staged Pi target state changed before installation');
+        if (journal.stateAction !== 'none') {
+            const targetState = statePath(workspaceRoot);
+            const previousState = path.join(transactionRoot, 'previous-state.json');
+            const nextState = path.join(transactionRoot, 'next-state.json');
+            if (journal.previousState) {
+                if (!matchesFileSnapshot(workspaceRoot, targetState, journal.previousState)) {
+                    throw new Error('Pi target state changed after final preflight');
+                }
+                fs.renameSync(targetState, previousState);
+            } else if (pathEntryExists(targetState)) {
+                throw new Error('Untracked Pi target state appeared after final preflight');
             }
-            linkVerifiedFileNoReplace(
-                workspaceRoot,
-                stagedStatePath,
-                targetStatePath,
-                journal.nextState,
-            );
+            if (journal.stateAction === 'write') {
+                if (
+                    !journal.nextState ||
+                    !matchesFileSnapshot(workspaceRoot, nextState, journal.nextState)
+                ) {
+                    throw new Error('Staged Pi target state changed before installation');
+                }
+                fs.renameSync(nextState, targetState);
+                if (!matchesFileSnapshot(workspaceRoot, targetState, journal.nextState)) {
+                    throw new Error('Installed Pi target state changed during installation');
+                }
+            }
         }
     } catch (error) {
         const recovery = recoverPendingTransaction(workspaceRoot);
-        if (recovery.diagnostics.length > 0) {
-            throw new Error(
-                `Pi target transaction failed and automatic rollback was blocked: ${recovery.diagnostics[0].message}`,
-                { cause: error },
-            );
+        if (recovery.length > 0) {
+            throw new Error(recovery[0].message, { cause: error });
         }
         throw error;
     }
-
-    markTransactionJournalCommitted(workspaceRoot, journal);
-    const recovery = recoverPendingTransaction(workspaceRoot);
-    if (recovery.diagnostics.length > 0) {
-        throw new Error(recovery.diagnostics[0].message);
-    }
+    const committed = markJournalCommitted(workspaceRoot, journal);
+    finalizeCommitted(workspaceRoot, committed);
 }
 
-/**
- * Apply an enabled projection or disabled cleanup after a complete preflight.
- * A second plan is taken after staging so ordinary concurrent drift fails closed.
- */
+/** Apply the planned per-plugin set after repeated fail-closed preflight checks. */
 export function applyPiProjectPluginSynchronization(
     options: PiProjectPluginPlanOptions,
 ): PiProjectPluginApplyResult {
     let firstPlan = planPiProjectPluginSynchronization(options);
-    const pendingTransaction = loadTransactionJournal(options.workspaceRoot).exists;
+    const pendingJournal = loadJournal(options.workspaceRoot).exists;
     if (
-        (!pendingTransaction && firstPlan.blocked) ||
-        (!pendingTransaction && firstPlan.changes.length === 0 && firstPlan.stateAction === 'none')
+        (!pendingJournal && firstPlan.blocked) ||
+        (!pendingJournal && firstPlan.changes.length === 0 && firstPlan.stateAction === 'none')
     ) {
         return { plan: firstPlan, written: [], removed: [], stateChanged: false };
     }
-
     const lockResult = acquireTargetLock(options.workspaceRoot);
     if ('diagnostic' in lockResult) {
         return {
@@ -1933,11 +1896,11 @@ export function applyPiProjectPluginSynchronization(
     }
 
     let transactionRoot: string | undefined;
-    let preparedTransactionSnapshot: PiTargetRootSnapshot | undefined;
+    let transactionRootSnapshot: PiTargetRootSnapshot | undefined;
     let journalWritten = false;
     try {
-        const recovery = recoverPendingTransaction(options.workspaceRoot);
-        if (recovery.diagnostics.length > 0) {
+        const recoveryDiagnostics = recoverPendingTransaction(options.workspaceRoot);
+        if (recoveryDiagnostics.length > 0) {
             return {
                 plan: {
                     ...firstPlan,
@@ -1946,7 +1909,7 @@ export function applyPiProjectPluginSynchronization(
                     stateAction: 'none',
                     diagnostics: canonicalDiagnostics([
                         ...firstPlan.diagnostics,
-                        ...recovery.diagnostics,
+                        ...recoveryDiagnostics,
                     ]),
                 },
                 written: [],
@@ -1961,83 +1924,88 @@ export function applyPiProjectPluginSynchronization(
         ) {
             return { plan: firstPlan, written: [], removed: [], stateChanged: false };
         }
+
         const transactionId = randomUUID();
         transactionRoot = createTransactionRoot(options.workspaceRoot, transactionId);
-        const transactionRootIdentity = pathIdentity(fs.lstatSync(transactionRoot));
-        preparedTransactionSnapshot = captureRootSnapshot(options.workspaceRoot, transactionRoot);
-        let stagedRoot: string | undefined;
-        let stagedState: string | undefined;
-        const rootAction: PiTargetTransactionJournal['rootAction'] = options.enabled
-            ? firstPlan.changes.length > 0
-                ? 'replace'
-                : 'none'
-            : fs.existsSync(outputRootPath(options.workspaceRoot))
-              ? 'remove'
-              : 'none';
-        if (options.enabled) {
-            if (!options.projection || options.projection.blocked || !firstPlan.desiredState) {
-                return { plan: firstPlan, written: [], removed: [], stateChanged: false };
+        const changedNames = changedPluginNames(firstPlan);
+        const packageByName = new Map(
+            options.projection && !options.projection.blocked
+                ? options.projection.packages.map((entry) => [entry.name, entry] as const)
+                : [],
+        );
+        const stagedRoots = new Map<string, PiTargetRootSnapshot>();
+        for (const pluginName of changedNames) {
+            const projectedPackage = packageByName.get(pluginName);
+            if (projectedPackage) {
+                const staged = stagePackage(
+                    options.workspaceRoot,
+                    transactionRoot,
+                    projectedPackage,
+                );
+                stagedRoots.set(pluginName, captureRootSnapshot(options.workspaceRoot, staged));
             }
-            if (rootAction === 'replace') {
-                stagedRoot = stagePackage(transactionRoot, options.projection.package);
-            }
-            stagedState = stageState(transactionRoot, firstPlan.desiredState);
         }
-
-        const nextRoot = stagedRoot
-            ? captureRootSnapshot(options.workspaceRoot, stagedRoot)
-            : undefined;
-        const nextState = stagedState
-            ? captureFileSnapshot(options.workspaceRoot, stagedState)
-            : undefined;
-        preparedTransactionSnapshot = captureRootSnapshot(options.workspaceRoot, transactionRoot);
-        if (
-            !sameRootSnapshot(
-                preparedTransactionSnapshot,
-                expectedPreparedTransactionSnapshot(transactionRootIdentity, nextRoot, nextState),
-            )
-        ) {
-            throw new Error(
-                'Prepared Pi target transaction contains changed or unrecognized content',
+        let stagedStatePath: string | undefined;
+        if (firstPlan.stateAction === 'write' && firstPlan.desiredState) {
+            stagedStatePath = stageState(
+                options.workspaceRoot,
+                transactionRoot,
+                firstPlan.desiredState,
             );
         }
+        transactionRootSnapshot = captureRootSnapshot(options.workspaceRoot, transactionRoot);
 
         const secondPlan = planPiProjectPluginSynchronization(options);
         if (secondPlan.blocked || planIdentity(secondPlan) !== planIdentity(firstPlan)) {
-            removeVerifiedRoot(options.workspaceRoot, transactionRoot, preparedTransactionSnapshot);
+            removeVerifiedRoot(options.workspaceRoot, transactionRoot, transactionRootSnapshot);
             transactionRoot = undefined;
-            preparedTransactionSnapshot = undefined;
-            const diagnostics = secondPlan.blocked
-                ? secondPlan.diagnostics
-                : [
-                      ...secondPlan.diagnostics,
-                      targetDiagnostic(
-                          'PI_TARGET_PREFLIGHT_CHANGED',
-                          'Pi target state changed while the next package was staged; no output was modified.',
-                      ),
-                  ];
+            transactionRootSnapshot = undefined;
             return {
-                plan: { ...secondPlan, blocked: true, changes: [], diagnostics },
+                plan: {
+                    ...secondPlan,
+                    blocked: true,
+                    changes: [],
+                    diagnostics: canonicalDiagnostics([
+                        ...secondPlan.diagnostics,
+                        targetDiagnostic(
+                            'PI_TARGET_PREFLIGHT_CHANGED',
+                            'Pi target state changed while packages were staged; no output was modified.',
+                        ),
+                    ]),
+                },
                 written: [],
                 removed: [],
                 stateChanged: false,
             };
         }
 
-        const rootPath = outputRootPath(options.workspaceRoot);
-        const targetStatePath = statePath(options.workspaceRoot);
-        const previousRoot =
-            rootAction !== 'none' && fs.existsSync(rootPath)
-                ? captureRootSnapshot(options.workspaceRoot, rootPath)
+        const rootActions: PiTargetRootTransaction[] = [];
+        for (const pluginName of changedNames) {
+            const output = pluginRootPath(options.workspaceRoot, pluginName);
+            const previousRoot = pathEntryExists(output)
+                ? captureRootSnapshot(options.workspaceRoot, output)
                 : undefined;
-        const previousState = fs.existsSync(targetStatePath)
-            ? captureFileSnapshot(options.workspaceRoot, targetStatePath)
+            const nextRoot = stagedRoots.get(pluginName);
+            rootActions.push({
+                pluginName,
+                action: nextRoot ? 'replace' : 'remove',
+                ...(previousRoot ? { previousRoot } : {}),
+                ...(nextRoot ? { nextRoot } : {}),
+            });
+        }
+        const targetState = statePath(options.workspaceRoot);
+        const previousState =
+            firstPlan.stateAction !== 'none' && pathEntryExists(targetState)
+                ? captureFileSnapshot(options.workspaceRoot, targetState)
+                : undefined;
+        const nextState = stagedStatePath
+            ? captureFileSnapshot(options.workspaceRoot, stagedStatePath)
             : undefined;
         const finalPlan = planPiProjectPluginSynchronization(options);
         if (finalPlan.blocked || planIdentity(finalPlan) !== planIdentity(firstPlan)) {
-            removeVerifiedRoot(options.workspaceRoot, transactionRoot, preparedTransactionSnapshot);
+            removeVerifiedRoot(options.workspaceRoot, transactionRoot, transactionRootSnapshot);
             transactionRoot = undefined;
-            preparedTransactionSnapshot = undefined;
+            transactionRootSnapshot = undefined;
             return {
                 plan: {
                     ...finalPlan,
@@ -2061,35 +2029,32 @@ export function applyPiProjectPluginSynchronization(
             schemaVersion: PI_TARGET_TRANSACTION_SCHEMA_VERSION,
             transactionId,
             committed: false,
-            rootAction,
-            stateAction: options.enabled ? 'write' : 'remove',
-            transactionRootIdentity,
-            ...(previousRoot ? { previousRoot } : {}),
+            rootActions,
+            stateAction: firstPlan.stateAction,
+            transactionRootIdentity: pathIdentity(fs.lstatSync(transactionRoot)),
             ...(previousState ? { previousState } : {}),
-            ...(nextRoot ? { nextRoot } : {}),
             ...(nextState ? { nextState } : {}),
         };
-        writeTransactionJournal(options.workspaceRoot, journal);
+        writeJournal(options.workspaceRoot, journal);
         journalWritten = true;
-        commitJournaledTransaction(options.workspaceRoot, journal);
+        commitTransaction(options.workspaceRoot, journal);
         journalWritten = false;
         transactionRoot = undefined;
+        transactionRootSnapshot = undefined;
         return {
             plan: firstPlan,
-            written: options.enabled
-                ? firstPlan.changes
-                      .filter((change) => change.action !== 'remove')
-                      .map((change) => change.relativePath)
-                : [],
+            written: firstPlan.changes
+                .filter((change) => change.action !== 'remove')
+                .map((change) => change.relativePath),
             removed: firstPlan.changes
                 .filter((change) => change.action === 'remove')
                 .map((change) => change.relativePath),
             stateChanged: firstPlan.stateAction !== 'none',
         };
     } finally {
-        if (transactionRoot && preparedTransactionSnapshot && !journalWritten) {
-            removeVerifiedRoot(options.workspaceRoot, transactionRoot, preparedTransactionSnapshot);
+        if (transactionRoot && transactionRootSnapshot && !journalWritten) {
+            removeVerifiedRoot(options.workspaceRoot, transactionRoot, transactionRootSnapshot);
         }
-        releaseTargetLock(lockResult.lock);
+        releaseTargetLock(options.workspaceRoot, lockResult.lock);
     }
 }

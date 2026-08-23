@@ -1,11 +1,13 @@
 import * as assert from 'assert';
+import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
-    PI_PROJECT_PLUGIN_RELATIVE_ROOT,
+    PI_PROJECT_PLUGINS_RELATIVE_ROOT,
     PI_TARGET_STATE_RELATIVE_PATH,
+    PiAgentPluginProjectionInput,
     PiSkillProjectionInput,
     PiSkillsProjectionResult,
     applyPiProjectPluginSynchronization,
@@ -18,16 +20,40 @@ function workspace(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-pi-target-'));
 }
 
-function targetPath(root: string, relativePath = ''): string {
-    return path.join(
-        root,
-        ...PI_PROJECT_PLUGIN_RELATIVE_ROOT.split('/'),
-        ...relativePath.split('/'),
-    );
+function pluginRoot(root: string, pluginName: string): string {
+    return path.join(root, ...PI_PROJECT_PLUGINS_RELATIVE_ROOT.split('/'), pluginName);
+}
+
+function pluginPath(root: string, pluginName: string, relativePath = ''): string {
+    return path.join(pluginRoot(root, pluginName), ...relativePath.split('/').filter(Boolean));
 }
 
 function targetStatePath(root: string): string {
     return path.join(root, ...PI_TARGET_STATE_RELATIVE_PATH.split('/'));
+}
+
+function writeTargetLock(root: string, pid: number): string {
+    const target = path.join(root, '.metaflow', 'pi-target.lock');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(
+        target,
+        `${JSON.stringify({
+            schemaVersion: 1,
+            pid,
+            token: '22222222-2222-4222-8222-222222222222',
+        })}\n`,
+    );
+    return target;
+}
+
+function source(capabilityId: string, sourcePath: string) {
+    return {
+        repoId: 'metadata',
+        layerId: `metadata/capabilities/${capabilityId}`,
+        capabilityId,
+        capabilityName: capabilityId,
+        sourcePath,
+    };
 }
 
 function skill(
@@ -41,32 +67,38 @@ function skill(
             `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`,
             'utf8',
         ),
-        source: {
-            repoId: 'metadata',
-            layerId: `metadata/capabilities/${capabilityId}`,
-            capabilityId,
-            capabilityName: capabilityId,
-            sourcePath: `skills/${name}/SKILL.md`,
-        },
+        source: source(capabilityId, `skills/${name}/SKILL.md`),
+    };
+}
+
+function plugin(
+    name: string,
+    skills: readonly PiSkillProjectionInput[],
+    capabilityId = name,
+): PiAgentPluginProjectionInput {
+    return {
+        manifest: { name, version: '1.0.0' },
+        source: source(capabilityId, 'plugin.json'),
+        skills,
     };
 }
 
 function projection(
-    ...skills: PiSkillProjectionInput[]
+    ...plugins: PiAgentPluginProjectionInput[]
 ): Extract<PiSkillsProjectionResult, { blocked: false }> {
-    const result = projectPiAgentPluginSkills({ skills });
+    const result = projectPiAgentPluginSkills({ plugins });
     if (result.blocked) {
-        assert.fail('Expected a successful Pi skills projection');
+        assert.fail('Expected a successful Pi projection');
     }
     return result;
 }
 
-function read(root: string, relativePath: string): Buffer {
-    return fs.readFileSync(targetPath(root, relativePath));
-}
-
 function removeWorkspace(root: string): void {
     fs.rmSync(root, { recursive: true, force: true });
+}
+
+function rawHash(target: string): string {
+    return createHash('sha256').update(fs.readFileSync(target)).digest('hex');
 }
 
 function identity(target: string): Record<string, number> {
@@ -78,10 +110,6 @@ function identity(target: string): Record<string, number> {
         birthtimeMs: stats.birthtimeMs,
         mtimeMs: stats.mtimeMs,
     };
-}
-
-function rawHash(target: string): string {
-    return createHash('sha256').update(fs.readFileSync(target)).digest('hex');
 }
 
 function fileSnapshot(target: string): Record<string, unknown> {
@@ -109,98 +137,28 @@ function rootSnapshot(root: string): Record<string, unknown> {
     return { identity: identity(root), files, directories };
 }
 
-function prepareInterruptedReplacement(
+function writeProjectedPackage(
     root: string,
-    nextProjection: Extract<PiSkillsProjectionResult, { blocked: false }>,
-    committed: boolean,
-    phase:
-        | 'prepared'
-        | 'root-backed-up'
-        | 'root-installed'
-        | 'state-backup-linked'
-        | 'state-backed-up'
-        | 'state-installed' = 'state-installed',
-): { transactionRoot: string; journalPath: string; previousPlugin: Buffer } {
-    const donor = workspace();
-    const transactionId = '11111111-1111-4111-8111-111111111111';
-    const transactionRoot = path.join(root, '.metaflow', `.pi-target-transaction-${transactionId}`);
-    const journalPath = path.join(root, '.metaflow', 'pi-target-transaction.json');
-    fs.mkdirSync(transactionRoot);
-    applyPiProjectPluginSynchronization({
-        workspaceRoot: donor,
-        enabled: true,
-        projection: nextProjection,
-    });
-    const previousPlugin = fs.readFileSync(targetPath(root, 'plugin.json'));
-    const previousRootSnapshot = rootSnapshot(targetPath(root));
-    const previousStateSnapshot = fileSnapshot(targetStatePath(root));
-    const nextRootPath = targetPath(donor);
-    const nextStatePath = targetStatePath(donor);
-    const nextRootSnapshot = rootSnapshot(nextRootPath);
-    const nextStateSnapshot = fileSnapshot(nextStatePath);
-
-    fs.renameSync(nextRootPath, path.join(transactionRoot, 'next-package'));
-    fs.renameSync(nextStatePath, path.join(transactionRoot, 'next-state.json'));
-    if (phase !== 'prepared') {
-        fs.renameSync(targetPath(root), path.join(transactionRoot, 'previous-package'));
+    projectedPackage: Extract<PiSkillsProjectionResult, { blocked: false }>['packages'][number],
+): void {
+    fs.mkdirSync(root, { recursive: true });
+    for (const file of projectedPackage.files) {
+        const destination = path.join(root, ...file.relativePath.split('/'));
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.writeFileSync(destination, file.content);
     }
-    if (
-        phase === 'root-installed' ||
-        phase === 'state-backup-linked' ||
-        phase === 'state-backed-up' ||
-        phase === 'state-installed'
-    ) {
-        fs.renameSync(path.join(transactionRoot, 'next-package'), targetPath(root));
-    }
-    if (phase === 'state-backup-linked') {
-        fs.linkSync(targetStatePath(root), path.join(transactionRoot, 'previous-state.json'));
-    } else if (phase === 'state-backed-up' || phase === 'state-installed') {
-        fs.renameSync(targetStatePath(root), path.join(transactionRoot, 'previous-state.json'));
-    }
-    if (phase === 'state-installed') {
-        fs.renameSync(path.join(transactionRoot, 'next-state.json'), targetStatePath(root));
-    }
-    fs.writeFileSync(
-        journalPath,
-        `${JSON.stringify(
-            {
-                schemaVersion: 1,
-                transactionId,
-                committed,
-                rootAction: 'replace',
-                stateAction: 'write',
-                transactionRootIdentity: identity(transactionRoot),
-                previousRoot: previousRootSnapshot,
-                previousState: previousStateSnapshot,
-                nextRoot: nextRootSnapshot,
-                nextState: nextStateSnapshot,
-            },
-            null,
-            2,
-        )}\n`,
-    );
-    removeWorkspace(donor);
-    return { transactionRoot, journalPath, previousPlugin };
 }
 
 describe('Pi project plugin synchronizer', () => {
     it('keeps an omitted or disabled target as a filesystem no-op', () => {
         const root = workspace();
         try {
-            const plan = planPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: false,
-            });
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: false,
             });
-
-            assert.strictEqual(plan.blocked, false);
-            assert.deepStrictEqual(plan.changes, []);
-            assert.strictEqual(plan.stateAction, 'none');
-            assert.deepStrictEqual(result.written, []);
-            assert.deepStrictEqual(result.removed, []);
+            assert.strictEqual(result.plan.blocked, false);
+            assert.deepStrictEqual(result.plan.changes, []);
             assert.strictEqual(fs.existsSync(path.join(root, '.pi')), false);
             assert.strictEqual(fs.existsSync(path.join(root, '.metaflow')), false);
         } finally {
@@ -208,26 +166,29 @@ describe('Pi project plugin synchronizer', () => {
         }
     });
 
-    it('previews without writing and atomically publishes a complete package plus separate state', () => {
+    it('previews and publishes one original-name root for each source plugin', () => {
         const root = workspace();
         try {
-            const projected = projection(skill('alpha'), skill('zeta'));
+            const projected = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.zeta', [skill('zeta')]),
+            );
             const preview = planPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: projected,
             });
-
             assert.strictEqual(preview.blocked, false);
             assert.deepStrictEqual(
-                preview.changes,
-                ['plugin.json', 'skills/alpha/SKILL.md', 'skills/zeta/SKILL.md'].map(
-                    (relativePath) => ({ relativePath, action: 'add' }),
-                ),
+                preview.changes.map((entry) => entry.relativePath),
+                [
+                    '.pi/plugins/portable.alpha/plugin.json',
+                    '.pi/plugins/portable.alpha/skills/alpha/SKILL.md',
+                    '.pi/plugins/portable.zeta/plugin.json',
+                    '.pi/plugins/portable.zeta/skills/zeta/SKILL.md',
+                ],
             );
-            assert.strictEqual(preview.stateAction, 'write');
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
+            assert.strictEqual(fs.existsSync(path.join(root, '.pi')), false);
 
             const applied = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
@@ -239,22 +200,25 @@ describe('Pi project plugin synchronizer', () => {
                 applied.written,
                 preview.changes.map((entry) => entry.relativePath),
             );
-            assert.strictEqual(applied.stateChanged, true);
-            assert.ok(read(root, 'plugin.json').includes(Buffer.from('metaflow.project')));
-            assert.deepStrictEqual(read(root, 'skills/alpha/SKILL.md'), skill('alpha').content);
+            assert.strictEqual(
+                JSON.parse(
+                    fs.readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'), 'utf8'),
+                ).name,
+                'portable.alpha',
+            );
+            assert.ok(
+                !fs
+                    .readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'), 'utf8')
+                    .toLowerCase()
+                    .includes('metaflow'),
+            );
 
             const loaded = loadPiTargetState(root);
-            assert.strictEqual(loaded.exists, true);
-            assert.deepStrictEqual(loaded.diagnostics, []);
-            assert.ok(loaded.state);
-            assert.strictEqual(loaded.state.outputRoot, PI_PROJECT_PLUGIN_RELATIVE_ROOT);
-            assert.strictEqual(loaded.state.projection.version, projected.package.version);
-            assert.deepStrictEqual(Object.keys(loaded.state.files), [
-                'plugin.json',
-                'skills/alpha/SKILL.md',
-                'skills/zeta/SKILL.md',
+            assert.strictEqual(loaded.state?.schemaVersion, 2);
+            assert.deepStrictEqual(Object.keys(loaded.state?.plugins ?? {}), [
+                'portable.alpha',
+                'portable.zeta',
             ]);
-            assert.ok(!fs.readFileSync(targetStatePath(root), 'utf8').includes('lastApply'));
             assert.deepStrictEqual(fs.readdirSync(path.join(root, '.metaflow')).sort(), [
                 'pi-target-state.json',
             ]);
@@ -263,134 +227,91 @@ describe('Pi project plugin synchronizer', () => {
         }
     });
 
-    it('is idempotent for unchanged package and provenance inputs', () => {
+    it('is idempotent for unchanged packages and provenance', () => {
         const root = workspace();
         try {
-            const projected = projection(skill('alpha'));
+            const projected = projection(plugin('portable.alpha', [skill('alpha')]));
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: projected,
             });
             const stateBefore = fs.readFileSync(targetStatePath(root));
-            const pluginBefore = fs.readFileSync(targetPath(root, 'plugin.json'));
+            const manifestBefore = fs.readFileSync(
+                pluginPath(root, 'portable.alpha', 'plugin.json'),
+            );
 
             const second = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: projected,
             });
-
             assert.deepStrictEqual(second.plan.changes, []);
             assert.strictEqual(second.plan.stateAction, 'none');
-            assert.deepStrictEqual(second.written, []);
-            assert.deepStrictEqual(second.removed, []);
             assert.deepStrictEqual(fs.readFileSync(targetStatePath(root)), stateBefore);
-            assert.deepStrictEqual(fs.readFileSync(targetPath(root, 'plugin.json')), pluginBefore);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('replaces the complete package to update content and remove stale skills', () => {
-        const root = workspace();
-        try {
-            const first = projection(skill('alpha'), skill('stale'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: first,
-            });
-            const next = projection(skill('alpha', 'changed alpha'));
-
-            const plan = planPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: next,
-            });
-            assert.strictEqual(plan.blocked, false);
-            assert.ok(
-                plan.changes.some(
-                    (entry) =>
-                        entry.relativePath === 'skills/stale/SKILL.md' && entry.action === 'remove',
-                ),
-            );
-            assert.ok(
-                plan.changes.some(
-                    (entry) =>
-                        entry.relativePath === 'skills/alpha/SKILL.md' && entry.action === 'update',
-                ),
-            );
-
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: next,
-            });
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/stale/SKILL.md')), false);
             assert.deepStrictEqual(
-                read(root, 'skills/alpha/SKILL.md'),
-                skill('alpha', 'changed alpha').content,
+                fs.readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json')),
+                manifestBefore,
             );
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('repairs a missing tracked file from the complete projection', () => {
+    it('updates and removes managed roots while preserving unrelated Pi content', () => {
         const root = workspace();
         try {
-            const projected = projection(skill('alpha'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projected,
-            });
-            fs.rmSync(targetPath(root, 'skills/alpha/SKILL.md'));
-
-            const plan = planPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projected,
-            });
-            assert.strictEqual(plan.blocked, false);
-            assert.deepStrictEqual(plan.changes, [
-                { relativePath: 'skills/alpha/SKILL.md', action: 'add' },
-            ]);
-
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projected,
-            });
-            assert.deepStrictEqual(read(root, 'skills/alpha/SKILL.md'), skill('alpha').content);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('updates source provenance in state without replacing byte-identical package files', () => {
-        const root = workspace();
-        try {
-            const firstSkill = skill('alpha');
-            const movedSkill: PiSkillProjectionInput = {
-                ...firstSkill,
-                source: {
-                    ...firstSkill.source,
-                    capabilityId: 'moved-alpha',
-                    layerId: 'metadata/capabilities/moved-alpha',
-                },
-            };
-            const first = projection(firstSkill);
-            const moved = projection(movedSkill);
-            assert.strictEqual(first.blocked, false);
-            assert.strictEqual(moved.blocked, false);
-            assert.strictEqual(first.package.contentSha, moved.package.contentSha);
+            const first = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.stale', [skill('stale')]),
+            );
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: first,
             });
+            const neighbor = pluginPath(root, 'user-owned', 'plugin.json');
+            fs.mkdirSync(path.dirname(neighbor), { recursive: true });
+            fs.writeFileSync(neighbor, 'user-owned\n');
+            const mcp = path.join(root, '.pi', 'mcp.json');
+            fs.writeFileSync(mcp, 'user-owned-mcp\n');
+
+            const next = projection(
+                plugin('portable.alpha', [skill('alpha', 'changed')]),
+                plugin('portable.new', [skill('new')]),
+            );
+            const applied = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: next,
+            });
+            assert.strictEqual(applied.plan.blocked, false);
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.stale')), false);
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.new')), true);
+            assert.strictEqual(fs.readFileSync(neighbor, 'utf8'), 'user-owned\n');
+            assert.strictEqual(fs.readFileSync(mcp, 'utf8'), 'user-owned-mcp\n');
+        } finally {
+            removeWorkspace(root);
+        }
+    });
+
+    it('updates provenance state without replacing byte-identical package roots', () => {
+        const root = workspace();
+        try {
+            const originalSkill = skill('alpha');
+            const movedSkill = {
+                ...originalSkill,
+                source: source('moved-alpha', 'skills/alpha/SKILL.md'),
+            };
+            const first = projection(plugin('portable.alpha', [originalSkill]));
+            const moved = projection(plugin('portable.alpha', [movedSkill]));
+            assert.strictEqual(first.packages[0].contentSha, moved.packages[0].contentSha);
+            applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: first,
+            });
+            const rootIdentity = identity(pluginRoot(root, 'portable.alpha'));
 
             const plan = planPiProjectPluginSynchronization({
                 workspaceRoot: root,
@@ -399,15 +320,16 @@ describe('Pi project plugin synchronizer', () => {
             });
             assert.deepStrictEqual(plan.changes, []);
             assert.strictEqual(plan.stateAction, 'write');
-            const applied = applyPiProjectPluginSynchronization({
+            applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: moved,
             });
-            assert.deepStrictEqual(applied.written, []);
+            assert.deepStrictEqual(identity(pluginRoot(root, 'portable.alpha')), rootIdentity);
             assert.strictEqual(
-                loadPiTargetState(root).state?.files['skills/alpha/SKILL.md'].sources[0]
-                    .capabilityId,
+                loadPiTargetState(root).state?.plugins['portable.alpha'].files[
+                    'skills/alpha/SKILL.md'
+                ].sources[0].capabilityId,
                 'moved-alpha',
             );
         } finally {
@@ -415,148 +337,49 @@ describe('Pi project plugin synchronizer', () => {
         }
     });
 
-    it('fails closed on an untracked generated root without changing its bytes', () => {
+    it('fails closed on an unmanaged root with the desired source name', () => {
         const root = workspace();
         try {
-            fs.mkdirSync(targetPath(root), { recursive: true });
-            fs.writeFileSync(targetPath(root, 'plugin.json'), 'user-owned\n');
-            const before = fs.readFileSync(targetPath(root, 'plugin.json'));
-
+            fs.mkdirSync(pluginRoot(root, 'portable.alpha'), { recursive: true });
+            fs.writeFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'), 'user-owned\n');
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: projection(skill('alpha')),
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
             });
-
             assert.strictEqual(result.plan.blocked, true);
             assert.ok(
                 result.plan.diagnostics.some((entry) => entry.code === 'PI_TARGET_ROOT_UNTRACKED'),
             );
-            assert.deepStrictEqual(fs.readFileSync(targetPath(root, 'plugin.json')), before);
+            assert.strictEqual(
+                fs.readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'), 'utf8'),
+                'user-owned\n',
+            );
             assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('rejects a forged successful projection containing forbidden output', () => {
+    it('blocks the complete set when one managed root drifts or gains unmanaged content', () => {
         const root = workspace();
         try {
-            const valid = projection(skill('alpha'));
-            const forged = {
-                ...valid,
-                package: {
-                    ...valid.package,
-                    files: [
-                        ...valid.package.files,
-                        {
-                            relativePath: 'mcp.json',
-                            content: Buffer.from('{}\n'),
-                            contentHash: '0'.repeat(64),
-                            sources: [],
-                        },
-                    ],
-                },
-            };
-
-            const result = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: forged,
-            });
-
-            assert.strictEqual(result.plan.blocked, true);
-            assert.ok(
-                result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_PROJECTION_INVALID',
-                ),
+            const projected = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.beta', [skill('beta')]),
             );
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('rejects forged hashes and manifest identity before staging', () => {
-        const root = workspace();
-        try {
-            const valid = projection(skill('alpha'));
-            const forged = {
-                ...valid,
-                package: {
-                    ...valid.package,
-                    contentSha: 'f'.repeat(64),
-                    version: `0.1.0+${'f'.repeat(64)}`,
-                    manifest: {
-                        ...valid.package.manifest,
-                        version: `0.1.0+${'f'.repeat(64)}`,
-                    },
-                },
-            };
-
-            const plan = planPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: forged,
-            });
-
-            assert.strictEqual(plan.blocked, true);
-            assert.ok(
-                plan.diagnostics.some((entry) => entry.code === 'PI_TARGET_PROJECTION_INVALID'),
-            );
-            assert.strictEqual(fs.existsSync(path.join(root, '.metaflow')), false);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('orders projection and target diagnostics canonically', () => {
-        const root = workspace();
-        try {
-            fs.mkdirSync(targetPath(root), { recursive: true });
-            const valid = projection(skill('alpha'));
-            const withDiagnostics = {
-                ...valid,
-                diagnostics: [
-                    { code: 'ZETA', message: 'zeta', severity: 'warning' as const },
-                    { code: 'ALPHA', message: 'alpha', severity: 'info' as const },
-                ],
-            };
-
-            const plan = planPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: withDiagnostics,
-            });
-
-            assert.deepStrictEqual(
-                plan.diagnostics.map((entry) => entry.code),
-                ['ALPHA', 'PI_TARGET_ROOT_UNTRACKED', 'ZETA'],
-            );
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('fails closed on drift or unmanaged content without partial cleanup', () => {
-        const root = workspace();
-        try {
-            const projected = projection(skill('alpha'));
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: projected,
             });
-            fs.writeFileSync(targetPath(root, 'plugin.json'), 'drifted\n');
-            fs.writeFileSync(targetPath(root, 'unmanaged.txt'), 'preserve\n');
-            const stateBefore = fs.readFileSync(targetStatePath(root));
+            fs.writeFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'), 'drifted\n');
+            fs.writeFileSync(pluginPath(root, 'portable.alpha', 'extra.txt'), 'preserve\n');
 
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: false,
             });
-
             assert.strictEqual(result.plan.blocked, true);
             assert.ok(result.plan.diagnostics.some((entry) => entry.code === 'PI_TARGET_DRIFT'));
             assert.ok(
@@ -564,66 +387,60 @@ describe('Pi project plugin synchronizer', () => {
                     (entry) => entry.code === 'PI_TARGET_UNMANAGED_CONTENT',
                 ),
             );
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.beta')), true);
             assert.strictEqual(
-                fs.readFileSync(targetPath(root, 'plugin.json'), 'utf8'),
-                'drifted\n',
-            );
-            assert.strictEqual(
-                fs.readFileSync(targetPath(root, 'unmanaged.txt'), 'utf8'),
+                fs.readFileSync(pluginPath(root, 'portable.alpha', 'extra.txt'), 'utf8'),
                 'preserve\n',
             );
-            assert.deepStrictEqual(fs.readFileSync(targetStatePath(root)), stateBefore);
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('disables by removing only the verified managed root and ledger', () => {
+    it('disables by removing only verified managed roots and their ledger', () => {
         const root = workspace();
         try {
-            const projected = projection(skill('alpha'));
+            const projected = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.beta', [skill('beta')]),
+            );
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: projected,
             });
-            const neighboringPlugin = path.join(root, '.pi', 'plugins', 'other', 'plugin.json');
-            const mcpConfig = path.join(root, '.pi', 'mcp.json');
-            fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
-            fs.writeFileSync(neighboringPlugin, 'other\n');
-            fs.writeFileSync(mcpConfig, 'mcp-user-owned\n');
+            const neighbor = pluginPath(root, 'neighbor', 'plugin.json');
+            fs.mkdirSync(path.dirname(neighbor), { recursive: true });
+            fs.writeFileSync(neighbor, 'neighbor\n');
 
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: false,
             });
-
             assert.strictEqual(result.plan.blocked, false);
-            assert.deepStrictEqual(result.removed, ['plugin.json', 'skills/alpha/SKILL.md']);
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.alpha')), false);
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.beta')), false);
             assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
-            assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf8'), 'other\n');
-            assert.strictEqual(fs.readFileSync(mcpConfig, 'utf8'), 'mcp-user-owned\n');
+            assert.strictEqual(fs.readFileSync(neighbor, 'utf8'), 'neighbor\n');
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('preserves an existing package when a later projection is blocked', () => {
+    it('preserves existing managed output when a later projection is blocked', () => {
         const root = workspace();
         try {
-            const initial = projection(skill('alpha'));
+            const initial = projection(plugin('portable.alpha', [skill('alpha')]));
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: initial,
             });
-            const packageBefore = fs.readFileSync(targetPath(root, 'plugin.json'));
-            const stateBefore = fs.readFileSync(targetStatePath(root));
+            const before = fs.readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json'));
             const duplicate = projectPiAgentPluginSkills({
-                skills: [
-                    skill('review', 'first', 'first-review'),
-                    skill('review', 'second', 'second-review'),
+                plugins: [
+                    plugin('portable.first', [skill('review', 'first', 'first')]),
+                    plugin('portable.second', [skill('review', 'second', 'second')]),
                 ],
             });
             assert.strictEqual(duplicate.blocked, true);
@@ -633,675 +450,488 @@ describe('Pi project plugin synchronizer', () => {
                 enabled: true,
                 projection: duplicate,
             });
-
             assert.strictEqual(result.plan.blocked, true);
-            assert.ok(
-                result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_PROJECTION_BLOCKED',
-                ),
+            assert.deepStrictEqual(
+                fs.readFileSync(pluginPath(root, 'portable.alpha', 'plugin.json')),
+                before,
             );
-            assert.deepStrictEqual(fs.readFileSync(targetPath(root, 'plugin.json')), packageBefore);
-            assert.deepStrictEqual(fs.readFileSync(targetStatePath(root)), stateBefore);
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('treats malformed or future target state as blocking instead of untracked', () => {
+    it('rejects forged package output before staging', () => {
+        const root = workspace();
+        try {
+            const valid = projection(plugin('portable.alpha', [skill('alpha')]));
+            const forged = {
+                ...valid,
+                packages: [
+                    {
+                        ...valid.packages[0],
+                        files: [
+                            ...valid.packages[0].files,
+                            {
+                                relativePath: 'mcp.json',
+                                content: Buffer.from('{}\n'),
+                                contentHash: rawHashFromBytes(Buffer.from('{}\n')),
+                                sources: [],
+                            },
+                        ],
+                    },
+                ],
+            };
+            const result = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: forged,
+            });
+            assert.strictEqual(result.plan.blocked, true);
+            assert.ok(
+                result.plan.diagnostics.some(
+                    (entry) => entry.code === 'PI_TARGET_PROJECTION_INVALID',
+                ),
+            );
+            assert.strictEqual(fs.existsSync(path.join(root, '.pi')), false);
+        } finally {
+            removeWorkspace(root);
+        }
+    });
+
+    it('migrates a verified aggregate v1 root into the per-plugin set', () => {
+        const root = workspace();
+        try {
+            const legacyRoot = pluginRoot(root, 'metaflow.project');
+            fs.mkdirSync(legacyRoot, { recursive: true });
+            fs.writeFileSync(path.join(legacyRoot, 'plugin.json'), '{"name":"metaflow.project"}\n');
+            fs.mkdirSync(path.join(legacyRoot, 'skills', 'legacy'), { recursive: true });
+            fs.writeFileSync(path.join(legacyRoot, 'skills', 'legacy', 'SKILL.md'), 'legacy\n');
+            const legacySource = source('legacy', 'plugin.json');
+            fs.mkdirSync(path.dirname(targetStatePath(root)), { recursive: true });
+            fs.writeFileSync(
+                targetStatePath(root),
+                `${JSON.stringify(
+                    {
+                        schemaVersion: 1,
+                        outputRoot: '.pi/plugins/metaflow.project',
+                        projection: { contentSha: 'a'.repeat(64), version: '0.1.0+legacy' },
+                        files: {
+                            'plugin.json': {
+                                contentHash: rawHash(path.join(legacyRoot, 'plugin.json')),
+                                sources: [legacySource],
+                            },
+                            'skills/legacy/SKILL.md': {
+                                contentHash: rawHash(
+                                    path.join(legacyRoot, 'skills', 'legacy', 'SKILL.md'),
+                                ),
+                                sources: [source('legacy', 'skills/legacy/SKILL.md')],
+                            },
+                        },
+                    },
+                    null,
+                    2,
+                )}\n`,
+            );
+            assert.ok(
+                loadPiTargetState(root).diagnostics.some(
+                    (entry) => entry.code === 'PI_TARGET_STATE_LEGACY_MIGRATION_PENDING',
+                ),
+            );
+
+            const projected = projection(plugin('portable.alpha', [skill('alpha')]));
+            const result = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: projected,
+            });
+            assert.strictEqual(result.plan.blocked, false);
+            assert.strictEqual(fs.existsSync(legacyRoot), false);
+            assert.strictEqual(fs.existsSync(pluginRoot(root, 'portable.alpha')), true);
+            assert.deepStrictEqual(Object.keys(loadPiTargetState(root).state?.plugins ?? {}), [
+                'portable.alpha',
+            ]);
+        } finally {
+            removeWorkspace(root);
+        }
+    });
+
+    it('cleans a verified aggregate v1 root without fabricating a replacement package', () => {
+        const root = workspace();
+        try {
+            const legacyRoot = pluginRoot(root, 'metaflow.project');
+            fs.mkdirSync(legacyRoot, { recursive: true });
+            fs.writeFileSync(path.join(legacyRoot, 'plugin.json'), '{"name":"metaflow.project"}\n');
+            fs.mkdirSync(path.join(legacyRoot, 'skills', 'legacy'), { recursive: true });
+            fs.writeFileSync(path.join(legacyRoot, 'skills', 'legacy', 'SKILL.md'), 'legacy\n');
+            fs.mkdirSync(path.dirname(targetStatePath(root)), { recursive: true });
+            fs.writeFileSync(
+                targetStatePath(root),
+                `${JSON.stringify(
+                    {
+                        schemaVersion: 1,
+                        outputRoot: '.pi/plugins/metaflow.project',
+                        projection: { contentSha: 'a'.repeat(64), version: '0.1.0+legacy' },
+                        files: {
+                            'plugin.json': {
+                                contentHash: rawHash(path.join(legacyRoot, 'plugin.json')),
+                                sources: [source('legacy', 'plugin.json')],
+                            },
+                            'skills/legacy/SKILL.md': {
+                                contentHash: rawHash(
+                                    path.join(legacyRoot, 'skills', 'legacy', 'SKILL.md'),
+                                ),
+                                sources: [source('legacy', 'skills/legacy/SKILL.md')],
+                            },
+                        },
+                    },
+                    null,
+                    2,
+                )}\n`,
+            );
+
+            const result = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: false,
+            });
+            assert.strictEqual(result.plan.blocked, false);
+            assert.strictEqual(fs.existsSync(legacyRoot), false);
+            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
+            assert.strictEqual(fs.existsSync(path.join(root, '.pi', 'plugins')), true);
+        } finally {
+            removeWorkspace(root);
+        }
+    });
+
+    it('treats malformed or future target state as blocking', () => {
         const root = workspace();
         try {
             fs.mkdirSync(path.dirname(targetStatePath(root)), { recursive: true });
             fs.writeFileSync(targetStatePath(root), '{"schemaVersion":99}\n');
-
-            const loaded = loadPiTargetState(root);
             const plan = planPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: projection(skill('alpha')),
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
             });
-
-            assert.strictEqual(loaded.state, undefined);
-            assert.strictEqual(loaded.diagnostics[0].code, 'PI_TARGET_STATE_VERSION_UNSUPPORTED');
             assert.strictEqual(plan.blocked, true);
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
+            assert.ok(
+                plan.diagnostics.some(
+                    (entry) => entry.code === 'PI_TARGET_STATE_VERSION_UNSUPPORTED',
+                ),
+            );
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('fails closed when another reconciliation holds the project-local lock', () => {
+    it('fails closed while another reconciliation holds the project lock', () => {
         const root = workspace();
         try {
-            fs.mkdirSync(path.join(root, '.metaflow'), { recursive: true });
-            const lockPath = path.join(root, '.metaflow', 'pi-target.lock');
-            fs.writeFileSync(lockPath, 'existing lock\n');
-
+            writeTargetLock(root, process.pid);
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: projection(skill('alpha')),
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
             });
-
             assert.strictEqual(result.plan.blocked, true);
             assert.ok(
                 result.plan.diagnostics.some(
                     (entry) => entry.code === 'PI_TARGET_RECONCILIATION_BUSY',
                 ),
             );
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
-            assert.strictEqual(fs.readFileSync(lockPath, 'utf8'), 'existing lock\n');
         } finally {
             removeWorkspace(root);
         }
     });
 
-    it('rolls back an uncommitted root/state swap before normal planning', () => {
+    it('fails closed on malformed lock ownership without reclaiming or mutating output', () => {
         const root = workspace();
         try {
-            const previous = projection(skill('alpha'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-            const interrupted = prepareInterruptedReplacement(
-                root,
-                projection(skill('beta')),
-                false,
-            );
+            const lock = path.join(root, '.metaflow', 'pi-target.lock');
+            fs.mkdirSync(path.dirname(lock), { recursive: true });
+            fs.writeFileSync(lock, '{"schemaVersion":99,"pid":1,"token":"unknown"}\n');
 
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: previous,
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
             });
-
-            assert.strictEqual(result.plan.blocked, false);
-            assert.deepStrictEqual(result.plan.changes, []);
-            assert.deepStrictEqual(
-                fs.readFileSync(targetPath(root, 'plugin.json')),
-                interrupted.previousPlugin,
-            );
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/alpha/SKILL.md')), true);
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/beta/SKILL.md')), false);
-            assert.strictEqual(fs.existsSync(interrupted.transactionRoot), false);
-            assert.strictEqual(fs.existsSync(interrupted.journalPath), false);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    for (const phase of [
-        'prepared',
-        'root-backed-up',
-        'root-installed',
-        'state-backup-linked',
-        'state-backed-up',
-    ] as const) {
-        it(`recovers an uncommitted ${phase} transaction phase`, () => {
-            const root = workspace();
-            try {
-                const previous = projection(skill('alpha'));
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: previous,
-                });
-                const interrupted = prepareInterruptedReplacement(
-                    root,
-                    projection(skill('beta')),
-                    false,
-                    phase,
-                );
-
-                const result = applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: previous,
-                });
-
-                assert.strictEqual(result.plan.blocked, false);
-                assert.strictEqual(fs.existsSync(targetPath(root, 'skills/alpha/SKILL.md')), true);
-                assert.strictEqual(fs.existsSync(targetPath(root, 'skills/beta/SKILL.md')), false);
-                assert.strictEqual(fs.existsSync(interrupted.transactionRoot), false);
-                assert.strictEqual(fs.existsSync(interrupted.journalPath), false);
-            } finally {
-                removeWorkspace(root);
-            }
-        });
-    }
-
-    it('finalizes a committed root/state swap before normal planning', () => {
-        const root = workspace();
-        try {
-            const previous = projection(skill('alpha'));
-            const next = projection(skill('beta'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-            const interrupted = prepareInterruptedReplacement(root, next, true);
-
-            const result = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: next,
-            });
-
-            assert.strictEqual(result.plan.blocked, false);
-            assert.deepStrictEqual(result.plan.changes, []);
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/alpha/SKILL.md')), false);
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/beta/SKILL.md')), true);
-            assert.strictEqual(fs.existsSync(interrupted.transactionRoot), false);
-            assert.strictEqual(fs.existsSync(interrupted.journalPath), false);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('finishes recovery when cleanup removed transaction artifacts before the journal', () => {
-        const root = workspace();
-        try {
-            const previous = projection(skill('alpha'));
-            const next = projection(skill('beta'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-            const interrupted = prepareInterruptedReplacement(root, next, true);
-            fs.rmSync(interrupted.transactionRoot, { recursive: true, force: true });
-
-            const result = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: next,
-            });
-
-            assert.strictEqual(result.plan.blocked, false);
-            assert.deepStrictEqual(result.plan.changes, []);
-            assert.strictEqual(fs.existsSync(interrupted.journalPath), false);
-            assert.strictEqual(fs.existsSync(targetPath(root, 'skills/beta/SKILL.md')), true);
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('preserves all transaction artifacts when recovery content changed', () => {
-        const root = workspace();
-        try {
-            const previous = projection(skill('alpha'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-            const interrupted = prepareInterruptedReplacement(
-                root,
-                projection(skill('beta')),
-                false,
-            );
-            fs.writeFileSync(targetPath(root, 'plugin.json'), 'changed after crash\n');
-
-            const result = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-
             assert.strictEqual(result.plan.blocked, true);
             assert.ok(
                 result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_RECOVERY_CONFLICT',
-                ),
-            );
-            assert.strictEqual(
-                fs.readFileSync(targetPath(root, 'plugin.json'), 'utf8'),
-                'changed after crash\n',
-            );
-            assert.strictEqual(fs.existsSync(interrupted.transactionRoot), true);
-            assert.strictEqual(fs.existsSync(interrupted.journalPath), true);
-            assert.strictEqual(
-                fs.existsSync(path.join(interrupted.transactionRoot, 'previous-package')),
-                true,
-            );
-        } finally {
-            removeWorkspace(root);
-        }
-    });
-
-    it('restores rather than deletes a root replaced after final preflight', () => {
-        const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalRename = nativeFs.renameSync;
-        let intercepted = false;
-        try {
-            const previous = projection(skill('alpha'));
-            const next = projection(skill('beta'));
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: previous,
-            });
-            nativeFs.renameSync = ((oldPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.resolve(String(oldPath)) === path.resolve(targetPath(root)) &&
-                    path.basename(String(newPath)) === 'previous-package'
-                ) {
-                    intercepted = true;
-                    fs.rmSync(targetPath(root), { recursive: true, force: true });
-                    fs.mkdirSync(targetPath(root), { recursive: true });
-                    fs.writeFileSync(targetPath(root, 'plugin.json'), 'concurrent user root\n');
-                }
-                return originalRename(oldPath, newPath);
-            }) as typeof fs.renameSync;
-
-            assert.throws(() =>
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: next,
-                }),
-            );
-
-            assert.strictEqual(intercepted, true);
-            assert.strictEqual(
-                fs.readFileSync(targetPath(root, 'plugin.json'), 'utf8'),
-                'concurrent user root\n',
-            );
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), true);
-            assert.strictEqual(
-                fs.existsSync(path.join(root, '.metaflow', 'pi-target-transaction.json')),
-                false,
-            );
-        } finally {
-            nativeFs.renameSync = originalRename;
-            removeWorkspace(root);
-        }
-    });
-
-    it('preserves a replacement that appears while a retired package is quarantined', () => {
-        const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalRename = nativeFs.renameSync;
-        let intercepted = false;
-        try {
-            applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projection(skill('alpha')),
-            });
-            nativeFs.renameSync = ((oldPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.basename(String(oldPath)) === 'previous-package' &&
-                    path.basename(String(newPath)).includes('.previous-package.metaflow-delete-')
-                ) {
-                    intercepted = true;
-                    fs.rmSync(String(oldPath), { recursive: true, force: true });
-                    fs.mkdirSync(String(oldPath));
-                    fs.writeFileSync(
-                        path.join(String(oldPath), 'user.txt'),
-                        'concurrent user data\n',
-                    );
-                }
-                return originalRename(oldPath, newPath);
-            }) as typeof fs.renameSync;
-
-            assert.throws(() =>
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: projection(skill('beta')),
-                }),
-            );
-
-            assert.strictEqual(intercepted, true);
-            const transactionDirectories = fs
-                .readdirSync(path.join(root, '.metaflow'))
-                .filter((entry) => entry.startsWith('.pi-target-transaction-'));
-            assert.strictEqual(transactionDirectories.length, 1);
-            assert.strictEqual(
-                fs.readFileSync(
-                    path.join(
-                        root,
-                        '.metaflow',
-                        transactionDirectories[0],
-                        'previous-package',
-                        'user.txt',
-                    ),
-                    'utf8',
-                ),
-                'concurrent user data\n',
-            );
-            assert.strictEqual(
-                fs.existsSync(path.join(root, '.metaflow', 'pi-target-transaction.json')),
-                true,
-            );
-        } finally {
-            nativeFs.renameSync = originalRename;
-            removeWorkspace(root);
-        }
-    });
-
-    it('preserves a replacement transaction journal instead of deleting it', () => {
-        const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalRename = nativeFs.renameSync;
-        const journalPath = path.join(root, '.metaflow', 'pi-target-transaction.json');
-        let intercepted = false;
-        try {
-            nativeFs.renameSync = ((oldPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.resolve(String(oldPath)) === path.resolve(journalPath) &&
-                    path
-                        .basename(String(newPath))
-                        .includes('.pi-target-transaction.json.metaflow-delete-')
-                ) {
-                    intercepted = true;
-                    fs.rmSync(String(oldPath), { force: true });
-                    fs.writeFileSync(String(oldPath), 'concurrent journal replacement\n');
-                }
-                return originalRename(oldPath, newPath);
-            }) as typeof fs.renameSync;
-
-            assert.throws(() =>
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: projection(skill('alpha')),
-                }),
-            );
-
-            assert.strictEqual(intercepted, true);
-            assert.strictEqual(
-                fs.readFileSync(journalPath, 'utf8'),
-                'concurrent journal replacement\n',
-            );
-        } finally {
-            nativeFs.renameSync = originalRename;
-            removeWorkspace(root);
-        }
-    });
-
-    it('preserves a replacement lock and leaves later reconciliation fail-closed', () => {
-        const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalRename = nativeFs.renameSync;
-        const lockPath = path.join(root, '.metaflow', 'pi-target.lock');
-        let intercepted = false;
-        try {
-            nativeFs.renameSync = ((oldPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.resolve(String(oldPath)) === path.resolve(lockPath) &&
-                    path.basename(String(newPath)).includes('.pi-target.lock.metaflow-delete-')
-                ) {
-                    intercepted = true;
-                    fs.rmSync(String(oldPath), { force: true });
-                    fs.writeFileSync(String(oldPath), 'concurrent lock replacement\n');
-                }
-                return originalRename(oldPath, newPath);
-            }) as typeof fs.renameSync;
-
-            const applied = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projection(skill('alpha')),
-            });
-            assert.strictEqual(applied.plan.blocked, false);
-            assert.strictEqual(intercepted, true);
-            assert.strictEqual(fs.readFileSync(lockPath, 'utf8'), 'concurrent lock replacement\n');
-
-            const next = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projection(skill('beta')),
-            });
-            assert.strictEqual(next.plan.blocked, true);
-            assert.ok(
-                next.plan.diagnostics.some(
                     (entry) => entry.code === 'PI_TARGET_RECONCILIATION_BUSY',
                 ),
             );
-            assert.strictEqual(fs.readFileSync(lockPath, 'utf8'), 'concurrent lock replacement\n');
-        } finally {
-            nativeFs.renameSync = originalRename;
-            removeWorkspace(root);
-        }
-    });
-
-    it('does not overwrite a journal replacement during no-replace publication', () => {
-        const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalLink = nativeFs.linkSync;
-        const journalPath = path.join(root, '.metaflow', 'pi-target-transaction.json');
-        let intercepted = false;
-        try {
-            nativeFs.linkSync = ((existingPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.resolve(String(newPath)) === path.resolve(journalPath) &&
-                    path
-                        .basename(String(existingPath))
-                        .startsWith('pi-target-transaction.json.tmp-')
-                ) {
-                    intercepted = true;
-                    fs.writeFileSync(String(newPath), 'concurrent journal replacement\n');
-                }
-                return originalLink(existingPath, newPath);
-            }) as typeof fs.linkSync;
-
-            assert.throws(() =>
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: projection(skill('alpha')),
-                }),
-            );
-
-            assert.strictEqual(intercepted, true);
             assert.strictEqual(
-                fs.readFileSync(journalPath, 'utf8'),
-                'concurrent journal replacement\n',
+                fs.readFileSync(lock, 'utf8'),
+                '{"schemaVersion":99,"pid":1,"token":"unknown"}\n',
             );
-            assert.strictEqual(fs.existsSync(targetPath(root)), false);
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
+            assert.strictEqual(fs.existsSync(path.join(root, '.pi')), false);
         } finally {
-            nativeFs.linkSync = originalLink;
             removeWorkspace(root);
         }
     });
 
-    it('does not overwrite a state replacement during no-replace installation', () => {
+    it('rolls back a partially installed multi-root transaction before replanning', () => {
         const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalLink = nativeFs.linkSync;
-        let intercepted = false;
+        const donor = workspace();
         try {
-            const previous = projection(skill('alpha'));
+            const previous = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.beta', [skill('beta')]),
+            );
+            const next = projection(
+                plugin('portable.alpha', [skill('alpha-next')]),
+                plugin('portable.beta', [skill('beta-next')]),
+            );
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: previous,
             });
-            nativeFs.linkSync = ((existingPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.basename(String(existingPath)) === 'next-state.json' &&
-                    path.resolve(String(newPath)) === path.resolve(targetStatePath(root))
-                ) {
-                    intercepted = true;
-                    fs.writeFileSync(String(newPath), 'concurrent state replacement\n');
-                }
-                return originalLink(existingPath, newPath);
-            }) as typeof fs.linkSync;
+            applyPiProjectPluginSynchronization({
+                workspaceRoot: donor,
+                enabled: true,
+                projection: next,
+            });
 
-            assert.throws(() =>
-                applyPiProjectPluginSynchronization({
-                    workspaceRoot: root,
-                    enabled: true,
-                    projection: projection(skill('beta')),
-                }),
+            const transactionId = '11111111-1111-4111-8111-111111111111';
+            const transactionRoot = path.join(
+                root,
+                '.metaflow',
+                `.pi-target-transaction-${transactionId}`,
             );
+            const nextParent = path.join(transactionRoot, 'next');
+            const previousParent = path.join(transactionRoot, 'previous');
+            fs.mkdirSync(nextParent, { recursive: true });
+            fs.mkdirSync(previousParent);
+            const rootActions = ['portable.alpha', 'portable.beta'].map((pluginName) => {
+                const previousSnapshot = rootSnapshot(pluginRoot(root, pluginName));
+                const nextSnapshot = rootSnapshot(pluginRoot(donor, pluginName));
+                fs.renameSync(pluginRoot(donor, pluginName), path.join(nextParent, pluginName));
+                return {
+                    pluginName,
+                    action: 'replace',
+                    previousRoot: previousSnapshot,
+                    nextRoot: nextSnapshot,
+                };
+            });
+            fs.renameSync(targetStatePath(donor), path.join(transactionRoot, 'next-state.json'));
+            const previousState = fileSnapshot(targetStatePath(root));
+            const nextState = fileSnapshot(path.join(transactionRoot, 'next-state.json'));
 
-            assert.strictEqual(intercepted, true);
+            fs.renameSync(
+                pluginRoot(root, 'portable.alpha'),
+                path.join(previousParent, 'portable.alpha'),
+            );
+            fs.renameSync(
+                path.join(nextParent, 'portable.alpha'),
+                pluginRoot(root, 'portable.alpha'),
+            );
+            const journal = {
+                schemaVersion: 2,
+                transactionId,
+                committed: false,
+                rootActions,
+                stateAction: 'write',
+                transactionRootIdentity: identity(transactionRoot),
+                previousState,
+                nextState,
+            };
+            fs.writeFileSync(
+                path.join(root, '.metaflow', 'pi-target-transaction.json'),
+                `${JSON.stringify(journal, null, 2)}\n`,
+            );
+            const exited = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
+            assert.ok(exited.pid);
+            const staleLock = writeTargetLock(root, exited.pid!);
+
+            const result = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: previous,
+            });
+            assert.strictEqual(result.plan.blocked, false);
+            assert.deepStrictEqual(result.plan.changes, []);
             assert.strictEqual(
-                fs.readFileSync(targetStatePath(root), 'utf8'),
-                'concurrent state replacement\n',
+                fs.existsSync(pluginPath(root, 'portable.alpha', 'skills/alpha/SKILL.md')),
+                true,
             );
-            assert.deepStrictEqual(read(root, 'plugin.json'), previous.package.files[0].content);
+            assert.strictEqual(
+                fs.existsSync(pluginPath(root, 'portable.alpha', 'skills/alpha-next/SKILL.md')),
+                false,
+            );
+            assert.strictEqual(
+                fs.existsSync(pluginPath(root, 'portable.beta', 'skills/beta/SKILL.md')),
+                true,
+            );
+            assert.strictEqual(fs.existsSync(transactionRoot), false);
             assert.strictEqual(
                 fs.existsSync(path.join(root, '.metaflow', 'pi-target-transaction.json')),
-                true,
+                false,
             );
+            assert.strictEqual(fs.existsSync(staleLock), false);
         } finally {
-            nativeFs.linkSync = originalLink;
             removeWorkspace(root);
+            removeWorkspace(donor);
         }
     });
 
-    it('does not overwrite a state replacement during rollback restoration', () => {
+    it('finalizes a committed multi-root transaction after reclaiming its stale owner lock', () => {
         const root = workspace();
-        const nativeFs = require('fs') as typeof fs;
-        const originalLink = nativeFs.linkSync;
-        let intercepted = false;
+        const donor = workspace();
         try {
-            const previous = projection(skill('alpha'));
+            const previous = projection(
+                plugin('portable.alpha', [skill('alpha')]),
+                plugin('portable.beta', [skill('beta')]),
+            );
+            const next = projection(
+                plugin('portable.alpha', [skill('alpha-next')]),
+                plugin('portable.beta', [skill('beta-next')]),
+            );
             applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
                 projection: previous,
             });
-            const interrupted = prepareInterruptedReplacement(
+            applyPiProjectPluginSynchronization({
+                workspaceRoot: donor,
+                enabled: true,
+                projection: next,
+            });
+
+            const transactionId = '33333333-3333-4333-8333-333333333333';
+            const transactionRoot = path.join(
                 root,
-                projection(skill('beta')),
-                false,
-                'state-backed-up',
+                '.metaflow',
+                `.pi-target-transaction-${transactionId}`,
             );
-            nativeFs.linkSync = ((existingPath, newPath) => {
-                if (
-                    !intercepted &&
-                    path.basename(String(existingPath)) === 'previous-state.json' &&
-                    path.resolve(String(newPath)) === path.resolve(targetStatePath(root))
-                ) {
-                    intercepted = true;
-                    fs.writeFileSync(String(newPath), 'concurrent rollback replacement\n');
-                }
-                return originalLink(existingPath, newPath);
-            }) as typeof fs.linkSync;
+            const nextParent = path.join(transactionRoot, 'next');
+            const previousParent = path.join(transactionRoot, 'previous');
+            fs.mkdirSync(nextParent, { recursive: true });
+            fs.mkdirSync(previousParent);
+            const rootActions = ['portable.alpha', 'portable.beta'].map((pluginName) => {
+                const previousSnapshot = rootSnapshot(pluginRoot(root, pluginName));
+                const nextSnapshot = rootSnapshot(pluginRoot(donor, pluginName));
+                fs.renameSync(pluginRoot(donor, pluginName), path.join(nextParent, pluginName));
+                fs.renameSync(pluginRoot(root, pluginName), path.join(previousParent, pluginName));
+                fs.renameSync(path.join(nextParent, pluginName), pluginRoot(root, pluginName));
+                return {
+                    pluginName,
+                    action: 'replace',
+                    previousRoot: previousSnapshot,
+                    nextRoot: nextSnapshot,
+                };
+            });
+            const previousState = fileSnapshot(targetStatePath(root));
+            const nextState = fileSnapshot(targetStatePath(donor));
+            fs.renameSync(targetStatePath(root), path.join(transactionRoot, 'previous-state.json'));
+            fs.renameSync(targetStatePath(donor), targetStatePath(root));
+            const journal = {
+                schemaVersion: 2,
+                transactionId,
+                committed: true,
+                rootActions,
+                stateAction: 'write',
+                transactionRootIdentity: identity(transactionRoot),
+                previousState,
+                nextState,
+            };
+            fs.writeFileSync(
+                path.join(root, '.metaflow', 'pi-target-transaction.json'),
+                `${JSON.stringify(journal, null, 2)}\n`,
+            );
+            const exited = spawnSync(process.execPath, ['-e', 'process.exit(0)']);
+            assert.ok(exited.pid);
+            writeTargetLock(root, exited.pid!);
 
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: previous,
+                projection: next,
             });
-
-            assert.strictEqual(intercepted, true);
-            assert.strictEqual(result.plan.blocked, true);
-            assert.ok(
-                result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_RECOVERY_CONFLICT',
-                ),
-            );
+            assert.strictEqual(result.plan.blocked, false);
+            assert.deepStrictEqual(result.plan.changes, []);
             assert.strictEqual(
-                fs.readFileSync(targetStatePath(root), 'utf8'),
-                'concurrent rollback replacement\n',
-            );
-            assert.strictEqual(
-                fs.existsSync(path.join(interrupted.transactionRoot, 'previous-state.json')),
+                fs.existsSync(pluginPath(root, 'portable.alpha', 'skills/alpha-next/SKILL.md')),
                 true,
             );
-            assert.strictEqual(fs.existsSync(interrupted.journalPath), true);
-        } finally {
-            nativeFs.linkSync = originalLink;
-            removeWorkspace(root);
-        }
-    });
-
-    it('rejects a generated-root link without following or removing its target', function () {
-        const root = workspace();
-        const external = workspace();
-        try {
-            fs.mkdirSync(path.dirname(targetPath(root)), { recursive: true });
-            fs.writeFileSync(path.join(external, 'plugin.json'), 'external\n');
-            try {
-                fs.symlinkSync(
-                    external,
-                    targetPath(root),
-                    process.platform === 'win32' ? 'junction' : 'dir',
-                );
-            } catch (error) {
-                const code = (error as NodeJS.ErrnoException).code;
-                if (code === 'EPERM' || code === 'EACCES' || code === 'ENOTSUP') {
-                    this.skip();
-                    return;
-                }
-                throw error;
-            }
-
-            const result = applyPiProjectPluginSynchronization({
-                workspaceRoot: root,
-                enabled: true,
-                projection: projection(skill('alpha')),
-            });
-
-            assert.strictEqual(result.plan.blocked, true);
-            assert.ok(
-                result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_PATH_CONTAINMENT',
-                ),
+            assert.strictEqual(
+                fs.existsSync(pluginPath(root, 'portable.beta', 'skills/beta-next/SKILL.md')),
+                true,
+            );
+            assert.strictEqual(fs.existsSync(transactionRoot), false);
+            assert.strictEqual(
+                fs.existsSync(path.join(root, '.metaflow', 'pi-target-transaction.json')),
+                false,
             );
             assert.strictEqual(
-                fs.readFileSync(path.join(external, 'plugin.json'), 'utf8'),
-                'external\n',
+                fs.existsSync(path.join(root, '.metaflow', 'pi-target.lock')),
+                false,
             );
         } finally {
             removeWorkspace(root);
-            removeWorkspace(external);
+            removeWorkspace(donor);
         }
     });
 
-    it('rejects a linked target ancestor before creating state or output', function () {
+    it('rejects a linked desired root without following or removing its target', function () {
         const root = workspace();
-        const external = workspace();
+        const outside = workspace();
         try {
+            fs.writeFileSync(path.join(outside, 'plugin.json'), 'outside\n');
+            fs.mkdirSync(path.join(root, '.pi', 'plugins'), { recursive: true });
             try {
-                fs.symlinkSync(
-                    external,
-                    path.join(root, '.pi'),
-                    process.platform === 'win32' ? 'junction' : 'dir',
-                );
-            } catch (error) {
-                const code = (error as NodeJS.ErrnoException).code;
-                if (code === 'EPERM' || code === 'EACCES' || code === 'ENOTSUP') {
-                    this.skip();
-                    return;
-                }
-                throw error;
+                fs.symlinkSync(outside, pluginRoot(root, 'portable.alpha'), 'junction');
+            } catch {
+                this.skip();
+                return;
             }
-
             const result = applyPiProjectPluginSynchronization({
                 workspaceRoot: root,
                 enabled: true,
-                projection: projection(skill('alpha')),
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
             });
-
             assert.strictEqual(result.plan.blocked, true);
-            assert.ok(
-                result.plan.diagnostics.some(
-                    (entry) => entry.code === 'PI_TARGET_PATH_CONTAINMENT',
-                ),
+            assert.strictEqual(
+                fs.readFileSync(path.join(outside, 'plugin.json'), 'utf8'),
+                'outside\n',
             );
-            assert.deepStrictEqual(fs.readdirSync(external), []);
-            assert.strictEqual(fs.existsSync(targetStatePath(root)), false);
         } finally {
             removeWorkspace(root);
-            removeWorkspace(external);
+            removeWorkspace(outside);
+        }
+    });
+
+    it('rejects a dangling desired-root link without replacing it', function () {
+        const root = workspace();
+        const outside = workspace();
+        try {
+            fs.mkdirSync(path.join(root, '.pi', 'plugins'), { recursive: true });
+            const target = path.join(outside, 'missing');
+            try {
+                fs.symlinkSync(target, pluginRoot(root, 'portable.alpha'), 'junction');
+            } catch {
+                this.skip();
+                return;
+            }
+            const result = applyPiProjectPluginSynchronization({
+                workspaceRoot: root,
+                enabled: true,
+                projection: projection(plugin('portable.alpha', [skill('alpha')])),
+            });
+            assert.strictEqual(result.plan.blocked, true);
+            assert.strictEqual(
+                fs.lstatSync(pluginRoot(root, 'portable.alpha')).isSymbolicLink(),
+                true,
+            );
+            assert.strictEqual(fs.existsSync(target), false);
+        } finally {
+            removeWorkspace(root);
+            removeWorkspace(outside);
         }
     });
 });
+
+function rawHashFromBytes(content: Uint8Array): string {
+    return createHash('sha256').update(content).digest('hex');
+}

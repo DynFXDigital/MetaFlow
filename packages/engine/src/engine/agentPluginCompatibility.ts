@@ -31,6 +31,8 @@ export interface AgentPluginManifestInventory {
     readonly repository?: string;
     readonly license?: string;
     readonly keywords?: readonly string[];
+    /** Standard Agent Plugins extension metadata preserved for portable projection. */
+    readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentSkillMetadataInventory {
@@ -124,6 +126,11 @@ const LEGACY_HOST_FIELDS = new Set([
     'prompts',
     'skills',
 ]);
+
+/** Return whether a value satisfies the Agent Plugins 1.0 manifest-name grammar. */
+export function isValidAgentPluginName(value: string): boolean {
+    return value.length >= 1 && value.length <= 64 && PLUGIN_NAME_PATTERN.test(value);
+}
 
 /** Return whether a name satisfies the Agent Skills directory/name contract. */
 export function isValidAgentSkillName(value: string): boolean {
@@ -276,7 +283,7 @@ function validateManifest(
         typeof name !== 'string' ||
         name.length < 1 ||
         name.length > 64 ||
-        !PLUGIN_NAME_PATTERN.test(name)
+        !isValidAgentPluginName(name)
     ) {
         diagnostics.push(
             diagnostic(
@@ -354,6 +361,14 @@ function validateManifest(
         ...(typeof manifest.repository === 'string' ? { repository: manifest.repository } : {}),
         ...(typeof manifest.license === 'string' ? { license: manifest.license } : {}),
         ...(isStringArray(manifest.keywords) ? { keywords: manifest.keywords } : {}),
+        ...(isObject(manifest.extensions)
+            ? {
+                  extensions: JSON.parse(JSON.stringify(manifest.extensions)) as Record<
+                      string,
+                      unknown
+                  >,
+              }
+            : {}),
     };
 }
 

@@ -74,6 +74,28 @@ describe('inspectAgentPluginPackage', () => {
         assert.deepStrictEqual(result.diagnostics, []);
     });
 
+    it('preserves standard object extensions in the portable manifest inventory', () => {
+        writeManifest(rootPath, {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: 'deployment.tools',
+            extensions: {
+                'pi-agent-plugins': {
+                    enabled: true,
+                },
+            },
+        });
+
+        const result = inspectAgentPluginPackage(rootPath);
+
+        assert.strictEqual(result.validManifest, true);
+        assert.deepStrictEqual(result.manifest?.extensions, {
+            'pi-agent-plugins': {
+                enabled: true,
+            },
+        });
+        assert.deepStrictEqual(result.diagnostics, []);
+    });
+
     it('reports but ignores unknown fields and non-object extensions', () => {
         writeManifest(rootPath, {
             $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,

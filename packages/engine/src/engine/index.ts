@@ -91,6 +91,7 @@ export {
     AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    isValidAgentPluginName,
     isValidAgentSkillName,
     validateAgentSkillContent,
 } from './agentPluginCompatibility';
@@ -104,8 +105,7 @@ export type {
     AgentSkillMetadataInventory,
 } from './agentPluginCompatibility';
 export {
-    PI_PROJECT_PLUGIN_BASE_VERSION,
-    PI_PROJECT_PLUGIN_NAME,
+    PI_PROJECT_PLUGINS_RELATIVE_ROOT,
     PI_SKILLS_PROJECTION_SCHEMA,
     projectPiAgentPluginSkills,
 } from './piSkillsProjection';
@@ -114,7 +114,6 @@ export {
     projectResolvedPiAgentPluginSkills,
 } from './piSkillsProjectionCollector';
 export {
-    PI_PROJECT_PLUGIN_RELATIVE_ROOT,
     PI_TARGET_STATE_RELATIVE_PATH,
     PI_TARGET_STATE_SCHEMA_VERSION,
     applyPiProjectPluginSynchronization,
@@ -122,6 +121,7 @@ export {
     planPiProjectPluginSynchronization,
 } from './piProjectPluginSynchronizer';
 export type {
+    PiAgentPluginProjectionInput,
     PiAgentPluginManifest,
     PiProjectedFile,
     PiProjectionOmission,
@@ -142,6 +142,7 @@ export type {
     PiTargetChangeAction,
     PiTargetDiagnostic,
     PiTargetManagedFileState,
+    PiTargetManagedPluginState,
     PiTargetState,
     PiTargetStateAction,
     PiTargetStateLoadResult,

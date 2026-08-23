@@ -1,8 +1,8 @@
 # Pi Agent Plugins v1 target
 
-MetaFlow can project portable skills from the active capability profile into one
-project-local Agent Plugins 1.0 package for Pi. The target is explicit,
-default-off, and skills-only.
+MetaFlow can project portable skills from the active capability profile into
+project-local Agent Plugins 1.0 packages for Pi. The target is explicit,
+default-off, skills-only, and preserves each source plugin as a separate package.
 
 ## Compatibility
 
@@ -46,9 +46,17 @@ configuration:
 ```
 
 An eligible capability is a strict Agent Plugins 1.0 package with a root
-`plugin.json` and immediate `skills/<name>/SKILL.md` children. MetaFlow combines
-the valid skills from enabled capabilities in the active profile. Duplicate
-skill names block the complete target instead of choosing a winner.
+`plugin.json` and immediate `skills/<name>/SKILL.md` children. Each enabled
+capability projects to `.pi/plugins/<plugin.json name>` and retains the portable
+manifest name, version, and descriptive metadata. MetaFlow does not create a
+synthetic package identity or write provenance into projected package content.
+
+Duplicate plugin names block the complete target because two sources cannot own
+the same project-plugin root. Pi skill commands are session-global, so duplicate
+skill names across active plugins also block rather than selecting a winner.
+Plugins that declare `mcp.json` or non-empty client `extensions` are blocked in
+this skills-only slice; publishing the same identity while silently dropping
+declared behavior would not be a faithful projection.
 
 ## Preview, apply, and validate
 
@@ -67,15 +75,20 @@ target; enabling `targets.pi` does not create a second background policy.
 Apply creates:
 
 ```text
-.pi/plugins/metaflow.project/
-  plugin.json
-  skills/<name>/SKILL.md
+.pi/plugins/<original-plugin-name>/
+  plugin.json                 # original portable identity and metadata
+  skills/<name>/SKILL.md      # exact validated bytes
+.pi/plugins/<another-plugin-name>/
+  ...
 .metaflow/pi-target-state.json
 ```
 
-The generated package has a fixed `metaflow.project` identity and a deterministic
-content-derived version. Source provenance is stored in the separate target
-state rather than added to the portable manifest.
+Package order, manifest serialization, and managed hashes are deterministic.
+Source provenance and ownership are stored in the separate target state rather
+than added to any portable manifest. A verified ledger from the unreleased
+aggregate implementation is migrated on the next successful Apply: the old
+`.pi/plugins/metaflow.project` root is removed and the original-name roots are
+installed in the same journaled reconciliation.
 
 Pi loads project plugins only after the project is trusted. In non-interactive
 Pi runs, use Pi's normal `--approve` option when the project has not already been
@@ -83,36 +96,38 @@ trusted.
 
 ## Ownership and cleanup
 
-MetaFlow owns only the fixed generated package root and its separate target
-ledger. Preview is read-only. Apply and watch replace the complete package
-transactionally, remove stale skills, and recover interrupted reconciliations.
+MetaFlow owns only the package roots recorded in its separate target ledger.
+Preview is read-only. Apply and watch reconcile the complete managed set through
+one multi-root journal, remove stale packages and skills, and recover interrupted
+reconciliations.
 
 An untracked generated root, an unexpected file, or changed managed content
 blocks apply, validate, and clean. `metaflow apply --force` does not override Pi
 target drift. Resolve or preserve that content explicitly before retrying.
 
-Disable `targets.pi.enabled`, or run `metaflow clean`, to remove a verified
-MetaFlow-managed package and ledger. Cleanup preserves unrelated `.pi` content,
-including other plugins and user-authored `.pi/mcp.json`.
+Disable `targets.pi.enabled`, or run `metaflow clean`, to remove all verified
+managed package roots and the ledger. Cleanup preserves unrelated `.pi` content,
+including unowned plugins and user-authored `.pi/mcp.json`.
 
 ## Portability boundary
 
-Only strict portable skills are emitted. MCP definitions are diagnosed as
-deferred, while instructions, prompts, commands, agents, hooks, LSP, monitors,
-and MetaFlow governance metadata remain host-specific. Compatibility diagnostics
-make omissions visible; MetaFlow never treats those artifacts as Pi-supported or
-mutates global Pi state.
+Only strict portable manifest metadata and skills are emitted. MCP definitions
+and client extensions block projection until MetaFlow can reproduce their
+behavior safely. Instructions, prompts, commands, agents, hooks, LSP, monitors,
+and MetaFlow governance metadata remain host-specific and are reported as
+non-portable where applicable. MetaFlow never mutates global Pi state.
 
 ## Troubleshooting
 
-- No package after Preview: Preview never writes. Run Apply after confirming the
+- No packages after Preview: Preview never writes. Run Apply after confirming the
   config uses compatibility version 5 and the Pi target is explicitly enabled.
 - No skill in Pi: confirm `pi-agent-plugins` is installed, the project is trusted,
   and the capability is selected by the active profile. Use `/plugin list` or
   `/plugin doctor`, then `/plugin reload` after changing generated content.
-- Projection is blocked: read the MetaFlow diagnostic for a duplicate skill,
-  invalid portable package, untracked generated root, or drifted managed file.
-  MetaFlow will not choose a duplicate winner or overwrite that content.
+- Projection is blocked: read the diagnostic for a duplicate plugin or skill,
+  declared MCP/client-extension behavior, invalid portable package, untracked
+  same-name root, or drifted managed file. MetaFlow will not choose a duplicate
+  winner, publish an incomplete identity, or overwrite unowned content.
 - No MCP server appears: this is expected. The first target is skills-only and
   does not require or configure `pi-mcp-adapter`.
 - Disable or Clean is blocked: restore the recorded managed bytes or preserve and

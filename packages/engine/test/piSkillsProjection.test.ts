@@ -1,22 +1,17 @@
 import * as assert from 'assert';
-import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
-    PI_PROJECT_PLUGIN_NAME,
-    PI_SKILLS_PROJECTION_SCHEMA,
+    PiAgentPluginProjectionInput,
     PiSkillProjectionInput,
     PiSkillsProjectionSource,
     projectPiAgentPluginSkills,
 } from '../src';
 
-function source(
-    capabilityId: string,
-    sourcePath = `skills/${capabilityId}/SKILL.md`,
-): PiSkillsProjectionSource {
+function source(capabilityId: string, sourcePath = 'plugin.json'): PiSkillsProjectionSource {
     return {
         repoId: 'metadata',
         layerId: `metadata/capabilities/${capabilityId}`,
@@ -26,43 +21,74 @@ function source(
     };
 }
 
-function skill(name: string, description = `${name} description`): PiSkillProjectionInput {
+function skill(
+    name: string,
+    capabilityId = name,
+    description = `${name} description`,
+): PiSkillProjectionInput {
     return {
         name,
         content: Buffer.from(
             `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`,
             'utf8',
         ),
-        source: source(name),
+        source: source(capabilityId, `skills/${name}/SKILL.md`),
     };
 }
 
-function contents(result: ReturnType<typeof projectPiAgentPluginSkills>): Map<string, Buffer> {
-    assert.strictEqual(result.blocked, false);
-    return new Map(
-        result.package.files.map((file) => [file.relativePath, Buffer.from(file.content)]),
-    );
+function plugin(
+    name: string,
+    skills: readonly PiSkillProjectionInput[] = [],
+    capabilityId = name,
+    manifest: Partial<PiAgentPluginProjectionInput['manifest']> = {},
+): PiAgentPluginProjectionInput {
+    return {
+        manifest: { name, ...manifest },
+        source: source(capabilityId),
+        skills,
+    };
 }
 
 describe('Pi skills projection', () => {
-    it('builds a deterministic strict empty package', () => {
-        const first = projectPiAgentPluginSkills({ skills: [] });
-        const second = projectPiAgentPluginSkills({ skills: [] });
+    it('does not fabricate a package for an empty active plugin set', () => {
+        const result = projectPiAgentPluginSkills({ plugins: [] });
+        assert.strictEqual(result.blocked, false);
+        assert.deepStrictEqual(result.packages, []);
+    });
 
-        assert.strictEqual(first.blocked, false);
-        assert.strictEqual(second.blocked, false);
-        assert.strictEqual(first.package.contentSha.length, 64);
-        assert.strictEqual(first.package.version, `0.1.0+${first.package.contentSha}`);
-        assert.deepStrictEqual(first.package.manifest, {
-            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
-            name: 'metaflow.project',
-            version: first.package.version,
+    it('projects one source plugin 1:1 with its original portable manifest', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [
+                plugin('portable.review', [skill('review', 'review')], 'review', {
+                    version: '2.4.0',
+                    description: 'Portable review tools',
+                    author: { name: 'Example' },
+                    keywords: ['review', 'portable'],
+                }),
+            ],
         });
+
+        assert.strictEqual(result.blocked, false);
+        assert.strictEqual(result.packages.length, 1);
+        const projected = result.packages[0];
+        assert.strictEqual(projected.name, 'portable.review');
+        assert.strictEqual(projected.relativeRoot, '.pi/plugins/portable.review');
+        assert.deepStrictEqual(projected.manifest, {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: 'portable.review',
+            version: '2.4.0',
+            description: 'Portable review tools',
+            author: { name: 'Example' },
+            keywords: ['review', 'portable'],
+        });
+        const manifestBytes = Buffer.from(
+            projected.files.find((file) => file.relativePath === 'plugin.json')!.content,
+        ).toString('utf8');
+        assert.ok(!manifestBytes.toLowerCase().includes('metaflow'));
         assert.deepStrictEqual(
-            first.package.files.map((file) => file.relativePath),
-            ['plugin.json'],
+            projected.files.map((file) => file.relativePath),
+            ['plugin.json', 'skills/review/SKILL.md'],
         );
-        assert.deepStrictEqual(contents(first), contents(second));
     });
 
     it('preserves exact SKILL.md bytes and keeps provenance outside package content', () => {
@@ -71,218 +97,163 @@ describe('Pi skills projection', () => {
             'utf8',
         );
         const result = projectPiAgentPluginSkills({
-            skills: [{ name: 'review', content: exactBytes, source: source('review') }],
+            plugins: [
+                plugin('portable.review', [
+                    {
+                        name: 'review',
+                        content: exactBytes,
+                        source: source('review', 'skills/review/SKILL.md'),
+                    },
+                ]),
+            ],
         });
 
         assert.strictEqual(result.blocked, false);
-        const projected = result.package.files.find(
+        const projected = result.packages[0].files.find(
             (file) => file.relativePath === 'skills/review/SKILL.md',
         );
         assert.ok(projected);
         assert.deepStrictEqual(Buffer.from(projected.content), exactBytes);
-        assert.deepStrictEqual(projected.sources, [source('review')]);
+        assert.deepStrictEqual(projected.sources, [source('review', 'skills/review/SKILL.md')]);
         assert.ok(
             !Buffer.from(projected.content).toString('utf8').includes('metadata/capabilities'),
         );
-        assert.ok(!contents(result).has('mcp.json'));
     });
 
-    it('is independent of unique skill input order', () => {
-        const alpha = skill('alpha');
-        const zeta = skill('zeta');
-        const forward = projectPiAgentPluginSkills({ skills: [alpha, zeta] });
-        const reverse = projectPiAgentPluginSkills({ skills: [zeta, alpha] });
+    it('projects multiple plugins independently and deterministically', () => {
+        const first = plugin('portable.first', [skill('first')]);
+        const second = plugin('portable.second', [skill('second')]);
+        const forward = projectPiAgentPluginSkills({ plugins: [first, second] });
+        const reverse = projectPiAgentPluginSkills({ plugins: [second, first] });
 
         assert.strictEqual(forward.blocked, false);
         assert.strictEqual(reverse.blocked, false);
-        assert.strictEqual(forward.package.contentSha, reverse.package.contentSha);
-        assert.strictEqual(forward.package.version, reverse.package.version);
-        assert.deepStrictEqual(contents(forward), contents(reverse));
+        assert.deepStrictEqual(forward.packages, reverse.packages);
         assert.deepStrictEqual(
-            forward.package.files.map((file) => file.relativePath),
-            ['plugin.json', 'skills/alpha/SKILL.md', 'skills/zeta/SKILL.md'],
+            forward.packages.map((entry) => entry.relativeRoot),
+            ['.pi/plugins/portable.first', '.pi/plugins/portable.second'],
+        );
+        assert.deepStrictEqual(
+            forward.packages.map((entry) =>
+                entry.files
+                    .filter((file) => file.relativePath.startsWith('skills/'))
+                    .map((file) => file.relativePath),
+            ),
+            [['skills/first/SKILL.md'], ['skills/second/SKILL.md']],
         );
     });
 
-    it('uses the documented canonical hash preimage and excludes provenance', () => {
-        const alpha = skill('alpha');
-        const first = projectPiAgentPluginSkills({ skills: [alpha] });
-        const moved = projectPiAgentPluginSkills({
-            skills: [
-                {
-                    ...alpha,
-                    source: source('moved-capability', 'portable/alpha/SKILL.md'),
-                },
+    it('blocks duplicate active plugin names instead of selecting a winner', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [
+                plugin('portable.same', [skill('first')], 'first'),
+                plugin('portable.same', [skill('second')], 'second'),
             ],
         });
-        const changedBytes = projectPiAgentPluginSkills({
-            skills: [skill('alpha', 'Changed description')],
-        });
-        const changedPath = projectPiAgentPluginSkills({
-            skills: [skill('beta')],
-        });
-        assert.strictEqual(first.blocked, false);
-        assert.strictEqual(moved.blocked, false);
-        assert.strictEqual(changedBytes.blocked, false);
-        assert.strictEqual(changedPath.blocked, false);
-
-        const expected = createHash('sha256')
-            .update(PI_SKILLS_PROJECTION_SCHEMA, 'utf8')
-            .update('\u0000')
-            .update(AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, 'utf8')
-            .update('\u0000')
-            .update(PI_PROJECT_PLUGIN_NAME, 'utf8')
-            .update('\u0000')
-            .update('skills/alpha/SKILL.md', 'utf8')
-            .update('\u0000')
-            .update(Buffer.from(alpha.content))
-            .update('\u0000')
-            .digest('hex');
-
-        assert.strictEqual(first.package.contentSha, expected);
-        assert.strictEqual(moved.package.contentSha, expected);
-        assert.deepStrictEqual(contents(first), contents(moved));
-        assert.notDeepStrictEqual(first.package.files[0].sources, moved.package.files[0].sources);
-        assert.notStrictEqual(changedBytes.package.contentSha, expected);
-        assert.notStrictEqual(changedPath.package.contentSha, expected);
-    });
-
-    it('omits an invalid skill input without suppressing valid siblings', () => {
-        const result = projectPiAgentPluginSkills({
-            skills: [skill('valid'), skill('Invalid Name')],
-        });
-
-        assert.strictEqual(result.blocked, false);
-        assert.deepStrictEqual(
-            result.package.files.map((file) => file.relativePath),
-            ['plugin.json', 'skills/valid/SKILL.md'],
-        );
-        assert.strictEqual(result.omissions.length, 1);
-        assert.strictEqual(result.omissions[0].reason, 'invalid-source');
-        assert.ok(
-            result.diagnostics.some(
-                (entry) =>
-                    entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_NAME_INVALID' &&
-                    entry.severity === 'warning',
-            ),
-        );
-    });
-
-    it('revalidates SKILL.md bytes before emitting an otherwise valid skill name', () => {
-        const result = projectPiAgentPluginSkills({
-            skills: [
-                skill('valid'),
-                {
-                    name: 'invalid-content',
-                    content: Buffer.from(
-                        '---\nname: another-name\ndescription: Mismatched metadata.\n---\n',
-                        'utf8',
-                    ),
-                    source: source('invalid-content'),
-                },
-            ],
-        });
-
-        assert.strictEqual(result.blocked, false);
-        assert.deepStrictEqual(
-            result.package.files.map((file) => file.relativePath),
-            ['plugin.json', 'skills/valid/SKILL.md'],
-        );
-        assert.ok(
-            result.diagnostics.some(
-                (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_INVALID',
-            ),
-        );
-    });
-
-    it('blocks the complete package when active capabilities duplicate a skill name', () => {
-        const first = skill('review');
-        const second: PiSkillProjectionInput = {
-            ...skill('review'),
-            content: Buffer.from(
-                '---\nname: review\ndescription: Second review skill.\n---\n',
-                'utf8',
-            ),
-            source: source('second-review', 'skills/review/SKILL.md'),
-        };
-        const result = projectPiAgentPluginSkills({ skills: [second, first] });
 
         assert.strictEqual(result.blocked, true);
-        assert.strictEqual(result.package, undefined);
-        assert.strictEqual(result.conflicts.length, 1);
-        assert.strictEqual(result.conflicts[0].skillName, 'review');
+        assert.strictEqual(result.packages, undefined);
+        assert.strictEqual(result.conflicts[0].kind, 'plugin-name');
         assert.deepStrictEqual(
             result.conflicts[0].contenders.map((entry) => entry.capabilityId),
-            ['review', 'second-review'],
+            ['first', 'second'],
         );
-        assert.strictEqual(
-            result.omissions.filter((entry) => entry.reason === 'duplicate-skill').length,
-            2,
+    });
+
+    it('blocks skill names that would be ambiguous in Pi global command discovery', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [
+                plugin('portable.first', [skill('review', 'first')], 'first'),
+                plugin('portable.second', [skill('review', 'second')], 'second'),
+            ],
+        });
+
+        assert.strictEqual(result.blocked, true);
+        assert.strictEqual(result.conflicts[0].kind, 'skill-name');
+        assert.strictEqual(result.conflicts[0].skillName, 'review');
+        assert.ok(
+            result.diagnostics.some(
+                (entry) => entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_DUPLICATE',
+            ),
         );
+    });
+
+    it('blocks an MCP-bearing source rather than emitting an incomplete same-name plugin', () => {
+        const review = plugin('portable.review', [skill('review')]);
+        const result = projectPiAgentPluginSkills({
+            plugins: [{ ...review, mcpSource: source('portable.review', 'mcp.json') }],
+        });
+
+        assert.strictEqual(result.blocked, true);
+        assert.ok(result.omissions.some((entry) => entry.reason === 'mcp-deferred'));
         assert.ok(
             result.diagnostics.some(
                 (entry) =>
-                    entry.code === 'PI_AGENT_PLUGIN_PROJECTION_SKILL_DUPLICATE' &&
+                    entry.code === 'PI_AGENT_PLUGIN_PROJECTION_PLUGIN_MCP_UNSUPPORTED' &&
                     entry.severity === 'error',
             ),
         );
-        assert.ok(result.diagnostics.every((entry) => !entry.message.includes('\u0000')));
     });
 
-    it('reports host-specific and deferred MCP omissions without materializing them', () => {
-        const omissions = [
-            {
-                artifactType: 'instructions',
-                reason: 'non-portable' as const,
-                source: source('portable', '.github/instructions/review.instructions.md'),
-            },
-            {
-                artifactType: 'mcp',
-                reason: 'mcp-deferred' as const,
-                source: source('portable', 'mcp.json'),
-            },
-        ];
-        const result = projectPiAgentPluginSkills({ skills: [skill('portable')], omissions });
-        const reversed = projectPiAgentPluginSkills({
-            skills: [skill('portable')],
-            omissions: [...omissions].reverse(),
+    it('blocks client-extension metadata that the skills-only target cannot reproduce', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [
+                plugin('portable.review', [skill('review')], 'portable.review', {
+                    extensions: { 'dev.pi.agent': { prompts: ['prompts/review.md'] } },
+                }),
+            ],
+        });
+
+        assert.strictEqual(result.blocked, true);
+        assert.ok(
+            result.diagnostics.some(
+                (entry) =>
+                    entry.code === 'PI_AGENT_PLUGIN_PROJECTION_PLUGIN_EXTENSIONS_UNSUPPORTED',
+            ),
+        );
+    });
+
+    it('omits an invalid skill without suppressing its valid plugin-local sibling', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [
+                plugin('portable.mixed', [
+                    skill('valid'),
+                    {
+                        name: 'invalid',
+                        content: Buffer.from('not frontmatter\n'),
+                        source: source('mixed', 'skills/invalid/SKILL.md'),
+                    },
+                ]),
+            ],
         });
 
         assert.strictEqual(result.blocked, false);
-        assert.strictEqual(reversed.blocked, false);
-        assert.ok(!contents(result).has('mcp.json'));
-        assert.deepStrictEqual(result.omissions, reversed.omissions);
-        assert.deepStrictEqual(result.diagnostics, reversed.diagnostics);
         assert.deepStrictEqual(
-            result.diagnostics.map((entry) => entry.code),
-            [
-                'PI_AGENT_PLUGIN_PROJECTION_ARTIFACT_NON_PORTABLE',
-                'PI_AGENT_PLUGIN_PROJECTION_MCP_DEFERRED',
-            ],
+            result.packages[0].files.map((file) => file.relativePath),
+            ['plugin.json', 'skills/valid/SKILL.md'],
         );
-        assert.ok(result.diagnostics.every((entry) => entry.severity === 'info'));
+        assert.ok(result.omissions.some((entry) => entry.reason === 'invalid-source'));
     });
 
-    it('materializes a package accepted by the strict compatibility inspector', () => {
-        const result = projectPiAgentPluginSkills({ skills: [skill('alpha'), skill('zeta')] });
+    it('materializes each package as strict Agent Plugins v1 input', () => {
+        const result = projectPiAgentPluginSkills({
+            plugins: [plugin('portable.alpha', [skill('alpha')])],
+        });
         assert.strictEqual(result.blocked, false);
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-pi-projection-'));
         try {
-            for (const file of result.package.files) {
+            for (const file of result.packages[0].files) {
                 const destination = path.join(root, ...file.relativePath.split('/'));
                 fs.mkdirSync(path.dirname(destination), { recursive: true });
                 fs.writeFileSync(destination, file.content);
             }
-
             const inspection = inspectAgentPluginPackage(root);
-            assert.strictEqual(inspection.profile, 'agent-plugins-v1');
             assert.strictEqual(inspection.validManifest, true);
+            assert.strictEqual(inspection.manifest?.name, 'portable.alpha');
             assert.deepStrictEqual(
                 inspection.validSkills.map((entry) => entry.name),
-                ['alpha', 'zeta'],
+                ['alpha'],
             );
-            assert.deepStrictEqual(inspection.validMcpServers, []);
-            assert.deepStrictEqual(inspection.diagnostics, []);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

@@ -15,6 +15,7 @@ import * as path from 'path';
 import { getArtifactType } from './artifactType';
 import type { AgentPluginCompatibilityInspection } from './agentPluginCompatibility';
 import {
+    PiAgentPluginProjectionInput,
     PiProjectionOmission,
     PiSkillProjectionInput,
     PiSkillsProjectionDiagnostic,
@@ -42,6 +43,18 @@ function normalizePath(value: string): string {
 function canonicalKey(value: string): string {
     const normalized = path.normalize(value);
     return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
+function pathEntryExists(candidatePath: string): boolean {
+    try {
+        fs.lstatSync(candidatePath);
+        return true;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            return false;
+        }
+        throw error;
+    }
 }
 
 function isInside(rootPath: string, candidatePath: string): boolean {
@@ -261,6 +274,16 @@ function compareSkills(left: PiSkillProjectionInput, right: PiSkillProjectionInp
     );
 }
 
+function comparePlugins(
+    left: PiAgentPluginProjectionInput,
+    right: PiAgentPluginProjectionInput,
+): number {
+    return (
+        compareCodeUnits(left.manifest.name, right.manifest.name) ||
+        compareCodeUnits(sourceIdentity(left.source), sourceIdentity(right.source))
+    );
+}
+
 function compareOmissions(left: PiProjectionOmission, right: PiProjectionOmission): number {
     return compareCodeUnits(omissionKey(left), omissionKey(right));
 }
@@ -305,7 +328,7 @@ function addLayerArtifactOmissions(
 export function collectPiSkillsProjectionInput(
     layers: readonly LayerContent[],
 ): PiSkillsProjectionInput {
-    const skills: PiSkillProjectionInput[] = [];
+    const plugins: PiAgentPluginProjectionInput[] = [];
     const omissions: PiProjectionOmission[] = [];
     const diagnostics: PiSkillsProjectionDiagnostic[] = [];
 
@@ -322,7 +345,8 @@ export function collectPiSkillsProjectionInput(
             inspection?.profile === 'agent-plugins-v1' &&
             inspection.validManifest;
         const handledSkillPaths = new Set<string>();
-        if (portable && inspection && rootPath) {
+        if (portable && inspection?.manifest && rootPath) {
+            const pluginSkills: PiSkillProjectionInput[] = [];
             for (const skill of inspection.validSkills) {
                 const sourcePath = relativeSourcePath(
                     rootPath,
@@ -334,7 +358,7 @@ export function collectPiSkillsProjectionInput(
                 try {
                     const read = readContainedSkill(rootPath, skill.skillPath);
                     handledSkillPaths.add(canonicalKey(read.realPath));
-                    skills.push({ name: skill.name, content: read.content, source });
+                    pluginSkills.push({ name: skill.name, content: read.content, source });
                 } catch {
                     omissions.push({
                         artifactType: 'skills',
@@ -354,11 +378,19 @@ export function collectPiSkillsProjectionInput(
             }
 
             const mcpPath = path.join(rootPath, 'mcp.json');
-            if (fs.existsSync(mcpPath)) {
+            let mcpSource: PiSkillsProjectionSource | undefined;
+            if (pathEntryExists(mcpPath)) {
+                mcpSource = baseSource(layer, 'mcp.json');
+                handledSkillPaths.add(canonicalKey(path.resolve(mcpPath)));
+                try {
+                    handledSkillPaths.add(canonicalKey(fs.realpathSync(mcpPath)));
+                } catch {
+                    // The compatibility diagnostic still describes an unavailable MCP source.
+                }
                 omissions.push({
                     artifactType: 'mcp',
                     reason: 'mcp-deferred',
-                    source: baseSource(layer, 'mcp.json'),
+                    source: mcpSource,
                 });
             }
             for (const field of inspection.recognizedHostFields) {
@@ -368,6 +400,13 @@ export function collectPiSkillsProjectionInput(
                     source: baseSource(layer, `plugin.json#${field}`),
                 });
             }
+            pluginSkills.sort(compareSkills);
+            plugins.push({
+                manifest: inspection.manifest,
+                source: baseSource(layer, 'plugin.json'),
+                skills: pluginSkills,
+                ...(mcpSource ? { mcpSource } : {}),
+            });
         } else if (inspection || pluginManifest || capability?.agentPlugin === true) {
             omissions.push({
                 artifactType: 'plugin',
@@ -397,12 +436,12 @@ export function collectPiSkillsProjectionInput(
     for (const entry of diagnostics) {
         uniqueDiagnostics.set(diagnosticKey(entry), entry);
     }
-    skills.sort(compareSkills);
+    plugins.sort(comparePlugins);
     const sortedOmissions = [...uniqueOmissions.values()].sort(compareOmissions);
     const sortedDiagnostics = [...uniqueDiagnostics.values()].sort(compareDiagnostics);
 
     return {
-        skills,
+        plugins,
         omissions: sortedOmissions,
         diagnostics: sortedDiagnostics,
     };

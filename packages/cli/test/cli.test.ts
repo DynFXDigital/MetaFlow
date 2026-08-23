@@ -51,7 +51,11 @@ function piConfig(overrides?: Partial<Record<string, unknown>>): Record<string, 
 }
 
 function piTargetPath(root: string, relativePath = ''): string {
-    return path.join(root, '.pi', 'plugins', 'metaflow.project', ...relativePath.split('/'));
+    return path.join(root, '.pi', 'plugins', 'company.core', ...relativePath.split('/'));
+}
+
+function namedPiTargetPath(root: string, pluginName: string, relativePath = ''): string {
+    return path.join(root, '.pi', 'plugins', pluginName, ...relativePath.split('/'));
 }
 
 function piStatePath(root: string): string {
@@ -582,7 +586,10 @@ describe('CLI: Pi Agent Plugin target', () => {
             data.piTarget.pendingChanges.map(
                 (entry: { relativePath: string }) => entry.relativePath,
             ),
-            ['plugin.json', 'skills/testing/SKILL.md'],
+            [
+                '.pi/plugins/company.core/plugin.json',
+                '.pi/plugins/company.core/skills/testing/SKILL.md',
+            ],
         );
         assert.strictEqual(data.piTarget.stateAction, 'write');
         assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
@@ -673,9 +680,13 @@ describe('CLI: Pi Agent Plugin target', () => {
         assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
         assert.ok(
             fs
-                .readFileSync(piTargetPath(ws.root, 'skills/testing/SKILL.md'), 'utf8')
+                .readFileSync(
+                    namedPiTargetPath(ws.root, 'company.inactive', 'skills/testing/SKILL.md'),
+                    'utf8',
+                )
                 .includes('# Inactive skill'),
         );
+        assert.strictEqual(fs.existsSync(namedPiTargetPath(ws.root, 'company.core')), false);
     });
 
     it('removes stale skills, then disables only the managed package and ledger', async () => {

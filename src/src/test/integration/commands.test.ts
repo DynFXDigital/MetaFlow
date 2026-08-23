@@ -44,7 +44,7 @@ suite('Command Execution', function () {
         removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo'));
-        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'metaflow.project'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'pi.smoke'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'pi-test-neighbor'));
         for (const relativePath of [
             '.pi/mcp.json',
@@ -1840,7 +1840,7 @@ suite('Command Execution', function () {
         const repoRoot = path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo');
         const capabilityPath = 'capabilities/pi-smoke';
         const capabilityRoot = path.join(repoRoot, ...capabilityPath.split('/'));
-        const targetRoot = path.join(workspaceRoot, '.pi', 'plugins', 'metaflow.project');
+        const targetRoot = path.join(workspaceRoot, '.pi', 'plugins', 'pi.smoke');
         const targetState = path.join(workspaceRoot, '.metaflow', 'pi-target-state.json');
         const neighboringPlugin = path.join(
             workspaceRoot,

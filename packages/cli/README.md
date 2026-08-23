@@ -71,8 +71,9 @@ metaflow apply --force         # overwrite drifted files
 ```
 
 With compatibility version 5 and `targets.pi.enabled: true`, `apply` also
-reconciles the skills-only `.pi/plugins/metaflow.project` package. Pi target
-drift and untracked content always fail closed; `--force` does not override that
+reconciles one skills-only `.pi/plugins/<original-plugin-name>` package per
+active portable source plugin. Pi target drift and untracked content always
+fail closed; `--force` does not override that
 ownership boundary. See [Pi Agent Plugins v1 target](../../docs/pi-agent-plugins-v1.md).
 
 #### `clean`

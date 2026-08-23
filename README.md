@@ -142,7 +142,7 @@ MetaFlow treats the published Agent Plugins 1.0 contract as a separate compatibi
 
 ### Pi project target
 
-Projects can explicitly enable a skills-only Pi target with compatibility version 5 and `targets.pi.enabled: true`. MetaFlow aggregates valid portable skills from the active capability profile into `.pi/plugins/metaflow.project`, records ownership separately in `.metaflow/pi-target-state.json`, and leaves Pi discovery to `pi-agent-plugins`. Preview is read-only; apply, validate, watch, disable, and clean share the same fail-closed ownership contract. MetaFlow does not generate Pi MCP configuration or mutate global Pi state.
+Projects can explicitly enable a skills-only Pi target with compatibility version 5 and `targets.pi.enabled: true`. MetaFlow projects each valid active Agent Plugins v1 package 1:1 into `.pi/plugins/<original-plugin-name>`, preserves its portable identity and skill bytes, records ownership separately in `.metaflow/pi-target-state.json`, and leaves discovery to `pi-agent-plugins`. Duplicate roots or Pi-global skill commands, MCP-bearing packages, client extensions, unowned same-name roots, and managed drift block the complete reconciliation. Preview is read-only; apply, validate, watch, disable, and clean share the same fail-closed managed-set contract, preserve unrelated Pi content, and never mutate global Pi state.
 
 See [Pi Agent Plugins v1 target](docs/pi-agent-plugins-v1.md) for prerequisites, configuration, lifecycle, cleanup, and portability limits.
 
