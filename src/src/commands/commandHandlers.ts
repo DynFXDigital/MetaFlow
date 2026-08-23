@@ -19,6 +19,9 @@ import type {
     GovernanceComplianceResult,
     GovernanceContract,
     GovernanceViolation,
+    LayerContent,
+    PiProjectPluginSynchronizationPlan,
+    PiSkillsProjectionResult,
     ResolveLayersCache,
     SurfacedFileConflict,
 } from '@metaflow/engine';
@@ -46,10 +49,14 @@ import {
     classifyFiles,
     EffectiveFile,
     apply,
+    applyPiProjectPluginSynchronization,
     withRootSynchronizationAuthorization,
     clean,
     disposeManagedFile,
     preview,
+    isPiTargetEnabled,
+    planPiProjectPluginSynchronization,
+    projectResolvedPiAgentPluginSkills,
     computePluginRootPaths,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
@@ -741,6 +748,10 @@ export interface ExtensionState {
     /** Effective overlay output before applying the active profile filter. */
     baseProfileFiles: EffectiveFile[];
     effectiveFiles: EffectiveFile[];
+    /** Active-profile Pi projection used by preview/apply/status without re-resolving layers. */
+    piTargetProjection?: PiSkillsProjectionResult;
+    /** Most recently observed Pi target plan. */
+    piTargetPlan?: PiProjectPluginSynchronizationPlan;
     capabilityByLayer: Record<
         string,
         {
@@ -789,6 +800,8 @@ export function createState(): ExtensionState {
         suppressConfigWatcherUntil: 0,
         baseProfileFiles: [],
         effectiveFiles: [],
+        piTargetProjection: undefined,
+        piTargetPlan: undefined,
         capabilityByLayer: {},
         repoMetadataById: {},
         governanceContract: undefined,
@@ -3037,6 +3050,7 @@ function resolveOverlay(
     },
     emitLogs: boolean = true,
 ): {
+    layers: LayerContent[];
     baseProfileFiles: EffectiveFile[];
     effectiveFiles: EffectiveFile[];
     capabilityByLayer: Record<
@@ -3178,6 +3192,7 @@ function resolveOverlay(
         appendCapabilityWarning(warning);
     }
     return {
+        layers,
         baseProfileFiles,
         effectiveFiles: files,
         capabilityByLayer,
@@ -3185,6 +3200,57 @@ function resolveOverlay(
         capabilityDiagnostics,
         agentPluginCatalog: agentPluginCatalog.entries,
     };
+}
+
+function formatPiTargetDiagnostic(
+    diagnostic: PiProjectPluginSynchronizationPlan['diagnostics'][number],
+): string {
+    return diagnostic.filePath
+        ? `[${diagnostic.code}] ${diagnostic.message} (${diagnostic.filePath})`
+        : `[${diagnostic.code}] ${diagnostic.message}`;
+}
+
+function resolvePiTargetPlanForLayers(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+    layers: readonly LayerContent[],
+): {
+    projection?: PiSkillsProjectionResult;
+    plan: PiProjectPluginSynchronizationPlan;
+} {
+    const enabled = isPiTargetEnabled(config);
+    const projection = enabled ? projectResolvedPiAgentPluginSkills(layers) : undefined;
+    return {
+        ...(projection ? { projection } : {}),
+        plan: planPiProjectPluginSynchronization({
+            workspaceRoot,
+            enabled,
+            ...(projection ? { projection } : {}),
+        }),
+    };
+}
+
+function resolvePiTargetPlanFromState(
+    state: ExtensionState,
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): PiProjectPluginSynchronizationPlan {
+    const enabled = isPiTargetEnabled(config);
+    return planPiProjectPluginSynchronization({
+        workspaceRoot,
+        enabled,
+        ...(enabled && state.piTargetProjection ? { projection: state.piTargetProjection } : {}),
+    });
+}
+
+function piTargetConfigDiagnostics(
+    plan: PiProjectPluginSynchronizationPlan,
+): SupplementalConfigDiagnostic[] {
+    return plan.diagnostics.map((diagnostic) => ({
+        code: diagnostic.code,
+        message: formatPiTargetDiagnostic(diagnostic),
+        severity: diagnostic.severity === 'error' ? 'error' : 'warning',
+    }));
 }
 
 function buildProfileEffectiveFilesLookup(
@@ -5924,6 +5990,8 @@ export function registerCommands(
                 state.activeProfile = undefined;
                 state.baseProfileFiles = [];
                 state.effectiveFiles = [];
+                state.piTargetProjection = undefined;
+                state.piTargetPlan = undefined;
                 state.capabilityByLayer = {};
                 state.repoMetadataById = {};
                 state.governanceContract = undefined;
@@ -6226,6 +6294,13 @@ export function registerCommands(
                 );
                 state.baseProfileFiles = overlay.baseProfileFiles;
                 state.effectiveFiles = overlay.effectiveFiles;
+                const piTarget = resolvePiTargetPlanForLayers(
+                    activeProfileConfig,
+                    ws.uri.fsPath,
+                    overlay.layers,
+                );
+                state.piTargetProjection = piTarget.projection;
+                state.piTargetPlan = piTarget.plan;
                 state.capabilityByLayer = overlay.capabilityByLayer;
                 state.capabilityWarnings = overlay.capabilityWarnings;
                 state.agentPluginCatalog = overlay.agentPluginCatalog;
@@ -6247,9 +6322,19 @@ export function registerCommands(
                         logWarn(warning.message);
                     }
                 }
+                const piTargetDiagnostics = piTargetConfigDiagnostics(piTarget.plan);
+                for (const diagnostic of piTarget.plan.diagnostics) {
+                    const message = formatPiTargetDiagnostic(diagnostic);
+                    if (diagnostic.severity === 'error') {
+                        logError(message);
+                    } else {
+                        logWarn(message);
+                    }
+                }
                 const configWarnings = [
                     ...configLoadWarnings,
                     ...configuredSourceDiagnosticWarnings,
+                    ...piTargetDiagnostics,
                 ];
                 publishConfigWarningDiagnostics(
                     diagnosticCollection,
@@ -6307,6 +6392,8 @@ export function registerCommands(
                 logError(`Overlay resolution failed: ${msg}`);
                 state.baseProfileFiles = [];
                 state.effectiveFiles = [];
+                state.piTargetProjection = undefined;
+                state.piTargetPlan = undefined;
                 state.capabilityByLayer = {};
                 state.capabilityWarnings = [];
                 state.configWarnings = [];
@@ -6393,6 +6480,8 @@ export function registerCommands(
             }
 
             try {
+                const piPlan = resolvePiTargetPlanFromState(state, state.config, ws.uri.fsPath);
+                state.piTargetPlan = piPlan;
                 const changes = withRootSynchronizationAuthorization(
                     state.configPath!,
                     (authorization, attested) =>
@@ -6414,6 +6503,21 @@ export function registerCommands(
                 for (const c of changes) {
                     logInfo(`  [${c.action}] ${c.relativePath}${c.reason ? ` (${c.reason})` : ''}`);
                 }
+                logInfo(`Pi target: ${piPlan.enabled ? 'enabled' : 'disabled'}.`);
+                for (const change of piPlan.changes) {
+                    logInfo(`  [pi:${change.action}] ${change.relativePath}`);
+                }
+                for (const diagnostic of piPlan.diagnostics) {
+                    const message = formatPiTargetDiagnostic(diagnostic);
+                    if (diagnostic.severity === 'error') {
+                        logError(`  ${message}`);
+                    } else {
+                        logWarn(`  ${message}`);
+                    }
+                }
+                logInfo(
+                    `Pi total: ${piPlan.changes.length} pending changes; state ${piPlan.stateAction}${piPlan.blocked ? '; blocked' : ''}.`,
+                );
                 logInfo(`Total: ${changes.length} pending changes.`);
                 if (state.capabilityWarnings.length > 0) {
                     logInfo(`Warnings: ${state.capabilityWarnings.length}`);
@@ -6453,10 +6557,33 @@ export function registerCommands(
                         title: 'MetaFlow: Applying overlay...',
                     },
                     async () => {
-                        const result = withRootSynchronizationAuthorization(
+                        const targetResults = withRootSynchronizationAuthorization(
                             state.configPath!,
-                            (authorization, attested) =>
-                                apply({
+                            (authorization, attested) => {
+                                const piPlan = resolvePiTargetPlanFromState(
+                                    state,
+                                    attested.config,
+                                    ws.uri.fsPath,
+                                );
+                                if (piPlan.blocked) {
+                                    throw new Error(
+                                        piPlan.diagnostics.map(formatPiTargetDiagnostic).join('; '),
+                                    );
+                                }
+                                const pi = applyPiProjectPluginSynchronization({
+                                    workspaceRoot: ws.uri.fsPath,
+                                    enabled: isPiTargetEnabled(attested.config),
+                                    ...(piPlan.projection ? { projection: piPlan.projection } : {}),
+                                });
+                                state.piTargetPlan = pi.plan;
+                                if (pi.plan.blocked) {
+                                    throw new Error(
+                                        pi.plan.diagnostics
+                                            .map(formatPiTargetDiagnostic)
+                                            .join('; '),
+                                    );
+                                }
+                                const synchronization = apply({
                                     workspaceRoot: ws.uri.fsPath,
                                     effectiveFiles: state.effectiveFiles,
                                     activeProfile: state.activeProfile,
@@ -6468,8 +6595,12 @@ export function registerCommands(
                                             ?.repoWideCopilotInstructions === true,
                                     rootSynchronizationAuthorization: authorization,
                                     rootSynchronizationConfigPath: state.configPath,
-                                }),
+                                });
+                                return { synchronization, pi };
+                            },
                         );
+                        const result = targetResults.synchronization;
+                        const piResult = targetResults.pi;
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
                         await injectWorkspaceSettings(
@@ -6480,7 +6611,7 @@ export function registerCommands(
                             state.builtInCapability,
                         );
                         logInfo(
-                            `Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed.`,
+                            `Apply complete: ${result.written.length} written, ${result.skipped.length} skipped, ${result.removed.length} removed; Pi ${piResult.written.length} written, ${piResult.removed.length} removed.`,
                         );
                         if (applyOptions.markApply) {
                             const managedState = loadManagedState(ws.uri.fsPath);
@@ -6497,11 +6628,11 @@ export function registerCommands(
                             }
                         }
 
-                        if (result.written.length > 0) {
+                        if (result.written.length > 0 || piResult.written.length > 0) {
                             vscode.window.showInformationMessage(
                                 state.capabilityWarnings.length > 0
-                                    ? `MetaFlow: Applied ${result.written.length} files with ${state.capabilityWarnings.length} non-blocking warning(s).`
-                                    : `MetaFlow: Applied ${result.written.length} files.`,
+                                    ? `MetaFlow: Applied ${result.written.length} overlay and ${piResult.written.length} Pi target files with ${state.capabilityWarnings.length} non-blocking warning(s).`
+                                    : `MetaFlow: Applied ${result.written.length} overlay and ${piResult.written.length} Pi target files.`,
                             );
                         }
 
@@ -6537,19 +6668,34 @@ export function registerCommands(
 
             // Skip the confirmation dialog when there is nothing to clean.
             const syncedFilesCount = Object.keys(loadManagedState(ws.uri.fsPath).files).length;
+            const piPlan = planPiProjectPluginSynchronization({
+                workspaceRoot: ws.uri.fsPath,
+                enabled: false,
+            });
+            state.piTargetPlan = piPlan;
             const managedSettingsState = readManagedSettingsState(context);
             const hasManagedSettings =
                 Object.values(managedSettingsState.managedEntries ?? {}).some(
                     (entries) => Object.keys(entries).length > 0,
                 ) || (managedSettingsState.managedPluginUris?.length ?? 0) > 0;
 
-            if (syncedFilesCount === 0 && !hasManagedSettings) {
+            const hasManagedPiTarget =
+                piPlan.blocked || piPlan.changes.length > 0 || piPlan.stateAction !== 'none';
+            if (syncedFilesCount === 0 && !hasManagedSettings && !hasManagedPiTarget) {
                 vscode.window.showInformationMessage('MetaFlow: Nothing to clean.');
                 return;
             }
 
+            if (piPlan.blocked) {
+                const message = piPlan.diagnostics.map(formatPiTargetDiagnostic).join('; ');
+                showOutputChannel();
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                return;
+            }
+
             const confirm = await vscode.window.showWarningMessage(
-                'MetaFlow: Remove all synchronized files?',
+                'MetaFlow: Remove all synchronized files and managed project targets?',
                 'Remove',
                 'Cancel',
             );
@@ -6557,34 +6703,52 @@ export function registerCommands(
                 return;
             }
 
-            return await vscode.window.withProgress(
-                {
-                    location: vscode.ProgressLocation.Notification,
-                    title: 'MetaFlow: Cleaning synchronized files...',
-                },
-                async (): Promise<ApplyResult> => {
-                    const result = clean(ws.uri.fsPath);
+            try {
+                return await vscode.window.withProgress(
+                    {
+                        location: vscode.ProgressLocation.Notification,
+                        title: 'MetaFlow: Cleaning synchronized files...',
+                    },
+                    async (): Promise<ApplyResult> => {
+                        const piResult = applyPiProjectPluginSynchronization({
+                            workspaceRoot: ws.uri.fsPath,
+                            enabled: false,
+                        });
+                        state.piTargetPlan = piResult.plan;
+                        if (piResult.plan.blocked) {
+                            throw new Error(
+                                piResult.plan.diagnostics.map(formatPiTargetDiagnostic).join('; '),
+                            );
+                        }
+                        const result = clean(ws.uri.fsPath);
 
-                    await clearManagedWorkspaceSettings(ws, context);
-                    logInfo(
-                        `Clean complete: ${result.removed.length} removed, ${result.skipped.length} skipped.`,
-                    );
-                    for (const w of result.warnings) {
-                        logWarn(w);
-                    }
+                        await clearManagedWorkspaceSettings(ws, context);
+                        logInfo(
+                            `Clean complete: ${result.removed.length} removed, ${result.skipped.length} skipped; Pi ${piResult.removed.length} removed.`,
+                        );
+                        for (const w of result.warnings) {
+                            logWarn(w);
+                        }
 
-                    vscode.window.showInformationMessage(
-                        `MetaFlow: Cleaned ${result.removed.length} files.`,
-                    );
+                        vscode.window.showInformationMessage(
+                            `MetaFlow: Cleaned ${result.removed.length} files.`,
+                        );
 
-                    await vscode.commands.executeCommand('metaflow.refresh', {
-                        skipAutoApply: true,
-                        skipSettingsInjection: true,
-                    });
+                        await vscode.commands.executeCommand('metaflow.refresh', {
+                            skipAutoApply: true,
+                            skipSettingsInjection: true,
+                        });
 
-                    return result;
-                },
-            );
+                        return result;
+                    },
+                );
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : String(err);
+                showOutputChannel();
+                logError(message);
+                vscode.window.showErrorMessage(`MetaFlow: ${message}`);
+                return;
+            }
         }),
     );
 
@@ -6619,6 +6783,19 @@ export function registerCommands(
             emitInfo(`Settings Injection Target: ${managedSettingsSummary.target}`);
             emitInfo(`Settings Injection Keys: ${managedSettingsSummary.keys}`);
             emitInfo(`Injection Modes: ${formatInjectionModesSummary(state.config)}`);
+            if (state.config) {
+                const piPlan = resolvePiTargetPlanFromState(state, state.config, ws.uri.fsPath);
+                state.piTargetPlan = piPlan;
+                emitInfo(`Pi Target: ${piPlan.enabled ? 'enabled' : 'disabled'}`);
+                emitInfo(
+                    `Pi Target Pending: ${piPlan.changes.length} file change(s), state ${piPlan.stateAction}${piPlan.blocked ? ', blocked' : ''}`,
+                );
+                for (const diagnostic of piPlan.diagnostics) {
+                    emitWarn(`  ${formatPiTargetDiagnostic(diagnostic)}`);
+                }
+            } else {
+                emitInfo('Pi Target: config not loaded');
+            }
 
             if (state.governanceContractErrors.length > 0) {
                 emitWarn(
@@ -8650,6 +8827,8 @@ export function registerCommands(
                 state.activeProfile = undefined;
                 state.baseProfileFiles = [];
                 state.effectiveFiles = [];
+                state.piTargetProjection = undefined;
+                state.piTargetPlan = undefined;
                 state.capabilityByLayer = {};
                 state.repoMetadataById = {};
                 state.capabilityWarnings = [];

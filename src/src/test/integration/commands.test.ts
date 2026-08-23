@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 import { BUILT_IN_CAPABILITY_REPO_ID } from '../../builtInCapability';
+import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID } from '@metaflow/engine';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 const COMPLEX_COMMAND_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
@@ -42,6 +43,20 @@ suite('Command Execution', function () {
 
         removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'metaflow.project'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'pi-test-neighbor'));
+        for (const relativePath of [
+            '.pi/mcp.json',
+            '.metaflow/pi-target-state.json',
+            '.metaflow/pi-target.lock',
+            '.metaflow/pi-target-transaction.json',
+        ]) {
+            const artifactPath = path.join(workspaceRoot, ...relativePath.split('/'));
+            if (fs.existsSync(artifactPath)) {
+                fs.unlinkSync(artifactPath);
+            }
+        }
     }
 
     async function restoreCommandTestWorkspace(): Promise<void> {
@@ -1813,6 +1828,169 @@ suite('Command Execution', function () {
                 fs.unlinkSync(copilotSettingsPath);
             }
             removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('Pi target preview, apply, status, and clean share the active resolved capability view', async function () {
+        this.timeout(20000);
+
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo');
+        const capabilityPath = 'capabilities/pi-smoke';
+        const capabilityRoot = path.join(repoRoot, ...capabilityPath.split('/'));
+        const targetRoot = path.join(workspaceRoot, '.pi', 'plugins', 'metaflow.project');
+        const targetState = path.join(workspaceRoot, '.metaflow', 'pi-target-state.json');
+        const neighboringPlugin = path.join(
+            workspaceRoot,
+            '.pi',
+            'plugins',
+            'pi-test-neighbor',
+            'plugin.json',
+        );
+        const mcpPath = path.join(workspaceRoot, '.pi', 'mcp.json');
+        const metaflowConfig = vscode.workspace.getConfiguration(
+            'metaflow',
+            vscode.workspace.workspaceFolders?.[0]?.uri,
+        );
+        const originalAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(path.join(capabilityRoot, 'skills', 'portable'), { recursive: true });
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'plugin.json'),
+            JSON.stringify(
+                {
+                    $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                    name: 'pi.smoke',
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'skills', 'portable', 'SKILL.md'),
+            '---\nname: portable\ndescription: Portable Pi smoke skill\n---\n\n# Portable\n',
+            'utf-8',
+        );
+
+        try {
+            await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify(
+                    {
+                        compatibilityVersion: 5,
+                        metadataRepos: [
+                            {
+                                id: 'pi-test',
+                                localPath: '.tmp-pi-agent-plugin-repo',
+                                enabled: true,
+                            },
+                        ],
+                        layerSources: [{ repoId: 'pi-test', path: capabilityPath, enabled: true }],
+                        profiles: {
+                            default: {
+                                enabledCapabilities: [`pi-test:${capabilityPath}`],
+                            },
+                        },
+                        activeProfile: 'default',
+                        injection: {
+                            instructions: 'settings',
+                            prompts: 'settings',
+                            skills: 'synchronize',
+                            agents: 'settings',
+                        },
+                        targets: { pi: { enabled: true } },
+                    },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            assert.strictEqual(fs.existsSync(targetRoot), false, 'refresh should only plan');
+            await vscode.commands.executeCommand('metaflow.preview');
+            assert.strictEqual(fs.existsSync(targetRoot), false, 'preview should remain read-only');
+
+            const pendingStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(pendingStatus?.some((line) => line === 'Pi Target: enabled'));
+            assert.ok(
+                pendingStatus?.some((line) => line.includes('Pi Target Pending: 2 file change(s)')),
+            );
+
+            fs.mkdirSync(targetRoot, { recursive: true });
+            fs.writeFileSync(path.join(targetRoot, 'plugin.json'), 'user package\n', 'utf-8');
+            const blockedStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                blockedStatus?.some(
+                    (line) => line.includes('Pi Target Pending:') && line.includes('blocked'),
+                ),
+            );
+            assert.ok(blockedStatus?.some((line) => line.includes('PI_TARGET_ROOT_UNTRACKED')));
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(
+                fs.readFileSync(path.join(targetRoot, 'plugin.json'), 'utf-8'),
+                'user package\n',
+            );
+            assert.strictEqual(fs.existsSync(targetState), false);
+            removeDirectoryRecursive(targetRoot);
+
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.existsSync(path.join(targetRoot, 'plugin.json')), true);
+            const generatedSkill = path.join(targetRoot, 'skills', 'portable', 'SKILL.md');
+            assert.strictEqual(fs.existsSync(generatedSkill), true);
+            assert.strictEqual(fs.existsSync(targetState), true);
+            const generatedSkillContent = fs.readFileSync(generatedSkill, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.readFileSync(generatedSkill, 'utf-8'), generatedSkillContent);
+            const appliedStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                appliedStatus?.some((line) => line.includes('Pi Target Pending: 0 file change(s)')),
+            );
+
+            fs.writeFileSync(generatedSkill, 'user edit\n', 'utf-8');
+            const driftStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                driftStatus?.some(
+                    (line) => line.includes('Pi Target Pending:') && line.includes('blocked'),
+                ),
+            );
+            assert.ok(driftStatus?.some((line) => line.includes('PI_TARGET_DRIFT')));
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.readFileSync(generatedSkill, 'utf-8'), 'user edit\n');
+            fs.writeFileSync(generatedSkill, generatedSkillContent, 'utf-8');
+
+            fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+            fs.writeFileSync(neighboringPlugin, 'neighbor\n', 'utf-8');
+            fs.writeFileSync(mcpPath, 'user mcp\n', 'utf-8');
+            windowAny.showWarningMessage = async () => 'Remove';
+            await vscode.commands.executeCommand('metaflow.clean');
+
+            assert.strictEqual(fs.existsSync(targetRoot), false);
+            assert.strictEqual(fs.existsSync(targetState), false);
+            assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf-8'), 'neighbor\n');
+            assert.strictEqual(fs.readFileSync(mcpPath, 'utf-8'), 'user mcp\n');
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await metaflowConfig.update(
+                'autoApply',
+                originalAutoApply,
+                vscode.ConfigurationTarget.Workspace,
+            );
+            removeKnownCommandTestArtifacts();
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
