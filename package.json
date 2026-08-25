@@ -8,7 +8,7 @@
     "src"
   ],
   "scripts": {
-    "build": "npm -w @metaflow/engine run build && npm -w @metaflow/cli run build && npm -w metaflow-ai run compile",
+    "build": "npm -w @metaflow/engine run build && npm -w @metaflow/cli run build && npm -w metaflow-ai run build",
     "format": "prettier . --write --cache && npm -w metaflow-ai run lint -- --fix",
     "format:check": "prettier . --check && npm -w metaflow-ai run lint",
     "gate:quick": "npm run build && npm -w metaflow-ai run lint && npm run test",

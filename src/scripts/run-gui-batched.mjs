@@ -21,7 +21,7 @@
  * are downloaded on first run and reused thereafter.
  */
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,28 @@ const workspaceLaunchHook = path.join(here, 'extest-workspace-launch.cjs');
 const STORAGE = '.vscode-test/gui';
 const EXTENSIONS = '.vscode-test/gui/extensions';
 const VSIX = 'metaflow-test.vsix';
+
+const preservedWorkspaceFiles = [
+    path.join(testWorkspace, '.metaflow', 'config.jsonc'),
+    path.join(testWorkspace, '.ai', 'ai-metadata', 'standards', 'sdlc', 'plugin.json'),
+    path.join(testWorkspace, '.vscode', 'settings.json'),
+].map((filePath) => ({
+    filePath,
+    existed: existsSync(filePath),
+    contents: existsSync(filePath) ? readFileSync(filePath) : undefined,
+}));
+
+function restorePreservedWorkspaceFiles() {
+    for (const snapshot of preservedWorkspaceFiles) {
+        if (snapshot.existed) {
+            writeFileSync(snapshot.filePath, snapshot.contents);
+        } else {
+            rmSync(snapshot.filePath, { force: true });
+        }
+    }
+}
+
+process.once('exit', restorePreservedWorkspaceFiles);
 
 const batchSize = Math.max(1, Number(process.env.GUI_BATCH_SIZE ?? '1'));
 const codeVersion = process.env.GUI_VSCODE_VERSION ?? '1.110.0';
@@ -150,6 +172,7 @@ for (const [idx, batch] of batches.entries()) {
     );
     const pass = Number(out.match(/(\d+) passing/)?.[1] ?? '0');
     const fail = Number(out.match(/(\d+) failing/)?.[1] ?? '0');
+    restorePreservedWorkspaceFiles();
     totalPass += pass;
     totalFail += fail;
     if (fail > 0 || status !== 0 || timedOut) {

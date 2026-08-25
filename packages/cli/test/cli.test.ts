@@ -247,14 +247,14 @@ describe('CLI: preview', () => {
 
         const previewResult = await runCli(['preview', '-w', ws.root]);
         assert.strictEqual(previewResult.exitCode, 0);
-        assert.ok(previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')));
+        assert.ok(
+            previewResult.stdout.includes(originalSynchronizedPath('skills/testing/SKILL.md')),
+        );
         assert.ok(!previewResult.stdout.includes(synchronizedPath('skills/testing/SKILL.md')));
 
         const applyResult = await runCli(['apply', '-w', ws.root]);
         assert.strictEqual(applyResult.exitCode, 0);
-        assert.ok(
-            fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')),
-        );
+        assert.ok(fs.existsSync(path.join(ws.root, '.github', 'skills', 'testing', 'SKILL.md')));
 
         const validateResult = await runCli(['validate', '-w', ws.root]);
         assert.strictEqual(validateResult.exitCode, 0);
@@ -744,6 +744,9 @@ describe('CLI: --json output', () => {
         assert.strictEqual(data.injection.modes.instructions, 'settings');
         assert.ok(Array.isArray(data.injection.settingsEntries));
         assert.ok(Array.isArray(data.sources));
+        assert.strictEqual(data.synchronization.repoWideCopilotInstructions, false);
+        assert.strictEqual(data.synchronization.migrationRequired, true);
+        assert.ok(Array.isArray(data.synchronization.retained));
         assert.ok(typeof data.files.total === 'number');
         assert.ok(typeof data.files.settings === 'number');
         assert.ok(typeof data.files.synchronized === 'number');
@@ -915,7 +918,10 @@ describe('CLI: validate', () => {
 
     it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
         ws = createTestWorkspace({
-            config: standardConfig(),
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
             layers: {
                 'company/core': [
                     {
@@ -1439,12 +1445,14 @@ describe('CLI: coverage - status edge cases', () => {
     it('should display repo URL and commit when provided', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                metadataRepos: [{
-                    id: 'primary',
-                    localPath: '.ai/ai-metadata',
-                    url: 'https://github.com/org/metadata.git',
-                    commit: 'abc1234',
-                }],
+                metadataRepos: [
+                    {
+                        id: 'primary',
+                        localPath: '.ai/ai-metadata',
+                        url: 'https://github.com/org/metadata.git',
+                        commit: 'abc1234',
+                    },
+                ],
             }),
             layers: STANDARD_LAYERS,
         });
@@ -2017,7 +2025,10 @@ describe('CLI: promote --auto', () => {
 
     it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
         ws = createTestWorkspace({
-            config: standardConfig(),
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
             layers: {
                 'company/core': [
                     {

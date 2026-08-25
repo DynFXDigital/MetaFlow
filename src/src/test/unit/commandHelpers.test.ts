@@ -476,12 +476,13 @@ suite('Command Helpers', () => {
         }
     });
 
-    test('normalizes ai metadata auto-apply mode settings', () => {
-        assert.strictEqual(normalizeAiMetadataAutoApplyMode('off'), 'off');
-        assert.strictEqual(normalizeAiMetadataAutoApplyMode('synchronize'), 'synchronize');
-        assert.strictEqual(normalizeAiMetadataAutoApplyMode('builtinLayer'), 'builtinLayer');
-        assert.strictEqual(normalizeAiMetadataAutoApplyMode('invalid'), 'off');
-        assert.strictEqual(normalizeAiMetadataAutoApplyMode(undefined), 'off');
+    test('normalizes the built-in capability setting as a boolean', () => {
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode(true), true);
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode(false), false);
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode('synchronize'), false);
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode('builtinLayer'), false);
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode('invalid'), false);
+        assert.strictEqual(normalizeAiMetadataAutoApplyMode(undefined), false);
     });
 
     test('normalizes and deduplicates layer paths', () => {

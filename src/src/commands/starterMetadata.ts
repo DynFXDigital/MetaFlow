@@ -284,6 +284,12 @@ function resolveDestinationRelativePath(
         return sourceRelativePath;
     }
 
+    // The canonical root Copilot instructions file is engine-owned so it can
+    // participate in policy, provenance, drift, retention, and managed state.
+    if (sourceRelativePath.toLowerCase() === '.github/copilot-instructions.md') {
+        return undefined;
+    }
+
     if (/^capabilities\//i.test(sourceRelativePath)) {
         return undefined;
     }

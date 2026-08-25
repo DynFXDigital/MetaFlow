@@ -6,6 +6,8 @@
  */
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as path from 'path';
 import { SideBarView, Workbench } from 'vscode-extension-tester';
 import {
     STARTUP_TIMEOUT,
@@ -16,15 +18,36 @@ import {
     getSection,
     waitForSectionReady,
     dismissActiveInput,
+    dismissAllNotifications,
+    restoreGoldenConfig,
 } from './helpers/metaflowGuiHelpers';
+
+const WORKSPACE_ROOT = path.resolve(__dirname, '../../../test-workspace');
+const CONFIG_PATH = path.join(WORKSPACE_ROOT, '.metaflow', 'config.jsonc');
+const WORKSPACE_SETTINGS_PATH = path.join(WORKSPACE_ROOT, '.vscode', 'settings.json');
+const SDLC_PLUGIN_PATH = path.join(
+    WORKSPACE_ROOT,
+    '.ai',
+    'ai-metadata',
+    'standards',
+    'sdlc',
+    'plugin.json',
+);
 
 suite('Built-in AI Metadata Management', function () {
     this.timeout(STARTUP_TIMEOUT);
 
     let sideBar: SideBarView;
+    let originalWorkspaceSettings: string | undefined;
+    let originalSdlcPlugin: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
+        restoreGoldenConfig(CONFIG_PATH);
+        originalWorkspaceSettings = fs.existsSync(WORKSPACE_SETTINGS_PATH)
+            ? fs.readFileSync(WORKSPACE_SETTINGS_PATH, 'utf-8')
+            : undefined;
+        originalSdlcPlugin = fs.readFileSync(SDLC_PLUGIN_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'AI Metadata');
         await waitForSectionReady(section, WAIT_TIMEOUT);
@@ -32,6 +55,33 @@ suite('Built-in AI Metadata Management', function () {
 
     afterEach(async () => {
         await dismissActiveInput();
+    });
+
+    after(async function () {
+        this.timeout(STARTUP_TIMEOUT);
+
+        // The initialization command deliberately persists the built-in capability
+        // setting, and manifest maintenance rewrites the test plugin. Restore both
+        // before the next one-host-per-suite batch starts so Effective Files is not
+        // flooded with built-in artifacts and the tracked fixture remains pristine.
+        fs.writeFileSync(SDLC_PLUGIN_PATH, originalSdlcPlugin, 'utf-8');
+        restoreGoldenConfig(CONFIG_PATH);
+        if (originalWorkspaceSettings === undefined) {
+            fs.rmSync(WORKSPACE_SETTINGS_PATH, { force: true });
+        } else {
+            fs.writeFileSync(WORKSPACE_SETTINGS_PATH, originalWorkspaceSettings, 'utf-8');
+        }
+
+        await sleep(1_000);
+        const workbench = new Workbench();
+        await workbench.executeCommand('MetaFlow: Refresh');
+        await sleep(3_000);
+        await dismissAllNotifications(workbench);
+
+        // Refresh removes the persisted built-in capability state. Reassert the
+        // immutable fixture bytes after any cleanup writes it triggered.
+        fs.writeFileSync(SDLC_PLUGIN_PATH, originalSdlcPlugin, 'utf-8');
+        restoreGoldenConfig(CONFIG_PATH);
     });
 
     test('MetaFlow: Initialize MetaFlow Capability command executes without prompting', async function () {

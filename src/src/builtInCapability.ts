@@ -101,9 +101,7 @@ export function resolveBuiltInLayerEnabled(
     // The root MetaFlow capability is its own switch. Nested capabilities are
     // enabled by default and only change when they have an explicit override;
     // they must not inherit the root capability's disabled state.
-    return normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH
-        ? state.layerEnabled
-        : true;
+    return normalizedLayerPath === BUILT_IN_CAPABILITY_LAYER_PATH ? state.layerEnabled : true;
 }
 
 export function resolveBuiltInRepoEnabled(
@@ -230,6 +228,9 @@ export function sanitizeSynchronizedFiles(values: string[] | undefined): string[
         if (!normalized || !normalized.startsWith('.github/')) {
             continue;
         }
+        if (normalized.toLowerCase() === '.github/copilot-instructions.md') {
+            continue;
+        }
         unique.add(normalized);
     }
 
@@ -267,9 +268,7 @@ function isBuiltInInjectionMode(value: unknown): value is InjectionMode {
     return value === 'settings' || value === 'synchronize' || value === 'plugin';
 }
 
-export function sanitizeBuiltInInjectionConfig(
-    injection: unknown,
-): InjectionConfig | undefined {
+export function sanitizeBuiltInInjectionConfig(injection: unknown): InjectionConfig | undefined {
     if (!injection || typeof injection !== 'object' || Array.isArray(injection)) {
         return undefined;
     }

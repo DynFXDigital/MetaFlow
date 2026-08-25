@@ -63,6 +63,8 @@ export function registerPreviewCommand(program: Command): void {
                     undefined,
                     config.fileNamingStrategy,
                     config.layerSources,
+                    !loaded.migrationRequired &&
+                        config.synchronization?.repoWideCopilotInstructions === true,
                 );
                 const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
                 const warnings = formatSurfacedConflictWarnings(conflicts);
@@ -93,6 +95,8 @@ export function registerPreviewCommand(program: Command): void {
                             action: c.action,
                             reason: c.reason ?? null,
                         })),
+                        retained:
+                            (changes as typeof changes & { retained?: unknown }).retained ?? [],
                         settingsEntries,
                         sources: sourceSummary,
                         surfacedFileConflicts: conflicts,
@@ -134,6 +138,20 @@ export function registerPreviewCommand(program: Command): void {
                     for (const c of changes) {
                         const suffix = c.reason ? ` (${c.reason})` : '';
                         console.log(`  ${c.action} ${c.relativePath}${suffix}`);
+                    }
+                }
+                const retained =
+                    (
+                        changes as typeof changes & {
+                            retained?: Array<{ relativePath: string; status: string }>;
+                        }
+                    ).retained ?? [];
+                if (retained.length > 0) {
+                    console.log(
+                        `\nRetained while root synchronization is disabled (${retained.length}):`,
+                    );
+                    for (const file of retained) {
+                        console.log(`  ${file.relativePath} (${file.status})`);
                     }
                 }
 

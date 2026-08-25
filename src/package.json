@@ -871,6 +871,13 @@
           "order": 2,
           "description": "Automatically apply overlay when configuration changes"
         },
+        "metaflow.synchronization.repoWideCopilotInstructions": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "order": 3,
+          "description": "Allow MetaFlow to synchronize the repository-wide .github/copilot-instructions.md file."
+        },
         "metaflow.guiTestMode": {
           "type": "boolean",
           "default": false,
@@ -886,15 +893,10 @@
           "description": "Automatically persist refresh-driven config and built-in capability selection updates without confirmation prompts; can also be enabled from the refresh prompt itself"
         },
         "metaflow.aiMetadataAutoApplyMode": {
-          "type": "string",
-          "default": "off",
+          "type": "boolean",
+          "default": false,
           "order": 9,
-          "enum": [
-            "off",
-            "synchronize",
-            "builtinLayer"
-          ],
-          "description": "Controls built-in AI metadata setup during refresh: `off` disables it, `synchronize` writes capability files into .github, and `builtinLayer` enables the built-in capability projection."
+          "description": "Enable the built-in MetaFlow AI metadata capability through the MetaFlow extension. Unchecking removes the built-in capability and MetaFlow-managed synchronized files."
         },
         "metaflow.logLevel": {
           "type": "string",
@@ -910,11 +912,13 @@
         },
         "metaflow.injection.modes": {
           "type": "object",
+          "scope": "resource",
           "order": 4,
           "title": "Injection Modes",
           "default": {
             "instructions": "plugin",
             "prompts": "settings",
+            "commands": "plugin",
             "skills": "plugin",
             "agents": "plugin",
             "hooks": "plugin"
@@ -940,6 +944,15 @@
               ],
               "default": "settings",
               "description": "Injection mode for prompts artifacts"
+            },
+            "commands": {
+              "type": "string",
+              "enum": [
+                "synchronize",
+                "plugin"
+              ],
+              "default": "plugin",
+              "description": "Injection mode for commands artifacts"
             },
             "skills": {
               "type": "string",
@@ -975,6 +988,7 @@
         },
         "metaflow.injection.target": {
           "type": "string",
+          "scope": "resource",
           "order": 5,
           "enum": [
             "user",
@@ -997,9 +1011,9 @@
         },
         "metaflow.pluginMetadata.autoMaintain": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "order": 10,
-          "description": "Automatically maintain capability plugin metadata after configured metadata repository files change"
+          "description": "Automatically maintain capability plugin metadata after configured metadata repository files change. When disabled, use the manual maintenance action on an AI Metadata repository."
         },
         "metaflow.pluginMetadata.autoMaintainDelayMs": {
           "type": "number",
@@ -1045,6 +1059,7 @@
     "vscode:prepublish": "npm run bundle",
     "precompile": "npm -C ../packages/engine run build",
     "compile": "tsc -p ./",
+    "build": "npm run compile && node esbuild.js",
     "watch": "tsc -watch -p ./",
     "bundle": "npm run precompile && node esbuild.js --production",
     "bundle:dev": "npm run precompile && node esbuild.js",

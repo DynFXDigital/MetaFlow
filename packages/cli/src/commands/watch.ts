@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
-import { apply, discoverConfigPath, loadConfig, normalizeInputPath } from '@metaflow/engine';
+import {
+    apply,
+    discoverConfigPath,
+    loadConfig,
+    normalizeInputPath,
+    withRootSynchronizationAuthorization,
+} from '@metaflow/engine';
 import { getWorkspaceRoot, resolveEffectiveFiles } from './common';
 
 /**
@@ -57,15 +63,25 @@ export function startWatch(
                 return;
             }
 
-            const files = resolveEffectiveFiles(configResult.config, workspaceRoot);
-            const applyResult = apply({
-                workspaceRoot,
-                effectiveFiles: files,
-                activeProfile: configResult.config.activeProfile,
-                fileNamingStrategy: configResult.config.fileNamingStrategy,
-                layerSources: configResult.config.layerSources,
-                force,
-            });
+            const applyResult = withRootSynchronizationAuthorization(
+                configResult.configPath!,
+                (authorization, attested) => {
+                    const files = resolveEffectiveFiles(attested.config, workspaceRoot);
+                    return apply({
+                        workspaceRoot,
+                        effectiveFiles: files,
+                        activeProfile: attested.config.activeProfile,
+                        fileNamingStrategy: attested.config.fileNamingStrategy,
+                        layerSources: attested.config.layerSources,
+                        synchronizationPolicy:
+                            !configResult.migrationRequired &&
+                            attested.config.synchronization?.repoWideCopilotInstructions === true,
+                        rootSynchronizationAuthorization: authorization,
+                        rootSynchronizationConfigPath: configResult.configPath,
+                        force,
+                    });
+                },
+            );
 
             result.written = applyResult.written.length;
             result.removed = applyResult.removed.length;
@@ -182,15 +198,26 @@ export function registerWatchCommand(program: Command): void {
 
             // Do an initial apply
             try {
-                const files = resolveEffectiveFiles(configResult.config, workspaceRoot);
-                const initial = apply({
-                    workspaceRoot,
-                    effectiveFiles: files,
-                    activeProfile: configResult.config.activeProfile,
-                    fileNamingStrategy: configResult.config.fileNamingStrategy,
-                    layerSources: configResult.config.layerSources,
-                    force: options.force ?? false,
-                });
+                const initial = withRootSynchronizationAuthorization(
+                    configResult.configPath!,
+                    (authorization, attested) => {
+                        const files = resolveEffectiveFiles(attested.config, workspaceRoot);
+                        return apply({
+                            workspaceRoot,
+                            effectiveFiles: files,
+                            activeProfile: attested.config.activeProfile,
+                            fileNamingStrategy: attested.config.fileNamingStrategy,
+                            layerSources: attested.config.layerSources,
+                            synchronizationPolicy:
+                                !configResult.migrationRequired &&
+                                attested.config.synchronization?.repoWideCopilotInstructions ===
+                                    true,
+                            rootSynchronizationAuthorization: authorization,
+                            rootSynchronizationConfigPath: configResult.configPath,
+                            force: options.force ?? false,
+                        });
+                    },
+                );
                 console.log(
                     `Initial apply: ${initial.written.length} written, ${initial.removed.length} removed, ${initial.skipped.length} skipped.`,
                 );

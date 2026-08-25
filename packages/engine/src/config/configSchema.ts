@@ -135,6 +135,12 @@ export interface HooksConfig {
     postApply?: string;
 }
 
+/** Workspace-wide synchronization policy for canonical root outputs. */
+export interface SynchronizationConfig {
+    /** Explicit consent to write `.github/copilot-instructions.md`. */
+    repoWideCopilotInstructions?: boolean;
+}
+
 // ── Top-level config ───────────────────────────────────────────────
 
 /**
@@ -181,6 +187,8 @@ export interface MetaFlowConfig {
     settingsInjectionTarget?: SettingsInjectionTarget;
     /** Hook file paths. */
     hooks?: HooksConfig;
+    /** Workspace-wide synchronization policy. */
+    synchronization?: SynchronizationConfig;
 }
 
 // ── Validation result ──────────────────────────────────────────────
@@ -207,5 +215,7 @@ export type ConfigLoadResult =
           warnings?: ConfigError[];
           migrated?: boolean;
           migrationMessages?: string[];
+          /** True when the raw authored document is not persisted at v4. */
+          migrationRequired?: boolean;
       }
     | { ok: false; errors: ConfigError[]; warnings?: ConfigError[]; configPath?: string };

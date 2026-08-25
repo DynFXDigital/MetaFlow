@@ -33,11 +33,7 @@ function pathImplementationFor(...values: string[]): typeof path.win32 {
     return usesWindowsPathSyntax ? path.win32 : path.posix;
 }
 
-function pathsEqual(
-    pathImplementation: typeof path.win32,
-    left: string,
-    right: string,
-): boolean {
+function pathsEqual(pathImplementation: typeof path.win32, left: string, right: string): boolean {
     const normalizedLeft = pathImplementation.normalize(left);
     const normalizedRight = pathImplementation.normalize(right);
     if (pathImplementation === path.win32) {
@@ -73,6 +69,7 @@ export function buildConfig(
     const enabledCapabilities: string[] = [];
     return {
         compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
+        synchronization: { repoWideCopilotInstructions: false },
         metadataRepos: [
             {
                 id: 'primary',

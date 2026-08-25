@@ -8,6 +8,7 @@ import {
     ProfileConfig,
     ProfileLayerOverride,
     RepoDiscoveryConfig,
+    SynchronizationConfig,
     SyncFileNamingStrategy,
 } from './configSchema';
 import { normalizeInputPath } from './configPathUtils';
@@ -19,7 +20,7 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
-export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 3;
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 4;
 const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
 
 function cloneJson<T>(value: T): T {
@@ -124,6 +125,20 @@ function orderHooksConfig(config: HooksConfig | undefined): HooksConfig | undefi
     return {
         ...(config.preApply !== undefined ? { preApply: config.preApply } : {}),
         ...(config.postApply !== undefined ? { postApply: config.postApply } : {}),
+    };
+}
+
+function orderSynchronizationConfig(
+    config: SynchronizationConfig | undefined,
+): SynchronizationConfig | undefined {
+    if (config === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(config.repoWideCopilotInstructions !== undefined
+            ? { repoWideCopilotInstructions: config.repoWideCopilotInstructions }
+            : {}),
     };
 }
 
@@ -556,6 +571,9 @@ function buildRestOfConfig(
             ? { settingsInjectionTarget: config.settingsInjectionTarget }
             : {}),
         ...(config.hooks !== undefined ? { hooks: orderHooksConfig(config.hooks) } : {}),
+        synchronization: orderSynchronizationConfig(
+            config.synchronization ?? { repoWideCopilotInstructions: false },
+        ),
     };
 }
 

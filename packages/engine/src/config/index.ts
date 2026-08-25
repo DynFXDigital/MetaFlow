@@ -1,5 +1,10 @@
 export { loadConfig, loadConfigFromPath, parseAndValidate, validateConfig } from './configLoader';
 export {
+    persistCompatibilityV4Config,
+    withRootSynchronizationAuthorization,
+    isRootSynchronizationAuthorizationActive,
+} from './configMigration';
+export {
     loadGovernanceContract,
     loadGovernanceContractFromPath,
     parseAndValidateGovernanceContract,
@@ -31,9 +36,11 @@ export type {
     SyncFileNamingStrategy,
     SettingsInjectionTarget,
     HooksConfig,
+    SynchronizationConfig,
     ConfigError,
     ConfigLoadResult,
 } from './configSchema';
+export type { RootSynchronizationAuthorization } from './configMigration';
 export type {
     GovernanceCapabilityRef,
     GovernanceContract,

@@ -36,17 +36,23 @@ import {
 } from './helpers/metaflowGuiHelpers';
 
 const CONFIG_PATH = path.resolve(__dirname, '../../../test-workspace/.metaflow/config.jsonc');
+const SDLC_PLUGIN_PATH = path.resolve(
+    __dirname,
+    '../../../test-workspace/.ai/ai-metadata/standards/sdlc/plugin.json',
+);
 
 suite('Capability Interaction (Details, Authoring, Inline Actions)', function () {
     this.timeout(STARTUP_TIMEOUT);
 
     let sideBar: SideBarView;
     let originalConfig: string;
+    let originalSdlcPlugin: string;
 
     before(async function () {
         this.timeout(STARTUP_TIMEOUT);
         restoreGoldenConfig(CONFIG_PATH);
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
+        originalSdlcPlugin = fs.readFileSync(SDLC_PLUGIN_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
         await waitForSectionReady(section, WAIT_TIMEOUT);
@@ -56,6 +62,7 @@ suite('Capability Interaction (Details, Authoring, Inline Actions)', function ()
         await dismissActiveInput();
         await dismissAllNotifications(new Workbench());
         fs.writeFileSync(CONFIG_PATH, originalConfig, 'utf-8');
+        fs.writeFileSync(SDLC_PLUGIN_PATH, originalSdlcPlugin, 'utf-8');
         await sleep(1_000);
     });
 

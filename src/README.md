@@ -110,7 +110,7 @@ The built-in MetaFlow capability also uses VS Code extension contribution points
 
 `MetaFlow: Initialize Configuration` seeds `compatibilityVersion` to the current released config contract, seeds `primary` as enabled, and leaves discovered capabilities disabled so capability activation is opt-in.
 
-After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability and refreshes once so bundled native guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo and layer checkboxes to control native contribution visibility. Choose `metaflow.aiMetadataAutoApplyMode=synchronize` only when you explicitly want workspace `.github` files for compatibility with hosts that do not consume extension contributions.
+After initialization succeeds, MetaFlow automatically enables the built-in MetaFlow capability and refreshes once so bundled native guidance is active immediately. `MetaFlow: Initialize MetaFlow Capability` does the same thing later without asking for a delivery mode. Use the built-in repo and layer checkboxes to control native contribution visibility. The `metaflow.aiMetadataAutoApplyMode` setting is a boolean convenience checkbox for enabling or removing the extension-owned built-in capability; it does not synchronize the bundled metadata into workspace `.github` files.
 
 `MetaFlow: Add Repository Source` also recognizes local metadata authoring workflows:
 
@@ -201,7 +201,7 @@ description: Shared repository-level metadata for this workspace.
 | `metaflow.enabled`                  | `true`  | Enable/disable the extension                                                                                                                                                 |
 | `metaflow.autoApply`                | `true`  | Auto-apply on config change (recommended)                                                                                                                                    |
 | `metaflow.autoAcceptRefreshUpdates` | `false` | Skip refresh-time confirmation prompts and persist discovered config or built-in capability repair updates automatically; can also be enabled from the refresh prompt itself |
-| `metaflow.aiMetadataAutoApplyMode`  | `off`   | Force built-in AI metadata bootstrap mode on refresh: `off`, `synchronize` to synchronize capability files into `.github`, or `builtinLayer`                                 |
+| `metaflow.aiMetadataAutoApplyMode`  | `false` | Enable the built-in MetaFlow AI metadata capability through extension contributions; unchecking removes the built-in capability and MetaFlow-managed synchronized files                        |
 | `metaflow.logLevel`                 | `info`  | Log verbosity (debug/info/warn/error)                                                                                                                                        |
 | `metaflow.repoUpdateCheckInterval`  | `daily` | Background cadence for checking git-backed metadata repos for upstream updates (`hourly`, `daily`, `weekly`, `monthly`)                                                      |
 

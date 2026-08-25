@@ -37,6 +37,7 @@ type ExtensionPackageJson = {
                 {
                     default?: unknown;
                     enum?: string[];
+                    scope?: string;
                     type?: string;
                     description?: string;
                 }
@@ -48,6 +49,29 @@ type ExtensionPackageJson = {
 const EXTENSION_ROOT = path.resolve(__dirname, '../../..');
 
 suite('Extension Packaging Regression Guards', () => {
+    test('workspace build refreshes the runtime bundle declared by the extension manifest', () => {
+        const extensionPackageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const extensionPackageJson = JSON.parse(
+            fs.readFileSync(extensionPackageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+        const workspacePackageJsonPath = path.join(EXTENSION_ROOT, '..', 'package.json');
+        const workspacePackageJson = JSON.parse(
+            fs.readFileSync(workspacePackageJsonPath, 'utf-8'),
+        ) as { scripts?: Record<string, string> };
+
+        assert.strictEqual(extensionPackageJson.main, './dist/extension.js');
+        assert.match(
+            extensionPackageJson.scripts?.build ?? '',
+            /node esbuild\.js/,
+            'Extension build must regenerate the bundled JavaScript entrypoint that VS Code runs',
+        );
+        assert.match(
+            workspacePackageJson.scripts?.build ?? '',
+            /npm -w metaflow-ai run build/,
+            'Workspace build must invoke the extension build rather than compile-only output',
+        );
+    });
+
     test('multi-client VSIX install tasks pass a single comma-separated CLI list', () => {
         const tasksJsonPath = path.join(EXTENSION_ROOT, '..', '.vscode', 'tasks.json');
         const tasksJson = JSON.parse(fs.readFileSync(tasksJsonPath, 'utf-8')) as {
@@ -304,7 +328,48 @@ suite('Extension Packaging Regression Guards', () => {
         );
     });
 
-    test('injection settings expose plugin mode for hooks', () => {
+    test('repository-wide Copilot synchronization setting keeps its concise description', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const setting =
+            packageJson.contributes?.configuration?.properties?.[
+                'metaflow.synchronization.repoWideCopilotInstructions'
+            ];
+        assert.ok(
+            setting,
+            'Expected the repository-wide Copilot synchronization setting to be contributed',
+        );
+        assert.strictEqual(setting?.type, 'boolean');
+        assert.strictEqual(setting?.default, false);
+        assert.strictEqual(setting?.scope, 'resource');
+        assert.strictEqual(
+            setting?.description,
+            'Allow MetaFlow to synchronize the repository-wide .github/copilot-instructions.md file.',
+        );
+    });
+
+    test('built-in capability setting is a boolean extension-owned toggle', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const setting =
+            packageJson.contributes?.configuration?.properties?.[
+                'metaflow.aiMetadataAutoApplyMode'
+            ];
+        assert.ok(setting, 'Expected built-in capability setting to be contributed');
+        assert.strictEqual(setting?.type, 'boolean');
+        assert.strictEqual(setting?.default, false);
+        assert.ok(!setting?.enum, 'Built-in capability setting should not expose delivery modes');
+        assert.match(setting?.description ?? '', /extension/i);
+        assert.match(setting?.description ?? '', /removes/i);
+    });
+
+    test('injection settings expose plugin mode for commands and hooks', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
             fs.readFileSync(packageJsonPath, 'utf-8'),
@@ -312,6 +377,15 @@ suite('Extension Packaging Regression Guards', () => {
 
         const injectionModes =
             packageJson.contributes?.configuration?.properties?.['metaflow.injection.modes'];
+        assert.strictEqual(injectionModes?.scope, 'resource');
+        assert.deepStrictEqual(injectionModes?.default, {
+            instructions: 'plugin',
+            prompts: 'settings',
+            commands: 'plugin',
+            skills: 'plugin',
+            agents: 'plugin',
+            hooks: 'plugin',
+        });
         const hooks = (
             injectionModes as
                 | {
@@ -322,6 +396,20 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(hooks, 'Expected hooks injection mode setting to be contributed');
         assert.deepStrictEqual(hooks?.enum, ['settings', 'synchronize', 'plugin']);
         assert.strictEqual(hooks?.default, 'plugin');
+        const commands = (
+            injectionModes as
+                | {
+                      properties?: Record<string, { enum?: string[]; default?: unknown }>;
+                  }
+                | undefined
+        )?.properties?.commands;
+        assert.ok(commands, 'Expected commands injection mode setting to be contributed');
+        assert.deepStrictEqual(commands?.enum, ['synchronize', 'plugin']);
+        assert.strictEqual(commands?.default, 'plugin');
+
+        const injectionTarget =
+            packageJson.contributes?.configuration?.properties?.['metaflow.injection.target'];
+        assert.strictEqual(injectionTarget?.scope, 'resource');
     });
 
     test('repo update commands are contributed for the command palette', () => {
@@ -447,6 +535,32 @@ suite('Extension Packaging Regression Guards', () => {
                     entry.when === 'view == metaflow-layers && viewItem == layerRepo',
             ),
             'Expected Maintain All Capability Plugin Metadata to stay off the Capabilities repo inline menu',
+        );
+    });
+
+    test('capability plugin metadata auto-maintenance defaults to opt-in', () => {
+        const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
+        const packageJson = JSON.parse(
+            fs.readFileSync(packageJsonPath, 'utf-8'),
+        ) as ExtensionPackageJson;
+
+        const autoMaintain =
+            packageJson.contributes?.configuration?.properties?.[
+                'metaflow.pluginMetadata.autoMaintain'
+            ];
+        assert.ok(autoMaintain, 'Expected plugin metadata auto-maintenance setting');
+        assert.strictEqual(autoMaintain?.type, 'boolean');
+        assert.strictEqual(autoMaintain?.default, false);
+
+        const contextMenuEntries = packageJson.contributes?.menus?.['view/item/context'] ?? [];
+        assert.ok(
+            contextMenuEntries.some(
+                (entry) =>
+                    entry.command === 'metaflow.maintainAllCapabilityPluginMetadata' &&
+                    entry.when ===
+                        'view == metaflow-config && (viewItem == configRepoSourceRescannable || viewItem == configRepoSourceLocalGit || viewItem == configRepoSourceGit || viewItem == configRepoSourceGitBehind || viewItem == configRepoSourceGitAhead)',
+            ),
+            'Expected manual repository maintenance to remain available',
         );
     });
 

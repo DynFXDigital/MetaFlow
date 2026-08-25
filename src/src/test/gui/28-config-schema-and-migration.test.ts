@@ -126,7 +126,9 @@ suite('Config Schema and Migration', function () {
         originalConfig = fs.readFileSync(CONFIG_PATH, 'utf-8');
         sideBar = await openMetaFlowSidebar();
         const section = await getSection(sideBar, 'Capabilities');
-        await waitForSectionReady(section, WAIT_TIMEOUT);
+        // A fresh host late in a full batched run can need more than the normal
+        // interaction timeout to finish extension activation and migration.
+        await waitForSectionReady(section, STARTUP_TIMEOUT);
     });
 
     afterEach(async function () {

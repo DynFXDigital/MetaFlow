@@ -46,7 +46,9 @@ import {
     classifyFiles,
     EffectiveFile,
     apply,
+    withRootSynchronizationAuthorization,
     clean,
+    disposeManagedFile,
     preview,
     computePluginRootPaths,
     computeSettingsEntries,
@@ -110,7 +112,7 @@ import {
     writeManagedViewsState,
     type RefreshCommandOptions,
 } from './commandHelpers';
-import { ensureMetaFlowAiMetadataCache, scaffoldMetaFlowAiMetadata } from './starterMetadata';
+import { ensureMetaFlowAiMetadataCache } from './starterMetadata';
 import {
     checkRepoSyncStatus,
     pullRepositoryFastForward,
@@ -129,7 +131,6 @@ import {
     BuiltInCapabilityWorkspaceState,
     isBuiltInCapabilityActive,
     isBuiltInCapabilityEnabled,
-    getObsoleteSynchronizedFiles,
     normalizeBuiltInLayerPath,
     removeBuiltInCapabilityFromConfig,
     readBuiltInCapabilityRuntimeState,
@@ -143,6 +144,7 @@ import {
 import { CapabilityDetailsPanelManager } from '../views/capabilityDetailsPanel';
 import {
     computeLegacySettingsEntriesFromEffectiveFiles,
+    isSettingsInjectionTarget,
     mergeSettingsValue,
     pruneBundledMetaFlowSettingsEntries,
     removeSettingsEntries,
@@ -221,6 +223,8 @@ const INJECTION_OVERRIDE_SETTING_KEY = 'metaflow.injection.modes';
 const SETTINGS_INJECTION_STATE_KEY = 'metaflow.settingsInjection.v1';
 const AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY = 'aiMetadataAutoApplyMode';
 const AUTO_ACCEPT_REFRESH_UPDATES_SETTING_KEY = 'autoAcceptRefreshUpdates';
+export const REPO_WIDE_COPILOT_INSTRUCTIONS_SETTING_KEY =
+    'synchronization.repoWideCopilotInstructions';
 const AUTO_ACCEPT_REFRESH_UPDATES_ACTION = 'Always Update Automatically';
 const COPILOT_PLUGIN_SETTINGS_RELATIVE_PATH = path.join(
     '.github',
@@ -382,6 +386,21 @@ function getWorkspace(): vscode.WorkspaceFolder | undefined {
     return pickWorkspaceFolder(folders, activeFolder, (folder) =>
         fs.existsSync(path.join(folder.uri.fsPath, '.metaflow', 'config.jsonc')),
     );
+}
+
+export function getWorkspaceForExtensionState(
+    state: ExtensionState,
+): vscode.WorkspaceFolder | undefined {
+    if (state.configPath) {
+        const configWorkspace = vscode.workspace.getWorkspaceFolder(
+            vscode.Uri.file(state.configPath),
+        );
+        if (configWorkspace) {
+            return configWorkspace;
+        }
+    }
+
+    return getWorkspace();
 }
 
 function getManagedViewWorkspace(): vscode.WorkspaceFolder | undefined {
@@ -705,12 +724,20 @@ async function updateManagedCopilotPluginSettings(
 export interface ExtensionState {
     config?: MetaFlowConfig;
     configPath?: string;
+    /** Raw config is not yet persisted at compatibility v4. */
+    migrationRequired: boolean;
     /** True while a refresh is actively resolving configuration for the workspace. */
     isLoading: boolean;
     /** True while an apply operation is actively writing overlay outputs. */
     isApplying: boolean;
     /** Internal config writes temporarily suppress watcher-triggered refreshes. */
     suppressConfigWatcherUntil: number;
+    /** Settings sections changed by the user and awaiting refresh reconciliation. */
+    pendingSettingsChanges?: {
+        repoWideCopilotInstructions?: boolean;
+        injectionModes?: boolean;
+        injectionTarget?: boolean;
+    };
     /** Effective overlay output before applying the active profile filter. */
     baseProfileFiles: EffectiveFile[];
     effectiveFiles: EffectiveFile[];
@@ -756,6 +783,7 @@ export interface ExtensionState {
  */
 export function createState(): ExtensionState {
     return {
+        migrationRequired: false,
         isLoading: true,
         isApplying: false,
         suppressConfigWatcherUntil: 0,
@@ -2978,103 +3006,20 @@ function buildMetaFlowCleanupMessage(cleanup: MetaFlowKnownFileCleanupResult): s
     return `MetaFlow: All repository sources removed. Deleted known MetaFlow files, but kept .metaflow because it still contains: ${remainingSummary}.`;
 }
 
-async function syncTrackedSynchronizedBuiltInCapabilityFiles(
-    context: vscode.ExtensionContext,
-    workspaceRoot: string,
-    currentState: BuiltInCapabilityRuntimeState,
-): Promise<BuiltInCapabilityRuntimeState> {
-    if (!currentState.sourceRoot || currentState.synchronizedFiles.length === 0) {
-        return currentState;
-    }
-
-    if (!isBuiltInCapabilityActive(currentState)) {
-        return currentState;
-    }
-
-    const synchronized = await scaffoldMetaFlowAiMetadata({
-        workspaceRoot,
-        extensionPath: context.extensionPath,
-        overwriteExisting: true,
-    });
-
-    if (!synchronized) {
-        return currentState;
-    }
-
-    const obsoleteFiles = getObsoleteSynchronizedFiles(
-        currentState.synchronizedFiles,
-        synchronized.writtenFiles,
-    );
-    if (obsoleteFiles.length > 0) {
-        await removeSynchronizedCapabilityFiles(workspaceRoot, obsoleteFiles);
-    }
-
-    return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-        synchronizedFiles: synchronized.writtenFiles,
-    });
-}
-
 async function ensureBuiltInCapabilityFromAutoApplySetting(
     context: vscode.ExtensionContext,
-    workspaceRoot: string,
     currentState: BuiltInCapabilityRuntimeState,
-    mode: AiMetadataAutoApplyMode,
+    enabled: AiMetadataAutoApplyMode,
 ): Promise<BuiltInCapabilityRuntimeState> {
-    if (mode === 'off') {
+    if (!enabled || currentState.enabled) {
         return currentState;
     }
 
-    if (mode === 'builtinLayer') {
-        if (currentState.disabledByUser) {
-            return currentState;
-        }
-
-        if (currentState.enabled) {
-            return currentState;
-        }
-
-        logInfo('MetaFlow: Auto-applied built-in AI metadata in built-in capability mode.');
-        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled: true,
-            layerEnabled: true,
-            disabledByUser: false,
-        });
-    }
-
-    if (currentState.synchronizedFiles.length === 0) {
-        const synchronized = await scaffoldMetaFlowAiMetadata({
-            workspaceRoot,
-            extensionPath: context.extensionPath,
-            overwriteExisting: true,
-        });
-
-        if (!synchronized) {
-            logWarn(
-                'MetaFlow: aiMetadataAutoApplyMode=synchronize requested, but bundled assets are unavailable.',
-            );
-            return currentState;
-        }
-
-        logInfo(
-            `MetaFlow: Synchronized built-in AI metadata into .github (${synchronized.writtenFiles.length} file(s)).`,
-        );
-        return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-            enabled: false,
-            layerEnabled: true,
-            synchronizedFiles: synchronized.writtenFiles,
-        });
-    }
-
-    if (!currentState.enabled && currentState.layerEnabled) {
-        return currentState;
-    }
-
-    logInfo(
-        'MetaFlow: Auto-applied built-in AI metadata mode by normalizing tracked synchronization state.',
-    );
+    logInfo('MetaFlow: Enabled built-in AI metadata through the extension contribution path.');
     return writeBuiltInCapabilityWorkspaceState(context, currentState, {
-        enabled: false,
+        enabled: true,
         layerEnabled: true,
+        disabledByUser: false,
     });
 }
 
@@ -3339,6 +3284,7 @@ async function persistConfig(
         'injection',
         'settingsInjectionTarget',
         'hooks',
+        'synchronization',
     ];
     let existing: string | undefined;
     try {
@@ -3382,6 +3328,122 @@ async function persistConfig(
         await fsp.writeFile(configPath, JSON.stringify(authoredConfig, null, 2) + '\n', 'utf-8');
         return true;
     }
+}
+
+function injectionConfigsEqual(
+    left: InjectionConfig | undefined,
+    right: InjectionConfig | undefined,
+): boolean {
+    return INJECTION_KEYS.every((key) => left?.[key] === right?.[key]);
+}
+
+/**
+ * Persist explicit MetaFlow Settings UI values into the canonical config.
+ * Settings are an authoring surface; refresh then consumes the resulting
+ * config rather than treating the settings values as fallback-only overrides.
+ */
+export async function synchronizeWorkspaceSettingsToConfig(
+    state: ExtensionState,
+    workspace: vscode.WorkspaceFolder,
+    changes?: ExtensionState['pendingSettingsChanges'],
+): Promise<boolean> {
+    if (!state.config || !state.configPath) {
+        return false;
+    }
+
+    if (
+        !changes?.repoWideCopilotInstructions &&
+        !changes?.injectionModes &&
+        !changes?.injectionTarget
+    ) {
+        return false;
+    }
+
+    // Refresh loaded the config before reaching this bridge, but reload once
+    // more immediately before applying the settings event. This prevents a
+    // config watcher/manual edit that landed during refresh from being patched
+    // against stale in-memory state.
+    const latest = loadConfig(workspace.uri.fsPath);
+    if (!latest.ok || latest.configPath !== state.configPath) {
+        const details = latest.ok
+            ? `Expected ${state.configPath}, resolved ${latest.configPath}.`
+            : latest.errors.map((error) => error.message).join('; ');
+        throw new Error(`Cannot persist MetaFlow Settings UI values: ${details}`);
+    }
+
+    const workspaceConfig = vscode.workspace.getConfiguration('metaflow', workspace.uri);
+    const candidateConfig = cloneConfig(latest.config);
+    let changed = false;
+
+    const authoredPolicy = candidateConfig.synchronization?.repoWideCopilotInstructions === true;
+
+    if (changes?.repoWideCopilotInstructions) {
+        const requestedPolicy =
+            workspaceConfig.get<boolean>(REPO_WIDE_COPILOT_INSTRUCTIONS_SETTING_KEY, false) ===
+            true;
+        if (requestedPolicy !== authoredPolicy) {
+            candidateConfig.synchronization = {
+                ...(candidateConfig.synchronization ?? {}),
+                repoWideCopilotInstructions: requestedPolicy,
+            };
+            changed = true;
+        }
+    }
+
+    if (changes?.injectionModes) {
+        const effectiveModes = workspaceConfig.get<Record<string, unknown>>('injection.modes', {});
+        // VS Code's object setting editor omits properties whose value matches
+        // the contributed default. WorkspaceConfiguration.get() supplies the
+        // merged User/Workspace/Workspace Folder value; reconstruct the complete
+        // policy so resetting one row replaces a stale non-default config value.
+        const requestedModes = {
+            ...DEFAULT_INJECTION_MODE,
+            ...(sanitizeInjectionConfig(effectiveModes) ?? {}),
+        };
+        if (!injectionConfigsEqual(candidateConfig.injection, requestedModes)) {
+            candidateConfig.injection = requestedModes;
+            changed = true;
+        }
+    }
+
+    if (changes?.injectionTarget) {
+        const effectiveTarget = workspaceConfig.get<unknown>('injection.target', undefined);
+        if (
+            isSettingsInjectionTarget(effectiveTarget) &&
+            candidateConfig.settingsInjectionTarget !== effectiveTarget
+        ) {
+            candidateConfig.settingsInjectionTarget = effectiveTarget;
+            changed = true;
+        } else if (
+            !isSettingsInjectionTarget(effectiveTarget) &&
+            candidateConfig.settingsInjectionTarget !== undefined
+        ) {
+            delete candidateConfig.settingsInjectionTarget;
+            changed = true;
+        }
+    }
+
+    if (!changed) {
+        return false;
+    }
+
+    const persisted = await retryTransientFileLock(() =>
+        persistConfig(state.configPath!, candidateConfig, state),
+    );
+    if (persisted) {
+        state.config = candidateConfig;
+        logInfo('Persisted explicit MetaFlow Settings UI values to .metaflow/config.jsonc.');
+    }
+    return persisted;
+}
+
+export async function synchronizeRepoWideCopilotInstructionsSetting(
+    state: ExtensionState,
+    workspace: vscode.WorkspaceFolder,
+): Promise<boolean> {
+    return synchronizeWorkspaceSettingsToConfig(state, workspace, {
+        repoWideCopilotInstructions: true,
+    });
 }
 
 export interface ConfigCleanupResult {
@@ -3607,11 +3669,7 @@ function loadLatestConfigForMutation(
     if (loaded.ok) {
         const config = cloneConfig(loaded.config);
         const managedState = loadManagedState(workspaceRoot);
-        restoreCapabilityCatalog(
-            config,
-            workspaceRoot,
-            managedState.capabilityCatalog?.entries,
-        );
+        restoreCapabilityCatalog(config, workspaceRoot, managedState.capabilityCatalog?.entries);
         return config;
     }
 
@@ -5500,6 +5558,29 @@ export function registerCommands(
     capabilityDetailsPanel: CapabilityDetailsPanelManager,
 ): void {
     const extensionDisplayName = getExtensionDisplayName(context);
+    const activePluginInjectionUpgradeOffers = new Set<string>();
+
+    const schedulePluginInjectionUpgradeOffer = (options: {
+        context: vscode.ExtensionContext;
+        state: ExtensionState;
+        workspaceRoot: string;
+        skipPrompt: boolean;
+    }): void => {
+        const workspaceKey = buildWorkspaceScopedSuppressionKey(options.workspaceRoot);
+        if (activePluginInjectionUpgradeOffers.has(workspaceKey)) {
+            return;
+        }
+
+        activePluginInjectionUpgradeOffers.add(workspaceKey);
+        void offerPluginInjectionUpgrade(options)
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                logWarn(`Plugin injection upgrade prompt failed: ${message}`);
+            })
+            .finally(() => {
+                activePluginInjectionUpgradeOffers.delete(workspaceKey);
+            });
+    };
 
     state.builtInCapability = readBuiltInCapabilityRuntimeState(
         context.workspaceState,
@@ -5623,6 +5704,143 @@ export function registerCommands(
             options?.enabled === undefined ? model : { ...model, enabled: options.enabled },
         );
         return capabilityDetailsPanel.getSnapshot();
+    };
+
+    const removeBuiltInCapability = async (options?: {
+        confirm?: boolean;
+        showMessages?: boolean;
+    }): Promise<{
+        changed: boolean;
+        hasBuiltInSource: boolean;
+        trackedFileCount: number;
+        removed: number;
+    }> => {
+        const ws = getWorkspace();
+        if (!ws) {
+            return { changed: false, hasBuiltInSource: false, trackedFileCount: 0, removed: 0 };
+        }
+
+        state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
+        const hasBuiltInMode = isBuiltInCapabilityActive(state.builtInCapability);
+        const trackedFileCount = state.builtInCapability.synchronizedFiles.length;
+        const managedState = loadManagedState(ws.uri.fsPath);
+        const managedBuiltInRoot = managedState.files['copilot-instructions.md'];
+        const hasBuiltInManagedRoot =
+            managedBuiltInRoot?.sourceLayer === `${BUILT_IN_CAPABILITY_REPO_ID}/.` &&
+            managedBuiltInRoot.sourceRelativePath === 'copilot-instructions.md' &&
+            managedBuiltInRoot.sourceRepo === BUILT_IN_CAPABILITY_REPO_ID;
+        const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
+        const hasAuthoredBuiltInConfig = candidateConfig
+            ? removeBuiltInCapabilityFromConfig(candidateConfig)
+            : false;
+
+        if (
+            !hasBuiltInMode &&
+            !hasBuiltInManagedRoot &&
+            trackedFileCount === 0 &&
+            !hasAuthoredBuiltInConfig
+        ) {
+            if (options?.showMessages) {
+                vscode.window.showInformationMessage(
+                    'MetaFlow: No built-in mode or synchronized MetaFlow capability files are currently tracked.',
+                );
+            }
+            return { changed: false, hasBuiltInSource: false, trackedFileCount, removed: 0 };
+        }
+
+        const hasBuiltInSource =
+            hasBuiltInMode || hasBuiltInManagedRoot || hasAuthoredBuiltInConfig;
+        if (options?.confirm !== false) {
+            const message = hasBuiltInSource
+                ? `Remove built-in MetaFlow capability source${trackedFileCount > 0 ? ` and ${trackedFileCount} tracked synchronized file(s)` : ''}?`
+                : `Remove ${trackedFileCount} tracked synchronized MetaFlow capability file(s) from .github?`;
+            const confirmation = await vscode.window.showWarningMessage(
+                message,
+                'Remove',
+                'Cancel',
+            );
+            if (confirmation !== 'Remove') {
+                return { changed: false, hasBuiltInSource, trackedFileCount, removed: 0 };
+            }
+        }
+
+        if (hasBuiltInMode) {
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                { enabled: false, layerEnabled: false, disabledByUser: false },
+            );
+        }
+
+        let removed = 0;
+        if (hasBuiltInSource) {
+            const rootDisposition = disposeManagedFile({
+                workspaceRoot: ws.uri.fsPath,
+                relativePath: 'copilot-instructions.md',
+                expectedSourceIdentity: {
+                    sourceLayer: `${BUILT_IN_CAPABILITY_REPO_ID}/.`,
+                    sourceRelativePath: 'copilot-instructions.md',
+                    sourceRepo: BUILT_IN_CAPABILITY_REPO_ID,
+                },
+            });
+            if (
+                rootDisposition.status === 'removed' ||
+                rootDisposition.status === 'state-cleared'
+            ) {
+                removed += 1;
+            } else if (rootDisposition.status === 'preserved-drifted') {
+                logWarn(
+                    'MetaFlow: Preserved drifted built-in copilot-instructions.md; source-safe removal did not delete it.',
+                );
+            }
+        }
+        if (trackedFileCount > 0) {
+            removed += await removeSynchronizedCapabilityFiles(
+                ws.uri.fsPath,
+                state.builtInCapability.synchronizedFiles,
+            );
+            state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
+                context,
+                state.builtInCapability,
+                {
+                    layerEnabled: false,
+                    disabledByUser: false,
+                    synchronizedFiles: [],
+                },
+            );
+        }
+
+        if (hasAuthoredBuiltInConfig && candidateConfig && state.configPath) {
+            await persistConfig(state.configPath, candidateConfig, state);
+            state.config = candidateConfig;
+            state.activeProfile = candidateConfig.activeProfile;
+        }
+
+        await vscode.workspace
+            .getConfiguration('metaflow', ws.uri)
+            .update(
+                AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY,
+                false,
+                vscode.ConfigurationTarget.Workspace,
+            );
+
+        if (options?.showMessages) {
+            if (hasBuiltInSource && trackedFileCount > 0) {
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Removed built-in capability source and ${removed} tracked synchronized file(s).`,
+                );
+            } else if (hasBuiltInSource) {
+                vscode.window.showInformationMessage(
+                    'MetaFlow: Removed built-in MetaFlow capability source.',
+                );
+            } else {
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Removed ${removed} tracked synchronized MetaFlow capability file(s).`,
+                );
+            }
+        }
+
+        return { changed: true, hasBuiltInSource, trackedFileCount, removed };
     };
 
     // ── metaflow.refresh ───────────────────────────────────────────
@@ -5867,24 +6085,44 @@ export function registerCommands(
             saveManagedState(ws.uri.fsPath, managedStateForCapabilityCatalog);
             state.config = result.config;
             state.configPath = result.configPath;
+            state.migrationRequired = result.migrationRequired === true;
+            const pendingSettingsChanges = state.pendingSettingsChanges;
+            state.pendingSettingsChanges = undefined;
+            try {
+                await synchronizeWorkspaceSettingsToConfig(state, ws, pendingSettingsChanges);
+            } catch (error: unknown) {
+                state.pendingSettingsChanges = {
+                    ...(pendingSettingsChanges ?? {}),
+                    ...(state.pendingSettingsChanges ?? {}),
+                };
+                throw error;
+            }
+            result.config = state.config;
             state.activeProfile = result.config.activeProfile;
             state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
-            state.builtInCapability = await syncTrackedSynchronizedBuiltInCapabilityFiles(
-                context,
-                ws.uri.fsPath,
-                state.builtInCapability,
-            );
 
             const aiMetadataAutoApplyMode = normalizeAiMetadataAutoApplyMode(
-                workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, 'off'),
+                workspaceConfig.get<unknown>(AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY, false),
             );
+            const aiMetadataAutoApplyInspection = workspaceConfig.inspect<unknown>(
+                AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY,
+            );
+            const hasExplicitAiMetadataAutoApplySetting = [
+                aiMetadataAutoApplyInspection?.globalValue,
+                aiMetadataAutoApplyInspection?.workspaceValue,
+                aiMetadataAutoApplyInspection?.workspaceFolderValue,
+            ].some((value) => value !== undefined);
             if (!refreshOptions.skipBuiltInAutoApply) {
-                state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
-                    context,
-                    ws.uri.fsPath,
-                    state.builtInCapability,
-                    aiMetadataAutoApplyMode,
-                );
+                if (aiMetadataAutoApplyMode) {
+                    state.builtInCapability = await ensureBuiltInCapabilityFromAutoApplySetting(
+                        context,
+                        state.builtInCapability,
+                        aiMetadataAutoApplyMode,
+                    );
+                } else if (hasExplicitAiMetadataAutoApplySetting) {
+                    await removeBuiltInCapability({ confirm: false });
+                    state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
+                }
             }
 
             const builtInRepairPreview = previewBuiltInCapabilityStateDriftRepair(
@@ -6100,7 +6338,9 @@ export function registerCommands(
                 }
             }
 
-            await offerPluginInjectionUpgrade({
+            // An informational prompt can remain unanswered indefinitely. Keep it outside
+            // the refresh coordinator's critical path so later settings writes can drain.
+            schedulePluginInjectionUpgradeOffer({
                 context,
                 state,
                 workspaceRoot: ws.uri.fsPath,
@@ -6151,12 +6391,21 @@ export function registerCommands(
             }
 
             try {
-                const changes = preview(
-                    ws.uri.fsPath,
-                    state.effectiveFiles,
-                    undefined,
-                    state.config.fileNamingStrategy,
-                    state.config.layerSources,
+                const changes = withRootSynchronizationAuthorization(
+                    state.configPath!,
+                    (authorization, attested) =>
+                        preview(
+                            ws.uri.fsPath,
+                            state.effectiveFiles,
+                            undefined,
+                            attested.config.fileNamingStrategy,
+                            attested.config.layerSources,
+                            !state.migrationRequired &&
+                                attested.config.synchronization?.repoWideCopilotInstructions ===
+                                    true,
+                            authorization,
+                            state.configPath,
+                        ),
                 );
                 showOutputChannel();
                 logInfo('=== Overlay Preview ===');
@@ -6202,13 +6451,23 @@ export function registerCommands(
                         title: 'MetaFlow: Applying overlay...',
                     },
                     async () => {
-                        const result = apply({
-                            workspaceRoot: ws.uri.fsPath,
-                            effectiveFiles: state.effectiveFiles,
-                            activeProfile: state.activeProfile,
-                            fileNamingStrategy: config.fileNamingStrategy,
-                            layerSources: config.layerSources,
-                        });
+                        const result = withRootSynchronizationAuthorization(
+                            state.configPath!,
+                            (authorization, attested) =>
+                                apply({
+                                    workspaceRoot: ws.uri.fsPath,
+                                    effectiveFiles: state.effectiveFiles,
+                                    activeProfile: state.activeProfile,
+                                    fileNamingStrategy: attested.config.fileNamingStrategy,
+                                    layerSources: attested.config.layerSources,
+                                    synchronizationPolicy:
+                                        !state.migrationRequired &&
+                                        attested.config.synchronization
+                                            ?.repoWideCopilotInstructions === true,
+                                    rootSynchronizationAuthorization: authorization,
+                                    rootSynchronizationConfigPath: state.configPath,
+                                }),
+                        );
 
                         // Inject settings for settings-backed files (may fail if Copilot extension not present)
                         await injectWorkspaceSettings(
@@ -6834,7 +7093,9 @@ export function registerCommands(
                     `Toggled capability ${layerSource.repoId}/${layerSource.path}: ${nextLayerEnabled ? 'enabled' : 'disabled'}${scopedMutation.profileId ? ` (profile: ${scopedMutation.profileId})` : ''}`,
                 );
                 if (repoAutoEnabled) {
-                    logInfo(`Enabled repo source ${layerSource.repoId} because capability was enabled.`);
+                    logInfo(
+                        `Enabled repo source ${layerSource.repoId} because capability was enabled.`,
+                    );
                 }
                 if (!deferRefresh) {
                     await vscode.commands.executeCommand('metaflow.refresh', {
@@ -7019,7 +7280,7 @@ export function registerCommands(
             }
 
             logInfo(
-                    `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} ${updatedLayerIds.size === 1 ? 'capability' : 'capabilities'})${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
+                `Toggled branch ${requestedRepoId ?? 'all repos'}/${normalizedBranchPath}: ${requestedCheckedState ? 'enabled' : 'disabled'} (${updatedLayerIds.size} ${updatedLayerIds.size === 1 ? 'capability' : 'capabilities'})${scopedMutation ? ` (profile: ${scopedMutation.profileId})` : ''}`,
             );
             if (!deferRefresh) {
                 await vscode.commands.executeCommand('metaflow.refresh', {
@@ -7112,7 +7373,7 @@ export function registerCommands(
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                    logWarn(`Select capabilities failed: ${message}`);
+                logWarn(`Select capabilities failed: ${message}`);
             }
         }),
     );
@@ -7200,7 +7461,7 @@ export function registerCommands(
                 await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
-                    logWarn(`Deselect capabilities failed: ${message}`);
+                logWarn(`Deselect capabilities failed: ${message}`);
             }
         }),
     );
@@ -7606,6 +7867,14 @@ export function registerCommands(
                     return;
                 }
 
+                await vscode.workspace
+                    .getConfiguration('metaflow', ws.uri)
+                    .update(
+                        AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY,
+                        nextEnabled,
+                        vscode.ConfigurationTarget.Workspace,
+                    );
+
                 logInfo(
                     `Toggled built-in repo source ${repoId}: ${nextEnabled ? 'enabled' : 'disabled'}`,
                 );
@@ -7710,7 +7979,9 @@ export function registerCommands(
             const addedLayers = discoverAndPersistRepoLayers(state.config, ws.uri.fsPath, repoId);
             if (addedLayers > 0 && state.configPath) {
                 await persistConfig(state.configPath, state.config, state);
-                logInfo(`Discovered ${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'} for ${repoId} and updated config.`);
+                logInfo(
+                    `Discovered ${addedLayers} new ${addedLayers === 1 ? 'capability' : 'capabilities'} for ${repoId} and updated config.`,
+                );
             }
 
             await vscode.commands.executeCommand('metaflow.refresh', {
@@ -8396,7 +8667,9 @@ export function registerCommands(
             }
 
             await persistConfig(state.configPath, state.config, state);
-            logInfo(`Removed repo source ${repoId} and ${layerCount} ${layerCount === 1 ? 'capability' : 'capabilities'}.`);
+            logInfo(
+                `Removed repo source ${repoId} and ${layerCount} ${layerCount === 1 ? 'capability' : 'capabilities'}.`,
+            );
             await vscode.commands.executeCommand('metaflow.refresh', { skipRepoSync: true });
         }),
     );
@@ -8412,14 +8685,6 @@ export function registerCommands(
 
             const result = loadConfig(ws.uri.fsPath);
             if (result.ok) {
-                if (result.migrated) {
-                    await persistConfig(result.configPath, result.config, state);
-                    for (const message of result.migrationMessages ?? []) {
-                        logInfo(message);
-                    }
-                    void vscode.window.showInformationMessage(getConfigMigrationNoticeMessage());
-                }
-
                 const doc = await vscode.workspace.openTextDocument(result.configPath);
                 await vscode.window.showTextDocument(doc);
             } else if (result.configPath) {
@@ -9095,6 +9360,13 @@ export function registerCommands(
                 context,
                 state.builtInCapability,
             );
+            await vscode.workspace
+                .getConfiguration('metaflow', ws.uri)
+                .update(
+                    AI_METADATA_AUTO_APPLY_MODE_SETTING_KEY,
+                    true,
+                    vscode.ConfigurationTarget.Workspace,
+                );
 
             vscode.window.showInformationMessage(
                 'MetaFlow: Built-in MetaFlow capability enabled (plugin-first defaults).',
@@ -9105,91 +9377,17 @@ export function registerCommands(
 
     context.subscriptions.push(
         vscode.commands.registerCommand('metaflow.removeMetaFlowCapability', async () => {
-            const ws = getWorkspace();
-            if (!ws) {
+            const result = await removeBuiltInCapability({
+                confirm: true,
+                showMessages: true,
+            });
+            if (!result.changed) {
                 return;
             }
-
-            state.builtInCapability = await loadBuiltInCapabilityRuntimeState(context);
-
-            const hasBuiltInMode = isBuiltInCapabilityActive(state.builtInCapability);
-            const trackedFileCount = state.builtInCapability.synchronizedFiles.length;
-            const candidateConfig = state.config ? cloneConfig(state.config) : undefined;
-            const hasAuthoredBuiltInConfig = candidateConfig
-                ? removeBuiltInCapabilityFromConfig(candidateConfig)
-                : false;
-
-            if (!hasBuiltInMode && trackedFileCount === 0 && !hasAuthoredBuiltInConfig) {
-                vscode.window.showInformationMessage(
-                    'MetaFlow: No built-in mode or synchronized MetaFlow capability files are currently tracked.',
-                );
-                return;
-            }
-
-            const hasBuiltInSource = hasBuiltInMode || hasAuthoredBuiltInConfig;
-            const message = hasBuiltInSource
-                ? `Remove built-in MetaFlow capability source${trackedFileCount > 0 ? ` and ${trackedFileCount} tracked synchronized file(s)` : ''}?`
-                : `Remove ${trackedFileCount} tracked synchronized MetaFlow capability file(s) from .github?`;
-
-            const confirmation = await vscode.window.showWarningMessage(
-                message,
-                'Remove',
-                'Cancel',
-            );
-            if (confirmation !== 'Remove') {
-                return;
-            }
-
-            if (hasBuiltInMode) {
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
-                    state.builtInCapability,
-                    { enabled: false, layerEnabled: false, disabledByUser: false },
-                );
-            }
-
-            let removed = 0;
-            if (trackedFileCount > 0) {
-                removed = await removeSynchronizedCapabilityFiles(
-                    ws.uri.fsPath,
-                    state.builtInCapability.synchronizedFiles,
-                );
-                state.builtInCapability = await writeBuiltInCapabilityWorkspaceState(
-                    context,
-                    state.builtInCapability,
-                    {
-                        layerEnabled: false,
-                        disabledByUser: false,
-                        synchronizedFiles: [],
-                    },
-                );
-            }
-
-            if (hasAuthoredBuiltInConfig && candidateConfig && state.configPath) {
-                await persistConfig(state.configPath, candidateConfig, state);
-                state.config = candidateConfig;
-                state.activeProfile = candidateConfig.activeProfile;
-            }
-
             await vscode.commands.executeCommand('metaflow.refresh', {
                 skipRepoSync: true,
                 skipBuiltInAutoApply: true,
             });
-            if (hasBuiltInSource && trackedFileCount > 0) {
-                vscode.window.showInformationMessage(
-                    `MetaFlow: Removed built-in capability source and ${removed} tracked synchronized file(s).`,
-                );
-                return;
-            }
-            if (hasBuiltInSource) {
-                vscode.window.showInformationMessage(
-                    'MetaFlow: Removed built-in MetaFlow capability source.',
-                );
-                return;
-            }
-            vscode.window.showInformationMessage(
-                `MetaFlow: Removed ${removed} tracked synchronized MetaFlow capability file(s).`,
-            );
         }),
     );
 

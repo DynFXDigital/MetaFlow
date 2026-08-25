@@ -43,6 +43,7 @@ import {
     clean,
     planSynchronization,
     preview,
+    withRootSynchronizationAuthorization,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
     toSynchronizedRelativePath,
@@ -422,6 +423,15 @@ describe('Engine package: overlay pipeline', () => {
 
         // Step 4: classify
         classifyFiles(files, config.injection);
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                compatibilityVersion: 4,
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+        );
         const skill = files.find((f) => f.relativePath.includes('skills'));
         const instr = files.find((f) => f.relativePath.includes('instructions'));
         assert.strictEqual(skill?.classification, 'synchronized');
@@ -1735,10 +1745,10 @@ describe('Engine: config validation', () => {
         const result = loadConfigFromPath(configPath);
         assert.strictEqual(result.ok, true);
         if (result.ok) {
-            assert.strictEqual(result.config.compatibilityVersion, 3);
+            assert.strictEqual(result.config.compatibilityVersion, 4);
             assert.strictEqual(result.migrated, true);
             assert.ok(
-                result.migrationMessages?.some((message) => message.includes('implicit v1 to v3')),
+                result.migrationMessages?.some((message) => message.includes('implicit v1 to v4')),
             );
         }
     });
@@ -2042,11 +2052,38 @@ describe('Engine: synchronizer advanced', () => {
         assert.ok(file, 'repo-wide copilot instructions should be retained');
         assert.strictEqual(file?.classification, 'synchronized');
 
-        const pending = preview(tmpDir, files);
-        assert.ok(pending.some((change) => change.relativePath === 'copilot-instructions.md'));
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                compatibilityVersion: 4,
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+        );
 
-        const result = apply({ workspaceRoot: tmpDir, effectiveFiles: files });
-        assert.ok(result.written.includes('copilot-instructions.md'));
+        withRootSynchronizationAuthorization(configPath, (authorization) => {
+            const pending = preview(
+                tmpDir,
+                files,
+                undefined,
+                undefined,
+                undefined,
+                true,
+                authorization,
+                configPath,
+            );
+            assert.ok(pending.some((change) => change.relativePath === 'copilot-instructions.md'));
+
+            const result = apply({
+                workspaceRoot: tmpDir,
+                effectiveFiles: files,
+                synchronizationPolicy: true,
+                rootSynchronizationAuthorization: authorization,
+                rootSynchronizationConfigPath: configPath,
+            });
+            assert.ok(result.written.includes('copilot-instructions.md'));
+        });
         assert.ok(fs.existsSync(path.join(tmpDir, '.github', 'copilot-instructions.md')));
 
         fs.writeFileSync(path.join(tmpDir, '.github', 'copilot-instructions.md'), 'local edit');
@@ -2082,9 +2119,26 @@ describe('Engine: synchronizer advanced', () => {
         const fileMap = buildEffectiveFileMap(layers);
         const files = Array.from(fileMap.values());
         classifyFiles(files, config.injection);
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                compatibilityVersion: 4,
+                metadataRepo: { localPath: '.ai/ai-metadata' },
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+        );
 
-        const message = captureErrorMessage(() =>
-            planSynchronization({ workspaceRoot: tmpDir, effectiveFiles: files }),
+        const message = withRootSynchronizationAuthorization(configPath, (authorization) =>
+            captureErrorMessage(() =>
+                planSynchronization({
+                    workspaceRoot: tmpDir,
+                    effectiveFiles: files,
+                    synchronizationPolicy: true,
+                    rootSynchronizationAuthorization: authorization,
+                    rootSynchronizationConfigPath: configPath,
+                }),
+            ),
         );
 
         assert.ok(message.includes('Unmanaged destination already exists'));

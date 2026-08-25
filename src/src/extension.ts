@@ -20,7 +20,12 @@ import {
 } from './views/outputChannel';
 import { createStatusBar, disposeStatusBar } from './views/statusBar';
 import { disposeDiagnostics } from './diagnostics/configDiagnostics';
-import { createState, registerCommands } from './commands/commandHandlers';
+import {
+    createState,
+    getWorkspaceForExtensionState,
+    registerCommands,
+} from './commands/commandHandlers';
+import { affectsWorkspaceConfiguration } from './configurationChange';
 import { ConfigTreeViewProvider } from './views/configTreeView';
 import { ProfilesTreeViewProvider } from './views/profilesTreeView';
 import { LayersTreeViewProvider } from './views/layersTreeView';
@@ -764,6 +769,11 @@ export function activate(context: vscode.ExtensionContext): void {
     // Listen for settings changes
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
+            const settingsWorkspace = getWorkspaceForExtensionState(state);
+            const settingsResource = settingsWorkspace?.uri;
+            const affectsSetting = (section: string): boolean =>
+                affectsWorkspaceConfiguration(e, section, settingsResource);
+
             if (e.affectsConfiguration('metaflow.logLevel')) {
                 const newLevel = vscode.workspace
                     .getConfiguration('metaflow')
@@ -777,10 +787,26 @@ export function activate(context: vscode.ExtensionContext): void {
                     .get<boolean>('enabled', true);
                 vscode.commands.executeCommand('setContext', 'metaflow.active', enabled);
             }
-            if (e.affectsConfiguration('metaflow.injection')) {
+            if (e.affectsConfiguration('metaflow.aiMetadataAutoApplyMode')) {
                 scheduleRefresh();
             }
-            if (e.affectsConfiguration('metaflow.aiMetadataAutoApplyMode')) {
+            const affectsInjection = affectsSetting('metaflow.injection');
+            const affectsRepoWideCopilotInstructions = affectsSetting(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+            );
+            if (affectsInjection || affectsRepoWideCopilotInstructions) {
+                const pendingSettingsChanges = (state.pendingSettingsChanges ??= {});
+                if (affectsSetting('metaflow.injection.modes')) {
+                    pendingSettingsChanges.injectionModes = true;
+                }
+                if (affectsSetting('metaflow.injection.target')) {
+                    pendingSettingsChanges.injectionTarget = true;
+                }
+                if (affectsRepoWideCopilotInstructions) {
+                    pendingSettingsChanges.repoWideCopilotInstructions = true;
+                }
+                // Defer persistence until refresh has loaded the current config;
+                // this also serializes rapid setting changes with config writes.
                 scheduleRefresh();
             }
         }),

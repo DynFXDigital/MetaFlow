@@ -8,6 +8,7 @@
     "compatibilityVersion": {
       "type": "integer",
       "minimum": 1,
+      "maximum": 4,
       "description": "Config compatibility version used by MetaFlow for release-aware automatic migration."
     },
     "metadataRepos": {
@@ -64,6 +65,10 @@
     },
     "hooks": {
       "$ref": "#/definitions/hooksConfig"
+    },
+    "synchronization": {
+      "$ref": "#/definitions/synchronizationConfig",
+      "description": "Workspace-wide synchronization policy. Root Copilot instructions require explicit true consent."
     }
   },
   "anyOf": [
@@ -307,6 +312,17 @@
         },
         "postApply": {
           "type": "string"
+        }
+      }
+    },
+    "synchronizationConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repoWideCopilotInstructions": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow MetaFlow to write the canonical .github/copilot-instructions.md output."
         }
       }
     }

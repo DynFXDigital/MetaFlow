@@ -167,8 +167,8 @@ suite('Diagnostics Integration', () => {
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            fs.rmSync(repoRoot, { recursive: true, force: true });
             await vscode.commands.executeCommand('metaflow.refresh');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
         }
     });
 
@@ -511,8 +511,8 @@ suite('Diagnostics Integration', () => {
             );
         } finally {
             fs.writeFileSync(configPath, originalConfig, 'utf-8');
-            fs.rmSync(repoRoot, { recursive: true, force: true });
             await vscode.commands.executeCommand('metaflow.refresh');
+            fs.rmSync(repoRoot, { recursive: true, force: true });
         }
     });
 

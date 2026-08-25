@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { apply } from '@metaflow/engine';
+import { apply, withRootSynchronizationAuthorization } from '@metaflow/engine';
 import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
 
 export function registerApplyCommand(program: Command): void {
@@ -14,36 +14,48 @@ export function registerApplyCommand(program: Command): void {
                 return;
             }
             try {
-                const { config } = loaded;
-                const files = resolveEffectiveFiles(config, workspaceRoot);
+                withRootSynchronizationAuthorization(
+                    loaded.configPath,
+                    (authorization, attested) => {
+                        const config = attested.config;
+                        const files = resolveEffectiveFiles(config, workspaceRoot);
+                        const result = apply({
+                            workspaceRoot,
+                            effectiveFiles: files,
+                            activeProfile: config.activeProfile,
+                            fileNamingStrategy: config.fileNamingStrategy,
+                            layerSources: config.layerSources,
+                            synchronizationPolicy:
+                                !loaded.migrationRequired &&
+                                config.synchronization?.repoWideCopilotInstructions === true,
+                            rootSynchronizationAuthorization: authorization,
+                            rootSynchronizationConfigPath: loaded.configPath,
+                            force: options.force ?? false,
+                        });
 
-                const result = apply({
-                    workspaceRoot,
-                    effectiveFiles: files,
-                    activeProfile: config.activeProfile,
-                    fileNamingStrategy: config.fileNamingStrategy,
-                    layerSources: config.layerSources,
-                    force: options.force ?? false,
-                });
+                        for (const rel of result.written) {
+                            console.log(`write  ${rel}`);
+                        }
+                        for (const rel of result.removed) {
+                            console.log(`remove ${rel}`);
+                        }
+                        for (const rel of result.skipped) {
+                            console.log(`skip   ${rel}`);
+                        }
+                        for (const retained of result.retained) {
+                            console.log(`retain ${retained.relativePath} (${retained.status})`);
+                        }
 
-                for (const rel of result.written) {
-                    console.log(`write  ${rel}`);
-                }
-                for (const rel of result.removed) {
-                    console.log(`remove ${rel}`);
-                }
-                for (const rel of result.skipped) {
-                    console.log(`skip   ${rel}`);
-                }
+                        if (result.warnings.length > 0) {
+                            for (const w of result.warnings) {
+                                console.warn(`Warning: ${w}`);
+                            }
+                        }
 
-                if (result.warnings.length > 0) {
-                    for (const w of result.warnings) {
-                        console.warn(`Warning: ${w}`);
-                    }
-                }
-
-                console.log(
-                    `\nDone: ${result.written.length} written, ${result.removed.length} removed, ${result.skipped.length} skipped.`,
+                        console.log(
+                            `\nDone: ${result.written.length} written, ${result.removed.length} removed, ${result.skipped.length} skipped, ${result.retained.length} retained.`,
+                        );
+                    },
                 );
             } catch (err: unknown) {
                 console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

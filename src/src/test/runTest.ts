@@ -23,7 +23,9 @@ const UNEXPECTED_INTEGRATION_LOG_PATTERNS = Object.freeze([
     /spawn .*git(?:\.exe)? ENOENT/i,
 ]);
 
-const INTEGRATION_RUN_TIMEOUT_MS = 3 * 60 * 1000;
+// The full Windows Extension Host suite can exceed three minutes when the
+// sandbox starts a clean VS Code profile and exercises configuration watchers.
+const INTEGRATION_RUN_TIMEOUT_MS = 6 * 60 * 1000;
 
 export interface RunTestDeps {
     runUnit: () => Promise<void>;
@@ -289,6 +291,45 @@ async function withIntegrationTestSandbox(
     }
 }
 
+export async function withPreservedFiles<T>(
+    filePaths: readonly string[],
+    run: () => Promise<T>,
+): Promise<T> {
+    const snapshots = await Promise.all(
+        filePaths.map(async (filePath) => {
+            try {
+                return {
+                    filePath,
+                    existed: true,
+                    contents: await readFile(filePath),
+                };
+            } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+                    throw error;
+                }
+                return {
+                    filePath,
+                    existed: false,
+                    contents: undefined,
+                };
+            }
+        }),
+    );
+
+    try {
+        return await run();
+    } finally {
+        for (const snapshot of snapshots) {
+            if (snapshot.existed) {
+                await mkdir(path.dirname(snapshot.filePath), { recursive: true });
+                await writeFile(snapshot.filePath, snapshot.contents!);
+            } else {
+                await rm(snapshot.filePath, { force: true });
+            }
+        }
+    }
+}
+
 function createDefaultDeps(): RunTestDeps {
     const extensionDevelopmentPath = path.resolve(__dirname, '../../');
     const extensionTestsPath = path.resolve(__dirname, './integration/index');
@@ -301,29 +342,46 @@ function createDefaultDeps(): RunTestDeps {
             await run();
         },
         runIntegration: async (): Promise<void> => {
-            await withIntegrationTestSandbox(async ({ userDataDir, extensionsDir }) => {
-                await ensureIntegrationUserSettings(userDataDir);
-                await withFilteredIntegrationOutput(async () => {
-                    await runWithTimeout('Integration test run', INTEGRATION_RUN_TIMEOUT_MS, () =>
-                        runTests({
-                            extensionDevelopmentPath,
-                            extensionTestsPath,
-                            launchArgs: [
-                                testWorkspace,
-                                '--disable-gpu',
-                                '--disable-extensions',
-                                '--disable-extension',
-                                'vscode.git',
-                                '--disable-extension',
-                                'vscode.git-base',
-                                '--disable-updates',
-                                '--user-data-dir',
-                                userDataDir,
-                                '--extensions-dir',
-                                extensionsDir,
-                            ],
-                        }),
-                    );
+            const preservedWorkspaceFiles = [
+                path.join(testWorkspace, '.metaflow', 'config.jsonc'),
+                path.join(
+                    testWorkspace,
+                    '.ai',
+                    'ai-metadata',
+                    'standards',
+                    'sdlc',
+                    'plugin.json',
+                ),
+                path.join(testWorkspace, '.vscode', 'settings.json'),
+            ];
+            await withPreservedFiles(preservedWorkspaceFiles, async () => {
+                await withIntegrationTestSandbox(async ({ userDataDir, extensionsDir }) => {
+                    await ensureIntegrationUserSettings(userDataDir);
+                    await withFilteredIntegrationOutput(async () => {
+                        await runWithTimeout(
+                            'Integration test run',
+                            INTEGRATION_RUN_TIMEOUT_MS,
+                            () =>
+                                runTests({
+                                    extensionDevelopmentPath,
+                                    extensionTestsPath,
+                                    launchArgs: [
+                                        testWorkspace,
+                                        '--disable-gpu',
+                                        '--disable-extensions',
+                                        '--disable-extension',
+                                        'vscode.git',
+                                        '--disable-extension',
+                                        'vscode.git-base',
+                                        '--disable-updates',
+                                        '--user-data-dir',
+                                        userDataDir,
+                                        '--extensions-dir',
+                                        extensionsDir,
+                                    ],
+                                }),
+                        );
+                    });
                 });
             });
         },

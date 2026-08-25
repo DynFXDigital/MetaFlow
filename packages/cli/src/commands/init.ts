@@ -20,7 +20,8 @@ export function registerInitCommand(program: Command): void {
             }
 
             const template = {
-                compatibilityVersion: 3,
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: false },
                 metadataRepos: [
                     {
                         id: 'primary',

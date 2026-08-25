@@ -70,7 +70,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.strictEqual(result.config.metadataRepos?.length, 2);
                 assert.strictEqual(result.config.layerSources?.length, 3);
-                assert.strictEqual(result.config.compatibilityVersion, 3);
+                assert.strictEqual(result.config.compatibilityVersion, 4);
             }
         });
 
@@ -89,7 +89,7 @@ suite('Config Loader', () => {
             );
             assert.strictEqual(result.ok, true);
             if (result.ok) {
-                assert.strictEqual(result.config.compatibilityVersion, 3);
+                assert.strictEqual(result.config.compatibilityVersion, 4);
                 assert.strictEqual(result.migrated, true);
                 assert.ok(
                     result.migrationMessages?.some((message) =>
@@ -215,6 +215,42 @@ suite('Config Loader', () => {
             assert.ok(errors.some((e) => e.message.includes('supported version')));
         });
 
+        test('accepts omitted, empty, false, and true synchronization policy shapes', () => {
+            for (const synchronization of [
+                undefined,
+                {},
+                { repoWideCopilotInstructions: false },
+                { repoWideCopilotInstructions: true },
+            ]) {
+                const config: MetaFlowConfig = {
+                    metadataRepo: { localPath: 'a' },
+                    ...(synchronization === undefined ? {} : { synchronization }),
+                };
+                assert.deepStrictEqual(validateConfig(config), []);
+            }
+        });
+
+        test('rejects invalid synchronization containers, values, and keys', () => {
+            const invalidValues: unknown[] = [
+                null,
+                'true',
+                1,
+                [],
+                { repoWideCopilotInstructions: 'true' },
+                { unknown: false },
+            ];
+            for (const synchronization of invalidValues) {
+                const errors = validateConfig({
+                    metadataRepo: { localPath: 'a' },
+                    synchronization: synchronization as MetaFlowConfig['synchronization'],
+                });
+                assert.ok(
+                    errors.length > 0,
+                    `expected invalid synchronization: ${String(synchronization)}`,
+                );
+            }
+        });
+
         test('single-repo without layers is valid as a zero-layer bootstrap config', () => {
             const config: MetaFlowConfig = {
                 metadataRepo: { localPath: '.ai/metadata' },
@@ -282,8 +318,7 @@ suite('Config Loader', () => {
             if (result.ok) {
                 assert.ok(
                     result.warnings?.some(
-                        (warning) =>
-                            warning.code === 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
+                        (warning) => warning.code === 'CONFIG_PROFILE_CAPABILITY_REPO_UNRESOLVED',
                     ),
                 );
             }

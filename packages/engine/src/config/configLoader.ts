@@ -112,6 +112,9 @@ export function parseAndValidate(rawText: string, configPath: string): ConfigLoa
         ok: true,
         config: normalized.config,
         configPath,
+        migrationRequired:
+            !Object.prototype.hasOwnProperty.call(parsed, 'compatibilityVersion') ||
+            (parsed as MetaFlowConfig).compatibilityVersion !== CURRENT_CONFIG_COMPATIBILITY_VERSION,
         ...(validationWarnings.length > 0 ? { warnings: validationWarnings } : {}),
         ...(normalized.migrated
             ? {
@@ -145,6 +148,37 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
                 message:
                     `"compatibilityVersion" ${config.compatibilityVersion} is newer than the supported version ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
             });
+        }
+    }
+
+    if (config.synchronization !== undefined) {
+        if (
+            typeof config.synchronization !== 'object' ||
+            config.synchronization === null ||
+            Array.isArray(config.synchronization)
+        ) {
+            errors.push({ message: '"synchronization" must be an object when provided.' });
+        } else {
+            const synchronization = config.synchronization as Record<string, unknown>;
+            for (const key of Object.keys(synchronization)) {
+                if (key !== 'repoWideCopilotInstructions') {
+                    errors.push({
+                        message: `"synchronization.${key}" is not a supported configuration key.`,
+                    });
+                }
+            }
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    synchronization,
+                    'repoWideCopilotInstructions',
+                ) &&
+                typeof synchronization.repoWideCopilotInstructions !== 'boolean'
+            ) {
+                errors.push({
+                    message:
+                        '"synchronization.repoWideCopilotInstructions" must be a boolean.',
+                });
+            }
         }
     }
 

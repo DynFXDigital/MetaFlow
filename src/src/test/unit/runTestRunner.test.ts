@@ -10,6 +10,7 @@ import {
     runWithArgs,
     RunTestDeps,
     shouldSuppressKnownIntegrationOutputLine,
+    withPreservedFiles,
 } from '../runTest';
 
 type RunTestInternals = {
@@ -218,6 +219,48 @@ suite('Test Runner Entry', () => {
             assert.strictEqual(settings['git.enabled'], false);
             assert.strictEqual(settings['git.autoRepositoryDetection'], false);
             assert.strictEqual(settings['git.openRepositoryInParentFolders'], 'never');
+        } finally {
+            await rm(tempDir, { recursive: true, force: true });
+        }
+    });
+
+    test('withPreservedFiles restores existing bytes and removes test-created files', async () => {
+        const tempDir = await mkdtemp(path.join(os.tmpdir(), 'metaflow-runTest-'));
+
+        try {
+            const existingPath = path.join(tempDir, 'tracked', 'config.jsonc');
+            const missingPath = path.join(tempDir, 'tracked', 'settings.json');
+            await mkdir(path.dirname(existingPath), { recursive: true });
+            await writeFile(existingPath, 'original bytes\r\n', 'utf8');
+
+            await withPreservedFiles([existingPath, missingPath], async () => {
+                await writeFile(existingPath, 'mutated\n', 'utf8');
+                await writeFile(missingPath, 'created\n', 'utf8');
+            });
+
+            assert.strictEqual(await readFile(existingPath, 'utf8'), 'original bytes\r\n');
+            assert.strictEqual(fs.existsSync(missingPath), false);
+        } finally {
+            await rm(tempDir, { recursive: true, force: true });
+        }
+    });
+
+    test('withPreservedFiles restores files when the test host fails', async () => {
+        const tempDir = await mkdtemp(path.join(os.tmpdir(), 'metaflow-runTest-'));
+
+        try {
+            const existingPath = path.join(tempDir, 'config.jsonc');
+            await writeFile(existingPath, 'original\n', 'utf8');
+
+            await assert.rejects(
+                () =>
+                    withPreservedFiles([existingPath], async () => {
+                        await writeFile(existingPath, 'failed mutation\n', 'utf8');
+                        throw new Error('host failed');
+                    }),
+                /host failed/,
+            );
+            assert.strictEqual(await readFile(existingPath, 'utf8'), 'original\n');
         } finally {
             await rm(tempDir, { recursive: true, force: true });
         }

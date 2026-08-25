@@ -274,15 +274,25 @@ suite('Command handler config update consent', () => {
         assert.doesNotMatch(applyHelper, /prompts/);
     });
 
-    test('refresh does not show plugin upgrade prompts in non-interactive or test mode', () => {
+    test('refresh schedules plugin upgrade prompts outside its serialized critical path', () => {
         const source = readCommandHandlersSource();
         const refreshEndBlock = sourceSlice(
             source,
-            'await offerPluginInjectionUpgrade({',
+            'schedulePluginInjectionUpgradeOffer({',
             '} catch (err: unknown) {',
         );
 
+        assert.doesNotMatch(refreshEndBlock, /await offerPluginInjectionUpgrade/);
         assert.match(refreshEndBlock, /refreshOptions\.nonInteractive === true/);
         assert.match(refreshEndBlock, /context\.extensionMode === vscode\.ExtensionMode\.Test/);
+
+        const scheduler = sourceSlice(
+            source,
+            'const schedulePluginInjectionUpgradeOffer = (options:',
+            'state.builtInCapability = readBuiltInCapabilityRuntimeState(',
+        );
+        assert.match(scheduler, /activePluginInjectionUpgradeOffers\.has\(workspaceKey\)/);
+        assert.match(scheduler, /void offerPluginInjectionUpgrade\(options\)/);
+        assert.match(scheduler, /\.finally\(\(\) => \{/);
     });
 });

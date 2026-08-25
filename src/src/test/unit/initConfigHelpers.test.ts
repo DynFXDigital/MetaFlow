@@ -39,10 +39,7 @@ suite('Init Config Helpers', () => {
     });
 
     test('toConfigLocalPath returns relative path for a Windows sibling repository', () => {
-        const sibling = toConfigLocalPath(
-            'C:\\workspace\\project',
-            'C:\\workspace\\ai-metadata',
-        );
+        const sibling = toConfigLocalPath('C:\\workspace\\project', 'C:\\workspace\\ai-metadata');
         assert.strictEqual(sibling, '../ai-metadata');
     });
 
@@ -52,10 +49,7 @@ suite('Init Config Helpers', () => {
     });
 
     test('toConfigLocalPath returns dot when the repository is the workspace root', () => {
-        assert.strictEqual(
-            toConfigLocalPath('/workspace/project', '/workspace/project'),
-            '.',
-        );
+        assert.strictEqual(toConfigLocalPath('/workspace/project', '/workspace/project'), '.');
     });
 
     test('toConfigLocalPath returns absolute path when Windows drives differ', () => {
@@ -99,7 +93,7 @@ suite('Init Config Helpers', () => {
             injection: Record<string, string>;
         };
 
-        assert.strictEqual(withUrl.compatibilityVersion, 3);
+        assert.strictEqual(withUrl.compatibilityVersion, 4);
         assert.strictEqual(withUrl.metadataRepos.length, 1);
         assert.strictEqual(withUrl.metadataRepos[0].id, 'primary');
         assert.strictEqual(withUrl.metadataRepos[0].localPath, '.ai/metadata');
@@ -118,7 +112,7 @@ suite('Init Config Helpers', () => {
             compatibilityVersion: number;
             metadataRepos: Array<{ url?: string; capabilities?: Array<{ enabled?: boolean }> }>;
         };
-        assert.strictEqual(withoutUrl.compatibilityVersion, 3);
+        assert.strictEqual(withoutUrl.compatibilityVersion, 4);
         assert.strictEqual(withoutUrl.metadataRepos[0].url, undefined);
         assert.strictEqual(withoutUrl.metadataRepos[0].capabilities, undefined);
 

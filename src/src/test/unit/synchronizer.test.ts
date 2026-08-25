@@ -13,6 +13,7 @@ import {
     stripProvenanceHeader,
     resolveLayers,
     buildEffectiveFileMap,
+    withRootSynchronizationAuthorization,
 } from '@metaflow/engine';
 
 suite('synchronization engine', () => {
@@ -229,16 +230,40 @@ suite('synchronization engine', () => {
 
     test('repo-wide copilot instructions always synchronize to canonical root path', () => {
         const files = [makeEffectiveFile('copilot-instructions.md', '# Repo Instructions')];
+        const configPath = path.join(tmpDir, '.metaflow', 'config.jsonc');
+        fs.mkdirSync(path.dirname(configPath), { recursive: true });
+        fs.writeFileSync(
+            configPath,
+            JSON.stringify({
+                compatibilityVersion: 4,
+                metadataRepo: { localPath: 'source' },
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+        );
 
-        const prefixedChanges = preview(tmpDir, files, outputDir);
-        assert.strictEqual(prefixedChanges[0].relativePath, 'copilot-instructions.md');
+        withRootSynchronizationAuthorization(configPath, (authorization) => {
+            const prefixedChanges = preview(
+                tmpDir,
+                files,
+                outputDir,
+                undefined,
+                undefined,
+                true,
+                authorization,
+                configPath,
+            );
+            assert.strictEqual(prefixedChanges[0].relativePath, 'copilot-instructions.md');
 
-        const result = apply({
-            workspaceRoot: tmpDir,
-            outputDir,
-            effectiveFiles: files,
+            const result = apply({
+                workspaceRoot: tmpDir,
+                outputDir,
+                effectiveFiles: files,
+                synchronizationPolicy: true,
+                rootSynchronizationAuthorization: authorization,
+                rootSynchronizationConfigPath: configPath,
+            });
+            assert.ok(result.written.includes('copilot-instructions.md'));
         });
-        assert.ok(result.written.includes('copilot-instructions.md'));
         assert.ok(fs.existsSync(path.join(tmpDir, outputDir, 'copilot-instructions.md')));
 
         const state = loadManagedState(tmpDir);
@@ -283,7 +308,9 @@ suite('synchronization engine', () => {
             effectiveFiles: files,
             fileNamingStrategy: 'original-unless-conflict',
         });
-        assert.ok(result.written.includes(expectedSynchronizedPath('chatmodes/legacy.chatmode.md')));
+        assert.ok(
+            result.written.includes(expectedSynchronizedPath('chatmodes/legacy.chatmode.md')),
+        );
         assert.ok(
             fs.existsSync(
                 path.join(

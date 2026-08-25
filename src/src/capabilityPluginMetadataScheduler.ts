@@ -97,7 +97,7 @@ function normalizeDelayMs(value: unknown): number {
 function getAutoMaintainEnabled(): boolean {
     return vscode.workspace
         .getConfiguration('metaflow')
-        .get<boolean>(AUTO_MAINTAIN_SETTING_KEY, true);
+        .get<boolean>(AUTO_MAINTAIN_SETTING_KEY, false);
 }
 
 function getAutoMaintainDelayMs(): number {

@@ -20,6 +20,7 @@ export interface LoadedConfig {
     config: MetaFlowConfig;
     configPath: string;
     workspaceRoot: string;
+    migrationRequired: boolean;
 }
 
 const CONFIG_ROOT_KEYS = new Set([
@@ -34,6 +35,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'fileNamingStrategy',
     'settingsInjectionTarget',
     'hooks',
+    'synchronization',
 ]);
 
 function isMetaFlowConfigDocument(data: unknown): data is MetaFlowConfig {
@@ -54,7 +56,10 @@ export function getWorkspaceRoot(command: { opts: () => { workspace: string } })
     return path.resolve(ws);
 }
 
-export function loadConfigOrExit(workspaceRoot: string): LoadedConfig | null {
+export function loadConfigOrExit(
+    workspaceRoot: string,
+    options: { persistMigration?: boolean } = {},
+): LoadedConfig | null {
     const result: ConfigLoadResult = loadConfig(workspaceRoot);
     if (!result.ok) {
         printConfigErrors(result);
@@ -62,7 +67,7 @@ export function loadConfigOrExit(workspaceRoot: string): LoadedConfig | null {
         return null;
     }
 
-    if (result.migrated) {
+    if (options.persistMigration && result.migrated) {
         persistAuthoredConfig(result.configPath, result.config);
         for (const message of result.migrationMessages ?? []) {
             console.warn(`Notice: ${message}`);
@@ -73,6 +78,7 @@ export function loadConfigOrExit(workspaceRoot: string): LoadedConfig | null {
         config: result.config,
         configPath: result.configPath,
         workspaceRoot,
+        migrationRequired: result.migrationRequired === true,
     };
 }
 

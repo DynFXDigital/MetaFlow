@@ -112,6 +112,21 @@ suite('Command Execution', function () {
             }
             await new Promise((resolve) => setTimeout(resolve, 50));
         }
+
+        const inspected = vscode.workspace
+            .getConfiguration(undefined, wsFolder?.uri)
+            .inspect(section);
+        const scoped =
+            target === vscode.ConfigurationTarget.Workspace
+                ? inspected?.workspaceValue
+                : target === vscode.ConfigurationTarget.WorkspaceFolder
+                  ? inspected?.workspaceFolderValue
+                  : inspected?.globalValue;
+        assert.deepStrictEqual(
+            scoped,
+            value,
+            `Timed out persisting ${section} to VS Code configuration target ${target}`,
+        );
     }
 
     function getScopedSettingValue<T>(
@@ -371,6 +386,22 @@ suite('Command Execution', function () {
             { ...(previousModes ?? {}), instructions: 'settings' },
             vscode.ConfigurationTarget.Workspace,
             wsFolder,
+        );
+        await waitFor(
+            () => {
+                try {
+                    const config = JSON.parse(
+                        fs.readFileSync(getWorkspaceConfigPath(), 'utf-8'),
+                    ) as {
+                        injection?: { instructions?: unknown };
+                    };
+                    return config.injection?.instructions === 'settings';
+                } catch {
+                    return false;
+                }
+            },
+            DEFAULT_WAIT_FOR_TIMEOUT_MS,
+            100,
         );
         return previousModes;
     }
@@ -681,7 +712,7 @@ suite('Command Execution', function () {
         const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
         const priorAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
         const priorAiMetadataAutoApplyMode =
-            metaflowConfig.inspect<string>('aiMetadataAutoApplyMode')?.workspaceValue;
+            metaflowConfig.inspect<boolean>('aiMetadataAutoApplyMode')?.workspaceValue;
 
         const configPath = path.join(workspaceRoot, '.metaflow', 'config.jsonc');
         const originalConfig = fs.readFileSync(configPath, 'utf-8');
@@ -734,7 +765,7 @@ suite('Command Execution', function () {
             await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
             await metaflowConfig.update(
                 'aiMetadataAutoApplyMode',
-                'off',
+                false,
                 vscode.ConfigurationTarget.Workspace,
             );
 
@@ -978,7 +1009,7 @@ suite('Command Execution', function () {
         await metaflowConfig.update('autoApply', false, vscode.ConfigurationTarget.Workspace);
         await metaflowConfig.update(
             'aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
         );
         await wsConfig.update(
@@ -1136,7 +1167,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(migratedConfig.compatibilityVersion, 3);
+            assert.strictEqual(migratedConfig.compatibilityVersion, 4);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -1214,7 +1245,7 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 3;
+                return migratedConfig.compatibilityVersion === 4;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -1225,7 +1256,7 @@ suite('Command Execution', function () {
 
             assert.strictEqual(
                 migratedConfig.compatibilityVersion,
-                3,
+                4,
                 'Refresh should persist the current compatibilityVersion for released configs',
             );
             assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
@@ -1662,7 +1693,7 @@ suite('Command Execution', function () {
             await resetBuiltInCapabilityState();
             await vscode.workspace
                 .getConfiguration('metaflow', vscode.workspace.workspaceFolders?.[0]?.uri)
-                .update('aiMetadataAutoApplyMode', 'off', vscode.ConfigurationTarget.Workspace);
+                .update('aiMetadataAutoApplyMode', false, vscode.ConfigurationTarget.Workspace);
             await wsConfig.update(
                 'chat.instructionsFilesLocations',
                 {
@@ -5229,7 +5260,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(updatedConfig.compatibilityVersion, 3);
+            assert.strictEqual(updatedConfig.compatibilityVersion, 4);
             assert.strictEqual(
                 path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
                 path.normalize(path.relative(workspaceRoot, repoPath)),
@@ -5868,140 +5899,466 @@ suite('Command Execution', function () {
         }
     });
 
-    test('aiMetadataAutoApplyMode synchronize overwrites managed files on refresh', async function () {
+    test('workspace Copilot synchronization setting persists the canonical config policy', async function () {
         this.timeout(20000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>(
-            'metaflow.aiMetadataAutoApplyMode',
-        )?.workspaceValue;
-
-        const instructionPath = path.join(
-            workspaceRoot,
-            '.github',
-            'instructions',
-            'metaflow-constructs.instructions.md',
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousSetting = getScopedSettingValue<boolean>(
+            wsConfig,
+            'synchronization.repoWideCopilotInstructions',
         );
-        const originalInstruction = fs.existsSync(instructionPath)
-            ? fs.readFileSync(instructionPath, 'utf-8')
-            : undefined;
-
-        await updateConfigAndWait(
-            'metaflow.aiMetadataAutoApplyMode',
-            'off',
-            vscode.ConfigurationTarget.Workspace,
-            wsFolder!,
-        );
-        await resetBuiltInCapabilityState();
-        if (fs.existsSync(instructionPath)) {
-            fs.rmSync(instructionPath, { force: true });
-        }
+        const originalConfig = fs.readFileSync(getWorkspaceConfigPath(), 'utf-8');
 
         try {
+            // Establish an explicit opposite-value baseline so this test still emits a
+            // configuration event when an ignored test-workspace setting already exists.
             await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                'synchronize',
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                false,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await vscode.commands.executeCommand('metaflow.refresh');
-            assert.ok(
-                fs.existsSync(instructionPath),
-                'Synchronized auto-apply should scaffold instruction templates',
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(getWorkspaceConfigPath(), 'utf-8')) as {
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return parsed.synchronization?.repoWideCopilotInstructions === false;
+            });
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                true,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
-
-            fs.writeFileSync(instructionPath, '# local customization\n', 'utf-8');
-            await vscode.commands.executeCommand('metaflow.refresh');
-
-            const after = fs.readFileSync(instructionPath, 'utf-8');
-            assert.ok(
-                !after.includes('# local customization'),
-                'Synchronize mode should overwrite managed files deterministically',
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(getWorkspaceConfigPath(), 'utf-8')) as {
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return parsed.synchronization?.repoWideCopilotInstructions === true;
+            });
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(getWorkspaceConfigPath(), 'utf-8')) as {
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return parsed.synchronization?.repoWideCopilotInstructions === false;
+            });
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                true,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(getWorkspaceConfigPath(), 'utf-8')) as {
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return parsed.synchronization?.repoWideCopilotInstructions === false;
+            });
         } finally {
             await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                previousMode,
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                false,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            if (originalInstruction === undefined) {
-                fs.rmSync(instructionPath, { force: true });
-            } else {
-                fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
-            }
-            await resetBuiltInCapabilityState();
+            fs.writeFileSync(getWorkspaceConfigPath(), originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                previousSetting,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
 
-    test('aiMetadataAutoApplyMode synchronize stays active for refresh re-synchronization', async function () {
-        this.timeout(25000);
-
-        const instructionPath = path.join(
-            workspaceRoot,
-            '.github',
-            'instructions',
-            'metaflow-constructs.instructions.md',
-        );
-        const originalInstruction = fs.existsSync(instructionPath)
-            ? fs.readFileSync(instructionPath, 'utf-8')
-            : undefined;
+    test('user Copilot synchronization setting persists the canonical config policy', async function () {
+        this.timeout(20000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousAutoApply = wsConfig.inspect<boolean>('metaflow.autoApply')?.workspaceValue;
-        const previousMode = wsConfig.inspect<string>(
-            'metaflow.aiMetadataAutoApplyMode',
-        )?.workspaceValue;
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousGlobalSetting = wsConfig.inspect<boolean>(
+            'synchronization.repoWideCopilotInstructions',
+        )?.globalValue;
+        const originalConfig = fs.readFileSync(getWorkspaceConfigPath(), 'utf-8');
 
         try {
-            await wsConfig.update('metaflow.autoApply', true, vscode.ConfigurationTarget.Workspace);
             await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                'synchronize',
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                true,
+                vscode.ConfigurationTarget.Global,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(getWorkspaceConfigPath(), 'utf-8')) as {
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return parsed.synchronization?.repoWideCopilotInstructions === true;
+            });
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                undefined,
+                vscode.ConfigurationTarget.Global,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                undefined,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await resetBuiltInCapabilityState();
+            fs.writeFileSync(getWorkspaceConfigPath(), originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
-
-            assert.ok(
-                fs.existsSync(instructionPath),
-                'Synchronize mode should scaffold built-in instruction metadata',
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                previousGlobalSetting,
+                vscode.ConfigurationTarget.Global,
+                wsFolder!,
             );
-            const canonicalInstruction = fs.readFileSync(instructionPath, 'utf-8');
-
-            fs.writeFileSync(instructionPath, '# local customization\n', 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
 
-            const refreshedInstruction = fs.readFileSync(instructionPath, 'utf-8');
-            assert.strictEqual(
-                refreshedInstruction,
-                canonicalInstruction,
-                'Refresh should auto-apply and restore built-in synchronized metadata after local drift',
+    test('workspace Copilot synchronization setting persists while config migration is required', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousSetting = getScopedSettingValue<boolean>(
+            wsConfig,
+            'synchronization.repoWideCopilotInstructions',
+        );
+        const previousAutoApply = wsConfig.inspect<boolean>('autoApply')?.workspaceValue;
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const legacyConfig = JSON.parse(originalConfig) as Record<string, unknown>;
+        delete legacyConfig.compatibilityVersion;
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.autoApply',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, JSON.stringify(legacyConfig, null, 2), 'utf-8');
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                true,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await vscode.commands.executeCommand('metaflow.refresh');
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    compatibilityVersion?: number;
+                    synchronization?: { repoWideCopilotInstructions?: boolean };
+                };
+                return (
+                    parsed.compatibilityVersion === 4 &&
+                    parsed.synchronization?.repoWideCopilotInstructions === true
+                );
+            });
         } finally {
-            await wsConfig.update(
+            await updateConfigAndWait(
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
                 'metaflow.autoApply',
                 previousAutoApply,
                 vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
             );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
             await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                previousMode,
+                'metaflow.synchronization.repoWideCopilotInstructions',
+                previousSetting,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            if (originalInstruction === undefined) {
-                fs.rmSync(instructionPath, { force: true });
-            } else {
-                fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
-            }
-            await resetBuiltInCapabilityState();
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('workspace injection settings persist the canonical config policy', async function () {
+        this.timeout(20000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousModes = cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('injection.modes')?.workspaceValue,
+        );
+        const previousTarget = wsConfig.inspect<string>('injection.target')?.workspaceValue;
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { instructions: 'settings', skills: 'synchronize' },
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.target',
+                'user',
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    injection?: { instructions?: string; skills?: string };
+                    settingsInjectionTarget?: string;
+                };
+                return (
+                    parsed.injection?.instructions === 'settings' &&
+                    parsed.injection?.skills === 'synchronize' &&
+                    parsed.settingsInjectionTarget === 'user'
+                );
+            });
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { skills: 'synchronize' },
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    injection?: { instructions?: string; skills?: string };
+                };
+                return (
+                    parsed.injection?.instructions === 'plugin' &&
+                    parsed.injection?.skills === 'synchronize'
+                );
+            });
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    injection?: { instructions?: string; prompts?: string; skills?: string };
+                };
+                return (
+                    parsed.injection?.instructions === 'plugin' &&
+                    parsed.injection?.prompts === 'settings' &&
+                    parsed.injection?.skills === 'plugin'
+                );
+            });
+            await updateConfigAndWait(
+                'metaflow.injection.target',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    settingsInjectionTarget?: string;
+                };
+                return parsed.settingsInjectionTarget === undefined;
+            });
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                previousModes,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.target',
+                previousTarget,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('injection settings merge partial values across VS Code scopes before persistence', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousGlobalModes = cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('injection.modes')?.globalValue,
+        );
+        const previousWorkspaceModes = cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('injection.modes')?.workspaceValue,
+        );
+        const previousWorkspaceFolderModes = cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('injection.modes')?.workspaceFolderValue,
+        );
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { prompts: 'synchronize' },
+                vscode.ConfigurationTarget.Global,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { instructions: 'settings' },
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(
+                () => {
+                    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                        injection?: Record<string, string>;
+                    };
+                    return (
+                        parsed.injection?.instructions === 'settings' &&
+                        parsed.injection?.prompts === 'synchronize' &&
+                        parsed.injection?.commands === 'plugin' &&
+                        parsed.injection?.skills === 'plugin' &&
+                        parsed.injection?.agents === 'plugin' &&
+                        parsed.injection?.hooks === 'plugin'
+                    );
+                },
+                DEFAULT_WAIT_FOR_TIMEOUT_MS,
+                100,
+                () => JSON.parse(fs.readFileSync(configPath, 'utf-8')),
+            );
+
+            // This Extension Host opens a single-folder workspace, where VS Code
+            // treats Workspace Folder as Workspace. Test that scope separately
+            // while retaining the User-scope partial value.
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                undefined,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { skills: 'settings' },
+                vscode.ConfigurationTarget.WorkspaceFolder,
+                wsFolder!,
+            );
+            await waitFor(
+                () => {
+                    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                        injection?: Record<string, string>;
+                    };
+                    return (
+                        parsed.injection?.instructions === 'plugin' &&
+                        parsed.injection?.prompts === 'synchronize' &&
+                        parsed.injection?.skills === 'settings'
+                    );
+                },
+                DEFAULT_WAIT_FOR_TIMEOUT_MS,
+                100,
+                () => JSON.parse(fs.readFileSync(configPath, 'utf-8')),
+            );
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                previousGlobalModes,
+                vscode.ConfigurationTarget.Global,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                previousWorkspaceModes,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                previousWorkspaceFolderModes,
+                vscode.ConfigurationTarget.WorkspaceFolder,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('ordinary refresh does not replay unchanged injection settings over JSONC edits', async function () {
+        this.timeout(30000);
+
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const wsConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const previousModes = cloneJson(
+            wsConfig.inspect<Record<string, unknown>>('injection.modes')?.workspaceValue,
+        );
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                { instructions: 'settings' },
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            await waitFor(() => {
+                const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                    injection?: { instructions?: string };
+                };
+                return parsed.injection?.instructions === 'settings';
+            });
+
+            const manuallyEdited = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                injection?: Record<string, string>;
+            };
+            manuallyEdited.injection = {
+                ...(manuallyEdited.injection ?? {}),
+                instructions: 'synchronize',
+            };
+            fs.writeFileSync(configPath, `${JSON.stringify(manuallyEdited, null, 2)}\n`, 'utf-8');
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+
+            const afterRefresh = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                injection?: { instructions?: string };
+            };
+            assert.strictEqual(afterRefresh.injection?.instructions, 'synchronize');
+        } finally {
+            await updateConfigAndWait(
+                'metaflow.injection.modes',
+                previousModes,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
@@ -6103,90 +6460,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0338: synchronize mode uninstall fully clears tracked capability state', async function () {
-        this.timeout(25000);
-
-        const wsFolder = vscode.workspace.workspaceFolders?.[0];
-        assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>(
-            'metaflow.aiMetadataAutoApplyMode',
-        )?.workspaceValue;
-
-        const windowAny = vscode.window as unknown as {
-            showQuickPick: (...items: unknown[]) => Thenable<unknown>;
-            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
-            showInformationMessage: (...items: unknown[]) => Thenable<string | undefined>;
-        };
-        const originalQuickPick = windowAny.showQuickPick;
-        const originalWarning = windowAny.showWarningMessage;
-        const originalInfo = windowAny.showInformationMessage;
-        const infoMessages: string[] = [];
-
-        windowAny.showQuickPick = async (items: unknown) => {
-            if (!Array.isArray(items)) {
-                return undefined;
-            }
-
-            const picks = items as Array<{ mode?: string }>;
-            if (picks.some((pick) => pick.mode === 'synchronize')) {
-                return picks.find((pick) => pick.mode === 'synchronize') ?? picks[0];
-            }
-            if (picks.some((pick) => pick.mode === 'removeSynchronized')) {
-                return picks.find((pick) => pick.mode === 'removeSynchronized') ?? picks[0];
-            }
-            return picks[0];
-        };
-
-        windowAny.showInformationMessage = async (message: unknown) => {
-            if (typeof message === 'string') {
-                infoMessages.push(message);
-            }
-            return undefined;
-        };
-        windowAny.showWarningMessage = async (message: unknown) => {
-            if (typeof message === 'string' && message.startsWith('Remove ')) {
-                return 'Remove';
-            }
-            return undefined;
-        };
-
-        try {
-            await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                'synchronize',
-                vscode.ConfigurationTarget.Workspace,
-                wsFolder!,
-            );
-            await resetBuiltInCapabilityState();
-            await vscode.commands.executeCommand('metaflow.refresh');
-            await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
-            await vscode.commands.executeCommand('metaflow.removeMetaFlowCapability');
-
-            assert.ok(
-                infoMessages.some((message) =>
-                    message.includes(
-                        'No built-in mode or synchronized MetaFlow capability files are currently tracked.',
-                    ),
-                ),
-                'Removing synchronize mode should leave no tracked capability state for a follow-up remove call',
-            );
-        } finally {
-            windowAny.showQuickPick = originalQuickPick;
-            windowAny.showWarningMessage = originalWarning;
-            windowAny.showInformationMessage = originalInfo;
-            await updateConfigAndWait(
-                'metaflow.aiMetadataAutoApplyMode',
-                previousMode,
-                vscode.ConfigurationTarget.Workspace,
-                wsFolder!,
-            );
-            await resetBuiltInCapabilityState();
-            await vscode.commands.executeCommand('metaflow.refresh');
-        }
-    });
-
-    test('TC-0335: aiMetadataAutoApplyMode=off does not auto-enable built-in capability paths', async function () {
+    test('TC-0335: unchecked built-in setting does not enable native capability paths', async function () {
         this.timeout(20000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6198,7 +6472,7 @@ suite('Command Execution', function () {
 
         await wsConfig.update(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
         );
         await resetBuiltInCapabilityState();
@@ -6216,7 +6490,7 @@ suite('Command Execution', function () {
             assert.strictEqual(
                 hasBuiltInInstructionPath(instructionLocations),
                 false,
-                'off mode should not inject built-in capability instruction paths',
+                'Unchecked setting should not inject built-in capability instruction paths',
             );
         } finally {
             await wsConfig.update(
@@ -6233,63 +6507,7 @@ suite('Command Execution', function () {
         }
     });
 
-    test('TC-0336: aiMetadataAutoApplyMode=synchronize scaffolds built-in capability files on refresh', async function () {
-        this.timeout(25000);
-
-        const wsFolder = vscode.workspace.workspaceFolders?.[0];
-        assert.ok(wsFolder, 'Workspace folder should be available');
-        const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>(
-            'metaflow.aiMetadataAutoApplyMode',
-        )?.workspaceValue;
-
-        const instructionPath = path.join(
-            workspaceRoot,
-            '.github',
-            'instructions',
-            'metaflow-constructs.instructions.md',
-        );
-        const originalInstruction = fs.existsSync(instructionPath)
-            ? fs.readFileSync(instructionPath, 'utf-8')
-            : undefined;
-
-        await wsConfig.update(
-            'metaflow.aiMetadataAutoApplyMode',
-            'off',
-            vscode.ConfigurationTarget.Workspace,
-        );
-        await resetBuiltInCapabilityState();
-        if (fs.existsSync(instructionPath)) {
-            fs.rmSync(instructionPath, { force: true });
-        }
-
-        try {
-            await wsConfig.update(
-                'metaflow.aiMetadataAutoApplyMode',
-                'synchronize',
-                vscode.ConfigurationTarget.Workspace,
-            );
-            await vscode.commands.executeCommand('metaflow.refresh');
-            assert.ok(
-                fs.existsSync(instructionPath),
-                'synchronize mode should scaffold built-in capability files during refresh',
-            );
-        } finally {
-            await wsConfig.update(
-                'metaflow.aiMetadataAutoApplyMode',
-                previousMode,
-                vscode.ConfigurationTarget.Workspace,
-            );
-            if (originalInstruction === undefined) {
-                fs.rmSync(instructionPath, { force: true });
-            } else {
-                fs.writeFileSync(instructionPath, originalInstruction, 'utf-8');
-            }
-            await vscode.commands.executeCommand('metaflow.refresh');
-        }
-    });
-
-    test('TC-0337: aiMetadataAutoApplyMode=builtinLayer uses native contributions without mutating config', async function () {
+    test('TC-0337: checked built-in setting uses native contributions without mutating config', async function () {
         this.timeout(25000);
 
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
@@ -6304,11 +6522,12 @@ suite('Command Execution', function () {
 
         await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
         const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        const configAfterInjectionSettings = fs.readFileSync(configPath, 'utf-8');
         await resetBuiltInCapabilityState();
         await wsConfig.update(
             'chat.instructionsFilesLocations',
@@ -6319,7 +6538,7 @@ suite('Command Execution', function () {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -6329,19 +6548,19 @@ suite('Command Execution', function () {
             assert.strictEqual(
                 instructionSettings.hasBuiltIn,
                 false,
-                'builtinLayer mode should keep built-in contribution paths out of settings',
+                'Checked setting should keep built-in contribution paths out of settings',
             );
             assert.strictEqual(
                 instructionSettings.hasExtensionInstall,
                 false,
-                'builtinLayer mode should not inject paths from the installed extension directory',
+                'Checked setting should not inject paths from the installed extension directory',
             );
 
             const afterRefreshConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
                 afterRefreshConfig,
-                originalConfig,
-                'builtinLayer mode should not mutate .metaflow/config.jsonc',
+                configAfterInjectionSettings,
+                'Checked setting should not mutate .metaflow/config.jsonc',
             );
         } finally {
             await wsConfig.update(
@@ -6375,11 +6594,12 @@ suite('Command Execution', function () {
 
         await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
         const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        const configAfterInjectionSettings = fs.readFileSync(configPath, 'utf-8');
         await resetBuiltInCapabilityState();
         await wsConfig.update(
             'chat.instructionsFilesLocations',
@@ -6390,7 +6610,7 @@ suite('Command Execution', function () {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -6408,7 +6628,7 @@ suite('Command Execution', function () {
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
                 afterToggleConfig,
-                originalConfig,
+                configAfterInjectionSettings,
                 'Built-in repo toggling should not persist extension-owned state in .metaflow/config.jsonc',
             );
             const persistedConfig = JSON.parse(afterToggleConfig) as {
@@ -6466,11 +6686,12 @@ suite('Command Execution', function () {
 
         await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
         const previousInjectionModes = await useSettingsBackedInstructions(wsFolder!);
+        const configAfterInjectionSettings = fs.readFileSync(configPath, 'utf-8');
         await updateConfigAndWait(
             'chat.instructionsFilesLocations',
             unmanagedInstructionLocations,
@@ -6482,7 +6703,7 @@ suite('Command Execution', function () {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -6522,7 +6743,7 @@ suite('Command Execution', function () {
             const afterToggleConfig = fs.readFileSync(configPath, 'utf-8');
             assert.strictEqual(
                 afterToggleConfig,
-                originalConfig,
+                configAfterInjectionSettings,
                 'Built-in remove/re-add should keep extension-owned state out of .metaflow/config.jsonc',
             );
         } finally {
@@ -6572,7 +6793,7 @@ suite('Command Execution', function () {
 
         await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
@@ -6591,7 +6812,7 @@ suite('Command Execution', function () {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -6614,12 +6835,12 @@ suite('Command Execution', function () {
             assert.deepStrictEqual(
                 secondSnapshot,
                 firstSnapshot,
-                'Equivalent builtinLayer refresh/apply cycles should preserve the same user settings payload',
+                'Equivalent built-in setting cycles should preserve the same user settings payload',
             );
             assert.strictEqual(
                 secondConfig,
                 firstConfig,
-                'Equivalent builtinLayer cycles should keep .metaflow/config.jsonc byte-stable',
+                'Equivalent built-in setting cycles should keep .metaflow/config.jsonc byte-stable',
             );
         } finally {
             await updateConfigAndWait(
@@ -6672,7 +6893,7 @@ suite('Command Execution', function () {
 
         await updateConfigAndWait(
             'metaflow.aiMetadataAutoApplyMode',
-            'off',
+            false,
             vscode.ConfigurationTarget.Workspace,
             wsFolder!,
         );
@@ -6692,7 +6913,7 @@ suite('Command Execution', function () {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );

@@ -552,7 +552,7 @@ suite('Governance command enforcement', () => {
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>(
+        const previousMode = wsConfig.inspect<boolean>(
             'metaflow.aiMetadataAutoApplyMode',
         )?.workspaceValue;
         const previousInjectionModes = wsConfig.inspect<Record<string, unknown>>(
@@ -569,7 +569,7 @@ suite('Governance command enforcement', () => {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'off',
+                false,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -579,6 +579,21 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
+            await waitFor(
+                () => {
+                    try {
+                        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                            injection?: { instructions?: unknown };
+                        };
+                        return config.injection?.instructions === 'settings';
+                    } catch {
+                        return false;
+                    }
+                },
+                DEFAULT_WAIT_FOR_TIMEOUT_MS,
+                100,
+            );
+            const configAfterInjectionModes = fs.readFileSync(configPath, 'utf-8');
             await resetBuiltInCapabilityState();
             await wsConfig.update(
                 'chat.instructionsFilesLocations',
@@ -601,7 +616,7 @@ suite('Governance command enforcement', () => {
 
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -638,7 +653,7 @@ suite('Governance command enforcement', () => {
             );
             assert.strictEqual(
                 fs.readFileSync(configPath, 'utf-8'),
-                originalConfig,
+                configAfterInjectionModes,
                 'Blocked built-in repo toggles must not mutate .metaflow/config.jsonc',
             );
         } finally {
@@ -677,7 +692,7 @@ suite('Governance command enforcement', () => {
         const wsFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(wsFolder, 'Workspace folder should be available');
         const wsConfig = vscode.workspace.getConfiguration(undefined, wsFolder!.uri);
-        const previousMode = wsConfig.inspect<string>(
+        const previousMode = wsConfig.inspect<boolean>(
             'metaflow.aiMetadataAutoApplyMode',
         )?.workspaceValue;
         const previousInjectionModes = wsConfig.inspect<Record<string, unknown>>(
@@ -694,7 +709,7 @@ suite('Governance command enforcement', () => {
         try {
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'off',
+                false,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -704,6 +719,21 @@ suite('Governance command enforcement', () => {
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
+            await waitFor(
+                () => {
+                    try {
+                        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                            injection?: { instructions?: unknown };
+                        };
+                        return config.injection?.instructions === 'settings';
+                    } catch {
+                        return false;
+                    }
+                },
+                DEFAULT_WAIT_FOR_TIMEOUT_MS,
+                100,
+            );
+            const configAfterInjectionModes = fs.readFileSync(configPath, 'utf-8');
             await resetBuiltInCapabilityState();
             await wsConfig.update(
                 'chat.instructionsFilesLocations',
@@ -726,7 +756,7 @@ suite('Governance command enforcement', () => {
 
             await updateConfigAndWait(
                 'metaflow.aiMetadataAutoApplyMode',
-                'builtinLayer',
+                true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
@@ -764,7 +794,7 @@ suite('Governance command enforcement', () => {
             );
             assert.strictEqual(
                 fs.readFileSync(configPath, 'utf-8'),
-                originalConfig,
+                configAfterInjectionModes,
                 'Blocked built-in layer toggles must not mutate .metaflow/config.jsonc',
             );
         } finally {

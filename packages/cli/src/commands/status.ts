@@ -1,5 +1,10 @@
 import { Command } from 'commander';
-import { computeSettingsEntries, resolveLayers } from '@metaflow/engine';
+import {
+    checkDrift,
+    computeSettingsEntries,
+    loadManagedState,
+    resolveLayers,
+} from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
     getWorkspaceRoot,
@@ -75,6 +80,26 @@ export function registerStatusCommand(program: Command): void {
                 return;
             }
             const { config, configPath } = loaded;
+            const repoWideCopilotInstructions =
+                config.synchronization?.repoWideCopilotInstructions === true;
+            const managedState = loadManagedState(workspaceRoot);
+            const rootManagedFile = managedState.files['copilot-instructions.md'];
+            const rootDrift = rootManagedFile
+                ? checkDrift(workspaceRoot, '.github', 'copilot-instructions.md', managedState)
+                : undefined;
+            const retained =
+                !repoWideCopilotInstructions && rootManagedFile && rootDrift
+                    ? [
+                          {
+                              relativePath: 'copilot-instructions.md',
+                              status: rootDrift.status,
+                              reason: 'policy-disabled-retained' as const,
+                              sourceLayer: rootManagedFile.sourceLayer,
+                              sourceRelativePath: rootManagedFile.sourceRelativePath,
+                              sourceRepo: rootManagedFile.sourceRepo,
+                          },
+                      ]
+                    : [];
             const files = resolveEffectiveFiles(config, workspaceRoot);
             const layers = resolveLayers(config, workspaceRoot);
             const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
@@ -131,6 +156,11 @@ export function registerStatusCommand(program: Command): void {
                     injection: {
                         modes: injectionModes,
                         settingsEntries,
+                    },
+                    synchronization: {
+                        repoWideCopilotInstructions,
+                        migrationRequired: loaded.migrationRequired === true,
+                        retained,
                     },
                     sources,
                     files: { total: files.length, settings, synchronized },
@@ -194,6 +224,15 @@ export function registerStatusCommand(program: Command): void {
             }
 
             console.log(`Profile: ${config.activeProfile ?? '(none)'}`);
+            console.log(
+                `Synchronization: repo-wide copilot instructions=${repoWideCopilotInstructions ? 'enabled' : 'disabled'}${loaded.migrationRequired ? ' (migration required)' : ''}`,
+            );
+            if (retained.length > 0) {
+                console.log(`Retained root files: ${retained.length}`);
+                for (const file of retained) {
+                    console.log(`  - ${file.relativePath} (${file.status})`);
+                }
+            }
             console.log(
                 `Injection: instructions=${injectionModes.instructions}, prompts=${injectionModes.prompts}, skills=${injectionModes.skills}, agents=${injectionModes.agents}, hooks=${injectionModes.hooks}`,
             );

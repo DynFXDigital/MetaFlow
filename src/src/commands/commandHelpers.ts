@@ -38,7 +38,7 @@ export interface RepoScopeOptions {
     silent?: boolean;
 }
 
-export type AiMetadataAutoApplyMode = 'off' | 'synchronize' | 'builtinLayer';
+export type AiMetadataAutoApplyMode = boolean;
 
 export type FilesViewMode = 'unified' | 'repoTree';
 export type LayersViewMode = 'flat' | 'tree';
@@ -692,10 +692,7 @@ export function writeManagedViewsState(
 }
 
 export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAutoApplyMode {
-    if (value === 'synchronize' || value === 'builtinLayer') {
-        return value;
-    }
-    return 'off';
+    return value === true;
 }
 
 /**

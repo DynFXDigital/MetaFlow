@@ -59,6 +59,7 @@ export { checkDrift, checkAllDrift } from './driftDetector';
 export {
     apply,
     clean,
+    disposeManagedFile,
     planSynchronization,
     preview,
     toSynchronizedRelativePath,
@@ -122,5 +123,12 @@ export type {
     PlannedSynchronizedFile,
     PlanSynchronizationOptions,
     SynchronizationPlan,
+    PolicyRetainedFile,
+    RetainedSynchronizationReason,
+    RetainedSynchronizationStatus,
+    DisposeManagedFileOptions,
+    DisposeManagedFileResult,
+    ManagedFileDispositionStatus,
+    ManagedSynchronizationSourceIdentity,
 } from './synchronizer';
 export type { SettingsEntry } from './settingsInjector';

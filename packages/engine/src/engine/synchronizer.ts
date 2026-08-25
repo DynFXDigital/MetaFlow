@@ -10,6 +10,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { LayerSource, SyncFileNamingStrategy } from '../config/configSchema';
+import {
+    isRootSynchronizationAuthorizationActive,
+    RootSynchronizationAuthorization,
+} from '../config/configMigration';
 import { EffectiveFile, PendingAction, PendingChange } from './types';
 import { generateProvenanceHeader, ProvenanceData } from './provenanceHeader';
 import {
@@ -44,6 +48,41 @@ export interface PlannedSynchronizedFile {
 export interface SynchronizationPlan {
     /** Planned synchronized outputs in overlay order. */
     synchronizedFiles: PlannedSynchronizedFile[];
+    /** Managed root files retained while policy is disabled. */
+    retainedFiles: PolicyRetainedFile[];
+}
+
+export type RetainedSynchronizationReason = 'policy-disabled-retained';
+export type RetainedSynchronizationStatus = 'in-sync' | 'missing' | 'drifted';
+
+export interface PolicyRetainedFile {
+    relativePath: string;
+    status: RetainedSynchronizationStatus;
+    reason: RetainedSynchronizationReason;
+    sourceLayer: string;
+    sourceRelativePath?: string;
+    sourceRepo?: string;
+}
+
+export interface ManagedSynchronizationSourceIdentity {
+    sourceLayer: string;
+    sourceRelativePath?: string;
+    sourceRepo?: string;
+}
+
+export type ManagedFileDispositionStatus =
+    'removed' | 'state-cleared' | 'preserved-drifted' | 'not-managed' | 'source-mismatch';
+
+export interface DisposeManagedFileOptions {
+    workspaceRoot: string;
+    outputDir?: string;
+    relativePath: string;
+    expectedSourceIdentity?: ManagedSynchronizationSourceIdentity;
+}
+
+export interface DisposeManagedFileResult {
+    relativePath: string;
+    status: ManagedFileDispositionStatus;
 }
 
 export interface PlanSynchronizationOptions {
@@ -57,6 +96,12 @@ export interface PlanSynchronizationOptions {
     fileNamingStrategy?: SyncFileNamingStrategy;
     /** Optional normalized layer sources carrying per-layer naming overrides. */
     layerSources?: LayerSource[];
+    /** Strict effective workspace policy for the canonical root file. */
+    synchronizationPolicy?: boolean;
+    /** Operation-local proof for an enabled root synchronization policy. */
+    rootSynchronizationAuthorization?: RootSynchronizationAuthorization;
+    /** Config path bound to the operation-local proof. */
+    rootSynchronizationConfigPath?: string;
 }
 
 interface LoadedSynchronizationPlan extends SynchronizationPlan {
@@ -250,9 +295,28 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
     const state = loadManagedState(options.workspaceRoot);
     const synchronizedFiles: PlannedSynchronizedFile[] = [];
     const contendersByDestination = new Map<string, PlannedSynchronizedFile[]>();
+    const synchronizationPolicy = options.synchronizationPolicy === true;
+    const hasRootFile =
+        options.effectiveFiles.some(isRepoWideCopilotInstructionsFile) ||
+        state.files[REPO_WIDE_COPILOT_INSTRUCTIONS_PATH] !== undefined;
+    if (
+        synchronizationPolicy &&
+        hasRootFile &&
+        !isRootSynchronizationAuthorizationActive(
+            options.rootSynchronizationAuthorization,
+            options.rootSynchronizationConfigPath,
+        )
+    ) {
+        throw new Error(
+            'Repository-wide Copilot instruction synchronization requires a fresh active v4 authorization.',
+        );
+    }
 
     for (const file of options.effectiveFiles) {
         if (file.classification !== 'synchronized') {
+            continue;
+        }
+        if (isRepoWideCopilotInstructionsFile(file) && !synchronizationPolicy) {
             continue;
         }
 
@@ -372,10 +436,32 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         );
     }
 
+    const retainedFiles: PolicyRetainedFile[] = [];
+    if (!synchronizationPolicy) {
+        const retained = state.files[REPO_WIDE_COPILOT_INSTRUCTIONS_PATH];
+        if (retained) {
+            const drift = checkDrift(
+                options.workspaceRoot,
+                outputDir,
+                REPO_WIDE_COPILOT_INSTRUCTIONS_PATH,
+                state,
+            );
+            retainedFiles.push({
+                relativePath: REPO_WIDE_COPILOT_INSTRUCTIONS_PATH,
+                status: drift.status === 'untracked' ? 'missing' : drift.status,
+                reason: 'policy-disabled-retained',
+                sourceLayer: retained.sourceLayer,
+                sourceRelativePath: retained.sourceRelativePath,
+                sourceRepo: retained.sourceRepo,
+            });
+        }
+    }
+
     return {
         outputDir,
         state,
         synchronizedFiles,
+        retainedFiles,
     };
 }
 
@@ -409,8 +495,47 @@ export function toSynchronizedRelativePath(
 }
 
 export function planSynchronization(options: PlanSynchronizationOptions): SynchronizationPlan {
-    const { synchronizedFiles } = loadSynchronizationPlan(options);
-    return { synchronizedFiles };
+    const { synchronizedFiles, retainedFiles } = loadSynchronizationPlan(options);
+    return { synchronizedFiles, retainedFiles };
+}
+
+/**
+ * Dispose one managed file without widening the operation to global Clean.
+ * Source identity is checked before any mutation, and drift is always preserved.
+ */
+export function disposeManagedFile(options: DisposeManagedFileOptions): DisposeManagedFileResult {
+    const outputDir = options.outputDir ?? DEFAULT_OUTPUT_DIR;
+    const state = loadManagedState(options.workspaceRoot);
+    const fileState = state.files[options.relativePath];
+    if (!fileState) {
+        return { relativePath: options.relativePath, status: 'not-managed' };
+    }
+
+    const expected = options.expectedSourceIdentity;
+    if (
+        expected &&
+        (fileState.sourceLayer !== expected.sourceLayer ||
+            fileState.sourceRelativePath !== expected.sourceRelativePath ||
+            fileState.sourceRepo !== expected.sourceRepo)
+    ) {
+        return { relativePath: options.relativePath, status: 'source-mismatch' };
+    }
+
+    const drift = checkDrift(options.workspaceRoot, outputDir, options.relativePath, state);
+    if (drift.status === 'drifted') {
+        return { relativePath: options.relativePath, status: 'preserved-drifted' };
+    }
+
+    const fullPath = path.join(options.workspaceRoot, outputDir, options.relativePath);
+    if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+    }
+    delete state.files[options.relativePath];
+    saveManagedState(options.workspaceRoot, state);
+    return {
+        relativePath: options.relativePath,
+        status: drift.status === 'missing' ? 'state-cleared' : 'removed',
+    };
 }
 
 /** Options for an apply operation. */
@@ -429,6 +554,9 @@ export interface ApplyOptions {
     layerSources?: LayerSource[];
     /** Force overwrite even if drifted. */
     force?: boolean;
+    synchronizationPolicy?: boolean;
+    rootSynchronizationAuthorization?: RootSynchronizationAuthorization;
+    rootSynchronizationConfigPath?: string;
 }
 
 /** Result of an apply operation. */
@@ -441,6 +569,8 @@ export interface ApplyResult {
     removed: string[];
     /** Warning messages. */
     warnings: string[];
+    /** Managed root files retained while policy is disabled. */
+    retained: PolicyRetainedFile[];
 }
 
 /**
@@ -453,7 +583,13 @@ export function apply(options: ApplyOptions): ApplyResult {
     const plan = loadSynchronizationPlan(options);
     const outPath = path.join(options.workspaceRoot, plan.outputDir);
     const state = plan.state;
-    const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
+    const result: ApplyResult = {
+        written: [],
+        skipped: [],
+        removed: [],
+        warnings: [],
+        retained: plan.retainedFiles,
+    };
     let managedStateChanged = false;
 
     // Track which files are in the current overlay
@@ -532,6 +668,12 @@ export function apply(options: ApplyOptions): ApplyResult {
     // Remove files no longer in overlay (only if in-sync)
     for (const trackedPath of Object.keys(state.files)) {
         if (!currentFiles.has(trackedPath)) {
+            if (
+                trackedPath === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH &&
+                options.synchronizationPolicy !== true
+            ) {
+                continue;
+            }
             const drift = checkDrift(options.workspaceRoot, plan.outputDir, trackedPath, state);
             if (drift.status === 'in-sync' || drift.status === 'missing') {
                 const fullPath = path.join(outPath, trackedPath);
@@ -566,7 +708,13 @@ export function clean(workspaceRoot: string, outputDir?: string): ApplyResult {
     const outDir = outputDir ?? DEFAULT_OUTPUT_DIR;
     const outPath = path.join(workspaceRoot, outDir);
     const state = loadManagedState(workspaceRoot);
-    const result: ApplyResult = { written: [], skipped: [], removed: [], warnings: [] };
+    const result: ApplyResult = {
+        written: [],
+        skipped: [],
+        removed: [],
+        warnings: [],
+        retained: [],
+    };
 
     for (const relPath of Object.keys(state.files)) {
         const drift = checkDrift(workspaceRoot, outDir, relPath, state);
@@ -607,6 +755,9 @@ export function preview(
     outputDir?: string,
     fileNamingStrategy?: SyncFileNamingStrategy,
     layerSources?: LayerSource[],
+    synchronizationPolicy?: boolean,
+    rootSynchronizationAuthorization?: RootSynchronizationAuthorization,
+    rootSynchronizationConfigPath?: string,
 ): PendingChange[] {
     const plan = loadSynchronizationPlan({
         workspaceRoot,
@@ -614,6 +765,9 @@ export function preview(
         outputDir,
         fileNamingStrategy,
         layerSources,
+        synchronizationPolicy,
+        rootSynchronizationAuthorization,
+        rootSynchronizationConfigPath,
     });
     const outDir = plan.outputDir;
     const state = plan.state;
@@ -660,6 +814,12 @@ export function preview(
     // Files to remove
     for (const trackedPath of Object.keys(state.files)) {
         if (!currentFiles.has(trackedPath)) {
+            if (
+                trackedPath === REPO_WIDE_COPILOT_INSTRUCTIONS_PATH &&
+                synchronizationPolicy !== true
+            ) {
+                continue;
+            }
             const drift = checkDrift(workspaceRoot, outDir, trackedPath, state);
             changes.push({
                 relativePath: trackedPath,
@@ -671,5 +831,12 @@ export function preview(
         }
     }
 
-    return changes;
+    const withRetention = changes as PendingChange[] & { retained: PolicyRetainedFile[] };
+    Object.defineProperty(withRetention, 'retained', {
+        configurable: true,
+        enumerable: false,
+        value: plan.retainedFiles,
+        writable: false,
+    });
+    return withRetention;
 }
