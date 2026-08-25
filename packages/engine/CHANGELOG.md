@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.4.6
+
+### Patch Changes
+
+- 8be3990: Gate repository-wide `.github/copilot-instructions.md` synchronization behind explicit workspace consent, preserve previously managed root files as retained ownership when disabled, and expose migration/retention state through the engine, CLI, and extension.
+
 ## 0.4.5
 
 ### Patch Changes

@@ -4,6 +4,18 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.6
+
+### Added
+
+- Add explicit, workspace-scoped consent for synchronizing repository-wide Copilot instructions.
+- Expose repository policy, migration, and retained-ownership state through the engine, CLI, and extension.
+
+### Fixed
+
+- Complete the round trip from VS Code workspace settings to `.metaflow/config.jsonc`, including setting resets and resource-scoped changes.
+- Keep metadata maintenance opt-in and prevent upgrade prompts from blocking later settings refreshes.
+
 ## 0.4.5
 
 ### Fixed
