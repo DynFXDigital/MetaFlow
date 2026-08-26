@@ -945,6 +945,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
         const parsed = JSON.parse(result.content) as {
             name?: string;
+            displayName?: string;
             version?: string;
             keywords?: string[];
             agents?: string;
@@ -955,6 +956,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         };
 
         assert.strictEqual(parsed.name, 'demo-capability');
+        assert.strictEqual(parsed.displayName, 'Demo Capability');
         assert.strictEqual(parsed.version, '0.1.0');
         assert.deepStrictEqual(parsed.keywords, []);
         assert.strictEqual(parsed.agents, '.github/agents');
@@ -986,6 +988,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
 
         const parsed = JSON.parse(result.content) as {
             name?: string;
+            displayName?: string;
             version?: string;
             keywords?: string[];
             agents?: string;
@@ -996,6 +999,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
         };
 
         assert.strictEqual(parsed.name, 'custom-demo-capability');
+        assert.strictEqual(parsed.displayName, 'Demo Capability');
         assert.strictEqual(parsed.version, '2.3.4');
         assert.deepStrictEqual(parsed.keywords, ['existing']);
         assert.strictEqual(parsed.agents, 'agents');
@@ -1004,6 +1008,27 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.rules, '.github/instructions');
         assert.deepStrictEqual(parsed.metaflow?.pluginHosts, ['claude-code', 'github-copilot']);
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
+    });
+
+    test('buildMaintainedCapabilityPluginManifestJson preserves friendly names when normalizing legacy plugin names', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const result = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'PDLC Architecture And Design',
+            capabilityDirectoryName: 'pdlc-architecture-design',
+            existingRawText: JSON.stringify({
+                name: 'PDLC Architecture And Design',
+                version: '0.1.0',
+                description: 'Architecture guidance.',
+            }),
+        });
+
+        const parsed = JSON.parse(result.content) as {
+            name?: string;
+            displayName?: string;
+        };
+
+        assert.strictEqual(parsed.name, 'pdlc-architecture-and-design');
+        assert.strictEqual(parsed.displayName, 'PDLC Architecture And Design');
     });
 
     test('buildMaintainedCapabilityPluginManifestJson canonicalizes equivalent field and array order', () => {
@@ -1020,6 +1045,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 keywords: ['zeta', 'alpha'],
                 author: { url: 'https://example.test', name: 'Example' },
                 name: 'demo-capability',
+                displayName: 'Demo Capability',
                 version: '1.0.0',
                 description: 'Demo package description.',
                 customMetadata: { z: 1, a: 2 },
@@ -1035,6 +1061,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
             capabilityDirectoryName: 'demo-capability',
             existingRawText: JSON.stringify({
                 name: 'demo-capability',
+                displayName: 'Demo Capability',
                 version: '1.0.0',
                 description: 'Demo package description.',
                 author: { name: 'Example', url: 'https://example.test' },
@@ -1199,6 +1226,7 @@ suite('Command handler capability plugin maintenance helpers', () => {
                 JSON.stringify(
                     {
                         name: 'custom-demo-capability',
+                        displayName: 'Demo Capability',
                         version: '1.2.3',
                         description: 'Demo capability plugin',
                         keywords: ['existing-topic'],

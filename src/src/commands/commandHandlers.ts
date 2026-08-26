@@ -4898,13 +4898,24 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
         packageObject = { ...(parsed as Record<string, unknown>) };
     }
 
+    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
     const defaultPluginName =
         sanitizeCapabilityPluginName(options.capabilityDirectoryName) || 'capability';
-    const currentName =
+    const existingName =
         typeof packageObject.name === 'string' && packageObject.name.trim().length > 0
-            ? sanitizeCapabilityPluginName(packageObject.name)
+            ? packageObject.name.trim()
             : undefined;
+    const currentName = existingName ? sanitizeCapabilityPluginName(existingName) : undefined;
     packageObject.name = currentName || defaultPluginName;
+    const currentDisplayName =
+        typeof packageObject.displayName === 'string' && packageObject.displayName.trim().length > 0
+            ? packageObject.displayName.trim()
+            : undefined;
+    packageObject.displayName =
+        currentDisplayName ??
+        (existingName && existingName !== packageObject.name
+            ? existingName
+            : normalizedCapabilityName);
 
     const currentVersion =
         typeof packageObject.version === 'string' && isLikelySemverVersion(packageObject.version)
@@ -4912,7 +4923,6 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
             : undefined;
     packageObject.version = currentVersion ?? '0.1.0';
 
-    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
     const currentDescription =
         typeof packageObject.description === 'string' && packageObject.description.trim().length > 0
             ? packageObject.description.trim()
