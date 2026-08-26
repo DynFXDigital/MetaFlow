@@ -25,6 +25,7 @@ function makeLayer(
         descriptorName?: string;
         descriptorDescription?: string;
         pluginDescription?: string;
+        pluginDisplayName?: string;
         agentPlugin?: boolean;
     } = {},
 ): LayerContent {
@@ -49,6 +50,7 @@ function makeLayer(
             agentPluginManifest: {
                 pluginJsonPath: `/workspace/${layerId}/plugin.json`,
                 name: pluginName,
+                displayName: options.pluginDisplayName,
                 version: '1.0.0',
                 description: pluginDescription,
                 keywords: ['metaflow'],
@@ -241,6 +243,19 @@ describe('pluginCatalog', () => {
                 'Align the shared description values',
             ),
         );
+    });
+
+    it('uses a friendly plugin displayName for README identity matching', () => {
+        const result = buildAgentPluginCatalog([
+            makeLayer('repo/readme/friendly-name', 'repo', 'metaflow-ai-metadata', [], {
+                descriptorKind: 'readme',
+                descriptorName: 'MetaFlow Metadata',
+                pluginDisplayName: 'MetaFlow Metadata',
+            }),
+        ]);
+
+        assert.deepStrictEqual(result.warnings, []);
+        assert.strictEqual(result.entries[0]?.pluginName, 'metaflow-ai-metadata');
     });
 
     it('omits invalid agent-plugin capabilities that already have error-severity manifest warnings', () => {

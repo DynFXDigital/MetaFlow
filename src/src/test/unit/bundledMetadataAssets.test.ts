@@ -17,6 +17,14 @@ function runPromptInjectionHook(event: unknown): string {
     });
 }
 
+function normalizePluginName(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
 suite('bundled metadata assets', () => {
     test('bundled package READMEs are ordinary human-facing Markdown', () => {
         const descriptorPaths = [
@@ -65,7 +73,7 @@ suite('bundled metadata assets', () => {
             );
             const pluginManifest = JSON.parse(
                 fs.readFileSync(path.join(ASSET_ROOT, pluginPath), 'utf-8'),
-            ) as { name?: string; description?: string };
+            ) as { name?: string; displayName?: string; description?: string };
             assert.ok(
                 descriptorContent.trim().length > 0,
                 `Expected README body: ${descriptorPath}`,
@@ -74,6 +82,16 @@ suite('bundled metadata assets', () => {
             assert.ok(
                 pluginManifest.description,
                 `Expected plugin.json description: ${descriptorPath}`,
+            );
+            const readmeName = descriptorContent.match(/^#\s+(.+)\s*$/m)?.[1]?.trim();
+            assert.strictEqual(
+                readmeName ? normalizePluginName(readmeName) : undefined,
+                pluginManifest.displayName
+                    ? normalizePluginName(pluginManifest.displayName)
+                    : pluginManifest.name
+                      ? normalizePluginName(pluginManifest.name)
+                      : undefined,
+                `Expected README title to match plugin.json name: ${descriptorPath}`,
             );
         }
     });
@@ -540,11 +558,12 @@ suite('bundled metadata assets', () => {
         };
         const pluginManifest = JSON.parse(
             fs.readFileSync(path.join(ASSET_ROOT, '.plugin/plugin.json'), 'utf-8'),
-        ) as { name?: string };
+        ) as { name?: string; displayName?: string };
         const hookScript = fs.readFileSync(hookScriptPath, 'utf-8');
         const pluginScript = fs.readFileSync(pluginScriptPath, 'utf-8');
 
         assert.strictEqual(pluginManifest.name, 'metaflow-ai-metadata');
+        assert.strictEqual(pluginManifest.displayName, 'MetaFlow Metadata');
         assert.strictEqual(
             hookConfig.hooks?.PreToolUse?.[0]?.command,
             'node "${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs"',

@@ -73,6 +73,8 @@ export interface CapabilityAgentPluginManifest {
     pluginJsonPath: string;
     /** Plugin manifest name. */
     name?: string;
+    /** Optional human-facing plugin name from plugin.json. */
+    displayName?: string;
     /** Plugin manifest version. */
     version?: string;
     /** Plugin manifest description. */

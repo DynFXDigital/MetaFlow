@@ -536,6 +536,7 @@ function parseAgentPluginManifestContent(
     const warnings: CapabilityWarning[] = [];
     const pluginName =
         typeof manifestObject.name === 'string' ? manifestObject.name.trim() : undefined;
+    const displayName = normalizeOptionalString(manifestObject.displayName);
     const version =
         typeof manifestObject.version === 'string' ? manifestObject.version.trim() : undefined;
     const description =
@@ -661,6 +662,7 @@ function parseAgentPluginManifestContent(
         metadata: {
             pluginJsonPath,
             name: pluginName,
+            displayName,
             version,
             description,
             author,
