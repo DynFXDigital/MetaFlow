@@ -1,5 +1,5 @@
 ---
-description: 'Requirements for agent plugin manifests and plugin-local skill, hook, MCP, and LSP paths across Copilot, OpenPlugin, and Claude formats.'
+description: 'Requirements for Agent Plugins v1 and host-specific plugin manifests, including plugin-local skill, hook, MCP, and LSP paths.'
 applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/.github/hooks/*.json,**/mcp.json,**/.mcp.json,**/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
 ---
 
@@ -10,8 +10,9 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 ## Sources and versioning
 
-- Last reviewed: 2026-07-24
+- Last reviewed: 2026-08-29
 - Sources:
+    - https://agent-plugins.org/specification
     - https://code.visualstudio.com/docs/agent-customization/agent-plugins
     - https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference
     - https://docs.github.com/en/copilot/reference/hooks-reference
@@ -23,8 +24,13 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 ## Select the format before authoring paths
 
+- If a request says only "capability" or "agent plugin" and the desired format cannot be inferred,
+  you MUST ask whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1
+  package before creating or rewriting files.
 - You MUST identify the owning plugin format and target hosts before choosing manifest, hook,
   MCP, or LSP paths.
+- Treat the exact Agent Plugins v1 `$schema` value as a positive format marker. Do not add
+  Copilot, OpenPlugin, Claude, or MetaFlow manifest fields to a strict v1 package.
 - VS Code checks manifests in this order: `.plugin/plugin.json`, root `plugin.json`,
   `.github/plugin/plugin.json`, then `.claude-plugin/plugin.json`. The first match determines the
   format.
@@ -63,6 +69,17 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 - Keep these outputs distinct even when they delegate to the same source implementation.
 
 ## Format contracts
+
+### Agent Plugins v1
+
+- Use the built-in `agent-plugins-v1-standard` capability for the strict manifest, fixed `skills/`
+  and `mcp.json` discovery locations, extension namespaces, containment, and validation rules.
+- Use the built-in `agent-skills-standard` capability for every skill under `skills/`.
+- Require the canonical v1 `$schema` value in root `plugin.json`. Preserve a recognized strict-v1
+  package as strict v1 during maintenance; stop on invalid, mixed, or unsupported schema versions
+  instead of converting it to a host-specific manifest.
+- Keep host integration outside the portable package or under the standard's `extensions`
+  mechanism. Do not assume GitHub Copilot's format is a superset of Agent Plugins v1.
 
 ### OpenPlugin for VS Code
 

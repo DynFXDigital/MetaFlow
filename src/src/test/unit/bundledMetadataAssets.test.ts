@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { execFileSync } from 'child_process';
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getArtifactType, loadCapabilityDescriptorForLayer } from '@metaflow/engine';
@@ -32,6 +33,8 @@ suite('bundled metadata assets', () => {
             'capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md',
             'capabilities/metadata-authoring/claude-code-metadata-authoring/README.md',
             'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
+            'capabilities/metadata-authoring/agent-plugins-v1-standard/README.md',
+            'capabilities/metadata-authoring/agent-skills-standard/README.md',
         ];
 
         for (const relativePath of descriptorPaths) {
@@ -63,6 +66,14 @@ suite('bundled metadata assets', () => {
             [
                 'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
                 'capabilities/metadata-authoring/codex-metadata-authoring/plugin.json',
+            ],
+            [
+                'capabilities/metadata-authoring/agent-plugins-v1-standard/README.md',
+                'capabilities/metadata-authoring/agent-plugins-v1-standard/plugin.json',
+            ],
+            [
+                'capabilities/metadata-authoring/agent-skills-standard/README.md',
+                'capabilities/metadata-authoring/agent-skills-standard/plugin.json',
             ],
         ];
 
@@ -256,12 +267,25 @@ suite('bundled metadata assets', () => {
             assert.ok(pluginGuidance.includes('.plugin/plugin.json`, root `plugin.json`'));
             assert.ok(
                 pluginGuidance.includes(
+                    'whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1',
+                ),
+            );
+            assert.ok(pluginGuidance.includes('agent-plugins-v1-standard'));
+            assert.ok(pluginGuidance.includes('agent-skills-standard'));
+            assert.ok(
+                /Copilot, OpenPlugin, Claude, or MetaFlow manifest fields\s+to a strict v1 package/.test(
+                    pluginGuidance,
+                ),
+            );
+            assert.ok(
+                pluginGuidance.includes(
                     'MUST ship `.plugin/plugin.json`, `hooks/hooks.json`, and a plugin-root script',
                 ),
             );
             assert.ok(pluginGuidance.includes('PowerShell: `node "$env:PLUGIN_ROOT'));
             assert.ok(hookGuidance.includes('Do not copy them unchanged into an agent plugin'));
             assert.ok(skillGuidance.includes('ai-metadata-plugins.instructions.md'));
+            assert.ok(skillGuidance.includes('agent-plugins-v1-standard'));
             assert.ok(
                 fs.existsSync(
                     path.resolve(
@@ -348,6 +372,8 @@ suite('bundled metadata assets', () => {
             'github-copilot-metadata-authoring',
             'claude-code-metadata-authoring',
             'codex-metadata-authoring',
+            'agent-plugins-v1-standard',
+            'agent-skills-standard',
         ];
 
         for (const capabilityName of capabilityNames) {
@@ -389,6 +415,63 @@ suite('bundled metadata assets', () => {
                 `Expected bundled Codex-native asset: ${relativePath}`,
             );
         }
+    });
+
+    test('bundled standards capabilities preserve pinned authoritative snapshots for progressive discovery', () => {
+        const capabilityRoot = path.join(ASSET_ROOT, 'capabilities/metadata-authoring');
+        const expectedSnapshots = [
+            {
+                relativePath:
+                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/specification-1.0.0.md',
+                sha256: '97a658b7dca3ce1b4c2266b95da300fa51d9dc4ade59d73168e5f9104272da18',
+            },
+            {
+                relativePath:
+                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/plugin.schema.json',
+                sha256: '0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883',
+            },
+            {
+                relativePath:
+                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/mcp.schema.json',
+                sha256: '6539175bfcdf43085855183e86da40ea94b166547a72b47ae9a0a390516d3acb',
+            },
+            {
+                relativePath:
+                    'agent-skills-standard/.github/skills/agent-skills-standard/references/raw/specification.mdx',
+                sha256: 'b9079c0c10b7930e8c6a20ff2bc10cda2a3343c55185120e3f1116a1a529b220',
+            },
+        ];
+
+        for (const snapshot of expectedSnapshots) {
+            const content = fs.readFileSync(path.join(capabilityRoot, snapshot.relativePath));
+            assert.strictEqual(
+                createHash('sha256').update(content).digest('hex'),
+                snapshot.sha256,
+                `Expected pinned upstream bytes: ${snapshot.relativePath}`,
+            );
+        }
+
+        const pluginSkill = fs.readFileSync(
+            path.join(
+                capabilityRoot,
+                'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/SKILL.md',
+            ),
+            'utf-8',
+        );
+        assert.ok(
+            pluginSkill.includes('If “plugin” or “capability” is ambiguous, ask which format'),
+        );
+        assert.ok(pluginSkill.includes('references/raw/specification-1.0.0.md'));
+
+        const skillsSkill = fs.readFileSync(
+            path.join(
+                capabilityRoot,
+                'agent-skills-standard/.github/skills/agent-skills-standard/SKILL.md',
+            ),
+            'utf-8',
+        );
+        assert.ok(skillsSkill.includes('## Progressive disclosure and resources'));
+        assert.ok(skillsSkill.includes('references/raw/specification.mdx'));
     });
 
     test('bundled metadata-authoring capability files avoid stale DFX self-paths', () => {
