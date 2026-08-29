@@ -1,5 +1,5 @@
 ---
-name: agent-skills-standard
+name: agent-skills
 description: Author, review, and validate portable Agent Skills directories and SKILL.md files. Use when a task involves skill frontmatter, progressive disclosure, scripts, references, assets, or host skill locations.
 ---
 

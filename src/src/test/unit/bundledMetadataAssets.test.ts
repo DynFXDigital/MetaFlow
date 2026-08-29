@@ -34,7 +34,7 @@ suite('bundled metadata assets', () => {
             'capabilities/metadata-authoring/claude-code-metadata-authoring/README.md',
             'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
             'capabilities/metadata-authoring/agent-plugins/README.md',
-            'capabilities/metadata-authoring/agent-skills-standard/README.md',
+            'capabilities/metadata-authoring/agent-skills/README.md',
         ];
 
         for (const relativePath of descriptorPaths) {
@@ -72,8 +72,8 @@ suite('bundled metadata assets', () => {
                 'capabilities/metadata-authoring/agent-plugins/plugin.json',
             ],
             [
-                'capabilities/metadata-authoring/agent-skills-standard/README.md',
-                'capabilities/metadata-authoring/agent-skills-standard/plugin.json',
+                'capabilities/metadata-authoring/agent-skills/README.md',
+                'capabilities/metadata-authoring/agent-skills/plugin.json',
             ],
         ];
 
@@ -271,7 +271,7 @@ suite('bundled metadata assets', () => {
                 ),
             );
             assert.ok(pluginGuidance.includes('agent-plugins'));
-            assert.ok(pluginGuidance.includes('agent-skills-standard'));
+            assert.ok(pluginGuidance.includes('agent-skills'));
             assert.ok(
                 /Copilot, OpenPlugin, Claude, or MetaFlow manifest fields\s+to a strict v1 package/.test(
                     pluginGuidance,
@@ -373,7 +373,7 @@ suite('bundled metadata assets', () => {
             'claude-code-metadata-authoring',
             'codex-metadata-authoring',
             'agent-plugins',
-            'agent-skills-standard',
+            'agent-skills',
         ];
 
         for (const capabilityName of capabilityNames) {
@@ -437,7 +437,7 @@ suite('bundled metadata assets', () => {
             },
             {
                 relativePath:
-                    'agent-skills-standard/.github/skills/agent-skills-standard/references/raw/specification.mdx',
+                    'agent-skills/.github/skills/agent-skills/references/raw/specification.mdx',
                 sha256: 'b9079c0c10b7930e8c6a20ff2bc10cda2a3343c55185120e3f1116a1a529b220',
             },
         ];
@@ -463,7 +463,7 @@ suite('bundled metadata assets', () => {
         const skillsSkill = fs.readFileSync(
             path.join(
                 capabilityRoot,
-                'agent-skills-standard/.github/skills/agent-skills-standard/SKILL.md',
+                'agent-skills/.github/skills/agent-skills/SKILL.md',
             ),
             'utf-8',
         );

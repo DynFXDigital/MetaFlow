@@ -74,7 +74,7 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 - Use the built-in `agent-plugins` capability for the strict manifest, fixed `skills/`
   and `mcp.json` discovery locations, extension namespaces, containment, and validation rules.
-- Use the built-in `agent-skills-standard` capability for every skill under `skills/`.
+- Use the built-in `agent-skills` capability for every skill under `skills/`.
 - Require the canonical v1 `$schema` value in root `plugin.json`. Preserve a recognized strict-v1
   package as strict v1 during maintenance; stop on invalid, mixed, or unsupported schema versions
   instead of converting it to a host-specific manifest.

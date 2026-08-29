@@ -1,5 +1,5 @@
 {
-  "name": "agent-skills-standard",
+  "name": "agent-skills",
   "version": "0.1.0",
   "description": "Authoring guidance for the portable Agent Skills SKILL.md format and progressive disclosure.",
   "skills": ".github/skills"
