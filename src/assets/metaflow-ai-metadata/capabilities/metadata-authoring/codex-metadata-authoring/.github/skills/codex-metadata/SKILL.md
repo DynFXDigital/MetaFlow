@@ -27,7 +27,7 @@ This skill consolidates current best practices and compatibility notes for OpenA
 4. Use `ReflectionReinforcement.md` when promoting repeated findings into durable guidance.
 5. Use the built-in `agent-skills-standard` capability for portable `SKILL.md` syntax. If a
    request for a capability or agent plugin is format-ambiguous, ask GitHub Copilot versus strict
-   Agent Plugins v1 and route strict-v1 work through `agent-plugins-v1-standard`.
+   Agent Plugins v1 and route strict-v1 work through `agent-plugins`.
 
 ## Command compatibility
 

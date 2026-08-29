@@ -20,7 +20,7 @@ This skill consolidates current best practices and compatibility notes across Gi
 ## How to use
 1. If a request says only "capability" or "agent plugin" and the format is not otherwise clear,
    ask whether the user wants a GitHub Copilot agent plugin or strict Agent Plugins v1 package.
-   Use the built-in `agent-plugins-v1-standard` capability for strict v1 and
+   Use the built-in `agent-plugins` capability for strict v1 and
    `agent-skills-standard` for portable skill syntax; do not merge the formats.
 2. Read `References.md` for authoritative sources and last-reviewed dates.
 3. Apply `BestPractices.md` when authoring or reviewing metadata files.

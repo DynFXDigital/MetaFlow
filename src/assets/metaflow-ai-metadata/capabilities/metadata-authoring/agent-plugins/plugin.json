@@ -1,5 +1,5 @@
 {
-  "name": "agent-plugins-v1-standard",
+  "name": "agent-plugins",
   "version": "0.1.0",
   "description": "Authoring guidance for the portable Agent Plugins Specification v1.0.0 and its format boundaries.",
   "skills": ".github/skills"

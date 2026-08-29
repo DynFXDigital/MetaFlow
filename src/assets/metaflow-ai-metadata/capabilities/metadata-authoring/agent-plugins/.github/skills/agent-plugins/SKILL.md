@@ -1,5 +1,5 @@
 ---
-name: agent-plugins-v1-standard
+name: agent-plugins
 description: Create, review, or maintain strict Agent Plugins Specification v1.0.0 packages. Use when a request mentions portable agent plugins, plugin.json, Agent Plugins v1, skills/ layout, mcp.json, or format-preserving validation.
 ---
 

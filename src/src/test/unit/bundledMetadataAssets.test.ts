@@ -33,7 +33,7 @@ suite('bundled metadata assets', () => {
             'capabilities/metadata-authoring/github-copilot-metadata-authoring/README.md',
             'capabilities/metadata-authoring/claude-code-metadata-authoring/README.md',
             'capabilities/metadata-authoring/codex-metadata-authoring/README.md',
-            'capabilities/metadata-authoring/agent-plugins-v1-standard/README.md',
+            'capabilities/metadata-authoring/agent-plugins/README.md',
             'capabilities/metadata-authoring/agent-skills-standard/README.md',
         ];
 
@@ -68,8 +68,8 @@ suite('bundled metadata assets', () => {
                 'capabilities/metadata-authoring/codex-metadata-authoring/plugin.json',
             ],
             [
-                'capabilities/metadata-authoring/agent-plugins-v1-standard/README.md',
-                'capabilities/metadata-authoring/agent-plugins-v1-standard/plugin.json',
+                'capabilities/metadata-authoring/agent-plugins/README.md',
+                'capabilities/metadata-authoring/agent-plugins/plugin.json',
             ],
             [
                 'capabilities/metadata-authoring/agent-skills-standard/README.md',
@@ -270,7 +270,7 @@ suite('bundled metadata assets', () => {
                     'whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1',
                 ),
             );
-            assert.ok(pluginGuidance.includes('agent-plugins-v1-standard'));
+            assert.ok(pluginGuidance.includes('agent-plugins'));
             assert.ok(pluginGuidance.includes('agent-skills-standard'));
             assert.ok(
                 /Copilot, OpenPlugin, Claude, or MetaFlow manifest fields\s+to a strict v1 package/.test(
@@ -285,7 +285,7 @@ suite('bundled metadata assets', () => {
             assert.ok(pluginGuidance.includes('PowerShell: `node "$env:PLUGIN_ROOT'));
             assert.ok(hookGuidance.includes('Do not copy them unchanged into an agent plugin'));
             assert.ok(skillGuidance.includes('ai-metadata-plugins.instructions.md'));
-            assert.ok(skillGuidance.includes('agent-plugins-v1-standard'));
+            assert.ok(skillGuidance.includes('agent-plugins'));
             assert.ok(
                 fs.existsSync(
                     path.resolve(
@@ -372,7 +372,7 @@ suite('bundled metadata assets', () => {
             'github-copilot-metadata-authoring',
             'claude-code-metadata-authoring',
             'codex-metadata-authoring',
-            'agent-plugins-v1-standard',
+            'agent-plugins',
             'agent-skills-standard',
         ];
 
@@ -422,17 +422,17 @@ suite('bundled metadata assets', () => {
         const expectedSnapshots = [
             {
                 relativePath:
-                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/specification-1.0.0.md',
+                    'agent-plugins/.github/skills/agent-plugins/references/raw/specification-1.0.0.md',
                 sha256: '97a658b7dca3ce1b4c2266b95da300fa51d9dc4ade59d73168e5f9104272da18',
             },
             {
                 relativePath:
-                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/plugin.schema.json',
+                    'agent-plugins/.github/skills/agent-plugins/references/raw/plugin.schema.json',
                 sha256: '0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883',
             },
             {
                 relativePath:
-                    'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/references/raw/mcp.schema.json',
+                    'agent-plugins/.github/skills/agent-plugins/references/raw/mcp.schema.json',
                 sha256: '6539175bfcdf43085855183e86da40ea94b166547a72b47ae9a0a390516d3acb',
             },
             {
@@ -452,10 +452,7 @@ suite('bundled metadata assets', () => {
         }
 
         const pluginSkill = fs.readFileSync(
-            path.join(
-                capabilityRoot,
-                'agent-plugins-v1-standard/.github/skills/agent-plugins-v1-standard/SKILL.md',
-            ),
+            path.join(capabilityRoot, 'agent-plugins/.github/skills/agent-plugins/SKILL.md'),
             'utf-8',
         );
         assert.ok(
