@@ -67,10 +67,7 @@ export function deriveRepoId(
     sourceUrl: string | undefined,
     existingRepoIds: Set<string>,
 ): string {
-    const urlBase = sourceUrl ? sourceUrl.split('/').pop() : undefined;
-    const urlSeed = urlBase ? urlBase.replace(/\.git$/i, '') : undefined;
-    const pathSeed = path.basename(sourceLocalPath) || 'source';
-    const base = toSlug(urlSeed ?? pathSeed);
+    const base = toSlug(deriveRepoDisplayName(sourceLocalPath, sourceUrl));
 
     let candidate = base;
     let suffix = 2;
@@ -79,6 +76,30 @@ export function deriveRepoId(
         suffix += 1;
     }
     return candidate;
+}
+
+export function deriveRepoDisplayName(
+    sourceLocalPath: string,
+    sourceUrl: string | undefined,
+): string {
+    const trimmedUrl = sourceUrl?.trim().replace(/[\\/]+$/, '');
+    if (trimmedUrl) {
+        const scpPath = trimmedUrl.match(/^[^/]+@[^:]+:(.+)$/)?.[1];
+        const normalizedUrlPath = (scpPath ?? trimmedUrl).replace(/\\/g, '/');
+        const urlName = normalizedUrlPath
+            .split('/')
+            .filter(Boolean)
+            .pop()
+            ?.split(/[?#]/, 1)[0]
+            .replace(/\.git$/i, '');
+        if (urlName?.trim()) {
+            return urlName.trim();
+        }
+        return 'source';
+    }
+
+    const trimmedPath = sourceLocalPath.trim().replace(/[\\/]+$/, '');
+    return path.basename(trimmedPath).trim() || 'source';
 }
 
 export function ensureMultiRepoConfig(config: MetaFlowConfig): {

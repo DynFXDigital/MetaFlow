@@ -77,6 +77,7 @@ suite('Init Config Helpers', () => {
         const withUrl = buildConfig(
             '.ai/metadata',
             ['company'],
+            { id: 'meta', name: 'Meta' },
             'https://github.com/org/meta.git',
         ) as {
             compatibilityVersion: number;
@@ -96,7 +97,8 @@ suite('Init Config Helpers', () => {
         assert.strictEqual(withUrl.compatibilityVersion, 5);
         assert.strictEqual((withUrl as { targets?: unknown }).targets, undefined);
         assert.strictEqual(withUrl.metadataRepos.length, 1);
-        assert.strictEqual(withUrl.metadataRepos[0].id, 'primary');
+        assert.strictEqual(withUrl.metadataRepos[0].id, 'meta');
+        assert.strictEqual(withUrl.metadataRepos[0].name, 'Meta');
         assert.strictEqual(withUrl.metadataRepos[0].localPath, '.ai/metadata');
         assert.strictEqual(withUrl.metadataRepos[0].url, 'https://github.com/org/meta.git');
         assert.strictEqual(withUrl.metadataRepos[0].enabled, undefined);
@@ -109,7 +111,11 @@ suite('Init Config Helpers', () => {
         });
         assert.strictEqual(withUrl.injection.instructions, 'plugin');
 
-        const withoutUrl = buildConfig('.ai/metadata', ['company']) as {
+        const withoutUrl = buildConfig(
+            '.ai/metadata',
+            ['company'],
+            { id: 'metadata', name: 'Metadata' },
+        ) as {
             compatibilityVersion: number;
             metadataRepos: Array<{ url?: string; capabilities?: Array<{ enabled?: boolean }> }>;
         };
@@ -117,7 +123,11 @@ suite('Init Config Helpers', () => {
         assert.strictEqual(withoutUrl.metadataRepos[0].url, undefined);
         assert.strictEqual(withoutUrl.metadataRepos[0].capabilities, undefined);
 
-        const withoutLayers = buildConfig('.ai/empty-metadata', []) as {
+        const withoutLayers = buildConfig(
+            '.ai/empty-metadata',
+            [],
+            { id: 'empty-metadata', name: 'Empty Metadata' },
+        ) as {
             metadataRepos: Array<{ capabilities?: Array<{ path: string }> }>;
         };
         assert.deepStrictEqual(

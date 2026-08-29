@@ -9,6 +9,7 @@ import {
     addProfileToConfig,
     cloneProfileConfig,
     deleteProfileFromConfig,
+    deriveRepoDisplayName,
     deriveProfileId,
     isInjectionMode,
     deriveRepoId,
@@ -65,6 +66,31 @@ suite('Command Helpers', () => {
     test('derives repo id from local path when URL missing', () => {
         const repoId = deriveRepoId('C:/tmp/My Metadata Source', undefined, new Set<string>());
         assert.strictEqual(repoId, 'my-metadata-source');
+    });
+
+    test('derives repo display name from Git URL or local directory without losing casing', () => {
+        assert.strictEqual(
+            deriveRepoDisplayName(
+                'C:/tmp/local-folder',
+                'https://github.com/org/Shared Metadata.git',
+            ),
+            'Shared Metadata',
+        );
+        assert.strictEqual(
+            deriveRepoDisplayName('C:/tmp/My Metadata Source', undefined),
+            'My Metadata Source',
+        );
+        assert.strictEqual(
+            deriveRepoDisplayName('C:/tmp/local-folder', 'git@github.com:org/Agent-Pack.git'),
+            'Agent-Pack',
+        );
+        assert.strictEqual(
+            deriveRepoDisplayName(
+                'C:/tmp/local-folder',
+                'https://github.com/org/Versioned-Pack.git?ref=main#readme',
+            ),
+            'Versioned-Pack',
+        );
     });
 
     test('falls back to source when derived slug is empty', () => {

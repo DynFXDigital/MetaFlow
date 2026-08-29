@@ -20,6 +20,7 @@ import {
     detectMetaflowGitIgnoreMode,
     ensureMetaflowGitIgnoreEntry,
 } from './initConfigHelpers';
+import { deriveRepoDisplayName, deriveRepoId } from './commandHelpers';
 
 /**
  * Default timeout for git clone operations (10 minutes).
@@ -491,7 +492,15 @@ export async function initConfig(workspaceFolder: vscode.WorkspaceFolder): Promi
     }
 
     const localPath = toConfigLocalPath(workspaceFolder.uri.fsPath, selection.metadataRoot.fsPath);
-    const config = buildConfig(localPath, selection.layers, selection.metadataUrl);
+    const repoIdentity = {
+        id: deriveRepoId(
+            selection.metadataRoot.fsPath,
+            selection.metadataUrl,
+            new Set<string>(),
+        ),
+        name: deriveRepoDisplayName(selection.metadataRoot.fsPath, selection.metadataUrl),
+    };
+    const config = buildConfig(localPath, selection.layers, repoIdentity, selection.metadataUrl);
     const content = Buffer.from(JSON.stringify(config, null, 2) + '\n', 'utf-8');
     await vscode.workspace.fs.createDirectory(configDirUri);
     await vscode.workspace.fs.writeFile(configUri, content);

@@ -94,6 +94,7 @@ import { pickWorkspaceFolder } from './workspaceSelection';
 import { formatCapabilityWarningMessage } from './capabilityWarnings';
 import {
     isInjectionMode,
+    deriveRepoDisplayName,
     deriveRepoId,
     ensureMultiRepoConfig,
     DEFAULT_PROFILE_ID,
@@ -8789,7 +8790,10 @@ export function registerCommands(
 
             multiRepoConfig.metadataRepos.push({
                 id: repoId,
-                name: repoId,
+                name: deriveRepoDisplayName(
+                    selection.metadataRoot.fsPath,
+                    selection.metadataUrl,
+                ),
                 localPath: sourceLocalPath,
                 ...(selection.metadataUrl ? { url: selection.metadataUrl } : {}),
                 enabled: true,

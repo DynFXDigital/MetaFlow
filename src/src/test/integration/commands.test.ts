@@ -4820,7 +4820,12 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.addRepoSource');
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+                metadataRepos?: Array<{
+                    id: string;
+                    name?: string;
+                    localPath: string;
+                    url?: string;
+                }>;
             };
 
             const addedRepo = updatedConfig.metadataRepos?.find(
@@ -4832,6 +4837,7 @@ suite('Command Execution', function () {
             );
 
             assert.ok(addedRepo, 'Add repo source should add the selected existing directory');
+            assert.strictEqual(addedRepo?.name, '.tmp-git-promotion-add-repo-source');
             assert.strictEqual(
                 addedRepo?.localPath,
                 expectedLocalPath,
@@ -5013,7 +5019,12 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.addRepoSource');
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+                metadataRepos?: Array<{
+                    id: string;
+                    name?: string;
+                    localPath: string;
+                    url?: string;
+                }>;
             };
 
             const addedRepo = updatedConfig.metadataRepos?.find(
@@ -5343,8 +5354,18 @@ suite('Command Execution', function () {
             await vscode.commands.executeCommand('metaflow.initConfig');
 
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
-                metadataRepo?: { localPath: string; url?: string };
-                metadataRepos?: Array<{ id: string; localPath: string; url?: string }>;
+                metadataRepo?: {
+                    id?: string;
+                    name?: string;
+                    localPath: string;
+                    url?: string;
+                };
+                metadataRepos?: Array<{
+                    id: string;
+                    name?: string;
+                    localPath: string;
+                    url?: string;
+                }>;
             };
 
             const promotedRepo =
@@ -5364,6 +5385,8 @@ suite('Command Execution', function () {
                 expectedLocalPath,
                 'Initialize configuration should persist sibling repositories relative to the workspace',
             );
+            assert.strictEqual(promotedRepo?.id, '.tmp-git-promotion-init-config');
+            assert.strictEqual(promotedRepo?.name, '.tmp-git-promotion-init-config');
 
             assert.strictEqual(
                 promotedRepo?.url,
@@ -5450,6 +5473,8 @@ suite('Command Execution', function () {
             const updatedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                 compatibilityVersion?: number;
                 metadataRepos?: Array<{
+                    id: string;
+                    name?: string;
                     localPath: string;
                     capabilities?: Array<{ path: string }>;
                 }>;
@@ -5457,6 +5482,14 @@ suite('Command Execution', function () {
             };
 
             assert.strictEqual(updatedConfig.compatibilityVersion, 5);
+            assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.id,
+                '.tmp-empty-existing-init-config',
+            );
+            assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.name,
+                '.tmp-empty-existing-init-config',
+            );
             assert.strictEqual(
                 path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
                 path.normalize(path.relative(workspaceRoot, repoPath)),
