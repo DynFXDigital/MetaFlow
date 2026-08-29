@@ -1010,6 +1010,49 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(parsed.metaflow?.minimumMetaflowVersion, '^0.1.0');
     });
 
+    test('buildMaintainedCapabilityPluginManifestJson preserves strict Agent Plugins v1 bytes', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const existingRawText = [
+            '{',
+            '  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",',
+            '  "name": "portable.tools",',
+            '  "description": "Portable tools"',
+            '}',
+            '',
+        ].join('\n');
+
+        const result = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'Portable Tools',
+            capabilityDescription: 'A description that must not replace the portable manifest.',
+            capabilityDirectoryName: 'portable-tools',
+            existingRawText,
+        });
+
+        assert.strictEqual(result.content, existingRawText);
+        assert.strictEqual(result.changed, false);
+        const parsed = JSON.parse(result.content) as Record<string, unknown>;
+        assert.strictEqual('displayName' in parsed, false);
+        assert.strictEqual('metaflow' in parsed, false);
+        assert.strictEqual('skills' in parsed, false);
+    });
+
+    test('buildMaintainedCapabilityPluginManifestJson rejects unsupported Agent Plugins schemas without rewriting', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+
+        assert.throws(
+            () =>
+                buildMaintainedCapabilityPluginManifestJson({
+                    capabilityName: 'Future Portable Tools',
+                    capabilityDirectoryName: 'future-portable-tools',
+                    existingRawText: JSON.stringify({
+                        $schema: 'https://agent-plugins.org/schemas/2.0.0/plugin.schema.json',
+                        name: 'future.tools',
+                    }),
+                }),
+            /unsupported Agent Plugins schema/,
+        );
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson preserves friendly names when normalizing legacy plugin names', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({
@@ -1164,6 +1207,93 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual('commands' in pluginJson, false);
             assert.strictEqual('rules' in pluginJson, false);
             assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainCapabilityPluginMetadataInDirectory validates and preserves a strict Agent Plugins v1 package', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-v1-maintain-'));
+        try {
+            fs.writeFileSync(path.join(tempRoot, 'README.md'), '# Portable Tools\n', 'utf-8');
+            const existingRawText = [
+                '{',
+                '  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",',
+                '  "name": "portable.tools",',
+                '  "version": "1.0.0",',
+                '  "description": "Portable tools"',
+                '}',
+                '',
+            ].join('\n');
+            fs.writeFileSync(path.join(tempRoot, 'plugin.json'), existingRawText, 'utf-8');
+            const skillRoot = path.join(tempRoot, 'skills', 'portable-tool');
+            fs.mkdirSync(skillRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(skillRoot, 'SKILL.md'),
+                [
+                    '---',
+                    'name: portable-tool',
+                    'description: Use portable tools.',
+                    '---',
+                    '',
+                    '# Portable tool',
+                    '',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot);
+
+            assert.strictEqual(result.pluginFormat, 'agent-plugins-v1');
+            assert.strictEqual(result.pluginJsonChanged, false);
+            assert.strictEqual(result.descriptorChanged, false);
+            assert.strictEqual(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
+                existingRawText,
+            );
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('maintainCapabilityPluginMetadataInDirectory rejects mixed strict-v1 and host fields without mutation', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-v1-mixed-'));
+        try {
+            const descriptorText = [
+                '---',
+                'name: Mixed Plugin',
+                'description: Mixed plugin descriptor.',
+                '---',
+                '',
+                '# Mixed Plugin',
+                '',
+            ].join('\n');
+            const pluginText = JSON.stringify(
+                {
+                    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                    name: 'mixed.plugin',
+                    skills: '.github/skills',
+                },
+                null,
+                2,
+            );
+            fs.writeFileSync(path.join(tempRoot, 'CAPABILITY.md'), descriptorText, 'utf-8');
+            fs.writeFileSync(path.join(tempRoot, 'plugin.json'), pluginText, 'utf-8');
+
+            await assert.rejects(
+                maintainCapabilityPluginMetadataInDirectory(tempRoot),
+                /mixes Agent Plugins v1 with host-specific fields \(skills\)/,
+            );
+            assert.strictEqual(
+                fs.readFileSync(path.join(tempRoot, 'CAPABILITY.md'), 'utf-8'),
+                descriptorText,
+            );
+            assert.strictEqual(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
+                pluginText,
+            );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
