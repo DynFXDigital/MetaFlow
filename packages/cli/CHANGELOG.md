@@ -1,5 +1,11 @@
 # @metaflow/cli
 
+## 0.4.7
+
+### Patch Changes
+
+- 962404f: Add standards-backed Agent Plugins and Agent Skills authoring guidance, recognize strict Agent Plugins v1 packages, and preserve their format during metadata maintenance. Keep plugin identities distinct from display names and make repository labels and newly initialized repository identities stable.
+
 ## 0.4.6
 
 ### Patch Changes
