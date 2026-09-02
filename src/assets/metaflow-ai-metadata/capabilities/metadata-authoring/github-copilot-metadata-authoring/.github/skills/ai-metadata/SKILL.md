@@ -21,7 +21,7 @@ Use it when creating or updating:
 
 ## Core workflow
 
-1. Identify the intended outcome, target hosts, and whether the artifact is local, shared, or intended for promotion.
+1. Identify the intended outcome, target hosts, and whether the artifact is local, shared, or intended for promotion. If the request says only "capability" or "agent plugin," ask whether the user wants a GitHub Copilot agent plugin or strict Agent Plugins v1 package. Route strict v1 work through the built-in `agent-plugins` capability and portable skill syntax through `agent-skills`.
 2. Select the smallest effective surface:
     - instructions for stable rules that apply automatically
     - commands for named, user-invoked plugin entry points

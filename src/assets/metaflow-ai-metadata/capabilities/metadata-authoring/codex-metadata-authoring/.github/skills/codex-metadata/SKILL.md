@@ -25,6 +25,9 @@ This skill consolidates current best practices and compatibility notes for OpenA
 2. Apply `BestPractices.md` when authoring or reviewing Codex metadata files.
 3. Use `Compatibility.md` to avoid assuming parity with Copilot or Claude-specific constructs.
 4. Use `ReflectionReinforcement.md` when promoting repeated findings into durable guidance.
+5. Use the built-in `agent-skills` capability for portable `SKILL.md` syntax. If a
+   request for a capability or agent plugin is format-ambiguous, ask GitHub Copilot versus strict
+   Agent Plugins v1 and route strict-v1 work through `agent-plugins`.
 
 ## Command compatibility
 

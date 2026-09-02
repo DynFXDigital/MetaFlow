@@ -92,11 +92,12 @@ function toIdentityMismatchWarning(
     pluginValue: string,
     descriptorPath: string,
     pluginJsonPath: string,
+    pluginFieldName: 'name' | 'displayName' | 'description' = fieldName,
 ): CapabilityWarning {
     return {
         code: `CAPABILITY_AGENT_PLUGIN_README_${fieldName.toUpperCase()}_MISMATCH`,
         message:
-            `README.md ${fieldName} "${descriptorValue}" does not match plugin.json ${fieldName} "${pluginValue}". ` +
+            `README.md ${fieldName} "${descriptorValue}" does not match plugin.json ${pluginFieldName} "${pluginValue}". ` +
             `Align the shared ${fieldName} values in ${descriptorPath} and ${pluginJsonPath}.`,
         filePath: descriptorPath,
         severity: 'warning',
@@ -113,7 +114,8 @@ function toIdentityMismatchWarnings(
 
     const warnings: CapabilityWarning[] = [];
     const descriptorName = capability.name?.trim();
-    const pluginName = pluginManifest.name?.trim();
+    const pluginDisplayName = pluginManifest.displayName?.trim();
+    const pluginName = pluginDisplayName || pluginManifest.name?.trim();
     if (
         descriptorName &&
         pluginName &&
@@ -126,6 +128,7 @@ function toIdentityMismatchWarnings(
                 pluginName,
                 capability.manifestPath,
                 pluginManifest.pluginJsonPath,
+                pluginDisplayName ? 'displayName' : 'name',
             ),
         );
     }
@@ -159,6 +162,7 @@ function compareText(left: string, right: string): number {
 
 const PLUGIN_METADATA_KEY_ORDER = [
     'name',
+    'displayName',
     'version',
     'description',
     'author',
@@ -226,9 +230,7 @@ export function canonicalizePluginMetadataJson(value: unknown): unknown {
 
     const normalized: Record<string, unknown> = {};
     for (const key of Object.keys(value as Record<string, unknown>).sort(compareCanonicalKeys)) {
-        normalized[key] = canonicalizePluginMetadataJson(
-            (value as Record<string, unknown>)[key],
-        );
+        normalized[key] = canonicalizePluginMetadataJson((value as Record<string, unknown>)[key]);
     }
     return normalized;
 }
@@ -293,6 +295,8 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
         if (
             !capability ||
             capability?.agentPlugin === false ||
+            (pluginManifest?.compatibilityProfile !== undefined &&
+                pluginManifest.compatibilityProfile !== 'legacy-host') ||
             !pluginManifest?.name ||
             !pluginManifest.version
         ) {
@@ -308,7 +312,10 @@ export function buildAgentPluginCatalog(layers: LayerContent[]): AgentPluginCata
         candidateEntries.push({
             pluginName: pluginManifest.name,
             version: pluginManifest.version,
-            displayName: capability.name?.trim() || pluginManifest.name || capability.id,
+            displayName:
+                pluginManifest.displayName?.trim() ||
+                capability.name?.trim() ||
+                pluginManifest.name,
             description:
                 capability.description?.trim() || pluginManifest.description?.trim() || undefined,
             capabilityId: capability.id,

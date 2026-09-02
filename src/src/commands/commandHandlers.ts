@@ -39,6 +39,8 @@ import {
     buildAgentPluginCatalog,
     buildCapabilityPluginMarketplaceManifest,
     canonicalizePluginMetadataJson,
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+    inspectAgentPluginPackage,
     collectAgentPluginHookWarnings,
     resolveCapabilityDescriptorPath,
     resolvePathFromWorkspace,
@@ -85,6 +87,7 @@ import { pickWorkspaceFolder } from './workspaceSelection';
 import { formatCapabilityWarningMessage } from './capabilityWarnings';
 import {
     isInjectionMode,
+    deriveRepoDisplayName,
     deriveRepoId,
     ensureMultiRepoConfig,
     DEFAULT_PROFILE_ID,
@@ -4745,6 +4748,44 @@ function resolveMaintainedPluginComponentPath(
     return undefined;
 }
 
+const AGENT_PLUGIN_SCHEMA_ID_PATTERN =
+    /^https:\/\/agent-plugins\.org\/schemas\/[^/]+\/plugin\.schema\.json$/;
+
+type MaintainedCapabilityPluginFormat = 'legacy-host' | 'agent-plugins-v1';
+
+function detectMaintainedCapabilityPluginFormat(existingRawText: string | undefined): {
+    format: MaintainedCapabilityPluginFormat;
+    parsed?: Record<string, unknown>;
+} {
+    if (typeof existingRawText !== 'string') {
+        return { format: 'legacy-host' };
+    }
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(existingRawText) as unknown;
+    } catch (error) {
+        throw new Error(`plugin.json could not be parsed: ${(error as Error).message}`);
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('plugin.json must contain a top-level JSON object.');
+    }
+
+    const packageObject = parsed as Record<string, unknown>;
+    const schema = packageObject.$schema;
+    if (schema === AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID) {
+        return { format: 'agent-plugins-v1', parsed: packageObject };
+    }
+    if (typeof schema === 'string' && AGENT_PLUGIN_SCHEMA_ID_PATTERN.test(schema)) {
+        throw new Error(
+            `plugin.json declares unsupported Agent Plugins schema "${schema}". MetaFlow preserved the package without applying GitHub Copilot metadata maintenance.`,
+        );
+    }
+
+    return { format: 'legacy-host', parsed: packageObject };
+}
+
 export function ensureCapabilityManifestAgentPluginEnabled(rawText: string): {
     content: string;
     changed: boolean;
@@ -4813,30 +4854,34 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     capabilityDirectoryPath?: string;
     existingRawText?: string;
 }): { content: string; changed: boolean } {
-    let packageObject: Record<string, unknown> = {};
     const existingRawText = options.existingRawText;
-    if (typeof existingRawText === 'string') {
-        let parsed: unknown;
-        try {
-            parsed = JSON.parse(existingRawText) as unknown;
-        } catch (error) {
-            throw new Error(`plugin.json could not be parsed: ${(error as Error).message}`);
-        }
-
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-            throw new Error('plugin.json must contain a top-level JSON object.');
-        }
-
-        packageObject = { ...(parsed as Record<string, unknown>) };
+    const detectedFormat = detectMaintainedCapabilityPluginFormat(existingRawText);
+    if (detectedFormat.format === 'agent-plugins-v1') {
+        return {
+            content: existingRawText!,
+            changed: false,
+        };
     }
+    const packageObject: Record<string, unknown> = { ...(detectedFormat.parsed ?? {}) };
 
+    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
     const defaultPluginName =
         sanitizeCapabilityPluginName(options.capabilityDirectoryName) || 'capability';
-    const currentName =
+    const existingName =
         typeof packageObject.name === 'string' && packageObject.name.trim().length > 0
-            ? sanitizeCapabilityPluginName(packageObject.name)
+            ? packageObject.name.trim()
             : undefined;
+    const currentName = existingName ? sanitizeCapabilityPluginName(existingName) : undefined;
     packageObject.name = currentName || defaultPluginName;
+    const currentDisplayName =
+        typeof packageObject.displayName === 'string' && packageObject.displayName.trim().length > 0
+            ? packageObject.displayName.trim()
+            : undefined;
+    packageObject.displayName =
+        currentDisplayName ??
+        (existingName && existingName !== packageObject.name
+            ? existingName
+            : normalizedCapabilityName);
 
     const currentVersion =
         typeof packageObject.version === 'string' && isLikelySemverVersion(packageObject.version)
@@ -4844,7 +4889,6 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
             : undefined;
     packageObject.version = currentVersion ?? '0.1.0';
 
-    const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
     const currentDescription =
         typeof packageObject.description === 'string' && packageObject.description.trim().length > 0
             ? packageObject.description.trim()
@@ -4911,6 +4955,7 @@ export async function maintainCapabilityPluginMetadataInDirectory(
     capabilityName: string;
     descriptorPath: string;
     descriptorKind: 'readme' | 'capability';
+    pluginFormat: MaintainedCapabilityPluginFormat;
     descriptorChanged: boolean;
     /** @deprecated Use descriptorPath and descriptorChanged. */
     manifestPath: string;
@@ -4925,6 +4970,45 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         );
     }
 
+    const capabilityId = path.basename(capabilityDirectoryPath);
+    const pluginJsonPath = path.join(capabilityDirectoryPath, 'plugin.json');
+    const existingPluginJsonRawText = fs.existsSync(pluginJsonPath)
+        ? await fsp.readFile(pluginJsonPath, 'utf-8')
+        : undefined;
+    const detectedFormat = detectMaintainedCapabilityPluginFormat(existingPluginJsonRawText);
+
+    if (detectedFormat.format === 'agent-plugins-v1') {
+        const inspection = inspectAgentPluginPackage(capabilityDirectoryPath);
+        if (inspection.profile !== 'agent-plugins-v1' || !inspection.validManifest) {
+            const details = inspection.diagnostics
+                .filter((diagnostic) => diagnostic.severity === 'error')
+                .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+                .join('; ');
+            throw new Error(
+                `plugin.json declares Agent Plugins v1 but does not pass strict manifest validation.${details ? ` ${details}` : ''} MetaFlow preserved the package without applying GitHub Copilot metadata maintenance.`,
+            );
+        }
+        if (inspection.recognizedHostFields.length > 0) {
+            throw new Error(
+                `plugin.json mixes Agent Plugins v1 with host-specific fields (${inspection.recognizedHostFields.join(', ')}). MetaFlow preserved the ambiguous package without rewriting either format.`,
+            );
+        }
+
+        const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
+        return {
+            capabilityDirectoryPath,
+            capabilityName: inspection.manifest?.name ?? manifest?.name?.trim() ?? capabilityId,
+            descriptorPath: descriptor.absolutePath,
+            descriptorKind: descriptor.kind,
+            pluginFormat: 'agent-plugins-v1',
+            descriptorChanged: false,
+            manifestPath: descriptor.absolutePath,
+            pluginJsonPath,
+            manifestChanged: false,
+            pluginJsonChanged: false,
+        };
+    }
+
     let descriptorChanged = false;
     if (descriptor.kind === 'capability') {
         const manifestRawText = await fsp.readFile(descriptor.absolutePath, 'utf-8');
@@ -4935,15 +5019,9 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         }
     }
 
-    const capabilityId = path.basename(capabilityDirectoryPath);
     const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
     const capabilityName = manifest?.name?.trim() || capabilityId;
     const capabilityDescription = manifest?.description?.trim();
-
-    const pluginJsonPath = path.join(capabilityDirectoryPath, 'plugin.json');
-    const existingPluginJsonRawText = fs.existsSync(pluginJsonPath)
-        ? await fsp.readFile(pluginJsonPath, 'utf-8')
-        : undefined;
 
     const pluginUpdate = buildMaintainedCapabilityPluginManifestJson({
         capabilityName,
@@ -4962,6 +5040,7 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityName,
         descriptorPath: descriptor.absolutePath,
         descriptorKind: descriptor.kind,
+        pluginFormat: 'legacy-host',
         descriptorChanged,
         manifestPath: descriptor.absolutePath,
         pluginJsonPath,
@@ -8528,7 +8607,10 @@ export function registerCommands(
 
             multiRepoConfig.metadataRepos.push({
                 id: repoId,
-                name: repoId,
+                name: deriveRepoDisplayName(
+                    selection.metadataRoot.fsPath,
+                    selection.metadataUrl,
+                ),
                 localPath: sourceLocalPath,
                 ...(selection.metadataUrl ? { url: selection.metadataUrl } : {}),
                 enabled: true,

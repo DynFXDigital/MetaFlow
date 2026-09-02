@@ -212,6 +212,7 @@ function createCommandHandlersHarness(initResult: boolean) {
         if (request === './commandHelpers' || request.endsWith('/commands/commandHelpers')) {
             return {
                 isInjectionMode: () => true,
+                deriveRepoDisplayName: () => 'Primary',
                 deriveRepoId: () => 'primary',
                 ensureMultiRepoConfig: (config: unknown) => config,
                 extractLayerIndex: () => undefined,

@@ -1897,7 +1897,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
 
     /**
      * Resolve a human-readable display label for a metadata repository.
-     * Priority: explicit config name → METAFLOW.md name → folder basename → repo id.
+     * Priority: explicit config name → METAFLOW.md name → repo id → folder basename.
      */
     private resolveRepoDisplayLabel(
         repoId: string,
@@ -1906,15 +1906,21 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         manifestName?: string,
     ): string {
         const trimmed = configName?.trim();
-        if (trimmed && trimmed !== repoId) {
+        if (trimmed) {
             return trimmed;
         }
         const manifest = manifestName?.trim();
         if (manifest) {
             return manifest;
         }
+
+        const stableId = repoId.trim();
+        if (stableId) {
+            return stableId;
+        }
+
         const base = localPath ? path.basename(localPath.replace(/[\\/]+$/, '')) : '';
-        return base || repoId;
+        return base;
     }
 
     private getTreeChildrenForPrefix(

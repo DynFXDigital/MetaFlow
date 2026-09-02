@@ -7,7 +7,7 @@ export function resolveRepoDisplayLabel(
     manifestName?: string,
 ): string {
     const trimmedConfigName = configName?.trim();
-    if (trimmedConfigName && trimmedConfigName !== repoId) {
+    if (trimmedConfigName) {
         return trimmedConfigName;
     }
 
@@ -16,6 +16,11 @@ export function resolveRepoDisplayLabel(
         return trimmedManifestName;
     }
 
+    const trimmedRepoId = repoId.trim();
+    if (trimmedRepoId) {
+        return trimmedRepoId;
+    }
+
     const baseName = localPath ? path.basename(localPath.replace(/[\\/]+$/, '')) : '';
-    return baseName || repoId;
+    return baseName;
 }

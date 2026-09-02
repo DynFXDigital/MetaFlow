@@ -22,7 +22,7 @@ suite('repoDisplayLabel', () => {
         );
     });
 
-    test('uses manifest name when trimmed config name matches the repo id', () => {
+    test('uses configured name when it matches the repo id', () => {
         assert.strictEqual(
             resolveRepoDisplayLabel(
                 'repo-id',
@@ -30,22 +30,22 @@ suite('repoDisplayLabel', () => {
                 '/workspace/repo-id',
                 'Manifest Repo',
             ),
-            'Manifest Repo',
-        );
-    });
-
-    test('falls back to the local path basename after trimming trailing separators', () => {
-        assert.strictEqual(
-            resolveRepoDisplayLabel('repo-id', undefined, '/workspace/repo-name///', '   '),
-            'repo-name',
-        );
-    });
-
-    test('falls back to repo id when manifest and local path do not produce a label', () => {
-        assert.strictEqual(
-            resolveRepoDisplayLabel('repo-id', undefined, undefined, undefined),
             'repo-id',
         );
-        assert.strictEqual(resolveRepoDisplayLabel('repo-id', undefined, '////', '   '), 'repo-id');
+    });
+
+    test('prefers the stable repo id over the local path basename', () => {
+        assert.strictEqual(
+            resolveRepoDisplayLabel('repo-id', undefined, '/workspace/repo-name///', '   '),
+            'repo-id',
+        );
+    });
+
+    test('falls back to the local path basename only when no repo id is available', () => {
+        assert.strictEqual(
+            resolveRepoDisplayLabel('', undefined, '/workspace/repo-name///', undefined),
+            'repo-name',
+        );
+        assert.strictEqual(resolveRepoDisplayLabel('', undefined, '////', '   '), '');
     });
 });

@@ -658,7 +658,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
         manifestName?: string,
     ): string {
         const trimmed = configName?.trim();
-        if (trimmed && trimmed !== repoId) {
+        if (trimmed) {
             return trimmed;
         }
 
@@ -667,8 +667,13 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
             return manifest;
         }
 
+        const stableId = repoId.trim();
+        if (stableId) {
+            return stableId;
+        }
+
         const base = localPath ? path.basename(localPath.replace(/[\\/]+$/, '')) : '';
-        return base || repoId;
+        return base;
     }
 
     private createBuiltInSourceItem(): RepoSourceItem {
@@ -746,17 +751,17 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
 
             if (config.metadataRepos) {
                 return [
-                    ...config.metadataRepos.filter(
-                        (repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID,
-                    ).map(
-                        (repo) =>
-                            new RepoSourceItem(
-                                this.resolveRepoDisplayLabel(
-                                    repo.id,
-                                    repo.name,
-                                    repo.localPath,
-                                    repoMetadataById.get(repo.id)?.name,
-                                ),
+                    ...config.metadataRepos
+                        .filter((repo) => repo.id !== BUILT_IN_CAPABILITY_REPO_ID)
+                        .map((repo) => {
+                            const repoLabel = this.resolveRepoDisplayLabel(
+                                repo.id,
+                                repo.name,
+                                repo.localPath,
+                                repoMetadataById.get(repo.id)?.name,
+                            );
+                            return new RepoSourceItem(
+                                repoLabel,
                                 repo.id,
                                 repo.enabled !== false,
                                 this.toDisplayPath(repo.localPath),
@@ -769,7 +774,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                     ? summarizeRepoInstructionScope(summaryCache, repo.id)
                                     : undefined,
                                 {
-                                    title: repoMetadataById.get(repo.id)?.name,
+                                    title: repoLabel,
                                     description: repoMetadataById.get(repo.id)?.description,
                                     localGit: this.state.localGitRepoIds.has(repo.id),
                                     governance: buildRepoGovernanceProjection(repo.id, {
@@ -779,8 +784,8 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                                         governanceCompliance: this.state.governanceCompliance,
                                     }),
                                 },
-                            ),
-                    ),
+                            );
+                        }),
                     ...builtInSource,
                 ];
             }
@@ -807,7 +812,7 @@ export class ConfigTreeViewProvider implements vscode.TreeDataProvider<ConfigTre
                             ? summarizeRepoInstructionScope(summaryCache, 'primary')
                             : undefined,
                         {
-                            title: repoMetadataById.get('primary')?.name,
+                            title: primaryLabel,
                             description: repoMetadataById.get('primary')?.description,
                             localGit: this.state.localGitRepoIds.has('primary'),
                             governance: buildRepoGovernanceProjection('primary', {

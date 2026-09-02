@@ -202,7 +202,7 @@ suite('TreeView Providers', () => {
 
         assert.deepStrictEqual(
             repoItems.map((item) => String(item.label)),
-            ['ai-metadata', 'MetaFlow'],
+            ['primary', 'MetaFlow'],
             'The built-in repo should appear only as the dedicated bundled source entry',
         );
         assert.strictEqual(
@@ -1369,7 +1369,7 @@ suite('TreeView Providers', () => {
         assert.strictEqual(agentFile?.command?.command, 'vscode.open');
     });
 
-    test('FilesTreeView displays root layer as repository name instead of dot', () => {
+    test('FilesTreeView displays root layer using its configured repository name', () => {
         const repoRoot = path.join(os.tmpdir(), 'metaflow-source-ai-metadata');
 
         state.config = {
@@ -1419,7 +1419,7 @@ suite('TreeView Providers', () => {
             .then((resolvedItem) => {
                 const tooltip = resolvedItem.tooltip as vscode.MarkdownString;
                 assert.ok(
-                    tooltip.value.includes('Capability: metaflow-source-ai-metadata'),
+                    tooltip.value.includes('Capability: ai-metadata'),
                     'Tooltip should use the resolved repository display label for root layers',
                 );
             });
@@ -1466,9 +1466,7 @@ suite('TreeView Providers', () => {
         const provider = new FilesTreeViewProvider(state, () => 'repoTree');
         const items = provider.getChildren();
 
-        const repoFolder = items.find(
-            (i) => String(i.label) === 'metaflow-source-ai-metadata-repo-tree',
-        );
+        const repoFolder = items.find((i) => String(i.label) === 'ai-metadata');
         assert.ok(repoFolder, 'Top-level node should use the resolved repository display label');
 
         const repoChildren = provider.getChildren(repoFolder as never);

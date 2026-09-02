@@ -130,6 +130,16 @@ The maintained plugin manifest contract currently expects:
 
 MetaFlow also builds a normalized internal plugin catalog from valid capability plugin manifests and can generate `.github/plugin/marketplace.json` from those manifests for discovery surfaces.
 
+### Portable Agent Plugins 1.0 packages
+
+MetaFlow treats the published Agent Plugins 1.0 contract as a separate compatibility profile from the maintained host/Copilot manifest above. A portable package declares the canonical `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` identifier and follows the standard's closed root manifest, fixed `skills/*/SKILL.md` discovery, and optional root `mcp.json` contract.
+
+- Portable names may contain lowercase periods as well as letters, numbers, and hyphens; `version` is optional and is not required to be SemVer.
+- Unknown root fields and a non-object `extensions` field are reported and ignored as required by the standard. Other manifest schema violations reject portable loading.
+- Invalid skills and MCP server entries are isolated from independently valid components, and filesystem-resolved package paths must remain inside the plugin root.
+- Client-specific manifest data belongs under reverse-domain keys in `extensions`; MetaFlow/Copilot fields are not added to the portable root schema.
+- Portable packages are not serialized through MetaFlow's existing Copilot marketplace projection. Classification and compatibility do not imply installation, enablement, trust, or host-effective activation.
+
 Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, `agents`, and Copilot hook artifacts to `plugin`; prompts remain settings-backed because Copilot plugin discovery does not consume MetaFlow prompt directories directly.
 
 An explicit config looks like this:
