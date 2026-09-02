@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import {
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     buildAgentPluginCatalog,
     capabilityManifestConstants,
     collectDuplicateCapabilityUidWarnings,
@@ -509,6 +510,106 @@ describe('capabilityManifest parser', () => {
             );
         } finally {
             fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('loads a strict Agent Plugins v1 package without applying legacy version rules', () => {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-portable-plugin-test-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'README.md'),
+                '# Portable Plugin\n\nHuman-facing package documentation.',
+                'utf-8',
+            );
+            fs.writeFileSync(
+                path.join(tmpDir, 'plugin.json'),
+                JSON.stringify({
+                    $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                    name: 'portable.tools',
+                    description: 'Portable runtime metadata.',
+                }),
+                'utf-8',
+            );
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'portable-plugin');
+
+            assert.ok(loaded);
+            assert.strictEqual(loaded.agentPlugin, true);
+            assert.strictEqual(
+                loaded.agentPluginManifest?.compatibilityProfile,
+                'agent-plugins-v1',
+            );
+            assert.strictEqual(loaded.agentPluginManifest?.name, 'portable.tools');
+            assert.strictEqual(loaded.agentPluginManifest?.version, undefined);
+            assert.deepStrictEqual(loaded.agentPluginManifest?.pluginHosts, []);
+            assert.strictEqual(
+                loaded.agentPluginManifest?.compatibilityInspection?.validManifest,
+                true,
+            );
+            assert.ok(
+                !loaded.warnings.some(
+                    (warning) =>
+                        warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_VERSION_REQUIRED' ||
+                        warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_NAME_INVALID',
+                ),
+            );
+            assert.deepStrictEqual(
+                buildAgentPluginCatalog([
+                    { layerId: 'portable-plugin', files: [], capability: loaded },
+                ]).entries,
+                [],
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not load or catalog a root plugin.json symlink that escapes the package', function () {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-plugin-link-test-'));
+        const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'capability-plugin-link-outside-'));
+        try {
+            fs.writeFileSync(
+                path.join(tmpDir, 'README.md'),
+                '# Linked Plugin\n\nHuman-facing package documentation.',
+                'utf-8',
+            );
+            const outsideManifest = path.join(outside, 'plugin.json');
+            fs.writeFileSync(
+                outsideManifest,
+                JSON.stringify({
+                    $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                    name: 'outside-plugin',
+                }),
+                'utf-8',
+            );
+            try {
+                fs.symlinkSync(outsideManifest, path.join(tmpDir, 'plugin.json'), 'file');
+            } catch {
+                this.skip();
+                return;
+            }
+
+            const loaded = loadCapabilityManifestForLayer(tmpDir, 'linked-plugin');
+
+            assert.ok(loaded);
+            assert.notStrictEqual(loaded.agentPlugin, true);
+            assert.strictEqual(loaded.agentPluginManifest, undefined);
+            assert.ok(
+                loaded.warnings.some(
+                    (warning) =>
+                        warning.code === 'CAPABILITY_AGENT_PLUGIN_MANIFEST_READ_ERROR' &&
+                        warning.message.includes('resolves outside the plugin root'),
+                ),
+            );
+            assert.deepStrictEqual(
+                buildAgentPluginCatalog([
+                    { layerId: 'linked-plugin', files: [], capability: loaded },
+                ]).entries,
+                [],
+            );
+        } finally {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+            fs.rmSync(outside, { recursive: true, force: true });
         }
     });
 

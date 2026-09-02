@@ -318,7 +318,7 @@ suite('ConfigTreeView', () => {
         );
     });
 
-    test('CTV-02: single-repo label falls back to folder name instead of primary', () => {
+    test('CTV-02: legacy single-repo configuration uses its stable primary id', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(
             makeState({
@@ -331,7 +331,7 @@ suite('ConfigTreeView', () => {
         const [section] = provider.getChildren();
         const [repoItem] = provider.getChildren(section);
 
-        assert.strictEqual(String(repoItem.label), 'team-metadata');
+        assert.strictEqual(String(repoItem.label), 'primary');
     });
 
     test('CTV-03: built-in repo uses repo manifest name and description in tooltip', () => {
@@ -824,7 +824,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(String(repoItem.label), 'fallback-repo');
     });
 
-    test('CTV-09: workspace-root paths render as dot and local repos stay rescannable', () => {
+    test('CTV-09: repo ids label workspace-root paths while local repos stay rescannable', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(
             makeState({
@@ -849,7 +849,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'folder');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**workspace**\n\nStatus: disabled  \nLocal path: `.`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
+            '**local-repo**\n\nStatus: disabled  \nLocal path: `.`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
         assert.strictEqual(provider.getChildren(repoItem).length, 0);
         assert.strictEqual(provider.getTreeItem(repoItem), repoItem);
@@ -918,10 +918,10 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(repoItem.iconPath), 'arrow-down');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**team**\n\nStatus: enabled  \nLocal path: `team`  \nRemote URL: `https://github.com/example/team.git`  \nSync status: Updates available upstream  \nTracking branch: `origin/main`  \nAhead/Behind: 1/2  \nLast checked: 2026-03-13T00:00:00.000Z  \nError: fetch failed  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
+            '**primary**\n\nStatus: enabled  \nLocal path: `team`  \nRemote URL: `https://github.com/example/team.git`  \nSync status: Updates available upstream  \nTracking branch: `origin/main`  \nAhead/Behind: 1/2  \nLast checked: 2026-03-13T00:00:00.000Z  \nError: fetch failed  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
         assert.deepStrictEqual(repoItem.accessibilityInformation, {
-            label: 'team enabled',
+            label: 'primary enabled',
             role: 'checkbox',
         });
     });
@@ -975,7 +975,7 @@ suite('ConfigTreeView', () => {
             })),
             [
                 {
-                    label: 'up-to-date',
+                    label: 'upToDate',
                     contextValue: 'configRepoSourceGit',
                     description: 'up-to-date [git] (0/0, up to date)',
                     icon: 'cloud',
@@ -1032,7 +1032,7 @@ suite('ConfigTreeView', () => {
         assert.strictEqual(extractThemeIconId(builtInItem.iconPath), 'package');
     });
 
-    test('CTV-13: provider preserves outside-workspace paths and prefers manifest names over repeated repo ids', () => {
+    test('CTV-13: provider preserves outside-workspace paths and honors names that repeat repo ids', () => {
         const { ConfigTreeViewProvider } = loadConfigTreeView();
         const provider = new ConfigTreeViewProvider(
             makeState({
@@ -1056,11 +1056,11 @@ suite('ConfigTreeView', () => {
         const [section] = provider.getChildren();
         const [repoItem] = provider.getChildren(section);
 
-        assert.strictEqual(String(repoItem.label), 'Shared Metadata');
+        assert.strictEqual(String(repoItem.label), 'primary');
         assert.strictEqual(repoItem.description, '/external/team-metadata (0/0)');
         assert.strictEqual(
             extractTooltipText(repoItem.tooltip),
-            '**Shared Metadata**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
+            '**primary**\n\nStatus: enabled  \nLocal path: `/external/team-metadata`  \nInstructions: 0/0 active  \nPrompts: 0/0 active  \nAgents: 0/0 active  \nSkills: 0/0 active  \nHooks: 0/0 active',
         );
     });
 

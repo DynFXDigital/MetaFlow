@@ -87,6 +87,18 @@ export {
 } from './repoManifest';
 export { parseFrontmatter } from './frontmatter';
 export type { FrontmatterResult } from './frontmatter';
+export {
+    AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+    inspectAgentPluginPackage,
+} from './agentPluginCompatibility';
+export type {
+    AgentPluginCompatibilityInspection,
+    AgentPluginCompatibilityProfile,
+    AgentPluginManifestInventory,
+    AgentPluginMcpServerInventory,
+    AgentPluginSkillInventory,
+} from './agentPluginCompatibility';
 export type {
     LayerFile,
     LayerContent,

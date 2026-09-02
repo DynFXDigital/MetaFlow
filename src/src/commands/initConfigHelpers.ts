@@ -63,6 +63,7 @@ export function toConfigLocalPath(workspaceRoot: string, targetFsPath: string): 
 export function buildConfig(
     localPath: string,
     layers: string[],
+    repoIdentity: { id: string; name: string },
     metadataUrl?: string,
 ): Record<string, unknown> {
     // Discovery populates the catalog; activation is an explicit profile choice.
@@ -72,8 +73,8 @@ export function buildConfig(
         synchronization: { repoWideCopilotInstructions: false },
         metadataRepos: [
             {
-                id: 'primary',
-                name: 'primary',
+                id: repoIdentity.id,
+                name: repoIdentity.name,
                 localPath,
                 ...(metadataUrl ? { url: metadataUrl } : {}),
             },

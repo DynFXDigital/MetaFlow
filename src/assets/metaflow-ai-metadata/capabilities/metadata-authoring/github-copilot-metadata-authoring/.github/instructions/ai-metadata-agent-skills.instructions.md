@@ -7,6 +7,10 @@ applyTo: '.github/skills/**/SKILL.md,.claude/skills/**/SKILL.md'
 
 Agent Skills are folders of instructions, scripts, and resources that an agent can load when relevant to perform specialized tasks repeatably.
 
+Use the built-in `agent-skills` capability for the portable Agent Skills contract,
+authoritative source snapshot, validation limits, and progressive-discovery model. The host paths
+below are discovery locations; they do not define a different skill standard.
+
 ## When to use skills vs custom instructions
 - Use custom instructions for small, broadly applicable repo guidance.
 - Use skills for deeper, specialized procedures an agent should only load when relevant.

@@ -522,7 +522,7 @@ suite('FilesTreeView – artifact-type grouping', () => {
         assert.strictEqual(String(repoItem.description), 'primary (0/0)');
     });
 
-    test('FTV-AT-06F: repoTree root ignores raw config name when it only repeats the repo id', () => {
+    test('FTV-AT-06F: repoTree root honors a config name that repeats the repo id', () => {
         const { FilesTreeViewProvider } = loadFilesTreeView();
         const originalWorkspaceFolders = mockVscode.workspace.workspaceFolders;
         mockVscode.workspace.workspaceFolders = [{ uri: { fsPath: '/workspace' } }];
@@ -549,8 +549,8 @@ suite('FilesTreeView – artifact-type grouping', () => {
             const provider = new FilesTreeViewProvider(stateWithMetadata, () => 'repoTree');
 
             const [repoItem] = provider.getChildren();
-            assert.strictEqual(String(repoItem.label), 'Team Metadata');
-            assert.strictEqual(String(repoItem.description), 'primary, team-metadata (0/0)');
+            assert.strictEqual(String(repoItem.label), 'primary');
+            assert.strictEqual(String(repoItem.description), 'team-metadata (0/0)');
         } finally {
             mockVscode.workspace.workspaceFolders = originalWorkspaceFolders;
         }
