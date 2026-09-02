@@ -6,6 +6,7 @@ export interface RefreshCoordinator<T> {
 
 export interface RefreshCoordinatorOptions<T> {
     execute(request: T): Promise<void>;
+    onSettled?(): void;
     merge?(current: T, next: T): T;
     debounceMs?: number;
     setTimeoutFn?: (callback: () => void, delayMs: number) => unknown;
@@ -22,11 +23,16 @@ const DEFAULT_DEBOUNCE_MS = 200;
 export function createRefreshCoordinator<T>(
     options: RefreshCoordinatorOptions<T>,
 ): RefreshCoordinator<T> {
-    const setTimeoutFn = options.setTimeoutFn ?? ((callback, delayMs) => setTimeout(callback, delayMs));
-    const clearTimeoutFn = options.clearTimeoutFn ?? ((handle) => clearTimeout(handle as NodeJS.Timeout));
+    const setTimeoutFn =
+        options.setTimeoutFn ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+    const clearTimeoutFn =
+        options.clearTimeoutFn ?? ((handle) => clearTimeout(handle as NodeJS.Timeout));
     const merge = options.merge ?? ((_current, next) => next);
 
     let activeRequest: T | undefined;
+    let runningRequest: T | undefined;
+    let backgroundOnly = false;
+    let backgroundRequest: T | undefined;
     let running = false;
     let scheduledHandle: unknown;
     let disposed = false;
@@ -54,14 +60,24 @@ export function createRefreshCoordinator<T>(
             while (activeRequest !== undefined && !disposed) {
                 const request = activeRequest;
                 activeRequest = undefined;
+                backgroundOnly = false;
+                backgroundRequest = undefined;
+                runningRequest = request;
                 try {
                     await options.execute(request);
                 } catch (error: unknown) {
                     lastError = error;
+                } finally {
+                    runningRequest = undefined;
                 }
             }
         } finally {
             running = false;
+            try {
+                options.onSettled?.();
+            } catch (error: unknown) {
+                lastError = error;
+            }
             if (disposed) {
                 settleWaiters(new Error('MetaFlow refresh coordinator disposed.'));
             } else {
@@ -75,7 +91,15 @@ export function createRefreshCoordinator<T>(
             return Promise.reject(new Error('MetaFlow refresh coordinator disposed.'));
         }
 
-        activeRequest = activeRequest === undefined ? next : merge(activeRequest, next);
+        if (scheduledHandle !== undefined) {
+            clearTimeoutFn(scheduledHandle);
+            scheduledHandle = undefined;
+        }
+
+        const pending = backgroundOnly ? backgroundRequest : activeRequest;
+        activeRequest = pending === undefined ? next : merge(pending, next);
+        backgroundOnly = false;
+        backgroundRequest = undefined;
         const promise = new Promise<void>((resolve, reject) => {
             waiters.push({ resolve, reject });
         });
@@ -88,14 +112,33 @@ export function createRefreshCoordinator<T>(
             return;
         }
 
-        activeRequest = activeRequest === undefined ? next : merge(activeRequest, next);
+        // Background work belongs to the active refresh batch. Keep that
+        // batch's restrictions; a later explicit request retains its own policy.
+        if (activeRequest === undefined || backgroundOnly) {
+            backgroundRequest =
+                backgroundRequest === undefined ? next : merge(backgroundRequest, next);
+            activeRequest =
+                runningRequest === undefined
+                    ? backgroundRequest
+                    : merge(runningRequest, backgroundRequest);
+            backgroundOnly = true;
+        } else {
+            // An explicitly queued request, not the current background batch,
+            // owns the policy of the next execution.
+            activeRequest = merge(activeRequest, next);
+        }
         if (scheduledHandle !== undefined) {
             clearTimeoutFn(scheduledHandle);
         }
         scheduledHandle = setTimeoutFn(() => {
             scheduledHandle = undefined;
+            if (running) {
+                return; // The active drain consumes pending work before settling.
+            }
             const scheduledRequest = activeRequest;
             activeRequest = undefined;
+            backgroundOnly = false;
+            backgroundRequest = undefined;
             if (scheduledRequest !== undefined) {
                 void request(scheduledRequest);
             }
