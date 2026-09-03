@@ -1,6 +1,6 @@
 ---
 description: 'Requirements for Agent Plugins v1 and host-specific plugin manifests, including plugin-local skill, hook, MCP, and LSP paths.'
-applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/.github/hooks/*.json,**/mcp.json,**/.mcp.json,**/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
+applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/com.github.copilot/hooks/*.json,**/.github/hooks/*.json,**/mcp.json,**/.mcp.json,**/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
 ---
 
 # Agent Plugin Packaging
@@ -10,7 +10,7 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 ## Sources and versioning
 
-- Last reviewed: 2026-08-29
+- Last reviewed: 2026-09-03
 - Sources:
     - https://agent-plugins.org/specification
     - https://code.visualstudio.com/docs/agent-customization/agent-plugins
@@ -31,6 +31,9 @@ servers, or scripts. A matching filename does not make path or runtime semantics
   MCP, or LSP paths.
 - Treat the exact Agent Plugins v1 `$schema` value as a positive format marker. Do not add
   Copilot, OpenPlugin, Claude, or MetaFlow manifest fields to a strict v1 package.
+- In MetaFlow, a root `plugin.json` without that marker remains the backward-compatible Copilot
+  format. Adding the canonical marker is the explicit opt-in to Agent Plugins v1 packaging; it is
+  not a cosmetic schema annotation.
 - VS Code checks manifests in this order: `.plugin/plugin.json`, root `plugin.json`,
   `.github/plugin/plugin.json`, then `.claude-plugin/plugin.json`. The first match determines the
   format.
@@ -58,10 +61,18 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 ## MetaFlow injection modes
 
-- A hook-bearing capability intended for MetaFlow plugin injection through `chat.pluginLocations`
-  MUST ship `.plugin/plugin.json`, `hooks/hooks.json`, and a plugin-root script or shim addressed
-  through `${PLUGIN_ROOT}`. A root-only Copilot manifest plus a repository-relative
-  `.github/hooks` command is unsafe when the capability is registered as an external plugin.
+- A backward-compatible hook-bearing capability MAY ship both the legacy root Copilot pair
+  (`plugin.json` plus `hooks.json`) and the OpenPlugin compatibility pair
+  (`.plugin/plugin.json` plus `hooks/hooks.json`). Both hook files MUST address the same packaged
+  script through their documented plugin-root contract. This is MetaFlow's current built-in
+  compatibility layout while Agent Plugins v1 support is still maturing in VS Code.
+- A strict Agent Plugins v1 package MUST instead use the canonical root `$schema` and place VS
+  Code/Copilot hook configuration at `com.github.copilot/hooks/hooks.json`. Do not add an
+  `.plugin/plugin.json` shim to that emitted package: the higher-precedence legacy manifest would
+  prevent VS Code from selecting the strict v1 format.
+- A root-only plugin hook that launches a repository-relative `.github/hooks` script is unsafe
+  when the capability is registered as an external plugin. Package the script and resolve it from
+  the plugin root.
 - A hook synchronized into the consuming repository at `.github/hooks/*.json` is settings-injected
   repository configuration, not plugin injection. It MAY use a repository-root-relative script
   path when that script is also synchronized into the repository and the target hosts are
@@ -78,8 +89,13 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 - Require the canonical v1 `$schema` value in root `plugin.json`. Preserve a recognized strict-v1
   package as strict v1 during maintenance; stop on invalid, mixed, or unsupported schema versions
   instead of converting it to a host-specific manifest.
-- Keep host integration outside the portable package or under the standard's `extensions`
-  mechanism. Do not assume GitHub Copilot's format is a superset of Agent Plugins v1.
+- Keep Copilot-specific manifest data under the `"com.github.copilot"` key in `extensions` and
+  Copilot-specific files under the matching top-level `com.github.copilot/` namespace. VS Code
+  discovers v1 plugin hooks at `com.github.copilot/hooks/hooks.json`; use `${PLUGIN_ROOT}` for
+  packaged hook targets.
+  These files are a client extension, not a third portable component alongside `skills/` and
+  `mcp.json`.
+- Do not assume GitHub Copilot's legacy format is a superset of Agent Plugins v1.
 
 ### OpenPlugin for VS Code
 
@@ -101,18 +117,14 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 ### Root Copilot format
 
 - Use root `plugin.json`; prefer root `hooks.json` for Copilot-format plugin hooks.
-- VS Code defines no plugin-root token for the root Copilot format. Do not use
-  `${PLUGIN_ROOT}` as though VS Code will interpolate it for this format.
-- Copilot CLI v1.0.26 and later exports `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, and
-  `CLAUDE_PLUGIN_ROOT` to plugin hook processes. That is a Copilot CLI runtime guarantee, not a
-  cross-host manifest guarantee.
-- GitHub documents `${PLUGIN_ROOT}` placeholder interpolation for Copilot plugin LSP fields, but
-  does not document equivalent interpolation for Copilot hook command strings. In Copilot CLI
-  hooks, read the exported environment variable through the selected shell:
+- VS Code supports `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` for Copilot plugin paths, expands
+  the selected token at runtime, and exposes it to hook processes. Prefer `${PLUGIN_ROOT}` for new
+  cross-format compatibility assets.
+- Copilot CLI also exports `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, and `CLAUDE_PLUGIN_ROOT`. When a
+  shell-specific hook field reads the environment directly, use that shell's syntax:
     - Bash: `node "$PLUGIN_ROOT/scripts/hook.mjs"`
     - PowerShell: `node "$env:PLUGIN_ROOT/scripts/hook.mjs"`
-- A PowerShell hook MUST use `$env:PLUGIN_ROOT`, not `${PLUGIN_ROOT}`, unless the selected host
-  explicitly guarantees config-token interpolation before PowerShell runs.
+- Validate both the default command and every shell-specific override on the claimed hosts.
 
 ### Claude format
 
@@ -141,6 +153,8 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 ## Validation
 
 - Confirm which manifest VS Code will select before validating any component paths.
+- Confirm that a strict-v1 package uses `com.github.copilot/hooks/hooks.json` and that a legacy
+  Copilot package uses root `hooks.json`; do not treat those locations as interchangeable.
 - Validate the emitted directory tree, not only the authoring-source tree.
 - Run at least one plugin hook from a working directory outside the plugin root.
 - On Windows, exercise the actual PowerShell command and verify `$env:PLUGIN_ROOT` resolves.

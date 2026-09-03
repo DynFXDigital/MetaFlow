@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { collectAgentPluginHookWarnings } from '../src';
+import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, collectAgentPluginHookWarnings } from '../src';
 import type { ArtifactClassification, EffectiveFile } from '../src';
 
 function writeFixture(rootPath: string, relativePath: string, content: string): string {
@@ -60,11 +60,175 @@ describe('collectAgentPluginHookWarnings', () => {
             }),
         );
         writeFixture(rootPath, 'scripts/guard.mjs', 'export {};');
+        writeFixture(
+            rootPath,
+            'hooks.json',
+            JSON.stringify({
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: 'command',
+                            command: 'node "${PLUGIN_ROOT}/scripts/guard.mjs"',
+                        },
+                    ],
+                },
+            }),
+        );
 
         const warnings = collectAgentPluginHookWarnings([
             effectiveFile(rootPath, '.plugin/plugin.json'),
             effectiveFile(rootPath, 'plugin.json'),
             effectiveFile(rootPath, 'hooks/hooks.json'),
+            effectiveFile(rootPath, 'hooks.json'),
+            effectiveFile(rootPath, 'scripts/guard.mjs'),
+        ]);
+
+        assert.deepStrictEqual(warnings, []);
+    });
+
+    it('accepts Agent Plugins v1 Copilot hooks from the namespaced extension path', () => {
+        writeFixture(
+            rootPath,
+            'plugin.json',
+            JSON.stringify({
+                $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                name: 'guard',
+            }),
+        );
+        writeFixture(
+            rootPath,
+            'com.github.copilot/hooks/hooks.json',
+            JSON.stringify({
+                hooks: {
+                    PreToolUse: [
+                        {
+                            type: 'command',
+                            command: 'node "${PLUGIN_ROOT}/scripts/guard.mjs"',
+                        },
+                    ],
+                },
+            }),
+        );
+        writeFixture(rootPath, 'scripts/guard.mjs', 'export {};');
+
+        const warnings = collectAgentPluginHookWarnings([
+            effectiveFile(rootPath, 'plugin.json'),
+            effectiveFile(rootPath, 'com.github.copilot/hooks/hooks.json'),
+            effectiveFile(rootPath, 'scripts/guard.mjs'),
+        ]);
+
+        assert.deepStrictEqual(warnings, []);
+    });
+
+    it('does not let a strict v1 manifest redirect hooks to the legacy Copilot path', () => {
+        writeFixture(
+            rootPath,
+            'plugin.json',
+            JSON.stringify({
+                $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                name: 'guard',
+                hooks: 'hooks.json',
+            }),
+        );
+        writeFixture(
+            rootPath,
+            'hooks.json',
+            JSON.stringify({
+                hooks: {
+                    PreToolUse: [
+                        {
+                            type: 'command',
+                            command: 'node "${PLUGIN_ROOT}/scripts/guard.mjs"',
+                        },
+                    ],
+                },
+            }),
+        );
+        writeFixture(rootPath, 'scripts/guard.mjs', 'export {};');
+
+        const warnings = collectAgentPluginHookWarnings([
+            effectiveFile(rootPath, 'plugin.json'),
+            effectiveFile(rootPath, 'hooks.json'),
+            effectiveFile(rootPath, 'scripts/guard.mjs'),
+        ]);
+
+        assert.ok(
+            warnings.some(
+                (entry) =>
+                    entry.code === 'AGENT_PLUGIN_HOOK_CONFIG_UNDISCOVERABLE' &&
+                    entry.message.includes('com.github.copilot/hooks/hooks.json') &&
+                    entry.message.includes('does not define a top-level "hooks" manifest field'),
+            ),
+        );
+    });
+
+    it('warns when an OpenPlugin shim shadows strict v1 Copilot hooks', () => {
+        writeFixture(rootPath, '.plugin/plugin.json', JSON.stringify({ name: 'guard' }));
+        writeFixture(
+            rootPath,
+            'plugin.json',
+            JSON.stringify({
+                $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                name: 'guard',
+            }),
+        );
+        writeFixture(
+            rootPath,
+            'com.github.copilot/hooks/hooks.json',
+            JSON.stringify({
+                hooks: {
+                    PreToolUse: [
+                        {
+                            type: 'command',
+                            command: 'node "${PLUGIN_ROOT}/scripts/guard.mjs"',
+                        },
+                    ],
+                },
+            }),
+        );
+        writeFixture(rootPath, 'scripts/guard.mjs', 'export {};');
+
+        const warnings = collectAgentPluginHookWarnings([
+            effectiveFile(rootPath, '.plugin/plugin.json'),
+            effectiveFile(rootPath, 'plugin.json'),
+            effectiveFile(rootPath, 'com.github.copilot/hooks/hooks.json'),
+            effectiveFile(rootPath, 'scripts/guard.mjs'),
+        ]);
+
+        assert.ok(
+            warnings.some(
+                (entry) =>
+                    entry.code === 'AGENT_PLUGIN_HOOK_CONFIG_UNDISCOVERABLE' &&
+                    entry.message.includes('.plugin/plugin.json') &&
+                    entry.message.includes('hooks/hooks.json'),
+            ),
+        );
+    });
+
+    it('accepts documented plugin-root variables in legacy Copilot hooks', () => {
+        writeFixture(rootPath, 'plugin.json', JSON.stringify({ name: 'guard' }));
+        writeFixture(
+            rootPath,
+            'hooks.json',
+            JSON.stringify({
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: 'command',
+                            command: 'node "${PLUGIN_ROOT}/scripts/guard.mjs"',
+                            powershell: 'node "$env:CLAUDE_PLUGIN_ROOT/scripts/guard.mjs"',
+                        },
+                    ],
+                },
+            }),
+        );
+        writeFixture(rootPath, 'scripts/guard.mjs', 'export {};');
+
+        const warnings = collectAgentPluginHookWarnings([
+            effectiveFile(rootPath, 'plugin.json'),
+            effectiveFile(rootPath, 'hooks.json'),
             effectiveFile(rootPath, 'scripts/guard.mjs'),
         ]);
 

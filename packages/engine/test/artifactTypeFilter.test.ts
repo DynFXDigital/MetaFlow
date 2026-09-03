@@ -43,6 +43,13 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/hooks/prompt-injection-guard.json'), 'hooks');
     });
 
+    it('ATF-01eb: Agent Plugins v1 Copilot extension hooks return hooks', () => {
+        assert.strictEqual(
+            getArtifactType('com.github.copilot/hooks/hooks.json'),
+            'hooks',
+        );
+    });
+
     it('ATF-01f: unknown prefix returns other', () => {
         assert.strictEqual(getArtifactType('unknown/file.md'), 'other');
     });

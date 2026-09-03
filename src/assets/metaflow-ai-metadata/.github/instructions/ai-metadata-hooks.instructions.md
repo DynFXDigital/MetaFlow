@@ -1,6 +1,6 @@
 ---
-description: 'Guidelines for GitHub Copilot hooks configuration files stored in .github/hooks.'
-applyTo: '.github/hooks/*.json'
+description: 'Guidelines for repository hooks and legacy or Agent Plugins v1 Copilot hook packages.'
+applyTo: '**/.github/hooks/*.json,**/hooks.json,**/hooks/hooks.json,**/com.github.copilot/hooks/hooks.json'
 ---
 
 # Copilot Hooks
@@ -8,7 +8,7 @@ applyTo: '.github/hooks/*.json'
 Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run custom shell commands at key points during agent execution.
 
 ## Sources and versioning
-- Last reviewed: 2026-07-24
+- Last reviewed: 2026-09-03
 - Sources:
   - https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks
   - https://docs.github.com/en/copilot/how-tos/copilot-cli/use-hooks
@@ -18,9 +18,12 @@ Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run c
   - https://code.visualstudio.com/docs/agent-customization/hooks
 
 ## Scope
-- Hook configuration files belong directly under `.github/hooks/*.json`.
+- Repository hook configuration belongs directly under `.github/hooks/*.json`.
 - Supporting scripts and assets can live in subdirectories such as `.github/hooks/scripts/` and `.github/hooks/logs/`.
 - Copilot coding agent uses hooks from the repository default branch; Copilot CLI loads hooks from the current working directory.
+- Plugin-delivered hooks use the selected package format's location: root `hooks.json` for legacy
+  Copilot, `hooks/hooks.json` for OpenPlugin, or
+  `com.github.copilot/hooks/hooks.json` for the Copilot extension to Agent Plugins v1.
 - These are repository-hook paths. Do not copy them unchanged into an agent plugin: MetaFlow
   plugin injection registers the capability outside the consuming workspace, so a command such as
   `./.github/hooks/scripts/guard.ps1` resolves from the wrong working directory.
@@ -30,7 +33,8 @@ Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run c
   bundled scripts from that format's plugin-root contract.
 
 ## Required structure
-- The config must be valid JSON and include `version: 1` (required for Copilot CLI and Copilot coding agent; not required for VS Code).
+- The config must be valid JSON. Repository and legacy Copilot CLI hook configs include
+  `version: 1`; VS Code's native format does not require that field.
 - A minimal CLI/coding-agent starting structure:
 
 ```json
@@ -107,4 +111,7 @@ Hooks let GitHub Copilot CLI, Copilot coding agent, and VS Code agent mode run c
 - Validate JSON with `jq .` (or `ConvertFrom-Json`) before committing.
 - Test scripts by piping representative JSON input into them and validating their output.
 - Debug locally by piping sample input into the script and validating output JSON.
-- If hooks do not run, confirm the file is in `.github/hooks/`, has `version: 1`, and is on the default branch for coding agent runs or in the current working directory for CLI runs.
+- If repository hooks do not run, confirm the file is in `.github/hooks/`, has `version: 1`, and is on the default branch for coding agent runs or in the current working directory for CLI runs.
+- If plugin hooks do not run, inspect the selected manifest before changing the command: legacy
+  Copilot expects root `hooks.json`, OpenPlugin expects `hooks/hooks.json`, and strict Agent Plugins
+  v1 expects `com.github.copilot/hooks/hooks.json`.

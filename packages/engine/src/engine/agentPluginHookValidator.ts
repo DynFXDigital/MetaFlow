@@ -9,10 +9,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID } from './agentPluginCompatibility';
 import { resolvePluginRootPath } from './settingsInjector';
 import { CapabilityWarning, EffectiveFile } from './types';
 
-type PluginFormat = 'openplugin' | 'copilot' | 'claude';
+type PluginFormat = 'agent-plugins-v1' | 'openplugin' | 'copilot' | 'claude';
 
 interface PluginManifestSelection {
     format: PluginFormat;
@@ -49,14 +50,17 @@ const MANIFEST_PRECEDENCE: ReadonlyArray<{
 ];
 
 const DEFAULT_HOOK_CONFIG_PATH: Record<PluginFormat, string> = {
+    'agent-plugins-v1': 'com.github.copilot/hooks/hooks.json',
     openplugin: 'hooks/hooks.json',
     copilot: 'hooks.json',
     claude: 'hooks/hooks.json',
 };
 
-const FORMAT_ROOT_VARIABLE: Partial<Record<PluginFormat, string>> = {
-    openplugin: 'PLUGIN_ROOT',
-    claude: 'CLAUDE_PLUGIN_ROOT',
+const FORMAT_ROOT_VARIABLES: Record<PluginFormat, readonly string[]> = {
+    'agent-plugins-v1': ['PLUGIN_ROOT'],
+    openplugin: ['PLUGIN_ROOT'],
+    copilot: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+    claude: ['CLAUDE_PLUGIN_ROOT'],
 };
 
 const ROOT_VARIABLE_NAMES = ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT', 'COPILOT_PLUGIN_ROOT'] as const;
@@ -155,8 +159,13 @@ function selectPluginManifest(rootPath: string): PluginManifestSelection | undef
             continue;
         }
         const manifest = readJsonObject(manifestPath) ?? {};
+        const format =
+            candidate.relativePath === 'plugin.json' &&
+            manifest.$schema === AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID
+                ? 'agent-plugins-v1'
+                : candidate.format;
         return {
-            format: candidate.format,
+            format,
             manifestPath,
             relativePath: candidate.relativePath,
             manifest,
@@ -196,18 +205,40 @@ function hookConfigContract(selection: PluginManifestSelection): {
     explicitPath?: string;
 } {
     const defaultPath = DEFAULT_HOOK_CONFIG_PATH[selection.format];
+    if (selection.format === 'agent-plugins-v1') {
+        return { discoverablePaths: [defaultPath] };
+    }
+
+    const compatibilityPaths =
+        selection.format === 'openplugin' && hasLegacyCopilotRootManifest(selection)
+            ? ['hooks.json']
+            : [];
     const hooks = selection.manifest.hooks;
     if (typeof hooks === 'string') {
         const explicitPath = normalizeRelativePath(hooks.trim());
         return {
-            discoverablePaths: Array.from(new Set([defaultPath, explicitPath])).filter(Boolean),
+            discoverablePaths: Array.from(
+                new Set([defaultPath, ...compatibilityPaths, explicitPath]),
+            ).filter(Boolean),
             explicitPath,
         };
     }
     if (hooks && typeof hooks === 'object') {
-        return { inlineHooks: hooks, discoverablePaths: [defaultPath] };
+        return {
+            inlineHooks: hooks,
+            discoverablePaths: [defaultPath, ...compatibilityPaths],
+        };
     }
-    return { discoverablePaths: [defaultPath] };
+    return { discoverablePaths: [defaultPath, ...compatibilityPaths] };
+}
+
+function hasLegacyCopilotRootManifest(selection: PluginManifestSelection): boolean {
+    const manifestPath = path.join(selectedPluginRoot(selection), 'plugin.json');
+    if (!fs.existsSync(manifestPath)) {
+        return false;
+    }
+    const manifest = readJsonObject(manifestPath);
+    return Boolean(manifest && manifest.$schema !== AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID);
 }
 
 function addHookConfigFile(configs: HookConfigFile[], rootPath: string, filePath: string): void {
@@ -409,13 +440,20 @@ function validateRootTargets(
     warnings: CapabilityWarning[],
     requireDirectory = false,
 ): { hasReference: boolean; valid: boolean } {
-    const variable = FORMAT_ROOT_VARIABLE[selection.format];
-    if (!variable) {
+    const variables = FORMAT_ROOT_VARIABLES[selection.format];
+    if (variables.length === 0) {
         return { hasReference: false, valid: false };
     }
 
     const markerPattern = new RegExp(
-        `(?:\\$\\{${variable}\\}|\\$env:${variable}\\b|\\$${variable}\\b|%${variable}%)([\\\\/].*)?`,
+        `(?:${variables
+            .flatMap((variable) => [
+                `\\$\\{${variable}\\}`,
+                `\\$env:${variable}\\b`,
+                `\\$${variable}\\b`,
+                `%${variable}%`,
+            ])
+            .join('|')})([\\\\/].*)?`,
         'gi',
     );
     const values = requireDirectory ? [value.trim()] : tokenizeSimpleCommand(value);
@@ -475,7 +513,7 @@ function validateHookCommands(
     hookFilePath: string,
     warnings: CapabilityWarning[],
 ): void {
-    const allowedVariable = FORMAT_ROOT_VARIABLE[selection.format];
+    const allowedVariables = FORMAT_ROOT_VARIABLES[selection.format];
 
     for (const command of commands) {
         const referencedVariables = new Set([
@@ -483,7 +521,7 @@ function validateHookCommands(
             ...referencedRootVariables(command.cwd ?? ''),
         ]);
         const unsupportedVariables = Array.from(referencedVariables).filter(
-            (variable) => variable !== allowedVariable,
+            (variable) => !allowedVariables.includes(variable),
         );
         if (unsupportedVariables.length > 0) {
             warnings.push(
@@ -494,9 +532,11 @@ function validateHookCommands(
                         .join(
                             ', ',
                         )}, but manifest precedence selects ${selection.relativePath} (${selection.format}). ${
-                        allowedVariable
-                            ? `Use ${`\${${allowedVariable}}`} for plugin-root paths in this format.`
-                            : 'VS Code defines no plugin-root token for Copilot-format plugins; use a format-specific package such as OpenPlugin or inject the hook as repository configuration.'
+                        allowedVariables.length > 0
+                            ? `Use ${allowedVariables
+                                  .map((variable) => `\${${variable}}`)
+                                  .join(' or ')} for plugin-root paths in this format.`
+                            : 'Use a format-specific package or inject the hook as repository configuration.'
                     }`,
                     hookFilePath,
                 ),
@@ -515,7 +555,7 @@ function validateHookCommands(
               )
             : { hasReference: false, valid: false };
         const cwdUsesAllowedRoot =
-            Boolean(allowedVariable) && cwdValidation.hasReference && cwdValidation.valid;
+            allowedVariables.length > 0 && cwdValidation.hasReference && cwdValidation.valid;
         const operands = relativeScriptOperands(command.command, selectedPluginRoot(selection));
         if (operands.length > 0 && !cwdUsesAllowedRoot) {
             warnings.push(
@@ -596,7 +636,11 @@ function validatePluginRoot(group: PluginRootGroup): CapabilityWarning[] {
             warnings.push(
                 warning(
                     'AGENT_PLUGIN_HOOK_CONFIG_UNDISCOVERABLE',
-                    `Plugin-delivered hook config "${hookConfig.relativePath}" is not discovered by the selected ${selection.format} manifest "${selection.relativePath}". Move it to ${expectedDescription} or declare that path in the selected manifest's "hooks" field.`,
+                    `Plugin-delivered hook config "${hookConfig.relativePath}" is not discovered by the selected ${selection.format} manifest "${selection.relativePath}". ${
+                        selection.format === 'agent-plugins-v1'
+                            ? `Move it to ${expectedDescription}; strict Agent Plugins v1 does not define a top-level "hooks" manifest field.`
+                            : `Move it to ${expectedDescription} or declare that path in the selected manifest's "hooks" field.`
+                    }`,
                     hookConfig.filePath,
                 ),
             );

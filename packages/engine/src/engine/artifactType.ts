@@ -24,6 +24,7 @@ const KNOWN_TYPES = new Set<string>([
     'skills',
     'hooks',
 ]);
+const COPILOT_AGENT_PLUGIN_HOOKS_PREFIX = 'com.github.copilot/hooks/';
 
 /**
  * Classify a relative file path into an artifact-type bucket.
@@ -34,6 +35,9 @@ const KNOWN_TYPES = new Set<string>([
  */
 export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
+    if (posix.startsWith(COPILOT_AGENT_PLUGIN_HOOKS_PREFIX)) {
+        return 'hooks';
+    }
     const segments = posix.split('/').filter((segment) => segment.length > 0);
     const commandSegmentIndex = segments.findIndex(
         (segment, index) =>
