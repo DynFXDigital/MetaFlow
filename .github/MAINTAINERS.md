@@ -7,6 +7,14 @@
 - Review open issues and assign labels/owners.
 - Check CI/release workflow health and flaky failures.
 
+## Dependency update policy
+
+- Dependabot is configured to raise grouped security updates only; routine version upgrades are handled as deliberate maintenance work.
+- Npm security updates may span the root, extension, engine, and CLI manifests in one PR. Review every manifest and lockfile change before merge.
+- GitHub Actions security updates remain in a separate grouped PR from npm updates.
+- Do not use broad ignore rules or close a security PR solely to reduce volume. Reconcile stale or superseded PRs against the current branch baseline instead.
+- Run the relevant build, unit, integration, and release-branch gates before merging a dependency update that affects shipped artifacts.
+
 ## Pre-release checklist
 
 - Confirm release build starts from a clean checkout and `npm ci` state.
