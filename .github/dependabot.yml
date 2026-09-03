@@ -1,85 +1,20 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: /
+    directories:
+      - /
+      - /src
+      - /packages/engine
+      - /packages/cli
     schedule:
       interval: weekly
       day: monday
+    # Keep routine version upgrades in an intentional maintenance window.
     open-pull-requests-limit: 0
     labels:
       - dependencies
-      - root
     groups:
-      root-dev-dependencies:
-        applies-to: version-updates
-        dependency-type: development
-      root-runtime-dependencies:
-        applies-to: version-updates
-        dependency-type: production
-      root-security-updates:
-        applies-to: security-updates
-        patterns:
-          - '*'
-
-  - package-ecosystem: npm
-    directory: /src
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 0
-    labels:
-      - dependencies
-      - extension
-    groups:
-      extension-dev-dependencies:
-        applies-to: version-updates
-        dependency-type: development
-      extension-runtime-dependencies:
-        applies-to: version-updates
-        dependency-type: production
-      extension-security-updates:
-        applies-to: security-updates
-        patterns:
-          - '*'
-
-  - package-ecosystem: npm
-    directory: /packages/engine
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 0
-    labels:
-      - dependencies
-      - engine
-    groups:
-      engine-dev-dependencies:
-        applies-to: version-updates
-        dependency-type: development
-      engine-runtime-dependencies:
-        applies-to: version-updates
-        dependency-type: production
-      engine-security-updates:
-        applies-to: security-updates
-        patterns:
-          - '*'
-
-  - package-ecosystem: npm
-    directory: /packages/cli
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 0
-    labels:
-      - dependencies
-      - cli
-    groups:
-      cli-dev-dependencies:
-        applies-to: version-updates
-        dependency-type: development
-      cli-runtime-dependencies:
-        applies-to: version-updates
-        dependency-type: production
-      cli-security-updates:
+      npm-security-updates:
         applies-to: security-updates
         patterns:
           - '*'
@@ -89,6 +24,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Keep routine action upgrades in an intentional maintenance window.
     open-pull-requests-limit: 0
     labels:
       - dependencies
@@ -97,10 +33,6 @@ updates:
       prefix: 'chore(deps)'
       include: scope
     groups:
-      github-actions-version-updates:
-        applies-to: version-updates
-        patterns:
-          - '*'
       github-actions-security-updates:
         applies-to: security-updates
         patterns:
