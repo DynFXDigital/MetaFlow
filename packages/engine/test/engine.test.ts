@@ -691,6 +691,7 @@ describe('Engine package: overlay pipeline', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         const layerRoot = path.join(repoDir, 'core');
         fs.mkdirSync(path.join(layerRoot, 'com.github.copilot', 'prompts'), { recursive: true });
+        fs.mkdirSync(path.join(layerRoot, 'com.example.client', 'config'), { recursive: true });
         fs.writeFileSync(
             path.join(layerRoot, 'plugin.json'),
             JSON.stringify({
@@ -709,6 +710,10 @@ describe('Engine package: overlay pipeline', () => {
             path.join(layerRoot, 'com.github.copilot', 'prompts', 'review.prompt.md'),
             '# Review prompt',
         );
+        fs.writeFileSync(
+            path.join(layerRoot, 'com.example.client', 'config', 'settings.json'),
+            '{}',
+        );
 
         const config: MetaFlowConfig = {
             metadataRepo: { localPath: '.ai/ai-metadata' },
@@ -722,6 +727,7 @@ describe('Engine package: overlay pipeline', () => {
 
         assert.deepStrictEqual(effectivePaths, ['com.github.copilot/prompts/review.prompt.md']);
         assert.deepStrictEqual(auditPaths, [
+            'com.example.client/config/settings.json',
             'com.github.copilot/prompts/review.prompt.md',
             'mcp.json',
             'plugin.json',

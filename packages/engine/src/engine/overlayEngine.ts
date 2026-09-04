@@ -23,6 +23,7 @@ import {
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
 import { inspectAgentPluginPackage } from './agentPluginCompatibility';
+import { agentPluginExtensionNamespaceForPath } from './agentMetadataConformance';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { isMarketplaceRepositoryRoot } from './repoManifest';
 
@@ -393,7 +394,11 @@ function isKnownArtifactPath(relativePath: string): boolean {
 }
 
 function isKnownAgentMetadataPath(relativePath: string): boolean {
-    return AGENT_PLUGIN_PACKAGE_ROOT_FILES.has(relativePath) || isKnownArtifactPath(relativePath);
+    return (
+        AGENT_PLUGIN_PACKAGE_ROOT_FILES.has(relativePath) ||
+        isKnownArtifactPath(relativePath) ||
+        agentPluginExtensionNamespaceForPath(relativePath) !== undefined
+    );
 }
 
 function isKnownArtifactRootDirectory(directoryName: string): boolean {

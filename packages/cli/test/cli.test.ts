@@ -1225,15 +1225,32 @@ describe('CLI: Agent Plugins conformance', () => {
         assert.strictEqual(result.exitCode, 0);
         const report = JSON.parse(result.stdout);
         assert.deepStrictEqual(report.summary, {
-            total: 4,
+            total: 5,
             portable: 2,
-            clientExtensions: 1,
+            clientExtensions: 2,
             legacyHost: 0,
             noEquivalent: 0,
             invalid: 1,
-            standardConformancePercent: 75,
-            portablePercent: 50,
+            standardConformancePercent: 80,
+            portablePercent: 40,
         });
+        assert.deepStrictEqual(
+            report.classifications.find(
+                (entry: { artifactKind: string }) => entry.artifactKind === 'client-extension',
+            ),
+            {
+                layerId: 'primary/company/core',
+                sourcePath: 'plugin.json#/extensions/com.github.copilot',
+                absolutePath: path.join(ws.metadataRepo, 'company', 'core', 'plugin.json'),
+                artifactKind: 'client-extension',
+                activation: 'unknown',
+                scope: 'host-defined',
+                standardCoverage: 'client-extension',
+                vendorDependency: 'github-copilot',
+                migrationLoss: 'none',
+                extensionNamespace: 'com.github.copilot',
+            },
+        );
         assert.strictEqual(
             report.diagnostics.find(
                 (entry: { code: string }) =>

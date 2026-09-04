@@ -325,6 +325,115 @@ describe('Agent metadata semantic conformance', () => {
         assert.strictEqual(prompt.packagingProjectionLoss, 'none');
     });
 
+    it('counts inline client extension manifest data as conformant but nonportable', () => {
+        const rootPath = path.resolve('fixture', 'capability');
+        const copilot = auditAgentMetadataConformance(
+            [
+                layer(
+                    ['plugin.json'],
+                    inspection(rootPath, {
+                        extensions: { 'com.github.copilot': { hooks: 'hooks/hooks.json' } },
+                    }),
+                ),
+            ],
+            'audit-standard',
+        );
+        const copilotManifestExtension = copilot.classifications.find(
+            (entry) => entry.artifactKind === 'client-extension',
+        );
+
+        assert.strictEqual(copilotManifestExtension?.standardCoverage, 'client-extension');
+        assert.strictEqual(copilotManifestExtension?.vendorDependency, 'github-copilot');
+        assert.strictEqual(copilotManifestExtension?.extensionNamespace, 'com.github.copilot');
+        assert.deepStrictEqual(copilot.summary, {
+            total: 2,
+            portable: 1,
+            clientExtensions: 1,
+            legacyHost: 0,
+            noEquivalent: 0,
+            invalid: 0,
+            standardConformancePercent: 100,
+            portablePercent: 50,
+        });
+        assert.ok(
+            copilot.diagnostics.some(
+                (entry) => entry.code === 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
+            ),
+        );
+
+        const otherHost = auditAgentMetadataConformance(
+            [
+                layer(
+                    ['plugin.json'],
+                    inspection(rootPath, {
+                        extensions: { 'com.example.client': { enabled: true } },
+                    }),
+                ),
+            ],
+            'prefer-standard',
+        );
+        assert.strictEqual(
+            otherHost.classifications.find((entry) => entry.artifactKind === 'client-extension')
+                ?.vendorDependency,
+            'other-host',
+        );
+        assert.deepStrictEqual(otherHost.diagnostics, []);
+
+        const extensionFile = classifyAgentMetadataPath('com.example.client/config/settings.json');
+        assert.strictEqual(extensionFile.artifactKind, 'client-extension');
+        assert.strictEqual(extensionFile.standardCoverage, 'client-extension');
+        assert.strictEqual(extensionFile.vendorDependency, 'other-host');
+        assert.strictEqual(extensionFile.extensionNamespace, 'com.example.client');
+
+        const fileBackedOtherHost = auditAgentMetadataConformance(
+            [
+                layer(
+                    ['plugin.json', 'com.example.client/config/settings.json'],
+                    inspection(rootPath),
+                ),
+            ],
+            'audit-standard',
+        );
+        const fileExtensionDiagnostic = fileBackedOtherHost.diagnostics.find(
+            (entry) => entry.code === 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
+        );
+        assert.ok(fileExtensionDiagnostic?.message.includes('com.example.client'));
+        assert.ok(!fileExtensionDiagnostic?.message.includes('GitHub Copilot'));
+
+        const malformedNamespace = auditAgentMetadataConformance(
+            [
+                layer(
+                    ['plugin.json'],
+                    inspection(rootPath, {
+                        extensions: { 'not-a-namespace': { enabled: true } },
+                    }),
+                ),
+            ],
+            'audit-standard',
+        );
+        const malformedExtension = malformedNamespace.classifications.find(
+            (entry) => entry.artifactKind === 'client-extension',
+        );
+        assert.strictEqual(malformedExtension?.standardCoverage, 'invalid');
+        assert.strictEqual(malformedExtension?.vendorDependency, 'unknown');
+        assert.deepStrictEqual(malformedNamespace.summary, {
+            total: 2,
+            portable: 1,
+            clientExtensions: 0,
+            legacyHost: 0,
+            noEquivalent: 0,
+            invalid: 1,
+            standardConformancePercent: 50,
+            portablePercent: 50,
+        });
+        assert.strictEqual(
+            malformedNamespace.diagnostics.find(
+                (entry) => entry.code === 'AGENT_PLUGIN_EXTENSION_NAMESPACE_INVALID',
+            )?.severity,
+            'warning',
+        );
+    });
+
     it('keeps compatibility and prefer-standard quiet while audit-standard emits warnings', () => {
         const rootPath = path.resolve('fixture', 'capability');
         const source = layer(
@@ -376,14 +485,14 @@ describe('Agent metadata semantic conformance', () => {
             ),
         );
         assert.deepStrictEqual(audit.summary, {
-            total: 4,
+            total: 5,
             portable: 2,
-            clientExtensions: 1,
+            clientExtensions: 2,
             legacyHost: 0,
             noEquivalent: 1,
             invalid: 0,
-            standardConformancePercent: 75,
-            portablePercent: 50,
+            standardConformancePercent: 80,
+            portablePercent: 40,
         });
     });
 

@@ -7011,7 +7011,7 @@ export function registerCommands(
             if (state.agentPluginConformance) {
                 const conformance = state.agentPluginConformance;
                 emitInfo(
-                    `Agent Plugins v1: ${conformance.disposition}; ${conformance.summary.standardConformancePercent}% conformant; ${conformance.summary.portablePercent}% portable; ${conformance.summary.total} artifact(s) inspected`,
+                    `Agent Plugins v1: ${conformance.disposition}; ${conformance.summary.standardConformancePercent}% conformant; ${conformance.summary.portablePercent}% portable; ${conformance.summary.total} semantic item(s) inspected`,
                 );
             } else {
                 emitInfo(

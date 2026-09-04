@@ -80,7 +80,7 @@ describe('inspectAgentPluginPackage', () => {
             $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
             name: 'deployment.tools',
             extensions: {
-                'pi-agent-plugins': {
+                'dev.pi.agent-plugins': {
                     enabled: true,
                 },
             },
@@ -90,7 +90,7 @@ describe('inspectAgentPluginPackage', () => {
 
         assert.strictEqual(result.validManifest, true);
         assert.deepStrictEqual(result.manifest?.extensions, {
-            'pi-agent-plugins': {
+            'dev.pi.agent-plugins': {
                 enabled: true,
             },
         });

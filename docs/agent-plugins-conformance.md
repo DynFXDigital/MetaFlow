@@ -101,11 +101,16 @@ the disposition as follows:
 ## Reports and diagnostics
 
 The extension audits all configured capability sources in enabled repositories, including package
-control files and sources outside the active profile. `MetaFlow: Status` reports the disposition,
-standard-conformance score, portable score, and artifact count. In `audit-standard`, nonportable
-or incompatible entries also appear through the normal diagnostics and Problems surfaces. Invalid
-strict-v1 packages or components use error severity; conformant-but-nonportable extensions,
-no-equivalent artifacts, migration-review candidates, and safe relocations use warning severity.
+control files and sources outside the active profile. Each namespace in `plugin.json.extensions`
+is represented as a semantic item separate from the portable manifest fields, so inline and
+file-backed client extensions both affect portability. Extension keys that are not recognizable
+reverse-domain namespaces are preserved but count as invalid and receive an audit warning.
+`MetaFlow: Status` reports the disposition, standard-conformance score, portable score, and
+semantic-item count. In `audit-standard`, nonportable or incompatible entries also appear through
+the normal diagnostics and Problems surfaces. Invalid strict-v1 core package controls or portable
+components use error severity. Malformed client namespace keys, conformant-but-nonportable
+extensions, no-equivalent artifacts, migration-review candidates, and safe relocations use warning
+severity.
 
 The CLI provides the same model:
 
@@ -124,7 +129,9 @@ not change apply or validation exit status.
 
 The two percentages intentionally answer different questions:
 
-- Standard conformance includes portable components plus valid client extensions.
-- Portability includes only the Skills/MCP portable core.
+- Standard conformance includes the strict package controls, portable components, and valid client
+  extensions.
+- Portability includes strict package controls and the Skills/MCP portable core, but excludes each
+  client-extension semantic item.
 
-Invalid packages count toward neither score.
+Invalid packages remain in the inspected total but count toward neither score's numerator.

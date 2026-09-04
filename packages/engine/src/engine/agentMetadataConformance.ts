@@ -20,6 +20,7 @@ export type AgentMetadataArtifactKind =
     | 'rule'
     | 'agent'
     | 'hook'
+    | 'client-extension'
     | 'other';
 
 export type AgentMetadataActivation =
@@ -62,6 +63,8 @@ export interface AgentMetadataSemanticClassification {
     readonly standardCoverage: AgentMetadataStandardCoverage;
     readonly vendorDependency: AgentMetadataVendorDependency;
     readonly migrationLoss: AgentMetadataMigrationLoss;
+    /** Client namespace for extension-backed metadata. */
+    readonly extensionNamespace?: string;
     /** Lossless package-path projection, when one exists. */
     readonly projectedV1Path?: string;
     /** Coverage of the projected package location; client extensions remain nonportable. */
@@ -130,7 +133,41 @@ export interface AgentMetadataMigrationPlan {
     readonly conflicts: readonly AgentMetadataMigrationConflict[];
 }
 
-const COPILOT_EXTENSION_PREFIX = 'com.github.copilot/';
+const COPILOT_EXTENSION_NAMESPACE = 'com.github.copilot';
+const COPILOT_EXTENSION_PREFIX = `${COPILOT_EXTENSION_NAMESPACE}/`;
+const CLIENT_EXTENSION_NAMESPACE_PATTERN =
+    /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
+
+function isAgentPluginExtensionNamespace(value: string): boolean {
+    return CLIENT_EXTENSION_NAMESPACE_PATTERN.test(value);
+}
+
+function manifestExtensionVendorDependency(
+    namespaces: readonly string[],
+): AgentMetadataVendorDependency {
+    if (namespaces.length === 0) {
+        return 'none';
+    }
+    return namespaces.every((namespace) => namespace === COPILOT_EXTENSION_NAMESPACE)
+        ? 'github-copilot'
+        : 'other-host';
+}
+
+/** Return the reverse-domain namespace for a file-backed client extension. */
+export function agentPluginExtensionNamespaceForPath(value: string): string | undefined {
+    const normalized = normalizeRelativePath(value);
+    const separator = normalized.indexOf('/');
+    if (separator <= 0) {
+        return undefined;
+    }
+    const namespace = normalized.slice(0, separator);
+    return isAgentPluginExtensionNamespace(namespace) ? namespace : undefined;
+}
+
+function manifestExtensionSourcePath(namespace: string): string {
+    const pointerSegment = namespace.replace(/~/g, '~0').replace(/\//g, '~1');
+    return `plugin.json#/extensions/${pointerSegment}`;
+}
 
 /**
  * Project runtime config back to its complete configured capability inventory.
@@ -243,6 +280,8 @@ function semanticShape(
             return { activation: 'host-selected', scope: 'host-defined' };
         case 'hook':
             return { activation: 'event-driven', scope: 'host-defined' };
+        case 'client-extension':
+            return { activation: 'unknown', scope: 'host-defined' };
         default:
             return { activation: 'unknown', scope: 'unknown' };
     }
@@ -282,6 +321,9 @@ function kindForPath(value: string): AgentMetadataArtifactKind {
     if (stripped.startsWith('agents/')) {
         return 'agent';
     }
+    if (agentPluginExtensionNamespaceForPath(normalized)) {
+        return 'client-extension';
+    }
     return 'other';
 }
 
@@ -306,7 +348,9 @@ export function classifyAgentMetadataPath(
     }
 
     const projectedV1Path = projectAgentPluginV1Path(relativePath);
-    const inCopilotExtension = sourcePath.startsWith(COPILOT_EXTENSION_PREFIX);
+    const extensionNamespace = agentPluginExtensionNamespaceForPath(sourcePath);
+    const inClientExtension = extensionNamespace !== undefined;
+    const inCopilotExtension = extensionNamespace === COPILOT_EXTENSION_NAMESPACE;
     const githubPath = sourcePath.startsWith('.github/');
     const portable =
         sourcePath === 'plugin.json' ||
@@ -328,7 +372,7 @@ export function classifyAgentMetadataPath(
     if (portable) {
         standardCoverage = 'portable';
         migrationLoss = 'none';
-    } else if (inCopilotExtension) {
+    } else if (inClientExtension) {
         standardCoverage = 'client-extension';
         migrationLoss = 'none';
     } else if (artifactKind === 'skill') {
@@ -350,10 +394,15 @@ export function classifyAgentMetadataPath(
         standardCoverage,
         vendorDependency: portable
             ? 'none'
-            : inCopilotExtension || githubPath || artifactKind !== 'mcp'
+            : inCopilotExtension
               ? 'github-copilot'
-              : 'none',
+              : inClientExtension
+                ? 'other-host'
+                : githubPath || artifactKind !== 'mcp'
+                  ? 'github-copilot'
+                  : 'none',
         migrationLoss,
+        ...(extensionNamespace !== undefined ? { extensionNamespace } : {}),
         ...(projectedV1Path !== undefined ? { projectedV1Path } : {}),
         ...(projectedV1Coverage !== undefined
             ? { projectedV1Coverage, packagingProjectionLoss: 'none' as const }
@@ -433,14 +482,28 @@ function diagnosticsForClassification(
               }
             : undefined;
     switch (classification.standardCoverage) {
-        case 'client-extension':
+        case 'client-extension': {
+            const manifestExtension = classification.sourcePath.startsWith(
+                'plugin.json#/extensions/',
+            );
+            const dependency =
+                classification.vendorDependency === 'github-copilot'
+                    ? 'GitHub Copilot'
+                    : classification.extensionNamespace
+                      ? `the ${classification.extensionNamespace} client namespace`
+                      : 'a client-specific host';
             return [
                 {
-                    code: 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
-                    message: `${classification.sourcePath} is a conformant client extension, but depends on GitHub Copilot and is not portable Agent Plugins v1 metadata.`,
+                    code: manifestExtension
+                        ? 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE'
+                        : 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
+                    message: manifestExtension
+                        ? `Agent Plugins extension "${classification.extensionNamespace}" is conformant but vendor-specific and nonportable.`
+                        : `${classification.sourcePath} is a conformant client extension, but depends on ${dependency} and is not portable Agent Plugins v1 metadata.`,
                     ...common,
                 },
             ];
+        }
         case 'legacy-host':
             return safeRelocation
                 ? [safeRelocation]
@@ -463,6 +526,19 @@ function diagnosticsForClassification(
                 ...(safeRelocation ? [safeRelocation] : []),
             ];
         case 'invalid':
+            if (
+                classification.artifactKind === 'client-extension' &&
+                classification.extensionNamespace
+            ) {
+                return [
+                    {
+                        code: 'AGENT_PLUGIN_EXTENSION_NAMESPACE_INVALID',
+                        message: `plugin.json extension key "${classification.extensionNamespace}" is not a reverse-domain client namespace and is not Agent Plugins v1-conformant. Preserve it until a reviewed correction is selected.`,
+                        filePath: classification.absolutePath,
+                        severity: 'warning',
+                    },
+                ];
+            }
             return [
                 {
                     code: 'AGENT_PLUGIN_PACKAGE_INVALID',
@@ -557,6 +633,10 @@ export function auditAgentMetadataConformance(
             layer.capability?.agentPluginManifest?.compatibilityInspection;
         if (inspection) {
             const strictV1 = inspection.profile === 'agent-plugins-v1';
+            const strictV1Manifest = strictV1 && inspection.validManifest;
+            const manifestExtensionNamespaces = Object.keys(
+                inspection.manifest?.extensions ?? {},
+            ).sort();
             const inspectionDiagnostics = inspection.diagnostics.map((entry) =>
                 conformanceInspectionDiagnostic(entry, strictV1),
             );
@@ -569,18 +649,37 @@ export function auditAgentMetadataConformance(
                 });
             byIdentity.set(pluginIdentity, {
                 ...existing,
-                standardCoverage:
-                    inspection.profile === 'agent-plugins-v1' && inspection.validManifest
-                        ? 'portable'
-                        : inspection.profile === 'legacy-host'
-                          ? 'legacy-host'
-                          : 'invalid',
+                standardCoverage: strictV1Manifest
+                    ? 'portable'
+                    : inspection.profile === 'legacy-host'
+                      ? 'legacy-host'
+                      : 'invalid',
                 vendorDependency: inspection.profile === 'legacy-host' ? 'github-copilot' : 'none',
-                migrationLoss:
-                    inspection.profile === 'agent-plugins-v1' && inspection.validManifest
-                        ? 'none'
-                        : 'semantic-review',
+                migrationLoss: strictV1Manifest ? 'none' : 'semantic-review',
             });
+
+            if (strictV1Manifest) {
+                for (const namespace of manifestExtensionNamespaces) {
+                    const validNamespace = isAgentPluginExtensionNamespace(namespace);
+                    const extensionClassification: AgentMetadataSemanticClassification = {
+                        layerId: layer.layerId,
+                        sourcePath: manifestExtensionSourcePath(namespace),
+                        absolutePath: path.join(inspection.pluginRoot, 'plugin.json'),
+                        artifactKind: 'client-extension',
+                        ...semanticShape('client-extension'),
+                        standardCoverage: validNamespace ? 'client-extension' : 'invalid',
+                        vendorDependency: validNamespace
+                            ? manifestExtensionVendorDependency([namespace])
+                            : 'unknown',
+                        migrationLoss: validNamespace ? 'none' : 'semantic-review',
+                        extensionNamespace: namespace,
+                    };
+                    byIdentity.set(
+                        classificationIdentity(extensionClassification),
+                        extensionClassification,
+                    );
+                }
+            }
 
             const invalidComponentLocations = inspectionDiagnostics
                 .filter(
@@ -608,16 +707,6 @@ export function auditAgentMetadataConformance(
 
             if (disposition === 'audit-standard') {
                 diagnostics.push(...inspectionDiagnostics);
-                if (inspection.manifest?.extensions) {
-                    for (const namespace of Object.keys(inspection.manifest.extensions).sort()) {
-                        diagnostics.push({
-                            code: 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
-                            message: `Agent Plugins extension "${namespace}" is conformant but vendor-specific and nonportable.`,
-                            filePath: path.join(inspection.pluginRoot, 'plugin.json'),
-                            severity: 'warning',
-                        });
-                    }
-                }
             }
         }
     }
