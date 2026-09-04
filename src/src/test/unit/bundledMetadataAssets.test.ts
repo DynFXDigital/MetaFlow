@@ -266,11 +266,35 @@ suite('bundled metadata assets', () => {
             pluginGuidanceCopies.push(pluginGuidance);
 
             assert.ok(pluginGuidance.includes('.plugin/plugin.json`, root `plugin.json`'));
-            assert.ok(
-                pluginGuidance.includes(
-                    'whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1',
-                ),
+            assert.match(
+                pluginGuidance,
+                /whether the user wants a GitHub Copilot agent\s+plugin or a strict Agent Plugins v1/,
             );
+            assert.ok(pluginGuidance.includes('agentPlugins.disposition'));
+            for (const disposition of [
+                '`compatibility`',
+                '`prefer-standard`',
+                '`audit-standard`',
+            ]) {
+                assert.ok(
+                    pluginGuidance.includes(disposition),
+                    `Expected plugin guidance to cover ${disposition}.`,
+                );
+                assert.ok(
+                    skillGuidance.includes(disposition),
+                    `Expected skill guidance to cover ${disposition}.`,
+                );
+            }
+            assert.match(pluginGuidance, /have no direct\s+portable v1 equivalent/);
+            assert.ok(pluginGuidance.includes('`keep-vendor`'));
+            assert.ok(pluginGuidance.includes('`add-standard-alongside`'));
+            assert.ok(pluginGuidance.includes('`replace-with-disclosed-loss`'));
+            assert.ok(pluginGuidance.includes('continue to author hooks'));
+            assert.ok(pluginGuidance.includes('conformant client-extension packaging'));
+            assert.ok(skillGuidance.includes('agentPlugins.disposition'));
+            assert.ok(skillGuidance.includes('`keep-vendor`'));
+            assert.ok(skillGuidance.includes('`add-standard-alongside`'));
+            assert.ok(skillGuidance.includes('`replace-with-disclosed-loss`'));
             assert.ok(pluginGuidance.includes('agent-plugins'));
             assert.ok(pluginGuidance.includes('agent-skills'));
             assert.ok(
@@ -503,10 +527,7 @@ suite('bundled metadata assets', () => {
         assert.ok(pluginSkill.includes('references/raw/specification-1.0.0.md'));
 
         const skillsSkill = fs.readFileSync(
-            path.join(
-                capabilityRoot,
-                'agent-skills/.github/skills/agent-skills/SKILL.md',
-            ),
+            path.join(capabilityRoot, 'agent-skills/.github/skills/agent-skills/SKILL.md'),
             'utf-8',
         );
         assert.ok(skillsSkill.includes('## Progressive disclosure and resources'));

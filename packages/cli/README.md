@@ -118,6 +118,38 @@ metaflow validate --json       # machine-readable output
 # Exit code 1: validation failed (drifted, missing, unmanaged, or stale files)
 ```
 
+#### `agent-plugins report`
+
+Inspect Agent Plugins v1 conformance across all configured capability sources in enabled
+repositories, including sources outside the active profile.
+
+```bash
+metaflow agent-plugins report
+metaflow agent-plugins report --json
+```
+
+The report separates portable Skills/MCP, conformant client extensions, legacy host metadata,
+artifacts with no direct portable equivalent, and invalid packages. Standard conformance counts
+portable components plus client extensions; the portability score counts only Skills/MCP. Audit
+warnings are emitted only when `agentPlugins.disposition` is `audit-standard` and do not change the
+command, apply, or validation exit status. `status --json` and `validate --json` include the same
+report.
+
+#### `agent-plugins plan-migration`
+
+Build a read-only migration plan. Every legacy or no-equivalent candidate remains blocked until it
+has an explicit decision.
+
+```bash
+metaflow agent-plugins plan-migration --json
+metaflow agent-plugins plan-migration \
+  --decision "primary/company/core::.github/prompts/review.prompt.md=keep-vendor"
+```
+
+Repeat `--decision` with one of `keep-vendor`, `add-standard-alongside`, or
+`replace-with-disclosed-loss` for each candidate ID reported by the command. Planning never writes
+or deletes source metadata.
+
 #### `watch`
 
 Watch for config and metadata changes, auto-apply on change.

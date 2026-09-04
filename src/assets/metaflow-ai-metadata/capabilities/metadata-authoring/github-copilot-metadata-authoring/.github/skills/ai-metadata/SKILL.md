@@ -1,6 +1,6 @@
 ---
 name: ai-metadata
-description: Review and improve GitHub Copilot metadata for correct surface selection, scope, security, portability, and promotion readiness.
+description: Review GitHub Copilot metadata for correct scope, safety, portability, and the configured MetaFlow Agent Plugins v1 disposition.
 ---
 
 # AI metadata review skill
@@ -19,9 +19,26 @@ Use it when creating or updating:
 - Hooks
 - Agent plugins and plugin-local MCP/LSP configuration
 
+## MetaFlow disposition
+
+- Read `.metaflow/config.jsonc` when available. An omitted `agentPlugins.disposition` means
+  `compatibility`; disposition is independent from auto-apply and injection mode.
+- `compatibility` preserves GitHub Copilot packaging and authoring unless strict v1 is explicitly
+  requested.
+- `prefer-standard` prefers Skills for new reusable workflows, MCP for new tool integrations, and
+  strict v1 packaging when the mapping is lossless. It preserves host metadata without warnings.
+- `audit-standard` applies the same standard-first preferences and additionally reports advisory
+  warnings for legacy, invalid, no-equivalent, and vendor-specific metadata.
+- Prompts, slash commands, scoped instructions/rules, custom agents, and hooks have no direct
+  portable v1 equivalent. Preserve them as GitHub extensions, and keep authoring hooks with the
+  GitHub Copilot contract, unless the user explicitly selects another migration shape.
+- Require one explicit `keep-vendor`, `add-standard-alongside`, or
+  `replace-with-disclosed-loss` decision per affected artifact before semantic conversion or
+  deletion. Packaging retained files under `com.github.copilot/` is conformant but nonportable.
+
 ## Core workflow
 
-1. Identify the intended outcome, target hosts, and whether the artifact is local, shared, or intended for promotion. If the request says only "capability" or "agent plugin," ask whether the user wants a GitHub Copilot agent plugin or strict Agent Plugins v1 package. Route strict v1 work through the built-in `agent-plugins` capability and portable skill syntax through `agent-skills`.
+1. Identify the intended outcome, target hosts, configured disposition, and whether the artifact is local, shared, or intended for promotion. If no disposition is available and a request says only "capability" or "agent plugin," ask whether the user wants a GitHub Copilot agent plugin or strict Agent Plugins v1 package. Route strict v1 work through the built-in `agent-plugins` capability and portable skill syntax through `agent-skills`.
 2. Select the smallest effective surface:
     - instructions for stable rules that apply automatically
     - commands for named, user-invoked plugin entry points
@@ -56,6 +73,8 @@ Use it when creating or updating:
 - Keep always-on metadata thin and high-signal. A long procedure belongs in a skill or prompt.
 - Ask for user input only when it changes the artifact surface, scope, permissions, host target, or
   validation criteria; batch those decisions instead of guessing.
+- Do not infer migration consent from standard-oriented disposition. Preserve existing metadata
+  until every semantic candidate has an explicit keep, add, or replace decision.
 - Keep repo-specific instruction files authoritative for enforcement and scoping.
 
 ## Supporting material
@@ -71,4 +90,4 @@ Use it when creating or updating:
 
 ## Versioning
 
-- Last reviewed: 2026-07-23
+- Last reviewed: 2026-09-04

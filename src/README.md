@@ -87,6 +87,10 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
         "skills": "plugin",
         "agents": "plugin",
     },
+    "agentPlugins": {
+        "targetVersion": "1.0.0",
+        "disposition": "prefer-standard",
+    },
     "targets": {
         "pi": { "enabled": true },
     },
@@ -106,6 +110,8 @@ Supported injection modes are:
 - `plugin`: inject capability roots into `chat.pluginLocations` for local Copilot plugin discovery
 
 `plugin` mode is now the default for `instructions`, `skills`, `agents`, and Copilot hook artifacts. Legacy packages use root `hooks.json` (and may keep an OpenPlugin `hooks/hooks.json` compatibility file); a strict Agent Plugins v1 package is selected by its canonical root `$schema` and uses `com.github.copilot/hooks/hooks.json`. Prompts from ordinary metadata repositories still need `settings` or `synchronize`; the built-in MetaFlow prompts are contributed natively by the extension and are excluded from settings injection. Legacy `hooks.preApply` and `hooks.postApply` remain settings-backed script paths because they are not Copilot plugin event definitions.
+
+`agentPlugins.disposition` is a separate repository policy. `compatibility` (the default) preserves legacy Copilot authoring; `prefer-standard` prefers new lossless Skills, MCP, and strict-v1 package scaffolds without warnings; `audit-standard` adds advisory warnings for nonportable or incompatible metadata. Existing metadata is not converted automatically, and migration requires explicit keep, add-alongside, or replace-with-disclosed-loss decisions. Use `MetaFlow: Set Agent Plugins v1 Disposition` to update this config value. See [Agent Plugins v1 conformance disposition](../docs/agent-plugins-conformance.md) for the complete behavior and scoring model.
 
 The optional Pi target is separate from injection mode. When `targets.pi.enabled` is true, Refresh and Preview plan one deterministic skills-only Agent Plugins 1.0 package per active source plugin without writing it. Apply reconciles the managed roots at `.pi/plugins/<original-plugin-name>`; Status reports pending changes or ownership conflicts; Clean removes only verified roots recorded in the separate `.metaflow/pi-target-state.json` ledger. Existing auto-apply policy governs this target. See [Pi Agent Plugins v1 target](../docs/pi-agent-plugins-v1.md) for prerequisites and safety boundaries.
 
@@ -183,6 +189,7 @@ description: Shared repository-level metadata for this workspace.
 | `MetaFlow: Clean`                                       | Remove verified synchronized files and managed project targets                                                             |                |
 | `MetaFlow: Status`                                      | Show current status in output channel                                                                                      |                |
 | `MetaFlow: Switch Profile`                              | Select active profile                                                                                                      |                |
+| `MetaFlow: Set Agent Plugins v1 Disposition`            | Choose compatibility, standard-first, or standard-audit behavior and persist it in repository config                       |                |
 | `MetaFlow: Toggle Capability`                           | Enable/disable a capability                                                                                                |                |
 | `Select All`                                            | Enable all descendant capabilities for the selected folder branch from the Capabilities view context menu                  |                |
 | `Deselect All`                                          | Disable all descendant capabilities for the selected folder branch from the Capabilities view context menu                 |                |

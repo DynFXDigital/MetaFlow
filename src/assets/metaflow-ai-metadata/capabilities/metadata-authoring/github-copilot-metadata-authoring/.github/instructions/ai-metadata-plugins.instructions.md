@@ -1,5 +1,5 @@
 ---
-description: 'Requirements for Agent Plugins v1 and host-specific plugin manifests, including plugin-local skill, hook, MCP, and LSP paths.'
+description: 'Requirements for Agent Plugins v1 disposition, host-specific preservation, explicit migration choices, and plugin-local paths.'
 applyTo: '**/plugin.json,**/.plugin/plugin.json,**/.github/plugin/plugin.json,**/.claude-plugin/plugin.json,**/hooks.json,**/com.github.copilot/hooks/*.json,**/.github/hooks/*.json,**/mcp.json,**/.mcp.json,**/lsp.json,**/.lsp.json,**/lsp-config/servers.json'
 ---
 
@@ -10,7 +10,7 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 
 ## Sources and versioning
 
-- Last reviewed: 2026-09-03
+- Last reviewed: 2026-09-04
 - Sources:
     - https://agent-plugins.org/specification
     - https://code.visualstudio.com/docs/agent-customization/agent-plugins
@@ -22,11 +22,22 @@ servers, or scripts. A matching filename does not make path or runtime semantics
     - https://open-plugins.com/agent-builders/components/hooks
     - https://agentskills.io/specification
 
-## Select the format before authoring paths
+## Apply the disposition before authoring paths
 
-- If a request says only "capability" or "agent plugin" and the desired format cannot be inferred,
-  you MUST ask whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1
-  package before creating or rewriting files.
+- When a workspace has `.metaflow/config.jsonc`, read `agentPlugins.disposition` before creating
+  or maintaining AI metadata. An omitted disposition means `compatibility`.
+- `compatibility` preserves legacy GitHub Copilot packaging and authoring behavior unless the user
+  explicitly selects strict Agent Plugins v1. It does not request conformance warnings.
+- `prefer-standard` prefers a strict v1 package for new, losslessly portable metadata and prefers
+  Skills for reusable workflows and MCP for tool integrations. It preserves existing or
+  host-specific metadata and does not request conformance warnings.
+- `audit-standard` uses the same standard-first authoring policy and additionally reports invalid,
+  legacy, vendor-extension, and no-equivalent metadata as advisory conformance warnings.
+- Disposition is independent of automatic apply, metadata injection mode, and project targets.
+  Changing it MUST NOT silently enable writes, rewrite an existing package, or delete source files.
+- If a request says only "capability" or "agent plugin", no disposition is available, and the
+  desired format cannot be inferred, you MUST ask whether the user wants a GitHub Copilot agent
+  plugin or a strict Agent Plugins v1 package before creating or rewriting files.
 - You MUST identify the owning plugin format and target hosts before choosing manifest, hook,
   MCP, or LSP paths.
 - Treat the exact Agent Plugins v1 `$schema` value as a positive format marker. Do not add
@@ -43,6 +54,26 @@ servers, or scripts. A matching filename does not make path or runtime semantics
 - Prefer a format-specific manifest and hook file. If one repository publishes multiple formats,
   keep independently validated format-specific packages or generated outputs; do not assume a
   copied manifest preserves semantics.
+
+## Preserve unsupported metadata and require migration decisions
+
+- Agent Plugins v1 has only two portable component types: Skills and MCP. GitHub Copilot prompt
+  files, slash commands, scoped instruction/rule files, custom agents, and hooks have no direct
+  portable v1 equivalent.
+- Preserve those artifacts in their current host format unless the user explicitly chooses a
+  migration shape. In both standard-oriented modes, continue to author hooks with the applicable
+  GitHub Copilot contract because there is no portable replacement.
+- Before semantic conversion or source deletion, require one explicit decision for every affected
+  artifact: `keep-vendor`, `add-standard-alongside`, or
+  `replace-with-disclosed-loss`. Describe activation, scope, and known semantic loss before a
+  replace decision.
+- A reusable prompt or slash-command workflow MAY be re-authored as a Skill, and a tool integration
+  MAY be re-authored as MCP, only when the requested behavior maps losslessly. A similar-looking
+  target type is not proof of semantic equivalence.
+- When the user selects a strict v1 package but retains Copilot-only behavior, relocate the retained
+  files into the `com.github.copilot/` client namespace without rewriting their contents. This is
+  conformant client-extension packaging, not portable metadata, and audit mode MUST still flag the
+  vendor dependency.
 
 ## Resolve each path from its owning artifact
 
