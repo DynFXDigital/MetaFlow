@@ -446,24 +446,26 @@ export function auditAgentMetadataConformance(
             layer.capability?.agentPluginManifest?.compatibilityInspection;
         if (inspection) {
             const pluginIdentity = `${layer.layerId}\u0000plugin.json`;
-            const existing = byIdentity.get(pluginIdentity);
-            if (existing) {
-                byIdentity.set(pluginIdentity, {
-                    ...existing,
-                    standardCoverage:
-                        inspection.profile === 'agent-plugins-v1' && inspection.validManifest
-                            ? 'portable'
-                            : inspection.profile === 'legacy-host'
-                              ? 'legacy-host'
-                              : 'invalid',
-                    vendorDependency:
-                        inspection.profile === 'legacy-host' ? 'github-copilot' : 'none',
-                    migrationLoss:
-                        inspection.profile === 'agent-plugins-v1' && inspection.validManifest
-                            ? 'none'
-                            : 'semantic-review',
+            const existing =
+                byIdentity.get(pluginIdentity) ??
+                classifyAgentMetadataPath('plugin.json', {
+                    layerId: layer.layerId,
+                    absolutePath: path.join(inspection.pluginRoot, 'plugin.json'),
                 });
-            }
+            byIdentity.set(pluginIdentity, {
+                ...existing,
+                standardCoverage:
+                    inspection.profile === 'agent-plugins-v1' && inspection.validManifest
+                        ? 'portable'
+                        : inspection.profile === 'legacy-host'
+                          ? 'legacy-host'
+                          : 'invalid',
+                vendorDependency: inspection.profile === 'legacy-host' ? 'github-copilot' : 'none',
+                migrationLoss:
+                    inspection.profile === 'agent-plugins-v1' && inspection.validManifest
+                        ? 'none'
+                        : 'semantic-review',
+            });
 
             if (disposition === 'audit-standard' && inspection.manifest?.extensions) {
                 for (const namespace of Object.keys(inspection.manifest.extensions).sort()) {

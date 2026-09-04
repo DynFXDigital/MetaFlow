@@ -6,6 +6,7 @@ import {
     AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    inspectAgentPluginPackageCandidate,
 } from '../src/engine/agentPluginCompatibility';
 
 function writeFixture(rootPath: string, relativePath: string, content: string): string {
@@ -94,6 +95,24 @@ describe('inspectAgentPluginPackage', () => {
             },
         });
         assert.deepStrictEqual(result.diagnostics, []);
+    });
+
+    it('preflights a proposed manifest without creating plugin.json', () => {
+        writeFixture(rootPath, 'skills/deploy/SKILL.md', skill('deploy'));
+
+        const result = inspectAgentPluginPackageCandidate(rootPath, {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: 'deployment.tools',
+        });
+
+        assert.strictEqual(result.profile, 'agent-plugins-v1');
+        assert.strictEqual(result.validManifest, true);
+        assert.deepStrictEqual(
+            result.validSkills.map((entry) => entry.name),
+            ['deploy'],
+        );
+        assert.deepStrictEqual(result.diagnostics, []);
+        assert.strictEqual(fs.existsSync(path.join(rootPath, 'plugin.json')), false);
     });
 
     it('reports but ignores unknown fields and non-object extensions', () => {

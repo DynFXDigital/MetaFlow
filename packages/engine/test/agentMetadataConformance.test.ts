@@ -173,16 +173,11 @@ describe('Agent metadata semantic conformance', () => {
     it('uses package inspection to distinguish legacy and invalid manifests', () => {
         const rootPath = path.resolve('fixture', 'capability');
         const legacy = auditAgentMetadataConformance(
-            [layer(['plugin.json'], inspection(rootPath, { profile: 'legacy-host' }))],
+            [layer([], inspection(rootPath, { profile: 'legacy-host' }))],
             'audit-standard',
         );
         const invalid = auditAgentMetadataConformance(
-            [
-                layer(
-                    ['plugin.json'],
-                    inspection(rootPath, { profile: 'invalid', validManifest: false }),
-                ),
-            ],
+            [layer([], inspection(rootPath, { profile: 'invalid', validManifest: false }))],
             'audit-standard',
         );
 

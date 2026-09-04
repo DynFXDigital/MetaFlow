@@ -799,7 +799,10 @@ function sortedDiagnostics(diagnostics: CapabilityWarning[]): CapabilityWarning[
  * Reads a plugin package without mutating it and returns portable inventories
  * plus deterministic diagnostics suitable for host compatibility reporting.
  */
-export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompatibilityInspection {
+function inspectAgentPluginPackageInternal(
+    pluginRoot: string,
+    suppliedManifest?: Readonly<Record<string, unknown>>,
+): AgentPluginCompatibilityInspection {
     const diagnostics: CapabilityWarning[] = [];
     const requestedRoot = path.resolve(pluginRoot);
     let rootPath: string;
@@ -831,25 +834,29 @@ export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompat
     }
 
     const manifestPath = path.join(rootPath, 'plugin.json');
-    let manifest: Record<string, unknown> | undefined;
-    try {
-        if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
-            throw new Error('plugin.json is missing or is not a regular file');
+    let manifest: Record<string, unknown> | undefined = suppliedManifest
+        ? { ...suppliedManifest }
+        : undefined;
+    if (!suppliedManifest) {
+        try {
+            if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
+                throw new Error('plugin.json is missing or is not a regular file');
+            }
+            const realManifestPath = realPath(manifestPath);
+            if (!isInside(rootPath, realManifestPath)) {
+                throw new Error('plugin.json resolves outside the plugin root');
+            }
+            manifest = readJsonObject(realManifestPath, diagnostics, 'AGENT_PLUGIN_MANIFEST');
+        } catch (error) {
+            diagnostics.push(
+                diagnostic(
+                    'AGENT_PLUGIN_MANIFEST_PATH_INVALID',
+                    `plugin.json is unavailable: ${(error as Error).message}`,
+                    manifestPath,
+                    'error',
+                ),
+            );
         }
-        const realManifestPath = realPath(manifestPath);
-        if (!isInside(rootPath, realManifestPath)) {
-            throw new Error('plugin.json resolves outside the plugin root');
-        }
-        manifest = readJsonObject(realManifestPath, diagnostics, 'AGENT_PLUGIN_MANIFEST');
-    } catch (error) {
-        diagnostics.push(
-            diagnostic(
-                'AGENT_PLUGIN_MANIFEST_PATH_INVALID',
-                `plugin.json is unavailable: ${(error as Error).message}`,
-                manifestPath,
-                'error',
-            ),
-        );
     }
 
     if (!manifest) {
@@ -925,4 +932,17 @@ export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompat
         recognizedHostFields,
         diagnostics: sortedDiagnostics(diagnostics),
     };
+}
+
+/** Inspect an on-disk package against a proposed manifest without writing plugin.json. */
+export function inspectAgentPluginPackageCandidate(
+    pluginRoot: string,
+    manifest: Readonly<Record<string, unknown>>,
+): AgentPluginCompatibilityInspection {
+    return inspectAgentPluginPackageInternal(pluginRoot, manifest);
+}
+
+/** Read and inspect an existing package without mutating it. */
+export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompatibilityInspection {
+    return inspectAgentPluginPackageInternal(pluginRoot);
 }

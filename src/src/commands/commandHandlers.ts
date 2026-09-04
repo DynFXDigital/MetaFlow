@@ -48,6 +48,7 @@ import {
     canonicalizePluginMetadataJson,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    inspectAgentPluginPackageCandidate,
     collectAgentPluginHookWarnings,
     resolveCapabilityDescriptorPath,
     resolvePathFromWorkspace,
@@ -4843,6 +4844,54 @@ const AGENT_PLUGIN_SCHEMA_ID_PATTERN =
 
 type MaintainedCapabilityPluginFormat = 'legacy-host' | 'agent-plugins-v1';
 
+const NONPORTABLE_AGENT_METADATA_PATHS = [
+    '.github/agents',
+    '.github/chatmodes',
+    '.github/commands',
+    '.github/copilot-instructions.md',
+    '.github/hooks',
+    '.github/hooks.json',
+    '.github/instructions',
+    '.github/prompts',
+    '.github/rules',
+    '.github/skills',
+    '.claude',
+    '.codex',
+    'agents',
+    'chatmodes',
+    'commands',
+    'hooks',
+    'hooks.json',
+    'instructions',
+    'prompts',
+    'rules',
+] as const;
+
+/** Whether a missing manifest can be added as strict v1 without reshaping host metadata. */
+export function isLosslesslyStandardAgentPluginPackageShape(
+    capabilityDirectoryPath: string,
+): boolean {
+    if (
+        NONPORTABLE_AGENT_METADATA_PATHS.some((relativePath) =>
+            fs.existsSync(path.join(capabilityDirectoryPath, ...relativePath.split('/'))),
+        )
+    ) {
+        return false;
+    }
+
+    try {
+        return !fs
+            .readdirSync(capabilityDirectoryPath, { withFileTypes: true })
+            .some(
+                (entry) =>
+                    entry.isDirectory() &&
+                    /^(?:com|dev|io|net|org)\.[a-z0-9.-]+$/i.test(entry.name),
+            );
+    } catch {
+        return false;
+    }
+}
+
 function detectMaintainedCapabilityPluginFormat(existingRawText: string | undefined): {
     format: MaintainedCapabilityPluginFormat;
     parsed?: Record<string, unknown>;
@@ -4943,6 +4992,8 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
     capabilityDirectoryName: string;
     capabilityDirectoryPath?: string;
     existingRawText?: string;
+    disposition?: AgentPluginDisposition;
+    standardPackageEligible?: boolean;
 }): { content: string; changed: boolean } {
     const existingRawText = options.existingRawText;
     const detectedFormat = detectMaintainedCapabilityPluginFormat(existingRawText);
@@ -4952,6 +5003,29 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
             changed: false,
         };
     }
+
+    if (
+        existingRawText === undefined &&
+        options.disposition !== undefined &&
+        options.disposition !== 'compatibility' &&
+        options.standardPackageEligible === true
+    ) {
+        const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
+        const packageObject = {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: sanitizeCapabilityPluginName(options.capabilityDirectoryName) || 'capability',
+            version: '0.1.0',
+            description:
+                options.capabilityDescription?.trim() ??
+                `${normalizedCapabilityName} agent plugin for MetaFlow capability consumers.`,
+        };
+        const nextContent = `${JSON.stringify(canonicalizePluginMetadataJson(packageObject), null, 2)}\n`;
+        return {
+            content: nextContent,
+            changed: true,
+        };
+    }
+
     const packageObject: Record<string, unknown> = { ...(detectedFormat.parsed ?? {}) };
 
     const normalizedCapabilityName = options.capabilityName.trim() || 'Capability Name';
@@ -5040,6 +5114,7 @@ export function buildMaintainedCapabilityPluginManifestJson(options: {
 
 export async function maintainCapabilityPluginMetadataInDirectory(
     capabilityDirectoryPath: string,
+    options: { disposition?: AgentPluginDisposition } = {},
 ): Promise<{
     capabilityDirectoryPath: string;
     capabilityName: string;
@@ -5099,19 +5174,14 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         };
     }
 
-    let descriptorChanged = false;
-    if (descriptor.kind === 'capability') {
-        const manifestRawText = await fsp.readFile(descriptor.absolutePath, 'utf-8');
-        const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
-        descriptorChanged = manifestUpdate.changed;
-        if (manifestUpdate.changed) {
-            await fsp.writeFile(descriptor.absolutePath, manifestUpdate.content, 'utf-8');
-        }
-    }
-
     const manifest = loadCapabilityManifestForLayer(capabilityDirectoryPath, capabilityId);
     const capabilityName = manifest?.name?.trim() || capabilityId;
     const capabilityDescription = manifest?.description?.trim();
+    const standardPackageEligible =
+        existingPluginJsonRawText === undefined &&
+        options.disposition !== undefined &&
+        options.disposition !== 'compatibility' &&
+        isLosslesslyStandardAgentPluginPackageShape(capabilityDirectoryPath);
 
     const pluginUpdate = buildMaintainedCapabilityPluginManifestJson({
         capabilityName,
@@ -5119,7 +5189,42 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityDirectoryName: path.basename(capabilityDirectoryPath),
         capabilityDirectoryPath,
         existingRawText: existingPluginJsonRawText,
+        disposition: options.disposition,
+        standardPackageEligible,
     });
+
+    const pluginFormat: MaintainedCapabilityPluginFormat = standardPackageEligible
+        ? 'agent-plugins-v1'
+        : 'legacy-host';
+    if (pluginFormat === 'agent-plugins-v1') {
+        const proposedManifest = JSON.parse(pluginUpdate.content) as Record<string, unknown>;
+        const inspection = inspectAgentPluginPackageCandidate(
+            capabilityDirectoryPath,
+            proposedManifest,
+        );
+        if (
+            inspection.profile !== 'agent-plugins-v1' ||
+            !inspection.validManifest ||
+            inspection.diagnostics.length > 0
+        ) {
+            const details = inspection.diagnostics
+                .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+                .join('; ');
+            throw new Error(
+                `Agent Plugins v1 manifest creation was skipped because the package is not losslessly valid in the standard shape.${details ? ` ${details}` : ''} Existing metadata was preserved.`,
+            );
+        }
+    }
+
+    let descriptorChanged = false;
+    if (pluginFormat === 'legacy-host' && descriptor.kind === 'capability') {
+        const manifestRawText = await fsp.readFile(descriptor.absolutePath, 'utf-8');
+        const manifestUpdate = ensureCapabilityManifestAgentPluginEnabled(manifestRawText);
+        descriptorChanged = manifestUpdate.changed;
+        if (manifestUpdate.changed) {
+            await fsp.writeFile(descriptor.absolutePath, manifestUpdate.content, 'utf-8');
+        }
+    }
 
     if (pluginUpdate.changed) {
         await fsp.writeFile(pluginJsonPath, pluginUpdate.content, 'utf-8');
@@ -5130,7 +5235,7 @@ export async function maintainCapabilityPluginMetadataInDirectory(
         capabilityName,
         descriptorPath: descriptor.absolutePath,
         descriptorKind: descriptor.kind,
-        pluginFormat: 'legacy-host',
+        pluginFormat,
         descriptorChanged,
         manifestPath: descriptor.absolutePath,
         pluginJsonPath,
@@ -5267,6 +5372,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         capabilityDirectoryPaths?: string[];
         marketplaceName?: string;
         ownerName?: string;
+        disposition?: AgentPluginDisposition;
     },
 ): Promise<CapabilityPluginMaintenanceResult> {
     const layerPaths = (
@@ -5289,6 +5395,7 @@ export async function maintainAllCapabilityPluginMetadataInRepo(
         try {
             const result = await maintainCapabilityPluginMetadataInDirectory(
                 path.join(repoRoot, layerPath),
+                { disposition: options.disposition },
             );
             if (result.manifestChanged || result.pluginJsonChanged) {
                 changedResults.push(result);
@@ -9379,8 +9486,14 @@ export function registerCommands(
 
                 let result: Awaited<ReturnType<typeof maintainCapabilityPluginMetadataInDirectory>>;
                 try {
-                    result =
-                        await maintainCapabilityPluginMetadataInDirectory(capabilityDirectoryPath);
+                    result = await maintainCapabilityPluginMetadataInDirectory(
+                        capabilityDirectoryPath,
+                        {
+                            disposition: state.config
+                                ? resolveAgentPluginDisposition(state.config)
+                                : 'compatibility',
+                        },
+                    );
                 } catch (error: unknown) {
                     const message = error instanceof Error ? error.message : String(error);
                     vscode.window.showWarningMessage(
@@ -9458,6 +9571,7 @@ export function registerCommands(
                 if (!ws || !state.config) {
                     return;
                 }
+                const agentPluginDisposition = resolveAgentPluginDisposition(state.config);
 
                 let repoId = extractRepoId(arg);
                 if (repoId === BUILT_IN_CAPABILITY_REPO_ID) {
@@ -9521,6 +9635,9 @@ export function registerCommands(
                             try {
                                 const result = await maintainCapabilityPluginMetadataInDirectory(
                                     path.join(repoRoot, layerPath),
+                                    {
+                                        disposition: agentPluginDisposition,
+                                    },
                                 );
                                 if (result.manifestChanged || result.pluginJsonChanged) {
                                     changedResults.push(result);

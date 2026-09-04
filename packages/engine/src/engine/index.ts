@@ -91,6 +91,7 @@ export {
     AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    inspectAgentPluginPackageCandidate,
     isValidAgentPluginName,
     isValidAgentSkillName,
     validateAgentSkillContent,

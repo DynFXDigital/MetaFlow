@@ -967,6 +967,43 @@ suite('Command handler capability plugin maintenance helpers', () => {
         assert.strictEqual(result.changed, true);
     });
 
+    test('buildMaintainedCapabilityPluginManifestJson creates a strict v1 scaffold when explicitly eligible', () => {
+        const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
+        const result = buildMaintainedCapabilityPluginManifestJson({
+            capabilityName: 'Portable Tools',
+            capabilityDescription: 'Portable package description.',
+            capabilityDirectoryName: 'portable-tools',
+            disposition: 'prefer-standard',
+            standardPackageEligible: true,
+        });
+
+        const parsed = JSON.parse(result.content) as Record<string, unknown>;
+        assert.strictEqual(
+            parsed.$schema,
+            'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+        );
+        assert.strictEqual(parsed.name, 'portable-tools');
+        assert.strictEqual(parsed.version, '0.1.0');
+        assert.strictEqual(parsed.description, 'Portable package description.');
+        assert.strictEqual('displayName' in parsed, false);
+        assert.strictEqual('metaflow' in parsed, false);
+        assert.strictEqual('skills' in parsed, false);
+    });
+
+    test('standard package shape rejects agent metadata but permits unrelated GitHub workflows', () => {
+        const { isLosslesslyStandardAgentPluginPackageShape } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-shape-'));
+        try {
+            fs.mkdirSync(path.join(tempRoot, '.github', 'workflows'), { recursive: true });
+            assert.strictEqual(isLosslesslyStandardAgentPluginPackageShape(tempRoot), true);
+
+            fs.mkdirSync(path.join(tempRoot, '.github', 'prompts'), { recursive: true });
+            assert.strictEqual(isLosslesslyStandardAgentPluginPackageShape(tempRoot), false);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
     test('buildMaintainedCapabilityPluginManifestJson preserves unrelated fields while repairing managed metadata', () => {
         const { buildMaintainedCapabilityPluginManifestJson } = loadCommandHandlers();
         const result = buildMaintainedCapabilityPluginManifestJson({
@@ -1207,6 +1244,158 @@ suite('Command handler capability plugin maintenance helpers', () => {
             assert.strictEqual('commands' in pluginJson, false);
             assert.strictEqual('rules' in pluginJson, false);
             assert.deepStrictEqual(pluginJson.metaflow?.pluginHosts, ['github-copilot']);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('prefer-standard creates strict v1 for a valid portable package without changing its descriptor', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-prefer-v1-'));
+        try {
+            const descriptorPath = path.join(tempRoot, 'CAPABILITY.md');
+            const descriptorContent = [
+                '---',
+                'name: Portable Tools',
+                'description: Portable package description.',
+                '---',
+                '',
+                '# Portable Tools',
+            ].join('\n');
+            fs.writeFileSync(descriptorPath, descriptorContent, 'utf-8');
+            const skillRoot = path.join(tempRoot, 'skills', 'portable-tool');
+            fs.mkdirSync(skillRoot, { recursive: true });
+            fs.writeFileSync(
+                path.join(skillRoot, 'SKILL.md'),
+                [
+                    '---',
+                    'name: portable-tool',
+                    'description: Use the portable tool.',
+                    '---',
+                    '',
+                    '# Portable tool',
+                ].join('\n'),
+                'utf-8',
+            );
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot, {
+                disposition: 'prefer-standard',
+            });
+            const plugin = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
+            ) as Record<string, unknown>;
+
+            assert.strictEqual(result.pluginFormat, 'agent-plugins-v1');
+            assert.strictEqual(result.pluginJsonChanged, true);
+            assert.strictEqual(result.descriptorChanged, false);
+            assert.strictEqual(
+                plugin.$schema,
+                'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+            );
+            assert.strictEqual('displayName' in plugin, false);
+            assert.strictEqual('metaflow' in plugin, false);
+            assert.strictEqual(fs.readFileSync(descriptorPath, 'utf-8'), descriptorContent);
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('prefer-standard preserves Copilot metadata by creating the legacy manifest shape', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-prefer-host-'));
+        try {
+            fs.writeFileSync(
+                path.join(tempRoot, 'README.md'),
+                '---\nname: Host Package\ndescription: Host metadata package.\n---\n',
+                'utf-8',
+            );
+            const promptPath = path.join(tempRoot, '.github', 'prompts', 'review.prompt.md');
+            fs.mkdirSync(path.dirname(promptPath), { recursive: true });
+            fs.writeFileSync(promptPath, '# Review\n', 'utf-8');
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot, {
+                disposition: 'prefer-standard',
+            });
+            const plugin = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
+            ) as Record<string, unknown>;
+
+            assert.strictEqual(result.pluginFormat, 'legacy-host');
+            assert.strictEqual('$schema' in plugin, false);
+            assert.deepStrictEqual((plugin.metaflow as { pluginHosts?: string[] }).pluginHosts, [
+                'github-copilot',
+            ]);
+            assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), '# Review\n');
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('standard-oriented modes never convert an existing legacy manifest', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-legacy-keep-'));
+        try {
+            fs.writeFileSync(
+                path.join(tempRoot, 'README.md'),
+                '---\nname: Existing Host Package\ndescription: Existing host package.\n---\n',
+                'utf-8',
+            );
+            fs.mkdirSync(path.join(tempRoot, '.github', 'skills'), { recursive: true });
+            fs.writeFileSync(
+                path.join(tempRoot, 'plugin.json'),
+                `${JSON.stringify(
+                    {
+                        name: 'existing-host-package',
+                        version: '1.0.0',
+                        description: 'Existing host package.',
+                        skills: '.github/skills',
+                        metaflow: {
+                            pluginHosts: ['github-copilot'],
+                            minimumMetaflowVersion: '^0.1.0',
+                        },
+                    },
+                    null,
+                    2,
+                )}\n`,
+                'utf-8',
+            );
+
+            const result = await maintainCapabilityPluginMetadataInDirectory(tempRoot, {
+                disposition: 'audit-standard',
+            });
+            const plugin = JSON.parse(
+                fs.readFileSync(path.join(tempRoot, 'plugin.json'), 'utf-8'),
+            ) as Record<string, unknown>;
+
+            assert.strictEqual(result.pluginFormat, 'legacy-host');
+            assert.strictEqual('$schema' in plugin, false);
+            assert.strictEqual(plugin.skills, '.github/skills');
+        } finally {
+            fs.rmSync(tempRoot, { recursive: true, force: true });
+        }
+    });
+
+    test('standard-first preflight rejects invalid portable contents without partial writes', async () => {
+        const { maintainCapabilityPluginMetadataInDirectory } = loadCommandHandlers();
+        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metaflow-plugin-invalid-v1-'));
+        try {
+            const descriptorPath = path.join(tempRoot, 'README.md');
+            fs.writeFileSync(descriptorPath, '# Invalid portable package\n', 'utf-8');
+            const skillRoot = path.join(tempRoot, 'skills', 'invalid-skill');
+            fs.mkdirSync(skillRoot, { recursive: true });
+            fs.writeFileSync(path.join(skillRoot, 'SKILL.md'), '# Missing frontmatter\n', 'utf-8');
+
+            await assert.rejects(
+                maintainCapabilityPluginMetadataInDirectory(tempRoot, {
+                    disposition: 'audit-standard',
+                }),
+                /not losslessly valid in the standard shape/,
+            );
+            assert.strictEqual(fs.existsSync(path.join(tempRoot, 'plugin.json')), false);
+            assert.strictEqual(
+                fs.readFileSync(descriptorPath, 'utf-8'),
+                '# Invalid portable package\n',
+            );
         } finally {
             fs.rmSync(tempRoot, { recursive: true, force: true });
         }
