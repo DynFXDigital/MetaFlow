@@ -10,7 +10,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 import { BUILT_IN_CAPABILITY_REPO_ID } from '../../builtInCapability';
-import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID } from '@metaflow/engine';
+import {
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+    CURRENT_CONFIG_COMPATIBILITY_VERSION,
+} from '@metaflow/engine';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 const COMPLEX_COMMAND_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
@@ -1260,7 +1263,7 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 6;
+                return migratedConfig.compatibilityVersion === CURRENT_CONFIG_COMPATIBILITY_VERSION;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -1271,7 +1274,7 @@ suite('Command Execution', function () {
 
             assert.strictEqual(
                 migratedConfig.compatibilityVersion,
-                5,
+                CURRENT_CONFIG_COMPATIBILITY_VERSION,
                 'Refresh should persist the current compatibilityVersion for released configs',
             );
             assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
