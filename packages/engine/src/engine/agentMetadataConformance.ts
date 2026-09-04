@@ -139,11 +139,6 @@ function normalizeRelativePath(value: string): string {
     return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
 }
 
-function isAgentsMd(value: string): boolean {
-    const normalized = normalizeRelativePath(value).toLowerCase();
-    return normalized === 'agents.md' || normalized.endsWith('/agents.md');
-}
-
 function stripGitHubPrefix(value: string): { path: string; github: boolean } {
     const normalized = normalizeRelativePath(value);
     return normalized.startsWith('.github/')
@@ -158,9 +153,6 @@ function stripGitHubPrefix(value: string): { path: string; github: boolean } {
  */
 export function projectAgentPluginV1Path(relativePath: string): string | undefined {
     const normalized = normalizeRelativePath(relativePath);
-    if (isAgentsMd(normalized)) {
-        return undefined;
-    }
     if (normalized.startsWith(COPILOT_EXTENSION_PREFIX)) {
         return normalized;
     }
@@ -261,19 +253,6 @@ export function classifyAgentMetadataPath(
     options: { layerId?: string; absolutePath?: string } = {},
 ): AgentMetadataSemanticClassification {
     const sourcePath = normalizeRelativePath(relativePath);
-    if (isAgentsMd(sourcePath)) {
-        return {
-            ...options,
-            sourcePath,
-            artifactKind: 'other',
-            activation: 'unknown',
-            scope: 'unknown',
-            standardCoverage: 'not-applicable',
-            vendorDependency: 'none',
-            migrationLoss: 'not-applicable',
-        };
-    }
-
     const artifactKind = kindForPath(sourcePath);
     const shape = semanticShape(artifactKind);
     if (artifactKind === 'other') {

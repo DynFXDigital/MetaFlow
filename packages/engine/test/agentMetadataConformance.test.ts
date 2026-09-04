@@ -99,13 +99,6 @@ describe('Agent metadata semantic conformance', () => {
         );
     });
 
-    it('keeps AGENTS.md entirely outside this classifier and migration surface', () => {
-        const classification = classifyAgentMetadataPath('nested/AGENTS.md');
-        assert.strictEqual(classification.standardCoverage, 'not-applicable');
-        assert.strictEqual(projectAgentPluginV1Path('nested/AGENTS.md'), undefined);
-        assert.deepStrictEqual(planAgentMetadataMigration([classification]).candidates, []);
-    });
-
     it('distinguishes portable constructs, conformant client extensions, and no-equivalent metadata', () => {
         const skill = classifyAgentMetadataPath('skills/testing/SKILL.md');
         const extension = classifyAgentMetadataPath('com.github.copilot/hooks/hooks.json');
