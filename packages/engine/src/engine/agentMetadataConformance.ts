@@ -7,7 +7,7 @@
  */
 
 import * as path from 'node:path';
-import type { AgentPluginDisposition } from '../config/configSchema';
+import type { AgentPluginDisposition, MetaFlowConfig } from '../config/configSchema';
 import type { CapabilityWarning, LayerContent, LayerFile } from './types';
 
 export type AgentMetadataArtifactKind =
@@ -115,6 +115,25 @@ export interface AgentMetadataMigrationPlan {
 }
 
 const COPILOT_EXTENSION_PREFIX = 'com.github.copilot/';
+
+/**
+ * Project runtime config back to its complete configured capability inventory.
+ * Profile normalization marks inactive layer sources disabled; conformance audits
+ * intentionally inspect those sources while continuing to respect disabled repos.
+ */
+export function projectConfigForAgentMetadataAudit(config: MetaFlowConfig): MetaFlowConfig {
+    if (!config.layerSources) {
+        return config;
+    }
+
+    return {
+        ...config,
+        layerSources: config.layerSources.map((source) => ({
+            ...source,
+            enabled: true,
+        })),
+    };
+}
 
 function normalizeRelativePath(value: string): string {
     return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');

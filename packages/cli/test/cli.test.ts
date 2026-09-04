@@ -1204,6 +1204,50 @@ describe('CLI: Agent Plugins conformance', () => {
         assert.deepStrictEqual(report.diagnostics, []);
     });
 
+    it('audits every configured capability rather than only the active profile', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/inactive' },
+                ],
+                profiles: {
+                    default: { enabledCapabilities: ['primary:company/core'] },
+                },
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'skills/portable/SKILL.md',
+                        content: '# Portable\n',
+                    },
+                ],
+                'company/inactive': [
+                    {
+                        relativePath: '.github/prompts/inactive.prompt.md',
+                        content: '# Inactive prompt\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.summary.total, 2);
+        assert.ok(
+            report.classifications.some(
+                (entry: { layerId: string; sourcePath: string }) =>
+                    entry.layerId.endsWith('company/inactive') &&
+                    entry.sourcePath === '.github/prompts/inactive.prompt.md',
+            ),
+        );
+    });
+
     it('requires explicit migration decisions and never writes source metadata', async () => {
         ws = createTestWorkspace({
             config: standardConfig({

@@ -4,6 +4,8 @@ import {
     checkAllDrift,
     loadManagedState,
     planSynchronization,
+    projectConfigForAgentMetadataAudit,
+    resolveLayers,
     withReadOnlyRootSynchronizationAuthorization,
     resolveAgentPluginDisposition,
 } from '@metaflow/engine';
@@ -40,7 +42,7 @@ export function registerValidateCommand(program: Command): void {
                     const files = resolved.effectiveFiles;
                     const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
                     const agentPlugins = auditAgentMetadataConformance(
-                        resolved.layers,
+                        resolveLayers(projectConfigForAgentMetadataAudit(config), workspaceRoot),
                         resolveAgentPluginDisposition(config),
                     );
                     const piDiagnostics = formatPiTargetDiagnostics(piPlan);

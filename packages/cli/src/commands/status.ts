@@ -4,6 +4,7 @@ import {
     checkDrift,
     computeSettingsEntries,
     loadManagedState,
+    projectConfigForAgentMetadataAudit,
     resolveLayers,
     resolveAgentPluginDisposition,
 } from '@metaflow/engine';
@@ -103,7 +104,7 @@ export function registerStatusCommand(program: Command): void {
                       ]
                     : [];
             const files = resolveEffectiveFiles(config, workspaceRoot);
-            const layers = resolveLayers(config, workspaceRoot);
+            const layers = resolveLayers(projectConfigForAgentMetadataAudit(config), workspaceRoot);
             const agentPlugins = auditAgentMetadataConformance(
                 layers,
                 resolveAgentPluginDisposition(config),

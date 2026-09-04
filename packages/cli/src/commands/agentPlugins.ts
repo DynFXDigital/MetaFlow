@@ -2,10 +2,12 @@ import { Command, OptionValues } from 'commander';
 import {
     auditAgentMetadataConformance,
     planAgentMetadataMigration,
+    projectConfigForAgentMetadataAudit,
     resolveAgentPluginDisposition,
+    resolveLayers,
 } from '@metaflow/engine';
 import type { AgentMetadataMigrationDecision } from '@metaflow/engine';
-import { getWorkspaceRoot, loadConfigOrExit, resolveWorkspaceArtifacts } from './common';
+import { getWorkspaceRoot, loadConfigOrExit } from './common';
 
 const MIGRATION_DECISIONS = new Set<AgentMetadataMigrationDecision>([
     'keep-vendor',
@@ -42,13 +44,10 @@ function loadReport(program: Command) {
     if (!loaded) {
         return undefined;
     }
-    const resolved = resolveWorkspaceArtifacts(loaded.config, workspaceRoot);
+    const layers = resolveLayers(projectConfigForAgentMetadataAudit(loaded.config), workspaceRoot);
     return {
         config: loaded.config,
-        report: auditAgentMetadataConformance(
-            resolved.layers,
-            resolveAgentPluginDisposition(loaded.config),
-        ),
+        report: auditAgentMetadataConformance(layers, resolveAgentPluginDisposition(loaded.config)),
     };
 }
 

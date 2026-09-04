@@ -99,6 +99,7 @@ export {
     auditAgentMetadataConformance,
     classifyAgentMetadataPath,
     planAgentMetadataMigration,
+    projectConfigForAgentMetadataAudit,
     projectAgentPluginV1Path,
 } from './agentMetadataConformance';
 export type {

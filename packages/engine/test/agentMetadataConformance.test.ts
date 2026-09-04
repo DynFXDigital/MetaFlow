@@ -4,6 +4,7 @@ import {
     auditAgentMetadataConformance,
     classifyAgentMetadataPath,
     planAgentMetadataMigration,
+    projectConfigForAgentMetadataAudit,
     projectAgentPluginV1Path,
 } from '../src/engine/agentMetadataConformance';
 import type { AgentPluginCompatibilityInspection } from '../src/engine/agentPluginCompatibility';
@@ -51,6 +52,26 @@ function layer(
 }
 
 describe('Agent metadata semantic conformance', () => {
+    it('audits inactive configured capabilities without mutating runtime profile state', () => {
+        const config = {
+            metadataRepos: [{ id: 'primary', localPath: '.ai/metadata' }],
+            layerSources: [
+                { repoId: 'primary', path: 'active', enabled: true },
+                { repoId: 'primary', path: 'inactive', enabled: false },
+            ],
+        };
+
+        const projected = projectConfigForAgentMetadataAudit(config);
+        assert.deepStrictEqual(
+            projected.layerSources?.map((source) => source.enabled),
+            [true, true],
+        );
+        assert.deepStrictEqual(
+            config.layerSources.map((source) => source.enabled),
+            [true, false],
+        );
+    });
+
     it('projects legacy Copilot paths into the v1 client namespace without changing kind', () => {
         assert.strictEqual(
             projectAgentPluginV1Path('.github/prompts/review.prompt.md'),
@@ -87,9 +108,7 @@ describe('Agent metadata semantic conformance', () => {
 
     it('distinguishes portable constructs, conformant client extensions, and no-equivalent metadata', () => {
         const skill = classifyAgentMetadataPath('skills/testing/SKILL.md');
-        const extension = classifyAgentMetadataPath(
-            'com.github.copilot/hooks/hooks.json',
-        );
+        const extension = classifyAgentMetadataPath('com.github.copilot/hooks/hooks.json');
         const prompt = classifyAgentMetadataPath('.github/prompts/review.prompt.md');
 
         assert.strictEqual(skill.standardCoverage, 'portable');

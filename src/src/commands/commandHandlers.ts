@@ -11,6 +11,8 @@ import * as path from 'path';
 import * as jsonc from 'jsonc-parser';
 import { createHash, randomUUID } from 'crypto';
 import type {
+    AgentMetadataConformanceReport,
+    AgentPluginDisposition,
     ApplyResult,
     CapabilityMetadata,
     CapabilityPluginCatalogEntry,
@@ -26,6 +28,7 @@ import type {
     SurfacedFileConflict,
 } from '@metaflow/engine';
 import {
+    auditAgentMetadataConformance,
     evaluateGovernanceCompliance,
     loadConfig,
     loadGovernanceContract,
@@ -33,6 +36,7 @@ import {
     InjectionConfig,
     SettingsInjectionTarget,
     resolveLayers,
+    resolveAgentPluginDisposition,
     detectSurfacedFileConflicts,
     formatSurfacedFileConflictMessage,
     loadCapabilityManifestForLayer,
@@ -59,6 +63,7 @@ import {
     isPiTargetEnabled,
     planPiProjectPluginSynchronization,
     projectResolvedPiAgentPluginSkills,
+    projectConfigForAgentMetadataAudit,
     computePluginRootPaths,
     computeSettingsEntries,
     computeSettingsKeysToRemove,
@@ -111,6 +116,8 @@ import {
     getProfileDisplayName,
     readManagedViewsState,
     normalizeAiMetadataAutoApplyMode,
+    isAgentPluginDisposition,
+    withAgentPluginDisposition,
     projectConfigForProfile,
     updateProfileLayerOverride,
     type FilesViewMode,
@@ -777,6 +784,8 @@ export interface ExtensionState {
     governanceContractPath?: string;
     governanceContractErrors: ConfigError[];
     governanceCompliance?: GovernanceComplianceResult;
+    /** Semantic Agent Plugins v1 conformance across configured capability sources. */
+    agentPluginConformance?: AgentMetadataConformanceReport;
     capabilityWarnings: string[];
     configWarnings: string[];
     capabilityPluginMetadataDirtyVersion: number;
@@ -811,6 +820,7 @@ export function createState(): ExtensionState {
         governanceContractPath: undefined,
         governanceContractErrors: [],
         governanceCompliance: undefined,
+        agentPluginConformance: undefined,
         capabilityWarnings: [],
         configWarnings: [],
         capabilityPluginMetadataDirtyVersion: 0,
@@ -3050,6 +3060,7 @@ function resolveOverlay(
         enableDiscovery?: boolean;
         forceDiscoveryRepoIds?: string[];
         layerResolutionCache?: ResolveLayersCache;
+        conformanceLayers?: readonly LayerContent[];
     },
     emitLogs: boolean = true,
 ): {
@@ -3068,6 +3079,7 @@ function resolveOverlay(
     >;
     capabilityWarnings: string[];
     capabilityDiagnostics: CapabilityWarning[];
+    agentPluginConformance: AgentMetadataConformanceReport;
     agentPluginCatalog: CapabilityPluginCatalogEntry[];
 } {
     const layers = resolveLayers(config, workspaceRoot, {
@@ -3184,6 +3196,14 @@ function resolveOverlay(
         appendCapabilityWarning(warning);
     }
 
+    const agentPluginConformance = auditAgentMetadataConformance(
+        options?.conformanceLayers ?? layers,
+        resolveAgentPluginDisposition(config),
+    );
+    for (const warning of agentPluginConformance.diagnostics) {
+        appendCapabilityWarning(warning);
+    }
+
     const fileMap = buildEffectiveFileMap(layers);
     let files = Array.from(fileMap.values());
 
@@ -3201,6 +3221,7 @@ function resolveOverlay(
         capabilityByLayer,
         capabilityWarnings,
         capabilityDiagnostics,
+        agentPluginConformance,
         agentPluginCatalog: agentPluginCatalog.entries,
     };
 }
@@ -3356,6 +3377,7 @@ async function persistConfig(
         'hooks',
         'synchronization',
         'targets',
+        'agentPlugins',
     ];
     let existing: string | undefined;
     try {
@@ -6077,6 +6099,7 @@ export function registerCommands(
                 state.governanceContractPath = undefined;
                 state.governanceContractErrors = [];
                 state.governanceCompliance = undefined;
+                state.agentPluginConformance = undefined;
                 state.capabilityWarnings = [];
                 state.configWarnings = configMissing
                     ? []
@@ -6340,6 +6363,18 @@ export function registerCommands(
                     state.builtInCapability,
                 );
                 const activeProfileConfig = projectConfigForProfile(projectedConfig);
+                const layerResolutionOptions = {
+                    enableDiscovery: shouldEnableDiscovery,
+                    forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
+                        ? [refreshOptions.forceDiscoveryRepoId]
+                        : undefined,
+                    cache: layerResolutionCache,
+                };
+                const conformanceLayers = resolveLayers(
+                    projectConfigForAgentMetadataAudit(projectedConfig),
+                    ws.uri.fsPath,
+                    layerResolutionOptions,
+                );
                 if (shouldAdvanceCapabilityIdentitySnapshot) {
                     saveCapabilityIdentitySnapshot(result.config, ws.uri.fsPath);
                 }
@@ -6364,11 +6399,10 @@ export function registerCommands(
                     ws.uri.fsPath,
                     injectionConfig,
                     {
-                        enableDiscovery: shouldEnableDiscovery,
-                        forceDiscoveryRepoIds: refreshOptions.forceDiscoveryRepoId
-                            ? [refreshOptions.forceDiscoveryRepoId]
-                            : undefined,
+                        enableDiscovery: layerResolutionOptions.enableDiscovery,
+                        forceDiscoveryRepoIds: layerResolutionOptions.forceDiscoveryRepoIds,
                         layerResolutionCache,
+                        conformanceLayers,
                     },
                 );
                 state.baseProfileFiles = overlay.baseProfileFiles;
@@ -6382,6 +6416,7 @@ export function registerCommands(
                 state.piTargetPlan = piTarget.plan;
                 state.capabilityByLayer = overlay.capabilityByLayer;
                 state.capabilityWarnings = overlay.capabilityWarnings;
+                state.agentPluginConformance = overlay.agentPluginConformance;
                 state.agentPluginCatalog = overlay.agentPluginCatalog;
                 const configLoadWarnings = (result.warnings ?? []).map((warning) =>
                     toConfigWarningDiagnostic(warning, result.configPath),
@@ -6474,6 +6509,7 @@ export function registerCommands(
                 state.piTargetProjection = undefined;
                 state.piTargetPlan = undefined;
                 state.capabilityByLayer = {};
+                state.agentPluginConformance = undefined;
                 state.capabilityWarnings = [];
                 state.configWarnings = [];
                 state.localGitRepoIds = new Set<string>();
@@ -6865,6 +6901,16 @@ export function registerCommands(
             emitInfo(`Settings Injection Target: ${managedSettingsSummary.target}`);
             emitInfo(`Settings Injection Keys: ${managedSettingsSummary.keys}`);
             emitInfo(`Injection Modes: ${formatInjectionModesSummary(state.config)}`);
+            if (state.agentPluginConformance) {
+                const conformance = state.agentPluginConformance;
+                emitInfo(
+                    `Agent Plugins v1: ${conformance.disposition}; ${conformance.summary.standardConformancePercent}% conformant; ${conformance.summary.portablePercent}% portable; ${conformance.summary.total} artifact(s) inspected`,
+                );
+            } else {
+                emitInfo(
+                    `Agent Plugins v1: ${state.config ? resolveAgentPluginDisposition(state.config) : 'config not loaded'}`,
+                );
+            }
             if (state.config) {
                 const piPlan = resolvePiTargetPlanFromState(state, state.config, ws.uri.fsPath);
                 state.piTargetPlan = piPlan;
@@ -6962,6 +7008,92 @@ export function registerCommands(
 
             return lines;
         }),
+    );
+
+    // ── metaflow.setAgentPluginDisposition ────────────────────────
+    context.subscriptions.push(
+        vscode.commands.registerCommand(
+            'metaflow.setAgentPluginDisposition',
+            async (arg?: unknown) => {
+                const ws = getWorkspace();
+                if (!ws || !state.config || !state.configPath) {
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: Load a valid configuration before selecting an Agent Plugins disposition.',
+                    );
+                    return;
+                }
+
+                const argValue =
+                    typeof arg === 'string'
+                        ? arg
+                        : arg && typeof arg === 'object' && 'disposition' in arg
+                          ? (arg as { disposition?: unknown }).disposition
+                          : undefined;
+                let disposition: AgentPluginDisposition | undefined = isAgentPluginDisposition(
+                    argValue,
+                )
+                    ? argValue
+                    : undefined;
+
+                if (!disposition) {
+                    const current = resolveAgentPluginDisposition(state.config);
+                    const picks: Array<
+                        vscode.QuickPickItem & { disposition: AgentPluginDisposition }
+                    > = [
+                        {
+                            label: 'Compatibility',
+                            description: current === 'compatibility' ? 'Current' : undefined,
+                            detail: 'Preserve legacy Copilot packaging and behavior.',
+                            disposition: 'compatibility',
+                        },
+                        {
+                            label: 'Prefer Agent Plugins v1',
+                            description: current === 'prefer-standard' ? 'Current' : undefined,
+                            detail: 'Prefer portable Skills and MCP for new lossless metadata; do not emit conformance warnings.',
+                            disposition: 'prefer-standard',
+                        },
+                        {
+                            label: 'Audit Agent Plugins v1',
+                            description: current === 'audit-standard' ? 'Current' : undefined,
+                            detail: 'Use standard-first authoring guidance and warn about nonportable or incompatible metadata.',
+                            disposition: 'audit-standard',
+                        },
+                    ];
+                    const selected = await vscode.window.showQuickPick(picks, {
+                        title: 'Agent Plugins v1 disposition',
+                        placeHolder: 'Choose how MetaFlow authors and audits AI metadata',
+                        ignoreFocusOut: true,
+                    });
+                    disposition = selected?.disposition;
+                }
+
+                if (!disposition) {
+                    return;
+                }
+
+                const latestConfig = loadLatestConfigForMutation(ws.uri.fsPath, state);
+                if (!latestConfig) {
+                    vscode.window.showWarningMessage(
+                        'MetaFlow: The current configuration could not be loaded.',
+                    );
+                    return;
+                }
+                if (resolveAgentPluginDisposition(latestConfig) === disposition) {
+                    return disposition;
+                }
+
+                const candidateConfig = withAgentPluginDisposition(latestConfig, disposition);
+                await persistConfig(state.configPath, candidateConfig, state);
+                state.config = candidateConfig;
+                await vscode.commands.executeCommand('metaflow.refresh', {
+                    preferStateConfig: true,
+                });
+                vscode.window.showInformationMessage(
+                    `MetaFlow: Agent Plugins disposition set to ${disposition}.`,
+                );
+                return disposition;
+            },
+        ),
     );
 
     // ── metaflow.switchProfile ─────────────────────────────────────
@@ -8789,10 +8921,7 @@ export function registerCommands(
 
             multiRepoConfig.metadataRepos.push({
                 id: repoId,
-                name: deriveRepoDisplayName(
-                    selection.metadataRoot.fsPath,
-                    selection.metadataUrl,
-                ),
+                name: deriveRepoDisplayName(selection.metadataRoot.fsPath, selection.metadataUrl),
                 localPath: sourceLocalPath,
                 ...(selection.metadataUrl ? { url: selection.metadataUrl } : {}),
                 enabled: true,
@@ -8916,6 +9045,7 @@ export function registerCommands(
                 state.piTargetPlan = undefined;
                 state.capabilityByLayer = {};
                 state.repoMetadataById = {};
+                state.agentPluginConformance = undefined;
                 state.capabilityWarnings = [];
                 state.configWarnings = [];
                 state.capabilityDiagnosticFilePaths = [];
