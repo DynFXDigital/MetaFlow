@@ -76,8 +76,17 @@ suite('Command Execution', function () {
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-            if (await predicate()) {
-                return;
+            try {
+                if (await predicate()) {
+                    return;
+                }
+            } catch (error) {
+                // Config persistence can expose a transient truncated JSON snapshot on
+                // slower filesystems. A polling assertion should observe the completed
+                // write instead of treating that intermediate byte state as final.
+                if (!(error instanceof SyntaxError)) {
+                    throw error;
+                }
             }
             await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
