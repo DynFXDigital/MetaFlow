@@ -32,7 +32,9 @@ servers, or scripts. A matching filename does not make path or runtime semantics
   Skills for reusable workflows and MCP for tool integrations. It preserves existing or
   host-specific metadata and does not request conformance warnings.
 - `audit-standard` uses the same standard-first authoring policy and additionally reports invalid,
-  legacy, vendor-extension, and no-equivalent metadata as advisory conformance warnings.
+  legacy, vendor-extension, and no-equivalent metadata as advisory conformance diagnostics. Invalid
+  strict-v1 packages or components use error severity; portability and migration findings use
+  warning severity, without changing apply or validation exit status.
 - Disposition is independent of automatic apply, metadata injection mode, and project targets.
   Changing it MUST NOT silently enable writes, rewrite an existing package, or delete source files.
 - If a request says only "capability" or "agent plugin", no disposition is available, and the

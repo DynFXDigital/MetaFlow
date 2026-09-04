@@ -44,19 +44,20 @@ but doing so does not make it portable. For GitHub Copilot, MetaFlow recognizes
 `com.github.copilot/` as a conformant client extension and reports it separately from the portable
 core.
 
-| Existing GitHub Copilot surface               | Strict-v1 package location                               | Classification                          |
-| --------------------------------------------- | -------------------------------------------------------- | --------------------------------------- |
-| `.github/skills/<name>/SKILL.md`              | `skills/<name>/SKILL.md`                                 | Portable after package-path relocation  |
-| `.github/prompts/*`                           | `com.github.copilot/prompts/*`                           | Client-specific; no portable equivalent |
-| `.github/commands/*`                          | `com.github.copilot/commands/*`                          | Client-specific; no portable equivalent |
-| `.github/instructions/*` or `.github/rules/*` | `com.github.copilot/rules/*`                             | Client-specific; no portable equivalent |
-| `.github/agents/*`                            | `com.github.copilot/agents/*`                            | Client-specific; no portable equivalent |
-| Root `hooks.json` or `.github/hooks/*`        | `com.github.copilot/hooks/hooks.json` and packaged files | Client-specific; no portable equivalent |
+| Existing GitHub Copilot surface                                                   | Strict-v1 package location                               | Classification                          |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------- |
+| `.github/skills/<name>/SKILL.md`                                                  | `skills/<name>/SKILL.md`                                 | Portable after package-path relocation  |
+| `.github/prompts/*`                                                               | `com.github.copilot/prompts/*`                           | Client-specific; no portable equivalent |
+| `.github/commands/*`                                                              | `com.github.copilot/commands/*`                          | Client-specific; no portable equivalent |
+| `.github/instructions/*`, `.github/rules/*`, or `.github/copilot-instructions.md` | `com.github.copilot/rules/*`                             | Client-specific; no portable equivalent |
+| `.github/agents/*`                                                                | `com.github.copilot/agents/*`                            | Client-specific; no portable equivalent |
+| Root `hooks.json` or `.github/hooks/*`                                            | `com.github.copilot/hooks/hooks.json` and packaged files | Client-specific; no portable equivalent |
 
-The mapping describes package shape, not permission to rewrite a source repository. Prompt files,
-slash commands, scoped or file-pattern instructions, custom agents, and hooks do not have direct
-portable v1 equivalents. Hooks therefore continue to use GitHub Copilot semantics even in a
-standard-oriented disposition.
+The mapping is a lossless package-path projection: file contents and Copilot semantics remain
+unchanged. It describes package shape, not permission to rewrite a source repository. Prompt
+files, slash commands, scoped or file-pattern instructions, custom agents, and hooks do not have
+direct portable v1 equivalents. Hooks therefore continue to use GitHub Copilot semantics even in
+a standard-oriented disposition.
 
 For new authoring in `prefer-standard` or `audit-standard`, use a Skill for a reusable workflow
 and MCP for a tool integration only when the activation, scope, inputs, and behavior map
@@ -65,16 +66,22 @@ losslessly. Similar content is not enough to establish equivalence.
 ## Preservation and explicit migration
 
 MetaFlow does not automatically convert an existing legacy package or delete unsupported
-metadata. A semantic migration remains blocked until every candidate has one explicit decision:
+metadata. Migration planning remains blocked until every candidate has one explicit decision:
 
 - `keep-vendor`: retain the current host-specific artifact.
-- `add-standard-alongside`: author or package a standard-oriented counterpart while retaining the
-  source.
-- `replace-with-disclosed-loss`: remove the source only after the activation, scope, and known loss
-  are disclosed and accepted.
+- `add-standard-alongside`: when a lossless package projection exists, propose copying the artifact
+  unchanged to its strict-v1 location while retaining the legacy source. A portable semantic
+  alternative still requires manual authoring and review.
+- `replace-with-disclosed-loss`: when a lossless package projection exists, propose relocating it
+  and removing the legacy source only after the resulting loss of legacy host discovery is
+  disclosed and accepted. A semantic conversion is never inferred.
 
-The migration planner is read-only. It reports proposed actions and paths but does not execute the
-rewrite, so a standard-oriented disposition is never treated as migration consent.
+The migration planner is read-only. It reports proposed actions, destination coverage, and loss
+but does not execute the rewrite, so a standard-oriented disposition is never treated as migration
+consent. A suggested Skill for a prompt or command is only a possible semantic alternative; it is
+not the operation produced by a package-path projection. If multiple selected sources would map to
+the same package destination, the plan remains blocked until the collision is explicitly reshaped
+or at least one source is kept in place.
 
 ## Manifest maintenance
 
@@ -93,10 +100,12 @@ the disposition as follows:
 
 ## Reports and diagnostics
 
-The extension audits all configured capability sources in enabled repositories, including sources
-outside the active profile. `MetaFlow: Status` reports the disposition, standard-conformance score,
-portable score, and artifact count. In `audit-standard`, nonportable or incompatible entries also
-appear through the normal warning and Problems surfaces.
+The extension audits all configured capability sources in enabled repositories, including package
+control files and sources outside the active profile. `MetaFlow: Status` reports the disposition,
+standard-conformance score, portable score, and artifact count. In `audit-standard`, nonportable
+or incompatible entries also appear through the normal diagnostics and Problems surfaces. Invalid
+strict-v1 packages or components use error severity; conformant-but-nonportable extensions,
+no-equivalent artifacts, migration-review candidates, and safe relocations use warning severity.
 
 The CLI provides the same model:
 
@@ -109,8 +118,9 @@ metaflow agent-plugins plan-migration \
 ```
 
 `status --json` and `validate --json` also include the conformance report. Human-readable status
-and validation output show audit warnings only in `audit-standard`. These warnings are advisory and
-do not change apply or validation exit status.
+and validation output show conformance diagnostics only in `audit-standard`. Their severity
+describes the audited metadata but remains advisory to MetaFlow operations: conformance findings do
+not change apply or validation exit status.
 
 The two percentages intentionally answer different questions:
 

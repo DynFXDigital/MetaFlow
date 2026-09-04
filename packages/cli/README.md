@@ -129,11 +129,12 @@ metaflow agent-plugins report --json
 ```
 
 The report separates portable Skills/MCP, conformant client extensions, legacy host metadata,
-artifacts with no direct portable equivalent, and invalid packages. Standard conformance counts
-portable components plus client extensions; the portability score counts only Skills/MCP. Audit
-warnings are emitted only when `agentPlugins.disposition` is `audit-standard` and do not change the
-command, apply, or validation exit status. `status --json` and `validate --json` include the same
-report.
+artifacts with no direct portable equivalent, and invalid packages or components. Standard
+conformance counts portable components plus client extensions; the portability score counts only
+Skills/MCP. Audit diagnostics are emitted only when `agentPlugins.disposition` is `audit-standard`:
+invalid strict-v1 metadata uses error severity and portability or migration findings use warning
+severity. These findings do not change the command, apply, or validation exit status. `status
+--json` and `validate --json` include the same report.
 
 #### `agent-plugins plan-migration`
 
@@ -147,8 +148,9 @@ metaflow agent-plugins plan-migration \
 ```
 
 Repeat `--decision` with one of `keep-vendor`, `add-standard-alongside`, or
-`replace-with-disclosed-loss` for each candidate ID reported by the command. Planning never writes
-or deletes source metadata.
+`replace-with-disclosed-loss` for each candidate ID reported by the command. Lossless package
+relocations report their destination and whether it is portable or a client extension separately
+from any possible semantic alternative. Planning never writes or deletes source metadata.
 
 #### `watch`
 

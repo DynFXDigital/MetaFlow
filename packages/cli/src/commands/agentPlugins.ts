@@ -58,7 +58,7 @@ function printReport(report: ReturnType<typeof auditAgentMetadataConformance>): 
     );
     console.log(`Portable metadata: ${report.summary.portablePercent}%`);
     if (report.diagnostics.length > 0) {
-        console.log(`Warnings: ${report.diagnostics.length}`);
+        console.log(`Diagnostics: ${report.diagnostics.length}`);
         for (const diagnostic of report.diagnostics) {
             const location = diagnostic.filePath ? ` [${diagnostic.filePath}]` : '';
             console.log(`  ! ${diagnostic.code}: ${diagnostic.message}${location}`);
@@ -113,14 +113,26 @@ export function registerAgentPluginsCommand(program: Command): void {
 
                 console.log('Agent Plugins migration plan (read-only):');
                 console.log(
-                    `State: ${plan.blocked ? `awaiting ${plan.unresolvedCandidateIds.length} explicit decision(s)` : 'all candidates decided'}`,
+                    `State: ${
+                        plan.unresolvedCandidateIds.length > 0
+                            ? `awaiting ${plan.unresolvedCandidateIds.length} explicit decision(s)`
+                            : plan.conflicts.length > 0
+                              ? `blocked by ${plan.conflicts.length} projection target conflict(s)`
+                              : 'all candidates decided'
+                    }`,
                 );
                 for (const candidate of plan.candidates) {
-                    const destination = candidate.classification.projectedV1Path
-                        ? ` -> ${candidate.classification.projectedV1Path}`
-                        : ' -> manual standard-shape authoring';
+                    const classification = candidate.classification;
+                    const destination =
+                        classification.packagingProjectionLoss === 'none' &&
+                        classification.projectedV1Path
+                            ? ` -> ${classification.projectedV1Path} (${classification.projectedV1Coverage}, unchanged package projection)`
+                            : ' -> manual standard-shape authoring';
+                    const semanticAlternative = classification.suggestedStandardConstruct
+                        ? `; possible ${classification.suggestedStandardConstruct} alternative requires ${classification.migrationLoss}`
+                        : '';
                     console.log(
-                        `  - ${candidate.id}: ${candidate.classification.sourcePath}${destination} (${candidate.classification.migrationLoss})`,
+                        `  - ${candidate.id}: ${classification.sourcePath}${destination}${semanticAlternative}`,
                     );
                 }
                 for (const operation of plan.operations) {
@@ -128,9 +140,18 @@ export function registerAgentPluginsCommand(program: Command): void {
                         `  = ${operation.candidateId}: ${operation.decision} (${operation.action})`,
                     );
                 }
-                if (plan.blocked) {
+                for (const conflict of plan.conflicts) {
+                    console.log(
+                        `  ! ${conflict.targetPath}: conflicting sources ${conflict.sourcePaths.join(', ')}`,
+                    );
+                }
+                if (plan.unresolvedCandidateIds.length > 0) {
                     console.log(
                         'No source files were changed. Supply --decision once per candidate after reviewing semantic loss.',
+                    );
+                } else if (plan.conflicts.length > 0) {
+                    console.log(
+                        'No source files were changed. Resolve each target collision by keeping or reshaping at least one source.',
                     );
                 }
             } catch (error: unknown) {

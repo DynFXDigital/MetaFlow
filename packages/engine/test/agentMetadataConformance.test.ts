@@ -8,7 +8,7 @@ import {
     projectAgentPluginV1Path,
 } from '../src/engine/agentMetadataConformance';
 import type { AgentPluginCompatibilityInspection } from '../src/engine/agentPluginCompatibility';
-import type { LayerContent } from '../src/engine/types';
+import type { CapabilityWarning, LayerContent } from '../src/engine/types';
 
 function inspection(
     rootPath: string,
@@ -16,6 +16,7 @@ function inspection(
         profile?: AgentPluginCompatibilityInspection['profile'];
         validManifest?: boolean;
         extensions?: Readonly<Record<string, unknown>>;
+        diagnostics?: readonly CapabilityWarning[];
     } = {},
 ): AgentPluginCompatibilityInspection {
     return {
@@ -31,7 +32,7 @@ function inspection(
         skills: [],
         mcpServers: [],
         recognizedHostFields: [],
-        diagnostics: [],
+        diagnostics: options.diagnostics ?? [],
     };
 }
 
@@ -86,6 +87,10 @@ describe('Agent metadata semantic conformance', () => {
             'com.github.copilot/rules/typescript.instructions.md',
         );
         assert.strictEqual(
+            projectAgentPluginV1Path('.github/copilot-instructions.md'),
+            'com.github.copilot/rules/copilot-instructions.md',
+        );
+        assert.strictEqual(
             projectAgentPluginV1Path('.github/agents/reviewer.agent.md'),
             'com.github.copilot/agents/reviewer.agent.md',
         );
@@ -96,6 +101,211 @@ describe('Agent metadata semantic conformance', () => {
         assert.strictEqual(
             projectAgentPluginV1Path('.github/skills/testing/SKILL.md'),
             'skills/testing/SKILL.md',
+        );
+        for (const unsafePath of [
+            '/.github/prompts/review.prompt.md',
+            'C:\\metadata\\.github\\prompts\\review.prompt.md',
+            '.github/prompts/../agents/reviewer.agent.md',
+            '.github/prompts//review.prompt.md',
+        ]) {
+            assert.strictEqual(projectAgentPluginV1Path(unsafePath), undefined, unsafePath);
+        }
+    });
+
+    it('plans every supported legacy package relocation without semantic conversion', () => {
+        const cases = [
+            {
+                source: '.github/prompts/review.prompt.md',
+                target: 'com.github.copilot/prompts/review.prompt.md',
+                kind: 'prompt',
+                activation: 'user-invoked',
+                scope: 'host-defined',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/commands/review.md',
+                target: 'com.github.copilot/commands/review.md',
+                kind: 'command',
+                activation: 'user-invoked',
+                scope: 'host-defined',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/instructions/typescript.instructions.md',
+                target: 'com.github.copilot/rules/typescript.instructions.md',
+                kind: 'instruction',
+                activation: 'always-on-or-scoped',
+                scope: 'directory-or-file-pattern',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/rules/typescript.md',
+                target: 'com.github.copilot/rules/typescript.md',
+                kind: 'rule',
+                activation: 'always-on-or-scoped',
+                scope: 'directory-or-file-pattern',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/copilot-instructions.md',
+                target: 'com.github.copilot/rules/copilot-instructions.md',
+                kind: 'instruction',
+                activation: 'always-on-or-scoped',
+                scope: 'directory-or-file-pattern',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/agents/reviewer.agent.md',
+                target: 'com.github.copilot/agents/reviewer.agent.md',
+                kind: 'agent',
+                activation: 'host-selected',
+                scope: 'host-defined',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: 'hooks.json',
+                target: 'com.github.copilot/hooks/hooks.json',
+                kind: 'hook',
+                activation: 'event-driven',
+                scope: 'host-defined',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/hooks/scripts/check.js',
+                target: 'com.github.copilot/hooks/scripts/check.js',
+                kind: 'hook',
+                activation: 'event-driven',
+                scope: 'host-defined',
+                sourceCoverage: 'no-equivalent',
+                targetCoverage: 'client-extension',
+                semanticLoss: 'semantic-review',
+            },
+            {
+                source: '.github/skills/testing/SKILL.md',
+                target: 'skills/testing/SKILL.md',
+                kind: 'skill',
+                activation: 'model-or-user-invoked',
+                scope: 'plugin',
+                sourceCoverage: 'legacy-host',
+                targetCoverage: 'portable',
+                semanticLoss: 'none',
+            },
+        ] as const;
+
+        for (const entry of cases) {
+            const classification = classifyAgentMetadataPath(entry.source, {
+                layerId: 'repo/capability',
+            });
+            assert.strictEqual(classification.artifactKind, entry.kind, entry.source);
+            assert.strictEqual(classification.activation, entry.activation, entry.source);
+            assert.strictEqual(classification.scope, entry.scope, entry.source);
+            assert.strictEqual(classification.standardCoverage, entry.sourceCoverage, entry.source);
+            assert.strictEqual(classification.migrationLoss, entry.semanticLoss, entry.source);
+            assert.strictEqual(classification.projectedV1Path, entry.target, entry.source);
+            assert.strictEqual(
+                classification.projectedV1Coverage,
+                entry.targetCoverage,
+                entry.source,
+            );
+            assert.strictEqual(classification.packagingProjectionLoss, 'none', entry.source);
+
+            const pending = planAgentMetadataMigration([classification]);
+            const id = pending.candidates[0].id;
+            assert.strictEqual(pending.blocked, true, entry.source);
+
+            const add = planAgentMetadataMigration([classification], {
+                [id]: 'add-standard-alongside',
+            }).operations[0];
+            assert.strictEqual(add.action, 'project-copy', entry.source);
+            assert.strictEqual(add.targetPath, entry.target, entry.source);
+            assert.strictEqual(add.targetCoverage, entry.targetCoverage, entry.source);
+            assert.strictEqual(add.disclosedLoss, 'none', entry.source);
+
+            const replace = planAgentMetadataMigration([classification], {
+                [id]: 'replace-with-disclosed-loss',
+            }).operations[0];
+            assert.strictEqual(replace.action, 'project-and-remove-source', entry.source);
+            assert.strictEqual(replace.targetPath, entry.target, entry.source);
+            assert.strictEqual(replace.targetCoverage, entry.targetCoverage, entry.source);
+            assert.strictEqual(replace.disclosedLoss, 'known-loss', entry.source);
+
+            const keep = planAgentMetadataMigration([classification], {
+                [id]: 'keep-vendor',
+            }).operations[0];
+            assert.strictEqual(keep.action, 'keep', entry.source);
+            assert.strictEqual(keep.targetPath, undefined, entry.source);
+            assert.strictEqual(keep.targetCoverage, undefined, entry.source);
+            assert.strictEqual(keep.disclosedLoss, 'not-applicable', entry.source);
+        }
+    });
+
+    it('blocks colliding package projections instead of reporting them as safe', () => {
+        const instruction = classifyAgentMetadataPath(
+            '.github/instructions/typescript.instructions.md',
+            { layerId: 'repo/capability' },
+        );
+        const rule = classifyAgentMetadataPath('.github/rules/typescript.instructions.md', {
+            layerId: 'repo/capability',
+        });
+        const instructionId = planAgentMetadataMigration([instruction]).candidates[0].id;
+        const ruleId = planAgentMetadataMigration([rule]).candidates[0].id;
+
+        const conflicted = planAgentMetadataMigration([instruction, rule], {
+            [instructionId]: 'add-standard-alongside',
+            [ruleId]: 'add-standard-alongside',
+        });
+        assert.strictEqual(conflicted.blocked, true);
+        assert.deepStrictEqual(conflicted.unresolvedCandidateIds, []);
+        assert.deepStrictEqual(conflicted.conflicts, [
+            {
+                code: 'projection-target-conflict',
+                layerId: 'repo/capability',
+                targetPath: 'com.github.copilot/rules/typescript.instructions.md',
+                sourcePaths: [instruction.sourcePath, rule.sourcePath],
+                candidateIds: [instructionId, ruleId],
+            },
+        ]);
+
+        const resolved = planAgentMetadataMigration([instruction, rule], {
+            [instructionId]: 'add-standard-alongside',
+            [ruleId]: 'keep-vendor',
+        });
+        assert.strictEqual(resolved.blocked, false);
+        assert.deepStrictEqual(resolved.conflicts, []);
+
+        const audit = auditAgentMetadataConformance(
+            [
+                layer([
+                    '.github/instructions/typescript.instructions.md',
+                    '.github/rules/typescript.instructions.md',
+                ]),
+            ],
+            'audit-standard',
+        );
+        assert.ok(
+            audit.diagnostics.some(
+                (entry) => entry.code === 'AGENT_PLUGIN_PROJECTION_TARGET_CONFLICT',
+            ),
+        );
+        assert.strictEqual(
+            audit.diagnostics.filter(
+                (entry) => entry.code === 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE',
+            ).length,
+            0,
         );
     });
 
@@ -111,6 +321,8 @@ describe('Agent metadata semantic conformance', () => {
         assert.strictEqual(prompt.standardCoverage, 'no-equivalent');
         assert.strictEqual(prompt.suggestedStandardConstruct, 'skill');
         assert.strictEqual(prompt.migrationLoss, 'semantic-review');
+        assert.strictEqual(prompt.projectedV1Coverage, 'client-extension');
+        assert.strictEqual(prompt.packagingProjectionLoss, 'none');
     });
 
     it('keeps compatibility and prefer-standard quiet while audit-standard emits warnings', () => {
@@ -151,6 +363,18 @@ describe('Agent metadata semantic conformance', () => {
                 (entry) => entry.code === 'AGENT_METADATA_NO_STANDARD_EQUIVALENT',
             ),
         );
+        assert.ok(
+            audit.diagnostics.some(
+                (entry) => entry.code === 'AGENT_METADATA_MIGRATION_LOSS_REVIEW',
+            ),
+        );
+        assert.ok(
+            audit.diagnostics.some(
+                (entry) =>
+                    entry.code === 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE' &&
+                    entry.message.includes('com.github.copilot/prompts/review.prompt.md'),
+            ),
+        );
         assert.deepStrictEqual(audit.summary, {
             total: 4,
             portable: 2,
@@ -182,6 +406,61 @@ describe('Agent metadata semantic conformance', () => {
         assert.ok(
             invalid.diagnostics.some((entry) => entry.code === 'AGENT_PLUGIN_PACKAGE_INVALID'),
         );
+        assert.strictEqual(
+            invalid.diagnostics.find((entry) => entry.code === 'AGENT_PLUGIN_PACKAGE_INVALID')
+                ?.severity,
+            'error',
+        );
+    });
+
+    it('reports invalid strict-v1 components as errors and excludes them from conformance', () => {
+        const rootPath = path.resolve('fixture', 'capability');
+        const skillPath = path.join(rootPath, 'skills', 'broken', 'SKILL.md');
+        const source = layer(
+            ['plugin.json', 'skills/broken/SKILL.md'],
+            inspection(rootPath, {
+                diagnostics: [
+                    {
+                        code: 'AGENT_PLUGIN_SKILL_INVALID',
+                        message:
+                            'Skill "broken" does not satisfy Agent Skills metadata requirements.',
+                        filePath: skillPath,
+                        severity: 'warning',
+                    },
+                ],
+            }),
+        );
+
+        const compatibility = auditAgentMetadataConformance([source], 'compatibility');
+        assert.deepStrictEqual(compatibility.diagnostics, []);
+        assert.strictEqual(
+            compatibility.classifications.find(
+                (entry) => entry.sourcePath === 'skills/broken/SKILL.md',
+            )?.standardCoverage,
+            'invalid',
+        );
+
+        const audit = auditAgentMetadataConformance([source], 'audit-standard');
+        assert.deepStrictEqual(audit.summary, {
+            total: 2,
+            portable: 1,
+            clientExtensions: 0,
+            legacyHost: 0,
+            noEquivalent: 0,
+            invalid: 1,
+            standardConformancePercent: 50,
+            portablePercent: 50,
+        });
+        assert.strictEqual(
+            audit.diagnostics.find((entry) => entry.code === 'AGENT_PLUGIN_SKILL_INVALID')
+                ?.severity,
+            'error',
+        );
+        assert.strictEqual(
+            audit.diagnostics.find((entry) => entry.code === 'AGENT_PLUGIN_PACKAGE_INVALID')
+                ?.severity,
+            'error',
+        );
     });
 
     it('blocks migration until every semantic candidate has an explicit decision', () => {
@@ -197,13 +476,29 @@ describe('Agent metadata semantic conformance', () => {
             [id]: 'add-standard-alongside',
         });
         assert.strictEqual(add.blocked, false);
-        assert.strictEqual(add.operations[0].action, 'manual-authoring');
-        assert.strictEqual(add.operations[0].targetPath, undefined);
+        assert.strictEqual(add.operations[0].action, 'project-copy');
+        assert.strictEqual(
+            add.operations[0].targetPath,
+            'com.github.copilot/prompts/review.prompt.md',
+        );
+        assert.strictEqual(add.operations[0].targetCoverage, 'client-extension');
+        assert.strictEqual(add.operations[0].disclosedLoss, 'none');
 
         const replace = planAgentMetadataMigration([prompt], {
             [id]: 'replace-with-disclosed-loss',
         });
-        assert.strictEqual(replace.operations[0].action, 'manual-authoring-and-remove-source');
-        assert.strictEqual(replace.operations[0].disclosedLoss, 'semantic-review');
+        assert.strictEqual(replace.operations[0].action, 'project-and-remove-source');
+        assert.strictEqual(
+            replace.operations[0].targetPath,
+            'com.github.copilot/prompts/review.prompt.md',
+        );
+        assert.strictEqual(replace.operations[0].disclosedLoss, 'known-loss');
+
+        const keep = planAgentMetadataMigration([prompt], {
+            [id]: 'keep-vendor',
+        });
+        assert.strictEqual(keep.operations[0].action, 'keep');
+        assert.strictEqual(keep.operations[0].targetPath, undefined);
+        assert.strictEqual(keep.operations[0].disclosedLoss, 'not-applicable');
     });
 });

@@ -50,6 +50,8 @@ export type AgentMetadataMigrationLoss =
 
 export type AgentMetadataStandardConstruct = 'skill' | 'mcp';
 
+export type AgentMetadataProjectionCoverage = 'portable' | 'client-extension';
+
 export interface AgentMetadataSemanticClassification {
     readonly layerId?: string;
     readonly sourcePath: string;
@@ -62,6 +64,10 @@ export interface AgentMetadataSemanticClassification {
     readonly migrationLoss: AgentMetadataMigrationLoss;
     /** Lossless package-path projection, when one exists. */
     readonly projectedV1Path?: string;
+    /** Coverage of the projected package location; client extensions remain nonportable. */
+    readonly projectedV1Coverage?: AgentMetadataProjectionCoverage;
+    /** Loss introduced by copying the artifact unchanged to projectedV1Path. */
+    readonly packagingProjectionLoss?: 'none';
     /** A possible portable replacement; never an assertion of semantic equivalence. */
     readonly suggestedStandardConstruct?: AgentMetadataStandardConstruct;
 }
@@ -104,7 +110,16 @@ export interface AgentMetadataMigrationOperation {
         | 'manual-authoring-and-remove-source';
     readonly sourcePath: string;
     readonly targetPath?: string;
+    readonly targetCoverage?: AgentMetadataProjectionCoverage;
     readonly disclosedLoss: AgentMetadataMigrationLoss;
+}
+
+export interface AgentMetadataMigrationConflict {
+    readonly code: 'projection-target-conflict';
+    readonly layerId?: string;
+    readonly targetPath: string;
+    readonly sourcePaths: readonly string[];
+    readonly candidateIds: readonly string[];
 }
 
 export interface AgentMetadataMigrationPlan {
@@ -112,6 +127,7 @@ export interface AgentMetadataMigrationPlan {
     readonly candidates: readonly AgentMetadataMigrationCandidate[];
     readonly unresolvedCandidateIds: readonly string[];
     readonly operations: readonly AgentMetadataMigrationOperation[];
+    readonly conflicts: readonly AgentMetadataMigrationConflict[];
 }
 
 const COPILOT_EXTENSION_PREFIX = 'com.github.copilot/';
@@ -139,6 +155,22 @@ function normalizeRelativePath(value: string): string {
     return value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
 }
 
+function safeProjectionSourcePath(value: string): string | undefined {
+    const posix = value.replace(/\\/g, '/');
+    if (posix.includes('\0') || path.posix.isAbsolute(posix) || path.win32.isAbsolute(value)) {
+        return undefined;
+    }
+    const withoutLeadingDot = posix.startsWith('./') ? posix.slice(2) : posix;
+    const segments = withoutLeadingDot.split('/');
+    if (
+        segments.length === 0 ||
+        segments.some((segment) => segment === '' || segment === '.' || segment === '..')
+    ) {
+        return undefined;
+    }
+    return segments.join('/');
+}
+
 function stripGitHubPrefix(value: string): { path: string; github: boolean } {
     const normalized = normalizeRelativePath(value);
     return normalized.startsWith('.github/')
@@ -152,7 +184,10 @@ function stripGitHubPrefix(value: string): { path: string; github: boolean } {
  * Copilot extension file.
  */
 export function projectAgentPluginV1Path(relativePath: string): string | undefined {
-    const normalized = normalizeRelativePath(relativePath);
+    const normalized = safeProjectionSourcePath(relativePath);
+    if (!normalized) {
+        return undefined;
+    }
     if (normalized.startsWith(COPILOT_EXTENSION_PREFIX)) {
         return normalized;
     }
@@ -166,6 +201,9 @@ export function projectAgentPluginV1Path(relativePath: string): string | undefin
     }
     if (stripped === 'hooks.json') {
         return `${COPILOT_EXTENSION_PREFIX}hooks/hooks.json`;
+    }
+    if (stripped === 'copilot-instructions.md') {
+        return `${COPILOT_EXTENSION_PREFIX}rules/copilot-instructions.md`;
     }
 
     const mappings = [
@@ -267,13 +305,23 @@ export function classifyAgentMetadataPath(
         };
     }
 
-    const projectedV1Path = projectAgentPluginV1Path(sourcePath);
+    const projectedV1Path = projectAgentPluginV1Path(relativePath);
     const inCopilotExtension = sourcePath.startsWith(COPILOT_EXTENSION_PREFIX);
     const githubPath = sourcePath.startsWith('.github/');
     const portable =
         sourcePath === 'plugin.json' ||
         sourcePath === 'mcp.json' ||
         /^skills\/[^/]+\/SKILL\.md$/i.test(sourcePath);
+    const projectedV1Coverage: AgentMetadataProjectionCoverage | undefined =
+        projectedV1Path !== undefined && projectedV1Path !== sourcePath
+            ? artifactKind === 'skill'
+                ? 'portable'
+                : ['prompt', 'command', 'instruction', 'rule', 'agent', 'hook'].includes(
+                        artifactKind,
+                    )
+                  ? 'client-extension'
+                  : undefined
+            : undefined;
 
     let standardCoverage: AgentMetadataStandardCoverage;
     let migrationLoss: AgentMetadataMigrationLoss;
@@ -307,6 +355,9 @@ export function classifyAgentMetadataPath(
               : 'none',
         migrationLoss,
         ...(projectedV1Path !== undefined ? { projectedV1Path } : {}),
+        ...(projectedV1Coverage !== undefined
+            ? { projectedV1Coverage, packagingProjectionLoss: 'none' as const }
+            : {}),
         ...(['prompt', 'command'].includes(artifactKind)
             ? { suggestedStandardConstruct: 'skill' as const }
             : {}),
@@ -329,46 +380,99 @@ function sourcePathForLayerFile(layer: LayerContent, file: LayerFile): string {
     return normalizeRelativePath(relative);
 }
 
-function diagnosticForClassification(
+function comparableAbsolutePath(value: string): string {
+    const resolved = path.resolve(value);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isPathAtOrBelow(candidatePath: string, parentPath: string): boolean {
+    const candidate = comparableAbsolutePath(candidatePath);
+    const parent = comparableAbsolutePath(parentPath);
+    const relative = path.relative(parent, candidate);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function isStrictComponentDiagnostic(code: string): boolean {
+    return code.startsWith('AGENT_PLUGIN_SKILL') || code.startsWith('AGENT_PLUGIN_MCP_');
+}
+
+function conformanceInspectionDiagnostic(
+    diagnostic: CapabilityWarning,
+    strictV1: boolean,
+): CapabilityWarning {
+    return strictV1 && isStrictComponentDiagnostic(diagnostic.code)
+        ? { ...diagnostic, severity: 'error' }
+        : diagnostic;
+}
+
+function diagnosticsForClassification(
     classification: AgentMetadataSemanticClassification,
-): CapabilityWarning | undefined {
+    projectionConflicts: boolean,
+): readonly CapabilityWarning[] {
     const common = {
         filePath: classification.absolutePath,
         severity: 'warning' as const,
     };
+    const safeRelocation =
+        !projectionConflicts &&
+        classification.packagingProjectionLoss === 'none' &&
+        classification.projectedV1Path
+            ? {
+                  code: 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE',
+                  message: `${classification.sourcePath} can be packaged unchanged at ${classification.projectedV1Path} as a ${classification.projectedV1Coverage}; source migration still requires an explicit keep, add, or replace decision.`,
+                  ...common,
+              }
+            : undefined;
+    const migrationReview =
+        classification.migrationLoss === 'semantic-review' ||
+        classification.migrationLoss === 'known-loss'
+            ? {
+                  code: 'AGENT_METADATA_MIGRATION_LOSS_REVIEW',
+                  message: `${classification.sourcePath} has migration loss classified as ${classification.migrationLoss}; no semantic conversion or source removal is authorized without an explicit decision.`,
+                  ...common,
+              }
+            : undefined;
     switch (classification.standardCoverage) {
         case 'client-extension':
-            return {
-                code: 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
-                message: `${classification.sourcePath} is a conformant client extension, but depends on GitHub Copilot and is not portable Agent Plugins v1 metadata.`,
-                ...common,
-            };
+            return [
+                {
+                    code: 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
+                    message: `${classification.sourcePath} is a conformant client extension, but depends on GitHub Copilot and is not portable Agent Plugins v1 metadata.`,
+                    ...common,
+                },
+            ];
         case 'legacy-host':
-            return classification.migrationLoss === 'none'
-                ? {
-                      code: 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE',
-                      message: `${classification.sourcePath} can be packaged losslessly at ${classification.projectedV1Path}; source migration still requires an explicit keep, add, or replace decision.`,
-                      ...common,
-                  }
-                : {
-                      code: 'AGENT_PLUGIN_LEGACY_MANIFEST',
-                      message: `${classification.sourcePath} uses legacy host packaging and is not an Agent Plugins v1 manifest. Preserve it unless the user explicitly selects a migration shape.`,
-                      ...common,
-                  };
+            return safeRelocation
+                ? [safeRelocation]
+                : [
+                      {
+                          code: 'AGENT_PLUGIN_LEGACY_MANIFEST',
+                          message: `${classification.sourcePath} uses legacy host packaging and is not an Agent Plugins v1 manifest. Preserve it unless the user explicitly selects a migration shape.`,
+                          ...common,
+                      },
+                      ...(migrationReview ? [migrationReview] : []),
+                  ];
         case 'no-equivalent':
-            return {
-                code: 'AGENT_METADATA_NO_STANDARD_EQUIVALENT',
-                message: `${classification.sourcePath} has no direct portable Agent Plugins v1 equivalent. It can remain a GitHub Copilot extension; any conversion requires an explicit keep, add, or replace decision.`,
-                ...common,
-            };
+            return [
+                {
+                    code: 'AGENT_METADATA_NO_STANDARD_EQUIVALENT',
+                    message: `${classification.sourcePath} has no direct portable Agent Plugins v1 equivalent. It can remain a GitHub Copilot extension; any semantic conversion requires an explicit review decision.`,
+                    ...common,
+                },
+                ...(migrationReview ? [migrationReview] : []),
+                ...(safeRelocation ? [safeRelocation] : []),
+            ];
         case 'invalid':
-            return {
-                code: 'AGENT_PLUGIN_PACKAGE_INVALID',
-                message: `${classification.sourcePath} belongs to a package that does not satisfy its declared Agent Plugins contract.`,
-                ...common,
-            };
+            return [
+                {
+                    code: 'AGENT_PLUGIN_PACKAGE_INVALID',
+                    message: `${classification.sourcePath} belongs to a package that does not satisfy its declared Agent Plugins contract.`,
+                    filePath: classification.absolutePath,
+                    severity: 'error',
+                },
+            ];
         default:
-            return undefined;
+            return [];
     }
 }
 
@@ -403,6 +507,34 @@ function migrationCandidateId(entry: AgentMetadataSemanticClassification): strin
     return `${entry.layerId ?? 'unscoped'}::${entry.sourcePath}`;
 }
 
+interface PackagingProjectionCollision {
+    readonly layerId?: string;
+    readonly targetPath: string;
+    readonly classifications: readonly AgentMetadataSemanticClassification[];
+}
+
+function packagingProjectionCollisions(
+    classifications: readonly AgentMetadataSemanticClassification[],
+): readonly PackagingProjectionCollision[] {
+    const groups = new Map<string, AgentMetadataSemanticClassification[]>();
+    for (const classification of classifications) {
+        if (classification.packagingProjectionLoss !== 'none' || !classification.projectedV1Path) {
+            continue;
+        }
+        const key = `${classification.layerId ?? ''}\u0000${classification.projectedV1Path}`;
+        const entries = groups.get(key) ?? [];
+        entries.push(classification);
+        groups.set(key, entries);
+    }
+    return [...groups.values()]
+        .filter((entries) => entries.length > 1)
+        .map((entries) => ({
+            ...(entries[0].layerId !== undefined ? { layerId: entries[0].layerId } : {}),
+            targetPath: entries[0].projectedV1Path as string,
+            classifications: entries,
+        }));
+}
+
 /** Audit resolved source layers while preserving every source artifact. */
 export function auditAgentMetadataConformance(
     layers: readonly LayerContent[],
@@ -412,7 +544,7 @@ export function auditAgentMetadataConformance(
     const diagnostics: CapabilityWarning[] = [];
 
     for (const layer of layers) {
-        for (const file of layer.files) {
+        for (const file of layer.agentMetadataFiles ?? layer.files) {
             const classification = classifyAgentMetadataPath(sourcePathForLayerFile(layer, file), {
                 layerId: layer.layerId,
                 absolutePath: file.absolutePath,
@@ -424,6 +556,10 @@ export function auditAgentMetadataConformance(
             layer.agentPluginCompatibilityInspection ??
             layer.capability?.agentPluginManifest?.compatibilityInspection;
         if (inspection) {
+            const strictV1 = inspection.profile === 'agent-plugins-v1';
+            const inspectionDiagnostics = inspection.diagnostics.map((entry) =>
+                conformanceInspectionDiagnostic(entry, strictV1),
+            );
             const pluginIdentity = `${layer.layerId}\u0000plugin.json`;
             const existing =
                 byIdentity.get(pluginIdentity) ??
@@ -446,14 +582,41 @@ export function auditAgentMetadataConformance(
                         : 'semantic-review',
             });
 
-            if (disposition === 'audit-standard' && inspection.manifest?.extensions) {
-                for (const namespace of Object.keys(inspection.manifest.extensions).sort()) {
-                    diagnostics.push({
-                        code: 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
-                        message: `Agent Plugins extension "${namespace}" is conformant but vendor-specific and nonportable.`,
-                        filePath: path.join(inspection.pluginRoot, 'plugin.json'),
-                        severity: 'warning',
+            const invalidComponentLocations = inspectionDiagnostics
+                .filter(
+                    (entry) =>
+                        entry.severity === 'error' &&
+                        entry.filePath !== undefined &&
+                        isStrictComponentDiagnostic(entry.code),
+                )
+                .map((entry) => entry.filePath as string);
+            for (const [identity, classification] of byIdentity) {
+                if (
+                    classification.layerId === layer.layerId &&
+                    classification.absolutePath &&
+                    invalidComponentLocations.some((invalidPath) =>
+                        isPathAtOrBelow(classification.absolutePath as string, invalidPath),
+                    )
+                ) {
+                    byIdentity.set(identity, {
+                        ...classification,
+                        standardCoverage: 'invalid',
+                        migrationLoss: 'semantic-review',
                     });
+                }
+            }
+
+            if (disposition === 'audit-standard') {
+                diagnostics.push(...inspectionDiagnostics);
+                if (inspection.manifest?.extensions) {
+                    for (const namespace of Object.keys(inspection.manifest.extensions).sort()) {
+                        diagnostics.push({
+                            code: 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
+                            message: `Agent Plugins extension "${namespace}" is conformant but vendor-specific and nonportable.`,
+                            filePath: path.join(inspection.pluginRoot, 'plugin.json'),
+                            severity: 'warning',
+                        });
+                    }
                 }
             }
         }
@@ -463,9 +626,25 @@ export function auditAgentMetadataConformance(
         classificationIdentity(left).localeCompare(classificationIdentity(right)),
     );
     if (disposition === 'audit-standard') {
+        const projectionCollisions = packagingProjectionCollisions(classifications);
+        const conflictingClassifications = new Set(
+            projectionCollisions.flatMap((collision) =>
+                collision.classifications.map(classificationIdentity),
+            ),
+        );
+        for (const collision of projectionCollisions) {
+            diagnostics.push({
+                code: 'AGENT_PLUGIN_PROJECTION_TARGET_CONFLICT',
+                message: `${collision.classifications.map((entry) => entry.sourcePath).join(', ')} all project to ${collision.targetPath}; this package relocation is not safe until the user resolves the collision.`,
+                filePath: collision.classifications[0].absolutePath,
+                severity: 'warning',
+            });
+        }
         for (const classification of classifications) {
-            const entry = diagnosticForClassification(classification);
-            if (entry) {
+            for (const entry of diagnosticsForClassification(
+                classification,
+                conflictingClassifications.has(classificationIdentity(classification)),
+            )) {
                 diagnostics.push(entry);
             }
         }
@@ -520,8 +699,19 @@ export function planAgentMetadataMigration(
             continue;
         }
         const classification = candidate.classification;
-        const hasLosslessStandardProjection =
-            classification.projectedV1Path !== undefined && classification.migrationLoss === 'none';
+        const hasLosslessPackagingProjection =
+            classification.projectedV1Path !== undefined &&
+            classification.packagingProjectionLoss === 'none';
+        const usesPackagingProjection =
+            decision !== 'keep-vendor' && hasLosslessPackagingProjection;
+        const disclosedLoss: AgentMetadataMigrationLoss =
+            decision === 'keep-vendor'
+                ? 'not-applicable'
+                : usesPackagingProjection
+                  ? decision === 'replace-with-disclosed-loss'
+                      ? 'known-loss'
+                      : 'none'
+                  : classification.migrationLoss;
         operations.push({
             candidateId: candidate.id,
             decision,
@@ -529,24 +719,46 @@ export function planAgentMetadataMigration(
                 decision === 'keep-vendor'
                     ? 'keep'
                     : decision === 'add-standard-alongside'
-                      ? hasLosslessStandardProjection
+                      ? hasLosslessPackagingProjection
                           ? 'project-copy'
                           : 'manual-authoring'
-                      : hasLosslessStandardProjection
+                      : hasLosslessPackagingProjection
                         ? 'project-and-remove-source'
                         : 'manual-authoring-and-remove-source',
             sourcePath: classification.sourcePath,
-            ...(hasLosslessStandardProjection && classification.projectedV1Path
-                ? { targetPath: classification.projectedV1Path }
+            ...(usesPackagingProjection && classification.projectedV1Path
+                ? {
+                      targetPath: classification.projectedV1Path,
+                      targetCoverage: classification.projectedV1Coverage,
+                  }
                 : {}),
-            disclosedLoss: classification.migrationLoss,
+            disclosedLoss,
         });
     }
 
+    const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+    const operationClassifications = operations
+        .filter((operation) => operation.targetPath !== undefined)
+        .map((operation) => candidateById.get(operation.candidateId)?.classification)
+        .filter(
+            (classification): classification is AgentMetadataSemanticClassification =>
+                classification !== undefined,
+        );
+    const conflicts: AgentMetadataMigrationConflict[] = packagingProjectionCollisions(
+        operationClassifications,
+    ).map((collision) => ({
+        code: 'projection-target-conflict',
+        ...(collision.layerId !== undefined ? { layerId: collision.layerId } : {}),
+        targetPath: collision.targetPath,
+        sourcePaths: collision.classifications.map((entry) => entry.sourcePath),
+        candidateIds: collision.classifications.map(migrationCandidateId),
+    }));
+
     return {
-        blocked: unresolvedCandidateIds.length > 0,
+        blocked: unresolvedCandidateIds.length > 0 || conflicts.length > 0,
         candidates,
         unresolvedCandidateIds,
         operations,
+        conflicts,
     };
 }

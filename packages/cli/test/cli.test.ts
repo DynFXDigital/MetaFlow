@@ -1184,6 +1184,77 @@ describe('CLI: Agent Plugins conformance', () => {
         );
     });
 
+    it('audits strict package control files, client extensions, and invalid components', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                            name: 'strict-audit',
+                            extensions: { 'com.github.copilot': {} },
+                        }),
+                    },
+                    {
+                        relativePath: 'mcp.json',
+                        content: JSON.stringify({
+                            $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+                            mcpServers: {},
+                        }),
+                    },
+                    {
+                        relativePath: 'com.github.copilot/prompts/review.prompt.md',
+                        content: '# Copilot prompt\n',
+                    },
+                    {
+                        relativePath: 'skills/broken/SKILL.md',
+                        content: '# Missing required frontmatter\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        const report = JSON.parse(result.stdout);
+        assert.deepStrictEqual(report.summary, {
+            total: 4,
+            portable: 2,
+            clientExtensions: 1,
+            legacyHost: 0,
+            noEquivalent: 0,
+            invalid: 1,
+            standardConformancePercent: 75,
+            portablePercent: 50,
+        });
+        assert.strictEqual(
+            report.diagnostics.find(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID',
+            )?.severity,
+            'error',
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
+            ),
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
+            ),
+        );
+    });
+
     it('keeps prefer-standard quiet while retaining the same semantic report', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
@@ -1276,6 +1347,40 @@ describe('CLI: Agent Plugins conformance', () => {
         assert.strictEqual(pendingPlan.unresolvedCandidateIds.length, 2);
         assert.deepStrictEqual(pendingPlan.operations, []);
 
+        const promptCandidate = pendingPlan.candidates.find(
+            (candidate: { id: string; classification: { sourcePath: string } }) =>
+                candidate.classification.sourcePath === '.github/prompts/review.prompt.md',
+        );
+        assert.ok(promptCandidate);
+        const projectionDecisions = pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+            '--decision',
+            `${candidate.id}=${candidate.id === promptCandidate.id ? 'add-standard-alongside' : 'keep-vendor'}`,
+        ]);
+        const projected = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...projectionDecisions,
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(projected.exitCode, 0);
+        const projectedPlan = JSON.parse(projected.stdout);
+        const promptOperation = projectedPlan.operations.find(
+            (operation: { candidateId: string }) => operation.candidateId === promptCandidate.id,
+        );
+        assert.deepStrictEqual(promptOperation, {
+            candidateId: promptCandidate.id,
+            decision: 'add-standard-alongside',
+            action: 'project-copy',
+            sourcePath: '.github/prompts/review.prompt.md',
+            targetPath: 'com.github.copilot/prompts/review.prompt.md',
+            targetCoverage: 'client-extension',
+            disclosedLoss: 'none',
+        });
+        assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), before);
+        assert.strictEqual(fs.existsSync(path.join(ws.root, 'com.github.copilot')), false);
+
         const decisionArgs = pendingPlan.candidates.flatMap((candidate: { id: string }) => [
             '--decision',
             `${candidate.id}=keep-vendor`,
@@ -1300,6 +1405,114 @@ describe('CLI: Agent Plugins conformance', () => {
         );
         assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), before);
         assert.strictEqual(fs.existsSync(path.join(ws.root, 'com.github.copilot')), false);
+    });
+
+    it('plans the complete legacy projection matrix without writing package output', async () => {
+        const projections = [
+            [
+                '.github/prompts/review.prompt.md',
+                'com.github.copilot/prompts/review.prompt.md',
+                'client-extension',
+            ],
+            [
+                '.github/commands/review.md',
+                'com.github.copilot/commands/review.md',
+                'client-extension',
+            ],
+            [
+                '.github/instructions/typescript.instructions.md',
+                'com.github.copilot/rules/typescript.instructions.md',
+                'client-extension',
+            ],
+            [
+                '.github/rules/typescript.md',
+                'com.github.copilot/rules/typescript.md',
+                'client-extension',
+            ],
+            [
+                '.github/copilot-instructions.md',
+                'com.github.copilot/rules/copilot-instructions.md',
+                'client-extension',
+            ],
+            [
+                '.github/agents/reviewer.agent.md',
+                'com.github.copilot/agents/reviewer.agent.md',
+                'client-extension',
+            ],
+            ['hooks.json', 'com.github.copilot/hooks/hooks.json', 'client-extension'],
+            [
+                '.github/hooks/scripts/check.js',
+                'com.github.copilot/hooks/scripts/check.js',
+                'client-extension',
+            ],
+            ['.github/skills/testing/SKILL.md', 'skills/testing/SKILL.md', 'portable'],
+        ] as const;
+        const contents = Object.fromEntries(
+            projections.map(([source]) => [source, `unchanged:${source}\n`]),
+        );
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': Object.entries(contents).map(([relativePath, content]) => ({
+                    relativePath,
+                    content,
+                })),
+            },
+        });
+        const packageRoot = path.join(ws.metadataRepo, 'company', 'core');
+
+        const pending = await runCli(['agent-plugins', 'plan-migration', '--json', '-w', ws.root]);
+        assert.strictEqual(pending.exitCode, 0);
+        const pendingPlan = JSON.parse(pending.stdout);
+        assert.strictEqual(pendingPlan.blocked, true);
+        assert.deepStrictEqual(
+            pendingPlan.candidates.map(
+                (candidate: { classification: { sourcePath: string } }) =>
+                    candidate.classification.sourcePath,
+            ),
+            projections.map(([sourcePath]) => sourcePath).sort(),
+        );
+
+        const decided = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+                '--decision',
+                `${candidate.id}=add-standard-alongside`,
+            ]),
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(decided.exitCode, 0);
+        const decidedPlan = JSON.parse(decided.stdout);
+        assert.strictEqual(decidedPlan.blocked, false);
+
+        for (const [sourcePath, targetPath, targetCoverage] of projections) {
+            const operation = decidedPlan.operations.find(
+                (entry: { sourcePath: string }) => entry.sourcePath === sourcePath,
+            );
+            assert.ok(operation, sourcePath);
+            assert.strictEqual(operation.action, 'project-copy', sourcePath);
+            assert.strictEqual(operation.targetPath, targetPath, sourcePath);
+            assert.strictEqual(operation.targetCoverage, targetCoverage, sourcePath);
+            assert.strictEqual(operation.disclosedLoss, 'none', sourcePath);
+            assert.strictEqual(
+                fs.readFileSync(path.join(packageRoot, ...sourcePath.split('/')), 'utf-8'),
+                contents[sourcePath],
+                sourcePath,
+            );
+            assert.strictEqual(
+                fs.existsSync(path.join(packageRoot, ...targetPath.split('/'))),
+                false,
+                targetPath,
+            );
+        }
     });
 
     it('surfaces audit warnings during validate without failing an otherwise clean workspace', async () => {

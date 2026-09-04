@@ -643,14 +643,24 @@ describe('Engine package: overlay pipeline', () => {
         assert.strictEqual(chatmode?.classification, 'synchronized');
     });
 
-    it('ignores unknown .github directories when resolving layers', () => {
+    it('retains command and rule metadata while ignoring unknown .github directories', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'commands'), { recursive: true });
+        fs.mkdirSync(path.join(repoDir, 'core', '.github', 'rules'), { recursive: true });
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'ISSUE_TEMPLATE'), { recursive: true });
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'components'), { recursive: true });
         fs.writeFileSync(
             path.join(repoDir, 'core', '.github', 'chatmodes', 'legacy.chatmode.md'),
             '# Legacy chatmode',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'commands', 'review.md'),
+            '# Review command',
+        );
+        fs.writeFileSync(
+            path.join(repoDir, 'core', '.github', 'rules', 'typescript.md'),
+            '# TypeScript rule',
         );
         fs.writeFileSync(
             path.join(repoDir, 'core', '.github', 'ISSUE_TEMPLATE', 'bug.yml'),
@@ -671,8 +681,55 @@ describe('Engine package: overlay pipeline', () => {
         const files = Array.from(fileMap.values());
 
         assert.ok(files.some((f) => f.relativePath === 'chatmodes/legacy.chatmode.md'));
+        assert.ok(files.some((f) => f.relativePath === 'commands/review.md'));
+        assert.ok(files.some((f) => f.relativePath === 'rules/typescript.md'));
         assert.ok(!files.some((f) => f.relativePath.startsWith('ISSUE_TEMPLATE/')));
         assert.ok(!files.some((f) => f.relativePath.startsWith('components/')));
+    });
+
+    it('keeps package control files audit-only while resolving strict client extensions', () => {
+        const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
+        const layerRoot = path.join(repoDir, 'core');
+        fs.mkdirSync(path.join(layerRoot, 'com.github.copilot', 'prompts'), { recursive: true });
+        fs.writeFileSync(
+            path.join(layerRoot, 'plugin.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                name: 'strict-client-extension',
+            }),
+        );
+        fs.writeFileSync(
+            path.join(layerRoot, 'mcp.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+                mcpServers: {},
+            }),
+        );
+        fs.writeFileSync(
+            path.join(layerRoot, 'com.github.copilot', 'prompts', 'review.prompt.md'),
+            '# Review prompt',
+        );
+
+        const config: MetaFlowConfig = {
+            metadataRepo: { localPath: '.ai/ai-metadata' },
+            layers: ['core'],
+        };
+        const [resolved] = resolveLayers(config, tmpDir);
+        const effectivePaths = resolved.files.map((file) => file.relativePath).sort();
+        const auditPaths = (resolved.agentMetadataFiles ?? [])
+            .map((file) => file.relativePath)
+            .sort();
+
+        assert.deepStrictEqual(effectivePaths, ['com.github.copilot/prompts/review.prompt.md']);
+        assert.deepStrictEqual(auditPaths, [
+            'com.github.copilot/prompts/review.prompt.md',
+            'mcp.json',
+            'plugin.json',
+        ]);
+
+        const files = Array.from(buildEffectiveFileMap([resolved]).values());
+        classifyFiles(files, undefined);
+        assert.strictEqual(files[0].classification, 'plugin');
     });
 
     it('loads capability metadata from CAPABILITY.md and propagates it to effective files', () => {

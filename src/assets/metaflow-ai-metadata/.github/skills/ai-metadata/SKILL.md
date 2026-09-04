@@ -29,8 +29,10 @@ This skill consolidates current best practices and compatibility notes across Gi
 3. In `prefer-standard`, prefer Skills for new reusable workflows, MCP for new tool integrations,
    and a strict v1 package when that shape is lossless. Preserve existing and host-specific
    metadata without conformance warnings.
-4. In `audit-standard`, use the same standard-first choices and surface advisory warnings for
-   legacy, invalid, no-equivalent, and vendor-specific metadata.
+4. In `audit-standard`, use the same standard-first choices and surface advisory conformance
+   diagnostics: error severity for invalid strict-v1 packages or components and warning severity
+   for legacy, no-equivalent, migration, and vendor-specific findings. These findings do not alter
+   apply or validation exit status.
 5. Prompts, slash commands, scoped instructions/rules, custom agents, and hooks have no direct
    portable v1 equivalent. Preserve them as host metadata; continue using the GitHub Copilot hook
    contract unless the user explicitly chooses another shape.

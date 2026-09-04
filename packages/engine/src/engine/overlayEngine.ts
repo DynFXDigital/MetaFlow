@@ -29,6 +29,8 @@ import { isMarketplaceRepositoryRoot } from './repoManifest';
 const KNOWN_ARTIFACT_ROOTS = new Set([
     'instructions',
     'prompts',
+    'commands',
+    'rules',
     'skills',
     'agents',
     'hooks',
@@ -36,6 +38,8 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
 ]);
 
 const KNOWN_GITHUB_ROOT_FILES = new Set(['copilot-instructions.md', 'hooks.json']);
+const AGENT_PLUGIN_PACKAGE_ROOT_FILES = new Set(['plugin.json', 'mcp.json']);
+const COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX = 'com.github.copilot/';
 
 export interface ResolveLayersOptions {
     /** Enables runtime layer discovery for repos with discover.enabled=true. */
@@ -178,12 +182,20 @@ function resolveLayerContent(
     const agentPluginCompatibilityInspection =
         capability?.agentPluginManifest?.compatibilityInspection ??
         (hasFileSystemEntry(pluginJsonPath) ? inspectAgentPluginPackage(layerAbsPath) : undefined);
+    const files = walkDirectory(layerAbsPath, layerAbsPath);
+    const agentMetadataFiles = walkDirectory(
+        layerAbsPath,
+        layerAbsPath,
+        new Set<string>(),
+        isKnownAgentMetadataPath,
+    );
     return {
         layerId,
         ...(repoId !== undefined ? { repoId } : {}),
         rootPath: layerAbsPath,
         capabilityId,
-        files: walkDirectory(layerAbsPath, layerAbsPath),
+        files,
+        agentMetadataFiles,
         ...(capability !== undefined ? { capability } : {}),
         ...(agentPluginCompatibilityInspection !== undefined
             ? { agentPluginCompatibilityInspection }
@@ -299,6 +311,7 @@ function walkDirectory(
     dirPath: string,
     layerRoot: string,
     visitedDirectories = new Set<string>(),
+    includeFile: (relativePath: string) => boolean = isKnownArtifactPath,
 ): LayerFile[] {
     const files: LayerFile[] = [];
 
@@ -325,10 +338,10 @@ function walkDirectory(
         const fullPath = path.join(dirPath, entry.name);
         const entryKind = getEntryKind(entry, fullPath);
         if (entryKind === 'directory') {
-            files.push(...walkDirectory(fullPath, layerRoot, visitedDirectories));
+            files.push(...walkDirectory(fullPath, layerRoot, visitedDirectories, includeFile));
         } else if (entryKind === 'file') {
             const relativePath = normalizeLayerRelativePath(path.relative(layerRoot, fullPath));
-            if (!isKnownArtifactPath(relativePath)) {
+            if (!includeFile(relativePath)) {
                 continue;
             }
             files.push({
@@ -371,9 +384,16 @@ function isKnownArtifactPath(relativePath: string): boolean {
     if (KNOWN_GITHUB_ROOT_FILES.has(relativePath)) {
         return true;
     }
+    if (relativePath.startsWith(COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX)) {
+        return true;
+    }
 
     const topDir = relativePath.split('/')[0];
     return KNOWN_ARTIFACT_ROOTS.has(topDir);
+}
+
+function isKnownAgentMetadataPath(relativePath: string): boolean {
+    return AGENT_PLUGIN_PACKAGE_ROOT_FILES.has(relativePath) || isKnownArtifactPath(relativePath);
 }
 
 function isKnownArtifactRootDirectory(directoryName: string): boolean {

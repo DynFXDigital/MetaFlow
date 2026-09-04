@@ -28,7 +28,9 @@ Use it when creating or updating:
 - `prefer-standard` prefers Skills for new reusable workflows, MCP for new tool integrations, and
   strict v1 packaging when the mapping is lossless. It preserves host metadata without warnings.
 - `audit-standard` applies the same standard-first preferences and additionally reports advisory
-  warnings for legacy, invalid, no-equivalent, and vendor-specific metadata.
+  conformance diagnostics: error severity for invalid strict-v1 packages or components and warning
+  severity for legacy, no-equivalent, migration, and vendor-specific findings. These findings do
+  not alter apply or validation exit status.
 - Prompts, slash commands, scoped instructions/rules, custom agents, and hooks have no direct
   portable v1 equivalent. Preserve them as GitHub extensions, and keep authoring hooks with the
   GitHub Copilot contract, unless the user explicitly selects another migration shape.

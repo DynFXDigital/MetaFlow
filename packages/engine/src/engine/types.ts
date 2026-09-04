@@ -37,6 +37,8 @@ export interface LayerContent {
     capabilityId?: string;
     /** Files discovered in this layer. */
     files: LayerFile[];
+    /** Superset used for semantic conformance reporting without widening overlay output. */
+    agentMetadataFiles?: LayerFile[];
     /** Optional capability metadata loaded from the selected descriptor at layer root. */
     capability?: CapabilityMetadata;
     /** Plugin inspection populated independently of optional capability documentation. */
