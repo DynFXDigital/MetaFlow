@@ -18,6 +18,6 @@
     }
   },
   "activeProfile": "default",
-  "compatibilityVersion": 5,
+  "compatibilityVersion": 6,
   "synchronization": { "repoWideCopilotInstructions": false }
 }

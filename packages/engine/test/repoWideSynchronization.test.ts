@@ -190,7 +190,7 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
 
             const persisted = fs.readFileSync(configPath, 'utf-8');
             assert.match(persisted, /keep this comment/);
-            assert.match(persisted, /"compatibilityVersion"\s*:\s*5/);
+            assert.match(persisted, /"compatibilityVersion"\s*:\s*6/);
             assert.match(persisted, /"repoWideCopilotInstructions"\s*:\s*false/);
             assert.strictEqual(
                 fs.existsSync(path.join(root, '.github', 'copilot-instructions.md')),
@@ -211,7 +211,7 @@ describe('repository-wide Copilot instruction synchronization policy', () => {
                 withReadOnlyRootSynchronizationAuthorization(configPath, () => undefined),
             );
 
-            assert.match(message, /compatibilityVersion v5 is not persisted/);
+            assert.match(message, /compatibilityVersion v6 is not persisted/);
             assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });

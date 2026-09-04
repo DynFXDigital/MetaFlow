@@ -171,7 +171,7 @@ export function standardConfig(
     overrides?: Partial<Record<string, unknown>>,
 ): Record<string, unknown> {
     return {
-        compatibilityVersion: 5,
+        compatibilityVersion: 6,
         metadataRepos: [{ id: 'primary', localPath: '.ai/ai-metadata' }],
         layerSources: [{ repoId: 'primary', path: 'company/core' }],
         profiles: {

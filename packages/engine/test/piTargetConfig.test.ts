@@ -26,9 +26,9 @@ function validationCodes(config: unknown): Array<string | undefined> {
     return validateConfig(config as MetaFlowConfig).map((error) => error.code);
 }
 
-describe('Pi target config v5', () => {
-    it('defines v5 as the current compatibility contract', () => {
-        assert.strictEqual(CURRENT_CONFIG_COMPATIBILITY_VERSION, 5);
+describe('Pi target config v6', () => {
+    it('defines v6 as the current compatibility contract', () => {
+        assert.strictEqual(CURRENT_CONFIG_COMPATIBILITY_VERSION, 6);
     });
 
     it('enables Pi only for an explicit current-version true value', () => {
@@ -63,7 +63,7 @@ describe('Pi target config v5', () => {
         assert.deepStrictEqual(disabled.targets, { pi: { enabled: false } });
     });
 
-    it('requires v5 whenever targets.pi is authored', () => {
+    it('requires v6 whenever targets.pi is authored', () => {
         for (const compatibilityVersion of [undefined, 4]) {
             const config = baseConfig({
                 compatibilityVersion,
@@ -119,7 +119,7 @@ describe('Pi target config v5', () => {
                 configPath,
                 `{
   // Pi projection is explicitly opt-in.
-  "compatibilityVersion": 5,
+  "compatibilityVersion": 6,
   "metadataRepos": [{ "id": "metadata", "localPath": "metadata" }],
   "profiles": { "default": { "enabledCapabilities": [] } },
   "activeProfile": "default",

@@ -262,7 +262,7 @@ suite('Extension Packaging Regression Guards', () => {
         assert.deepStrictEqual(profileLayerOverride?.required, ['repoId', 'path']);
     });
 
-    test('config schema exposes the closed skills-only Pi target at v5', () => {
+    test('config schema exposes the closed skills-only Pi target at v6', () => {
         const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
         const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
             properties?: Record<string, { maximum?: number }>;
@@ -280,11 +280,11 @@ suite('Extension Packaging Regression Guards', () => {
             >;
         };
 
-        assert.strictEqual(schema.properties?.compatibilityVersion.maximum, 5);
+        assert.strictEqual(schema.properties?.compatibilityVersion.maximum, 6);
         assert.ok(schema.properties?.targets);
         assert.strictEqual(schema.definitions?.targetsConfig?.additionalProperties, false);
         assert.strictEqual(schema.definitions?.piTargetConfig?.additionalProperties, false);
-        assert.strictEqual(schema.allOf?.[0]?.then?.properties?.compatibilityVersion.const, 5);
+        assert.strictEqual(schema.allOf?.[0]?.then?.properties?.compatibilityVersion.const, 6);
         assert.deepStrictEqual(Object.keys(schema.definitions?.piTargetConfig?.properties ?? {}), [
             'enabled',
         ]);

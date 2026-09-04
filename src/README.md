@@ -61,7 +61,7 @@ Create `.metaflow/config.jsonc` in your workspace root (or run `MetaFlow: Initia
 
 ```jsonc
 {
-    "compatibilityVersion": 5,
+    "compatibilityVersion": 6,
     "metadataRepos": [
         {
             "id": "primary",

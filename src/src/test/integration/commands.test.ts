@@ -1182,7 +1182,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(migratedConfig.compatibilityVersion, 5);
+            assert.strictEqual(migratedConfig.compatibilityVersion, 6);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -1260,7 +1260,7 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 5;
+                return migratedConfig.compatibilityVersion === 6;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -1893,7 +1893,7 @@ suite('Command Execution', function () {
                 configPath,
                 JSON.stringify(
                     {
-                        compatibilityVersion: 5,
+                        compatibilityVersion: 6,
                         metadataRepos: [
                             {
                                 id: 'pi-test',
@@ -5481,7 +5481,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(updatedConfig.compatibilityVersion, 5);
+            assert.strictEqual(updatedConfig.compatibilityVersion, 6);
             assert.strictEqual(
                 updatedConfig.metadataRepos?.[0]?.id,
                 '.tmp-empty-existing-init-config',
@@ -6328,7 +6328,7 @@ suite('Command Execution', function () {
                     synchronization?: { repoWideCopilotInstructions?: boolean };
                 };
                 return (
-                    parsed.compatibilityVersion === 5 &&
+                    parsed.compatibilityVersion === 6 &&
                     parsed.synchronization?.repoWideCopilotInstructions === true
                 );
             });

@@ -8,7 +8,7 @@
     "compatibilityVersion": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 5,
+      "maximum": 6,
       "description": "Config compatibility version used by MetaFlow for release-aware automatic migration."
     },
     "metadataRepos": {
@@ -73,6 +73,10 @@
     "targets": {
       "$ref": "#/definitions/targetsConfig",
       "description": "Explicit project-local output targets. Omitted targets are disabled."
+    },
+    "agentPlugins": {
+      "$ref": "#/definitions/agentPluginsConfig",
+      "description": "Agent Plugins v1 authoring and conformance policy, independent from automatic maintenance and injection."
     }
   },
   "anyOf": [
@@ -97,7 +101,20 @@
         "required": ["compatibilityVersion"],
         "properties": {
           "compatibilityVersion": {
-            "const": 5
+            "const": 6
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["agentPlugins"]
+      },
+      "then": {
+        "required": ["compatibilityVersion"],
+        "properties": {
+          "compatibilityVersion": {
+            "const": 6
           }
         }
       }
@@ -367,6 +384,24 @@
           "type": "boolean",
           "default": false,
           "description": "Explicitly project the active capability profile as a skills-only Agent Plugins v1 package for Pi."
+        }
+      }
+    },
+    "agentPluginsConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "targetVersion": {
+          "type": "string",
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "description": "Agent Plugins standard contract used for authoring, projection, and diagnostics."
+        },
+        "disposition": {
+          "type": "string",
+          "enum": ["compatibility", "prefer-standard", "audit-standard"],
+          "default": "compatibility",
+          "description": "Compatibility preserves legacy behavior; prefer-standard changes new authoring defaults without warnings; audit-standard also reports non-portable and incompatible metadata."
         }
       }
     }

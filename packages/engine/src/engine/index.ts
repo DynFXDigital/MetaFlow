@@ -95,6 +95,28 @@ export {
     isValidAgentSkillName,
     validateAgentSkillContent,
 } from './agentPluginCompatibility';
+export {
+    auditAgentMetadataConformance,
+    classifyAgentMetadataPath,
+    planAgentMetadataMigration,
+    projectAgentPluginV1Path,
+} from './agentMetadataConformance';
+export type {
+    AgentMetadataActivation,
+    AgentMetadataArtifactKind,
+    AgentMetadataConformanceReport,
+    AgentMetadataConformanceSummary,
+    AgentMetadataMigrationCandidate,
+    AgentMetadataMigrationDecision,
+    AgentMetadataMigrationLoss,
+    AgentMetadataMigrationOperation,
+    AgentMetadataMigrationPlan,
+    AgentMetadataScope,
+    AgentMetadataSemanticClassification,
+    AgentMetadataStandardConstruct,
+    AgentMetadataStandardCoverage,
+    AgentMetadataVendorDependency,
+} from './agentMetadataConformance';
 export type {
     AgentPluginCompatibilityInspection,
     AgentPluginCompatibilityProfile,

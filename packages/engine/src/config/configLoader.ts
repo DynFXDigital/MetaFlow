@@ -177,6 +177,56 @@ export function validateConfig(config: MetaFlowConfig, workspaceRoot?: string): 
         }
     }
 
+    if (config.agentPlugins !== undefined) {
+        if (
+            typeof config.agentPlugins !== 'object' ||
+            config.agentPlugins === null ||
+            Array.isArray(config.agentPlugins)
+        ) {
+            errors.push({
+                code: 'CONFIG_AGENT_PLUGINS_INVALID',
+                message: '"agentPlugins" must be an object when provided.',
+            });
+        } else {
+            if (config.compatibilityVersion !== CURRENT_CONFIG_COMPATIBILITY_VERSION) {
+                errors.push({
+                    code: 'CONFIG_AGENT_PLUGINS_VERSION_REQUIRED',
+                    message: `"agentPlugins" requires "compatibilityVersion": ${CURRENT_CONFIG_COMPATIBILITY_VERSION}.`,
+                });
+            }
+            const agentPlugins = config.agentPlugins as Record<string, unknown>;
+            for (const key of Object.keys(agentPlugins)) {
+                if (key !== 'targetVersion' && key !== 'disposition') {
+                    errors.push({
+                        code: 'CONFIG_AGENT_PLUGINS_KEY_UNSUPPORTED',
+                        message: `"agentPlugins.${key}" is not a supported configuration key.`,
+                    });
+                }
+            }
+            if (
+                Object.prototype.hasOwnProperty.call(agentPlugins, 'targetVersion') &&
+                agentPlugins.targetVersion !== '1.0.0'
+            ) {
+                errors.push({
+                    code: 'CONFIG_AGENT_PLUGINS_TARGET_VERSION_INVALID',
+                    message: '"agentPlugins.targetVersion" must be "1.0.0".',
+                });
+            }
+            if (
+                Object.prototype.hasOwnProperty.call(agentPlugins, 'disposition') &&
+                !['compatibility', 'prefer-standard', 'audit-standard'].includes(
+                    agentPlugins.disposition as string,
+                )
+            ) {
+                errors.push({
+                    code: 'CONFIG_AGENT_PLUGINS_DISPOSITION_INVALID',
+                    message:
+                        '"agentPlugins.disposition" must be "compatibility", "prefer-standard", or "audit-standard".',
+                });
+            }
+        }
+    }
+
     if (config.targets !== undefined) {
         if (
             typeof config.targets !== 'object' ||

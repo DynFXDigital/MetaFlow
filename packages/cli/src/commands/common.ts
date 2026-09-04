@@ -43,6 +43,7 @@ const CONFIG_ROOT_KEYS = new Set([
     'hooks',
     'synchronization',
     'targets',
+    'agentPlugins',
 ]);
 
 function isMetaFlowConfigDocument(data: unknown): data is MetaFlowConfig {

@@ -1,4 +1,6 @@
 import {
+    AgentPluginDisposition,
+    AgentPluginsConfig,
     CapabilitySource,
     HooksConfig,
     InjectionConfig,
@@ -21,7 +23,8 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
-export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 5;
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 6;
+export const DEFAULT_AGENT_PLUGIN_DISPOSITION: AgentPluginDisposition = 'compatibility';
 const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
 
 function cloneJson<T>(value: T): T {
@@ -145,6 +148,29 @@ function orderTargetsConfig(
               }
             : {}),
     };
+}
+
+function orderAgentPluginsConfig(
+    config: AgentPluginsConfig | undefined,
+): AgentPluginsConfig | undefined {
+    if (config === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(config.targetVersion !== undefined ? { targetVersion: config.targetVersion } : {}),
+        ...(config.disposition !== undefined ? { disposition: config.disposition } : {}),
+    };
+}
+
+/** Resolve the repository policy without coupling it to auto-maintenance or injection. */
+export function resolveAgentPluginDisposition(config: MetaFlowConfig): AgentPluginDisposition {
+    return config.agentPlugins?.disposition ?? DEFAULT_AGENT_PLUGIN_DISPOSITION;
+}
+
+/** Return true for either standard-oriented posture. */
+export function prefersAgentPluginsStandard(config: MetaFlowConfig): boolean {
+    return resolveAgentPluginDisposition(config) !== 'compatibility';
 }
 
 /** Return true only for an explicitly enabled target persisted at the current contract version. */
@@ -577,6 +603,10 @@ export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConf
         canonical.targets = orderTargetsConfig(config.targets);
     }
 
+    if (config.agentPlugins !== undefined) {
+        canonical.agentPlugins = orderAgentPluginsConfig(config.agentPlugins);
+    }
+
     return canonical;
 }
 
@@ -592,6 +622,9 @@ function buildRestOfConfig(
         profiles: orderProfiles(profiles) ?? {},
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
         ...(config.targets !== undefined ? { targets: orderTargetsConfig(config.targets) } : {}),
+        ...(config.agentPlugins !== undefined
+            ? { agentPlugins: orderAgentPluginsConfig(config.agentPlugins) }
+            : {}),
         ...(config.capabilityOverrides !== undefined
             ? { capabilityOverrides: cloneJson(config.capabilityOverrides) }
             : {}),

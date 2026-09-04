@@ -70,7 +70,7 @@ metaflow apply                 # skip drifted files
 metaflow apply --force         # overwrite drifted files
 ```
 
-With compatibility version 5 and `targets.pi.enabled: true`, `apply` also
+With compatibility version 6 and `targets.pi.enabled: true`, `apply` also
 reconciles one skills-only `.pi/plugins/<original-plugin-name>` package per
 active portable source plugin. Pi target drift and untracked content always
 fail closed; `--force` does not override that

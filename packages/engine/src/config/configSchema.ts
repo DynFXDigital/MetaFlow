@@ -153,6 +153,28 @@ export interface MetaFlowTargetsConfig {
     pi?: PiTargetConfig;
 }
 
+/** Agent Plugins standard version supported by this MetaFlow release. */
+export type AgentPluginStandardVersion = '1.0.0';
+
+/**
+ * Repository policy for Agent Plugins standard adoption.
+ *
+ * This is intentionally independent from automatic maintenance, injection,
+ * and target enablement.
+ */
+export type AgentPluginDisposition =
+    | 'compatibility'
+    | 'prefer-standard'
+    | 'audit-standard';
+
+/** Repository-level Agent Plugins authoring and audit policy. */
+export interface AgentPluginsConfig {
+    /** Standard contract used for authoring, projection, and diagnostics. */
+    targetVersion?: AgentPluginStandardVersion;
+    /** Compatibility/defaulting and diagnostic posture. */
+    disposition?: AgentPluginDisposition;
+}
+
 // ── Top-level config ───────────────────────────────────────────────
 
 /**
@@ -203,6 +225,8 @@ export interface MetaFlowConfig {
     synchronization?: SynchronizationConfig;
     /** Explicitly enabled project-local output targets. */
     targets?: MetaFlowTargetsConfig;
+    /** Agent Plugins standard adoption policy. */
+    agentPlugins?: AgentPluginsConfig;
 }
 
 // ── Validation result ──────────────────────────────────────────────

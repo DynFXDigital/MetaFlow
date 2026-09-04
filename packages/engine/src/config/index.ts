@@ -22,8 +22,11 @@ export {
 } from './configPathUtils';
 export {
     CURRENT_CONFIG_COMPATIBILITY_VERSION,
+    DEFAULT_AGENT_PLUGIN_DISPOSITION,
     isPiTargetEnabled,
     normalizeConfigShape,
+    prefersAgentPluginsStandard,
+    resolveAgentPluginDisposition,
     toAuthoredConfig,
 } from './configNormalization';
 export type {
@@ -42,6 +45,9 @@ export type {
     SynchronizationConfig,
     PiTargetConfig,
     MetaFlowTargetsConfig,
+    AgentPluginDisposition,
+    AgentPluginStandardVersion,
+    AgentPluginsConfig,
     ConfigError,
     ConfigLoadResult,
 } from './configSchema';

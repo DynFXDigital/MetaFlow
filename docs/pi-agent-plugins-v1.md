@@ -25,12 +25,12 @@ not generate `.pi/mcp.json`; MCP projection remains outside this release.
 
 ## Enable the target
 
-Use compatibility version 5 and explicitly enable the Pi target in the project
+Use compatibility version 6 and explicitly enable the Pi target in the project
 configuration:
 
 ```jsonc
 {
-    "compatibilityVersion": 5,
+    "compatibilityVersion": 6,
     "metadataRepos": [{ "id": "primary", "localPath": "../my-ai-metadata" }],
     "layerSources": [{ "repoId": "primary", "path": "company/core" }],
     "profiles": {
@@ -120,7 +120,7 @@ non-portable where applicable. MetaFlow never mutates global Pi state.
 ## Troubleshooting
 
 - No packages after Preview: Preview never writes. Run Apply after confirming the
-  config uses compatibility version 5 and the Pi target is explicitly enabled.
+  config uses compatibility version 6 and the Pi target is explicitly enabled.
 - No skill in Pi: confirm `pi-agent-plugins` is installed, the project is trusted,
   and the capability is selected by the active profile. Use `/plugin list` or
   `/plugin doctor`, then `/plugin reload` after changing generated content.

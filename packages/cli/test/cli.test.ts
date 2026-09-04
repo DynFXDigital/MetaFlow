@@ -93,7 +93,7 @@ describe('CLI: init', () => {
         assert.ok(fs.existsSync(configPath), '.metaflow/config.jsonc should exist');
 
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        assert.strictEqual(config.compatibilityVersion, 5);
+        assert.strictEqual(config.compatibilityVersion, 6);
         assert.strictEqual(config.targets, undefined);
         assert.ok(config.metadataRepos, 'config should have metadataRepos');
         assert.strictEqual(config.metadataRepos[0].capabilities, undefined);
@@ -509,7 +509,7 @@ describe('CLI: apply', () => {
         const persisted = JSON.parse(
             fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
         );
-        assert.strictEqual(persisted.compatibilityVersion, 5);
+        assert.strictEqual(persisted.compatibilityVersion, 6);
         assert.strictEqual(persisted.synchronization?.repoWideCopilotInstructions, true);
     });
 
@@ -1262,7 +1262,7 @@ describe('CLI: validate', () => {
     it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 5,
+                compatibilityVersion: 6,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {
@@ -2003,7 +2003,7 @@ describe('CLI: watch', () => {
                     const persisted = JSON.parse(
                         fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
                     );
-                    assert.strictEqual(persisted.compatibilityVersion, 5);
+                    assert.strictEqual(persisted.compatibilityVersion, 6);
                     done();
                 } catch (error) {
                     done(error);
@@ -2442,7 +2442,7 @@ describe('CLI: promote --auto', () => {
     it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 5,
+                compatibilityVersion: 6,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {
