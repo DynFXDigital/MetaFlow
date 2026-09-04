@@ -33,11 +33,7 @@ export type AgentMetadataActivation =
     | 'unknown';
 
 export type AgentMetadataScope =
-    | 'plugin'
-    | 'repository'
-    | 'directory-or-file-pattern'
-    | 'host-defined'
-    | 'unknown';
+    'plugin' | 'repository' | 'directory-or-file-pattern' | 'host-defined' | 'unknown';
 
 export type AgentMetadataStandardCoverage =
     | 'portable'
@@ -47,17 +43,10 @@ export type AgentMetadataStandardCoverage =
     | 'invalid'
     | 'not-applicable';
 
-export type AgentMetadataVendorDependency =
-    | 'none'
-    | 'github-copilot'
-    | 'other-host'
-    | 'unknown';
+export type AgentMetadataVendorDependency = 'none' | 'github-copilot' | 'other-host' | 'unknown';
 
 export type AgentMetadataMigrationLoss =
-    | 'none'
-    | 'semantic-review'
-    | 'known-loss'
-    | 'not-applicable';
+    'none' | 'semantic-review' | 'known-loss' | 'not-applicable';
 
 export type AgentMetadataStandardConstruct = 'skill' | 'mcp';
 
@@ -96,9 +85,7 @@ export interface AgentMetadataConformanceReport {
 }
 
 export type AgentMetadataMigrationDecision =
-    | 'keep-vendor'
-    | 'add-standard-alongside'
-    | 'replace-with-disclosed-loss';
+    'keep-vendor' | 'add-standard-alongside' | 'replace-with-disclosed-loss';
 
 export interface AgentMetadataMigrationCandidate {
     readonly id: string;
@@ -187,10 +174,9 @@ export function projectAgentPluginV1Path(relativePath: string): string | undefin
     return undefined;
 }
 
-function semanticShape(kind: AgentMetadataArtifactKind): Pick<
-    AgentMetadataSemanticClassification,
-    'activation' | 'scope'
-> {
+function semanticShape(
+    kind: AgentMetadataArtifactKind,
+): Pick<AgentMetadataSemanticClassification, 'activation' | 'scope'> {
     switch (kind) {
         case 'manifest':
             return { activation: 'package', scope: 'plugin' };
@@ -316,12 +302,11 @@ export function classifyAgentMetadataPath(
         artifactKind,
         ...shape,
         standardCoverage,
-        vendorDependency:
-            portable
-                ? 'none'
-                : inCopilotExtension || githubPath || artifactKind !== 'mcp'
-                  ? 'github-copilot'
-                  : 'none',
+        vendorDependency: portable
+            ? 'none'
+            : inCopilotExtension || githubPath || artifactKind !== 'mcp'
+              ? 'github-copilot'
+              : 'none',
         migrationLoss,
         ...(projectedV1Path !== undefined ? { projectedV1Path } : {}),
         ...(['prompt', 'command'].includes(artifactKind)
@@ -392,15 +377,14 @@ function diagnosticForClassification(
 function summarize(
     classifications: readonly AgentMetadataSemanticClassification[],
 ): AgentMetadataConformanceSummary {
-    const included = classifications.filter(
-        (entry) => entry.standardCoverage !== 'not-applicable',
-    );
+    const included = classifications.filter((entry) => entry.standardCoverage !== 'not-applicable');
     const count = (coverage: AgentMetadataStandardCoverage): number =>
         included.filter((entry) => entry.standardCoverage === coverage).length;
     const portable = count('portable');
     const clientExtensions = count('client-extension');
     const total = included.length;
-    const percent = (value: number): number => (total === 0 ? 100 : Math.round((value * 100) / total));
+    const percent = (value: number): number =>
+        total === 0 ? 100 : Math.round((value * 100) / total);
     return {
         total,
         portable,
@@ -415,6 +399,10 @@ function summarize(
 
 function classificationIdentity(entry: AgentMetadataSemanticClassification): string {
     return `${entry.layerId ?? ''}\u0000${entry.sourcePath}`;
+}
+
+function migrationCandidateId(entry: AgentMetadataSemanticClassification): string {
+    return `${entry.layerId ?? 'unscoped'}::${entry.sourcePath}`;
 }
 
 /** Audit resolved source layers while preserving every source artifact. */
@@ -514,7 +502,7 @@ export function planAgentMetadataMigration(
                 entry.standardCoverage === 'no-equivalent',
         )
         .map((classification) => ({
-            id: classificationIdentity(classification),
+            id: migrationCandidateId(classification),
             classification,
             allowedDecisions: [
                 'keep-vendor',

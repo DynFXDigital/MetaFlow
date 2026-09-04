@@ -1,9 +1,11 @@
 import { Command } from 'commander';
 import {
+    auditAgentMetadataConformance,
     checkAllDrift,
     loadManagedState,
     planSynchronization,
     withReadOnlyRootSynchronizationAuthorization,
+    resolveAgentPluginDisposition,
 } from '@metaflow/engine';
 import type { RootSynchronizationAuthorization } from '@metaflow/engine';
 import {
@@ -37,6 +39,10 @@ export function registerValidateCommand(program: Command): void {
                     const resolved = resolveWorkspaceArtifacts(config, workspaceRoot);
                     const files = resolved.effectiveFiles;
                     const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
+                    const agentPlugins = auditAgentMetadataConformance(
+                        resolved.layers,
+                        resolveAgentPluginDisposition(config),
+                    );
                     const piDiagnostics = formatPiTargetDiagnostics(piPlan);
                     const piValid =
                         !piPlan.blocked &&
@@ -118,6 +124,7 @@ export function registerValidateCommand(program: Command): void {
                                 pendingChanges: piPlan.changes,
                                 diagnostics: piPlan.diagnostics,
                             },
+                            agentPlugins,
                         };
                         console.log(JSON.stringify(data, null, 2));
                     } else {
@@ -165,6 +172,19 @@ export function registerValidateCommand(program: Command): void {
                                 for (const change of piPlan.changes) {
                                     console.log(`    - ${change.action} ${change.relativePath}`);
                                 }
+                            }
+                        }
+                        if (agentPlugins.disposition === 'audit-standard') {
+                            console.log(
+                                `Agent Plugins v1: ${agentPlugins.summary.standardConformancePercent}% conformant, ${agentPlugins.summary.portablePercent}% portable.`,
+                            );
+                            for (const diagnostic of agentPlugins.diagnostics) {
+                                const location = diagnostic.filePath
+                                    ? ` [${diagnostic.filePath}]`
+                                    : '';
+                                console.log(
+                                    `  ! ${diagnostic.code}: ${diagnostic.message}${location}`,
+                                );
                             }
                         }
                     }

@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import packageMetadata from '../package.json';
 import { registerApplyCommand } from './commands/apply';
+import { registerAgentPluginsCommand } from './commands/agentPlugins';
 import { registerCleanCommand } from './commands/clean';
 import { registerInitCommand } from './commands/init';
 import { registerPreviewCommand } from './commands/preview';
@@ -24,6 +25,7 @@ export function createProgram(): Command {
         .option('-w, --workspace <path>', 'Workspace root directory', process.cwd());
 
     registerStatusCommand(program);
+    registerAgentPluginsCommand(program);
     registerPreviewCommand(program);
     registerApplyCommand(program);
     registerCleanCommand(program);

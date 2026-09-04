@@ -1090,6 +1090,9 @@ describe('CLI: --json output', () => {
         assert.strictEqual(data.synchronization.repoWideCopilotInstructions, false);
         assert.strictEqual(data.synchronization.migrationRequired, false);
         assert.ok(Array.isArray(data.synchronization.retained));
+        assert.strictEqual(data.agentPlugins.disposition, 'compatibility');
+        assert.ok(typeof data.agentPlugins.summary.standardConformancePercent === 'number');
+        assert.ok(typeof data.agentPlugins.summary.portablePercent === 'number');
         assert.ok(typeof data.files.total === 'number');
         assert.ok(typeof data.files.settings === 'number');
         assert.ok(typeof data.files.synchronized === 'number');
@@ -1114,6 +1117,164 @@ describe('CLI: --json output', () => {
         assert.ok(first.relativePath);
         assert.ok(first.classification);
         assert.ok(first.sourceLayer);
+    });
+});
+
+// ── Agent Plugins conformance ─────────────────────────────────────
+
+describe('CLI: Agent Plugins conformance', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    const conformanceLayers = {
+        'company/core': [
+            {
+                relativePath: 'skills/portable/SKILL.md',
+                content: '---\nname: portable\ndescription: Portable workflow\n---\n\n# Portable\n',
+            },
+            {
+                relativePath: '.github/skills/legacy/SKILL.md',
+                content:
+                    '---\nname: legacy\ndescription: Legacy packaged workflow\n---\n\n# Legacy\n',
+            },
+            {
+                relativePath: '.github/prompts/review.prompt.md',
+                content: '# Review prompt\n',
+            },
+        ],
+    };
+
+    it('reports audit diagnostics and conformance scores as JSON', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.disposition, 'audit-standard');
+        assert.deepStrictEqual(report.summary, {
+            total: 3,
+            portable: 1,
+            clientExtensions: 0,
+            legacyHost: 1,
+            noEquivalent: 1,
+            invalid: 0,
+            standardConformancePercent: 33,
+            portablePercent: 33,
+        });
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE',
+            ),
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) => entry.code === 'AGENT_METADATA_NO_STANDARD_EQUIVALENT',
+            ),
+        );
+    });
+
+    it('keeps prefer-standard quiet while retaining the same semantic report', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'prefer-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.disposition, 'prefer-standard');
+        assert.strictEqual(report.summary.standardConformancePercent, 33);
+        assert.deepStrictEqual(report.diagnostics, []);
+    });
+
+    it('requires explicit migration decisions and never writes source metadata', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+        const promptPath = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            '.github',
+            'prompts',
+            'review.prompt.md',
+        );
+        const before = fs.readFileSync(promptPath, 'utf-8');
+
+        const pending = await runCli(['agent-plugins', 'plan-migration', '--json', '-w', ws.root]);
+        assert.strictEqual(pending.exitCode, 0);
+        const pendingPlan = JSON.parse(pending.stdout);
+        assert.strictEqual(pendingPlan.blocked, true);
+        assert.strictEqual(pendingPlan.candidates.length, 2);
+        assert.strictEqual(pendingPlan.unresolvedCandidateIds.length, 2);
+        assert.deepStrictEqual(pendingPlan.operations, []);
+
+        const decisionArgs = pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+            '--decision',
+            `${candidate.id}=keep-vendor`,
+        ]);
+        const decided = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...decisionArgs,
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(decided.exitCode, 0);
+        const decidedPlan = JSON.parse(decided.stdout);
+        assert.strictEqual(decidedPlan.blocked, false);
+        assert.strictEqual(decidedPlan.operations.length, 2);
+        assert.ok(
+            decidedPlan.operations.every(
+                (operation: { decision: string; action: string }) =>
+                    operation.decision === 'keep-vendor' && operation.action === 'keep',
+            ),
+        );
+        assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), before);
+        assert.strictEqual(fs.existsSync(path.join(ws.root, 'com.github.copilot')), false);
+    });
+
+    it('surfaces audit warnings during validate without failing an otherwise clean workspace', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const result = await runCli(['validate', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Agent Plugins v1:'));
+        assert.ok(result.stdout.includes('AGENT_METADATA_NO_STANDARD_EQUIVALENT'));
     });
 });
 
@@ -1153,6 +1314,7 @@ describe('CLI: error handling', () => {
         assert.ok(result.stdout.includes('apply'));
         assert.ok(result.stdout.includes('clean'));
         assert.ok(result.stdout.includes('validate'));
+        assert.ok(result.stdout.includes('agent-plugins'));
     });
 
     it('should show version', async () => {
@@ -1232,6 +1394,8 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
+        assert.strictEqual(data.agentPlugins.disposition, 'compatibility');
+        assert.ok(Array.isArray(data.agentPlugins.classifications));
     });
 
     it('validate --json shows drift details', async () => {

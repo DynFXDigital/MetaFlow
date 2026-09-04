@@ -1,9 +1,11 @@
 import { Command } from 'commander';
 import {
+    auditAgentMetadataConformance,
     checkDrift,
     computeSettingsEntries,
     loadManagedState,
     resolveLayers,
+    resolveAgentPluginDisposition,
 } from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
@@ -102,6 +104,10 @@ export function registerStatusCommand(program: Command): void {
                     : [];
             const files = resolveEffectiveFiles(config, workspaceRoot);
             const layers = resolveLayers(config, workspaceRoot);
+            const agentPlugins = auditAgentMetadataConformance(
+                layers,
+                resolveAgentPluginDisposition(config),
+            );
             const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
             const warnings = formatSurfacedConflictWarnings(conflicts);
             const settings = files.filter((f) => f.classification === 'settings').length;
@@ -162,6 +168,7 @@ export function registerStatusCommand(program: Command): void {
                         migrationRequired: loaded.migrationRequired === true,
                         retained,
                     },
+                    agentPlugins,
                     sources,
                     files: { total: files.length, settings, synchronized },
                 };
@@ -224,6 +231,16 @@ export function registerStatusCommand(program: Command): void {
             }
 
             console.log(`Profile: ${config.activeProfile ?? '(none)'}`);
+            console.log(
+                `Agent Plugins: ${agentPlugins.disposition}, ${agentPlugins.summary.standardConformancePercent}% v1-conformant, ${agentPlugins.summary.portablePercent}% portable`,
+            );
+            if (agentPlugins.diagnostics.length > 0) {
+                console.log(`Agent Plugins warnings: ${agentPlugins.diagnostics.length}`);
+                for (const diagnostic of agentPlugins.diagnostics) {
+                    const location = diagnostic.filePath ? ` [${diagnostic.filePath}]` : '';
+                    console.log(`  ! ${diagnostic.code}: ${diagnostic.message}${location}`);
+                }
+            }
             console.log(
                 `Synchronization: repo-wide copilot instructions=${repoWideCopilotInstructions ? 'enabled' : 'disabled'}${loaded.migrationRequired ? ' (migration required)' : ''}`,
             );
