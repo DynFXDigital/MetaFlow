@@ -374,27 +374,13 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(capabilityDetailsPanel);
 
     // Register commands (wires engine + synchronization pipeline)
-    registerCommands(context, state, diagnosticCollection, capabilityDetailsPanel);
+    const { scheduleRefresh } = registerCommands(
+        context,
+        state,
+        diagnosticCollection,
+        capabilityDetailsPanel,
+    );
     syncNativeContributionContext(state);
-
-    let scheduledRefreshHandle: ReturnType<typeof setTimeout> | undefined;
-    const scheduleRefresh = (): void => {
-        if (scheduledRefreshHandle !== undefined) {
-            clearTimeout(scheduledRefreshHandle);
-        }
-        scheduledRefreshHandle = setTimeout(() => {
-            scheduledRefreshHandle = undefined;
-            void vscode.commands.executeCommand('metaflow.refresh');
-        }, 200);
-    };
-    context.subscriptions.push({
-        dispose: () => {
-            if (scheduledRefreshHandle !== undefined) {
-                clearTimeout(scheduledRefreshHandle);
-                scheduledRefreshHandle = undefined;
-            }
-        },
-    });
 
     registerDiagnosticsTool(
         context,

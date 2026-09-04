@@ -5491,6 +5491,14 @@ suite('Command Execution', function () {
                 '.tmp-empty-existing-init-config',
             );
             assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.id,
+                '.tmp-empty-existing-init-config',
+            );
+            assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.name,
+                '.tmp-empty-existing-init-config',
+            );
+            assert.strictEqual(
                 path.normalize(updatedConfig.metadataRepos?.[0]?.localPath ?? ''),
                 path.normalize(path.relative(workspaceRoot, repoPath)),
             );

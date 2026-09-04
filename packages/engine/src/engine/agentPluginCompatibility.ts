@@ -164,7 +164,7 @@ function compareCodeUnits(left: string, right: string): number {
 
 function isInside(rootPath: string, targetPath: string): boolean {
     const relative = path.relative(rootPath, targetPath);
-    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 function realPath(pathToResolve: string): string {
@@ -473,19 +473,29 @@ function inspectSkills(
     const skills: AgentPluginSkillInventory[] = [];
     for (const entry of entries.sort((left, right) => compareCodeUnits(left.name, right.name))) {
         const candidatePath = path.join(realSkillsPath, entry.name);
-        let stat: fs.Stats;
+        let realCandidatePath: string;
         try {
-            stat = fs.statSync(candidatePath);
-        } catch {
-            continue;
-        }
-        if (!stat.isDirectory()) {
+            realCandidatePath = realPath(candidatePath);
+            if (!isInside(rootPath, realCandidatePath)) {
+                throw new Error('skill directory resolves outside the plugin root');
+            }
+            if (!fs.statSync(realCandidatePath).isDirectory()) {
+                continue;
+            }
+        } catch (error) {
+            diagnostics.push(
+                diagnostic(
+                    'AGENT_PLUGIN_SKILL_PATH_INVALID',
+                    `Skill "${entry.name}" was skipped: ${(error as Error).message}`,
+                    candidatePath,
+                ),
+            );
             continue;
         }
         let hasExactSkillFile = false;
         try {
             hasExactSkillFile = fs
-                .readdirSync(candidatePath, { withFileTypes: true })
+                .readdirSync(realCandidatePath, { withFileTypes: true })
                 .some((child) => child.name === 'SKILL.md');
         } catch {
             continue;
@@ -493,7 +503,7 @@ function inspectSkills(
         if (!hasExactSkillFile) {
             continue;
         }
-        const skillPath = path.join(candidatePath, 'SKILL.md');
+        const skillPath = path.join(realCandidatePath, 'SKILL.md');
         if (!hasFileSystemEntry(skillPath)) {
             continue;
         }
@@ -591,11 +601,16 @@ function validateCwd(rootPath: string, value: string): boolean {
     } else if (value === '${PLUGIN_DATA}' || value.startsWith('${PLUGIN_DATA}/')) {
         const suffix = value.slice('${PLUGIN_DATA}'.length).replace(/^\//, '');
         const portableSuffix = suffix.replace(/\\/g, '/');
+        const normalizedSuffix = path.posix.normalize(portableSuffix);
+        // The data directory is client-owned and unavailable during package inspection.
+        // Check lexical containment here; an executing client must also resolve filesystem links.
         return (
-            !portableSuffix.split('/').some((segment) => segment === '..') &&
+            normalizedSuffix !== '..' &&
+            !normalizedSuffix.startsWith('../') &&
             !path.posix.isAbsolute(portableSuffix) &&
             !path.win32.isAbsolute(suffix) &&
-            !/^[A-Za-z]:/.test(suffix)
+            !/^[A-Za-z]:/.test(suffix) &&
+            !/^[A-Za-z]:/.test(normalizedSuffix)
         );
     } else {
         return false;

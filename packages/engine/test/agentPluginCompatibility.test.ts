@@ -231,6 +231,225 @@ describe('inspectAgentPluginPackage', () => {
         assert.ok(result.diagnostics.some((entry) => entry.code === 'AGENT_PLUGIN_SKILL_INVALID'));
     });
 
+    it('rejects outside-root skill directories before stat or enumeration, including chained links', () => {
+        writeManifest(rootPath, {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: 'skills-plugin',
+        });
+        writeFixture(rootPath, 'skills/valid-skill/SKILL.md', skill('valid-skill'));
+        const outside = fs.mkdtempSync(`${rootPath}-outside-`);
+        const nativeFs: typeof fs = require('fs');
+        const originalStat = nativeFs.statSync;
+        const originalReadDir = nativeFs.readdirSync;
+        const originalReadFile = nativeFs.readFileSync;
+        const outsideAccesses: string[] = [];
+        try {
+            writeFixture(outside, 'SKILL.md', skill('escape'));
+            const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+            const directLink = path.join(rootPath, 'skills', 'escape');
+            fs.symlinkSync(outside, directLink, linkType);
+            fs.symlinkSync(directLink, path.join(rootPath, 'skills', 'chained'), linkType);
+            const emptyOutside = path.join(outside, 'empty');
+            fs.mkdirSync(emptyOutside);
+            fs.symlinkSync(emptyOutside, path.join(rootPath, 'skills', 'empty'), linkType);
+            const realOutside = fs.realpathSync.native(outside);
+            const recordAccess = (operation: string, target: fs.PathLike | number): void => {
+                if (typeof target === 'number') {
+                    return;
+                }
+                const resolved = fs.realpathSync.native(target);
+                const relative = path.relative(realOutside, resolved);
+                if (
+                    relative === '' ||
+                    (relative !== '..' &&
+                        !relative.startsWith(`..${path.sep}`) &&
+                        !path.isAbsolute(relative))
+                ) {
+                    outsideAccesses.push(`${operation}: ${String(target)}`);
+                }
+            };
+            nativeFs.statSync = new Proxy(originalStat, {
+                apply(target, thisArg, args) {
+                    recordAccess('stat', args[0]);
+                    return Reflect.apply(target, thisArg, args);
+                },
+            });
+            nativeFs.readdirSync = new Proxy(originalReadDir, {
+                apply(target, thisArg, args) {
+                    recordAccess('readdir', args[0]);
+                    return Reflect.apply(target, thisArg, args);
+                },
+            });
+            nativeFs.readFileSync = new Proxy(originalReadFile, {
+                apply(target, thisArg, args) {
+                    recordAccess('readFile', args[0]);
+                    return Reflect.apply(target, thisArg, args);
+                },
+            });
+
+            const result = inspectAgentPluginPackage(rootPath);
+
+            assert.deepStrictEqual(outsideAccesses, [], 'outside directories must not be accessed');
+            assert.deepStrictEqual(
+                result.skills.map((entry) => entry.name),
+                ['valid-skill'],
+            );
+            assert.strictEqual(
+                result.diagnostics.filter(
+                    (entry) => entry.code === 'AGENT_PLUGIN_SKILL_PATH_INVALID',
+                ).length,
+                3,
+            );
+        } finally {
+            nativeFs.statSync = originalStat;
+            nativeFs.readdirSync = originalReadDir;
+            nativeFs.readFileSync = originalReadFile;
+            fs.rmSync(outside, { recursive: true, force: true });
+        }
+    });
+
+    it('accepts contained skill directory links and ignores non-directory siblings', () => {
+        writeManifest(rootPath, {
+            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+            name: 'skills-plugin',
+        });
+        const target = writeFixture(rootPath, '..cache/SKILL.md', skill('linked-skill'));
+        fs.mkdirSync(path.join(rootPath, 'skills'));
+        fs.symlinkSync(
+            path.dirname(target),
+            path.join(rootPath, 'skills', 'linked-skill'),
+            process.platform === 'win32' ? 'junction' : 'dir',
+        );
+        writeFixture(rootPath, 'skills/README.md', 'Not a skill directory.');
+
+        const result = inspectAgentPluginPackage(rootPath);
+
+        assert.deepStrictEqual(
+            result.skills.map((entry) => entry.name),
+            ['linked-skill'],
+        );
+        assert.strictEqual(result.skills[0].skillPath, fs.realpathSync.native(target));
+        assert.deepStrictEqual(result.diagnostics, []);
+    });
+
+    it('accepts contained dot-prefixed MCP command and cwd paths', () => {
+        writeManifest(rootPath, { $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, name: 'mcp-plugin' });
+        writeFixture(rootPath, '..cache/server', 'fixture');
+        for (const config of [
+            { command: './..cache/server', cwd: './..cache' },
+            { command: './..missing/server', cwd: '${PLUGIN_ROOT}/..missing/work' },
+            { command: 'node', cwd: '${PLUGIN_ROOT}/..cache' },
+            { command: './..cache/../..cache/server', cwd: '${PLUGIN_ROOT}' },
+        ]) {
+            writeFixture(
+                rootPath,
+                'mcp.json',
+                JSON.stringify({
+                    $schema: AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
+                    mcpServers: { candidate: { type: 'stdio', ...config } },
+                }),
+            );
+            const result = inspectAgentPluginPackage(rootPath);
+            assert.deepStrictEqual(
+                result.mcpServers.map((entry) => entry.name),
+                ['candidate'],
+                JSON.stringify(config),
+            );
+            assert.deepStrictEqual(result.diagnostics, []);
+        }
+    });
+
+    it('rejects parent escapes and linked escapes in MCP command and cwd paths', () => {
+        writeManifest(rootPath, { $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, name: 'mcp-plugin' });
+        const outside = fs.mkdtempSync(`${rootPath}-outside-`);
+        try {
+            fs.symlinkSync(
+                outside,
+                path.join(rootPath, '..linked'),
+                process.platform === 'win32' ? 'junction' : 'dir',
+            );
+            for (const config of [
+                { command: './../server' },
+                { command: './..linked/missing/server' },
+                { command: 'node', cwd: './..' },
+                { command: 'node', cwd: '${PLUGIN_ROOT}/../escape' },
+                { command: 'node', cwd: '${PLUGIN_ROOT}/..linked/missing' },
+            ]) {
+                writeFixture(
+                    rootPath,
+                    'mcp.json',
+                    JSON.stringify({
+                        $schema: AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
+                        mcpServers: { candidate: { type: 'stdio', ...config } },
+                    }),
+                );
+                const result = inspectAgentPluginPackage(rootPath);
+                assert.deepStrictEqual(result.mcpServers, [], JSON.stringify(config));
+                assert.ok(
+                    result.diagnostics.some(
+                        (entry) => entry.code === 'AGENT_PLUGIN_MCP_SERVER_INVALID',
+                    ),
+                );
+            }
+        } finally {
+            fs.rmSync(outside, { recursive: true, force: true });
+        }
+    });
+
+    it('accepts lexically contained PLUGIN_DATA cwd paths after normalization', () => {
+        writeManifest(rootPath, { $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, name: 'mcp-plugin' });
+        for (const cwd of [
+            '${PLUGIN_DATA}',
+            '${PLUGIN_DATA}/cache/../work',
+            '${PLUGIN_DATA}/cache/..',
+            '${PLUGIN_DATA}/cache\\..\\work',
+        ]) {
+            writeFixture(
+                rootPath,
+                'mcp.json',
+                JSON.stringify({
+                    $schema: AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
+                    mcpServers: { candidate: { type: 'stdio', command: 'node', cwd } },
+                }),
+            );
+            const result = inspectAgentPluginPackage(rootPath);
+            assert.deepStrictEqual(
+                result.mcpServers.map((entry) => entry.name),
+                ['candidate'],
+                cwd,
+            );
+        }
+    });
+
+    it('rejects escaping and absolute PLUGIN_DATA cwd suffixes after normalization', () => {
+        writeManifest(rootPath, { $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, name: 'mcp-plugin' });
+        for (const cwd of [
+            '${PLUGIN_DATA}/../escape',
+            '${PLUGIN_DATA}/cache/../../escape',
+            '${PLUGIN_DATA}/cache\\..\\..\\escape',
+            '${PLUGIN_DATA}//absolute',
+            '${PLUGIN_DATA}/C:/absolute',
+            '${PLUGIN_DATA}/cache/../C:relative',
+        ]) {
+            writeFixture(
+                rootPath,
+                'mcp.json',
+                JSON.stringify({
+                    $schema: AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
+                    mcpServers: { candidate: { type: 'stdio', command: 'node', cwd } },
+                }),
+            );
+            const result = inspectAgentPluginPackage(rootPath);
+            assert.deepStrictEqual(result.mcpServers, [], cwd);
+            assert.ok(
+                result.diagnostics.some(
+                    (entry) => entry.code === 'AGENT_PLUGIN_MCP_SERVER_INVALID',
+                ),
+                cwd,
+            );
+        }
+    });
+
     it('isolates invalid MCP entries and disables MCP only for a version mismatch', () => {
         writeManifest(rootPath, { $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID, name: 'mcp-plugin' });
         writeFixture(rootPath, 'skills/valid-skill/SKILL.md', skill('valid-skill'));

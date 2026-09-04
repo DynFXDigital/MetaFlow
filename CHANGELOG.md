@@ -4,6 +4,24 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.7
+
+### Added
+
+- Add standards-backed Agent Plugins and Agent Skills authoring guidance with pinned specification, schema, and license references.
+- Recognize strict Agent Plugins v1 packages and report compatibility diagnostics without treating host-specific plugin layouts as portable packages.
+
+### Changed
+
+- Preserve recognized Agent Plugins v1 packages during metadata maintenance, including valid components and non-fatal standard diagnostics.
+- Keep portable plugin identities separate from human-readable display names and prefer stable repository labels and identities over incidental local folder names.
+- Coalesce background refreshes with explicit requests so maintenance-skipping refreshes retain their policy until explicit maintenance is requested, while GUI completion waits for the complete refresh batch.
+
+### Fixed
+
+- Validate skill directories and filesystem-resolved package paths before inspection so outside-root links cannot be enumerated as package content.
+- Derive new repository identifiers and display names from Git URLs or selected directories while preserving legacy migration identities.
+
 ## 0.4.6
 
 ### Added

@@ -5703,7 +5703,7 @@ export function registerCommands(
     state: ExtensionState,
     diagnosticCollection: vscode.DiagnosticCollection,
     capabilityDetailsPanel: CapabilityDetailsPanelManager,
-): void {
+): { scheduleRefresh(): void } {
     const extensionDisplayName = getExtensionDisplayName(context);
     const activePluginInjectionUpgradeOffers = new Set<string>();
 
@@ -6528,25 +6528,24 @@ export function registerCommands(
 
     const refreshCoordinator = createRefreshCoordinator<RefreshCommandOptions>({
         execute: runRefresh,
-        merge: mergeRefreshCommandOptions,
-    });
-    context.subscriptions.push({ dispose: () => refreshCoordinator.dispose() });
-    context.subscriptions.push(
-        vscode.commands.registerCommand('metaflow.refresh', async (arg?: unknown) => {
+        onSettled: () => {
             const commandWorkspace = getWorkspace();
             const commandGuiTestMode = commandWorkspace
                 ? vscode.workspace
                       .getConfiguration('metaflow', commandWorkspace.uri)
                       .get<boolean>('guiTestMode', false)
                 : false;
-            try {
-                await refreshCoordinator.request(extractRefreshCommandOptions(arg));
-            } finally {
-                if (commandGuiTestMode && commandWorkspace) {
-                    writeGuiTestCompletionToken(commandWorkspace.uri.fsPath, 'refresh');
-                }
+            if (commandGuiTestMode && commandWorkspace) {
+                writeGuiTestCompletionToken(commandWorkspace.uri.fsPath, 'refresh');
             }
-        }),
+        },
+        merge: mergeRefreshCommandOptions,
+    });
+    context.subscriptions.push({ dispose: () => refreshCoordinator.dispose() });
+    context.subscriptions.push(
+        vscode.commands.registerCommand('metaflow.refresh', (arg?: unknown) =>
+            refreshCoordinator.request(extractRefreshCommandOptions(arg)),
+        ),
     );
 
     // ── metaflow.preview ───────────────────────────────────────────
@@ -9788,4 +9787,5 @@ export function registerCommands(
             };
         }),
     );
+    return { scheduleRefresh: () => refreshCoordinator.schedule({}) };
 }
