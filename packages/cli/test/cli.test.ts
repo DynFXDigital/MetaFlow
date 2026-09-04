@@ -1253,6 +1253,16 @@ describe('CLI: Agent Plugins conformance', () => {
                     entry.code === 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
             ),
         );
+
+        const humanReport = await runCli(['agent-plugins', 'report', '-w', ws.root]);
+        assert.strictEqual(humanReport.exitCode, 0);
+        assert.match(humanReport.stdout, /\[ERROR\] AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID:/);
+        assert.match(humanReport.stdout, /\[WARNING\] AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE:/);
+
+        const humanStatus = await runCli(['status', '-w', ws.root]);
+        assert.strictEqual(humanStatus.exitCode, 0);
+        assert.ok(humanStatus.stdout.includes('Agent Plugins diagnostics:'));
+        assert.match(humanStatus.stdout, /\[ERROR\] AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID:/);
     });
 
     it('keeps prefer-standard quiet while retaining the same semantic report', async () => {
@@ -1531,7 +1541,7 @@ describe('CLI: Agent Plugins conformance', () => {
 
         assert.strictEqual(result.exitCode, 0);
         assert.ok(result.stdout.includes('Agent Plugins v1:'));
-        assert.ok(result.stdout.includes('AGENT_METADATA_NO_STANDARD_EQUIVALENT'));
+        assert.ok(result.stdout.includes('[WARNING] AGENT_METADATA_NO_STANDARD_EQUIVALENT:'));
     });
 });
 

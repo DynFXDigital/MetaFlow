@@ -15,6 +15,7 @@ import {
     resolveEffectiveFiles,
     resolveSurfacedFileConflicts,
 } from './common';
+import { formatAgentPluginDiagnostic } from './agentPlugins';
 
 const DEFAULT_INJECTION_MODE = {
     instructions: 'plugin',
@@ -236,10 +237,9 @@ export function registerStatusCommand(program: Command): void {
                 `Agent Plugins: ${agentPlugins.disposition}, ${agentPlugins.summary.standardConformancePercent}% v1-conformant, ${agentPlugins.summary.portablePercent}% portable`,
             );
             if (agentPlugins.diagnostics.length > 0) {
-                console.log(`Agent Plugins warnings: ${agentPlugins.diagnostics.length}`);
+                console.log(`Agent Plugins diagnostics: ${agentPlugins.diagnostics.length}`);
                 for (const diagnostic of agentPlugins.diagnostics) {
-                    const location = diagnostic.filePath ? ` [${diagnostic.filePath}]` : '';
-                    console.log(`  ! ${diagnostic.code}: ${diagnostic.message}${location}`);
+                    console.log(`  ${formatAgentPluginDiagnostic(diagnostic)}`);
                 }
             }
             console.log(

@@ -51,6 +51,18 @@ function loadReport(program: Command) {
     };
 }
 
+/** Preserve conformance severity in every human-readable CLI surface. */
+export function formatAgentPluginDiagnostic(diagnostic: {
+    code: string;
+    message: string;
+    filePath?: string;
+    severity?: 'error' | 'warning' | 'info';
+}): string {
+    const severity = (diagnostic.severity ?? 'warning').toUpperCase();
+    const location = diagnostic.filePath ? ` [${diagnostic.filePath}]` : '';
+    return `[${severity}] ${diagnostic.code}: ${diagnostic.message}${location}`;
+}
+
 function printReport(report: ReturnType<typeof auditAgentMetadataConformance>): void {
     console.log(`Disposition: ${report.disposition}`);
     console.log(
@@ -60,8 +72,7 @@ function printReport(report: ReturnType<typeof auditAgentMetadataConformance>): 
     if (report.diagnostics.length > 0) {
         console.log(`Diagnostics: ${report.diagnostics.length}`);
         for (const diagnostic of report.diagnostics) {
-            const location = diagnostic.filePath ? ` [${diagnostic.filePath}]` : '';
-            console.log(`  ! ${diagnostic.code}: ${diagnostic.message}${location}`);
+            console.log(`  ${formatAgentPluginDiagnostic(diagnostic)}`);
         }
     }
 }

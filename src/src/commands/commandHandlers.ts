@@ -7156,13 +7156,13 @@ export function registerCommands(
                         {
                             label: 'Prefer Agent Plugins v1',
                             description: current === 'prefer-standard' ? 'Current' : undefined,
-                            detail: 'Prefer portable Skills and MCP for new lossless metadata; do not emit conformance warnings.',
+                            detail: 'Prefer portable Skills and MCP for new lossless metadata; do not emit conformance diagnostics.',
                             disposition: 'prefer-standard',
                         },
                         {
                             label: 'Audit Agent Plugins v1',
                             description: current === 'audit-standard' ? 'Current' : undefined,
-                            detail: 'Use standard-first authoring guidance and warn about nonportable or incompatible metadata.',
+                            detail: 'Use standard-first authoring guidance and report nonportable or incompatible metadata with severity.',
                             disposition: 'audit-standard',
                         },
                     ];

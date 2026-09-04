@@ -22,11 +22,11 @@ Agent Plugins configuration requires compatibility version 6:
 `targetVersion` is optional and currently accepts only `1.0.0`. An omitted disposition resolves
 to `compatibility`.
 
-| Disposition       | New lossless metadata                                             | Existing and host-only metadata | Conformance warnings |
-| ----------------- | ----------------------------------------------------------------- | ------------------------------- | -------------------- |
-| `compatibility`   | Legacy GitHub Copilot packaging remains the default               | Preserved                       | No                   |
-| `prefer-standard` | Prefer Skills, MCP, and strict v1 packaging when losslessly valid | Preserved                       | No                   |
-| `audit-standard`  | Same standard-first preference as `prefer-standard`               | Preserved                       | Yes                  |
+| Disposition       | New lossless metadata                                             | Existing and host-only metadata | Conformance diagnostics |
+| ----------------- | ----------------------------------------------------------------- | ------------------------------- | ----------------------- |
+| `compatibility`   | Legacy GitHub Copilot packaging remains the default               | Preserved                       | No                      |
+| `prefer-standard` | Prefer Skills, MCP, and strict v1 packaging when losslessly valid | Preserved                       | No                      |
+| `audit-standard`  | Same standard-first preference as `prefer-standard`               | Preserved                       | Yes                     |
 
 Use `MetaFlow: Set Agent Plugins v1 Disposition` to update the repository configuration from VS
 Code. The config file remains the source of truth; there is no independent VS Code setting for

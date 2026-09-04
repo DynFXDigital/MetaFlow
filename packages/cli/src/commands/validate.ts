@@ -17,6 +17,7 @@ import {
     resolvePiTargetPlan,
     resolveWorkspaceArtifacts,
 } from './common';
+import { formatAgentPluginDiagnostic } from './agentPlugins';
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -181,12 +182,7 @@ export function registerValidateCommand(program: Command): void {
                                 `Agent Plugins v1: ${agentPlugins.summary.standardConformancePercent}% conformant, ${agentPlugins.summary.portablePercent}% portable.`,
                             );
                             for (const diagnostic of agentPlugins.diagnostics) {
-                                const location = diagnostic.filePath
-                                    ? ` [${diagnostic.filePath}]`
-                                    : '';
-                                console.log(
-                                    `  ! ${diagnostic.code}: ${diagnostic.message}${location}`,
-                                );
+                                console.log(`  ${formatAgentPluginDiagnostic(diagnostic)}`);
                             }
                         }
                     }
