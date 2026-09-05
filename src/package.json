@@ -1068,9 +1068,9 @@
   "scripts": {
     "vscode:prepublish": "npm run bundle",
     "precompile": "npm -C ../packages/engine run build",
-    "compile": "tsc -p ./",
+    "compile": "node ../node_modules/@typescript/native/bin/tsc -p ./",
     "build": "npm run compile && node esbuild.js",
-    "watch": "tsc -watch -p ./",
+    "watch": "node ../node_modules/@typescript/native/bin/tsc -watch -p ./",
     "bundle": "npm run precompile && node esbuild.js --production",
     "bundle:dev": "npm run precompile && node esbuild.js",
     "watch:esbuild": "npm run precompile && node esbuild.js --watch",
@@ -1087,7 +1087,7 @@
     "test:integration": "npm run gate:integration",
     "test:coverage": "npm run compile && node ../scripts/coverage.mjs --script out/test/runTest.js --include \"out/**\" --exclude \"out/test/**\" --reporter text --reporter lcov",
     "test:coverage:unit": "npm run compile && node ../scripts/coverage.mjs --script out/test/runTest.js --script-arg --unit --include \"out/**\" --exclude \"out/test/**\" --reporter text",
-    "typecheck": "tsc -p . --noEmit",
+    "typecheck": "node ../node_modules/@typescript/native/bin/tsc -p . --noEmit",
     "package": "vsce package --no-dependencies",
     "package:gui": "vsce package --no-dependencies -o metaflow-test.vsix",
     "prepackage:stable": "node -e \"require('fs').mkdirSync('artifacts',{recursive:true})\"",
@@ -1122,7 +1122,6 @@
     "glob": "^13.0.6",
     "minimatch": "^10.2.5",
     "mocha": "^11.7.5",
-    "typescript": "^5.3.2",
     "vscode-extension-tester": "^8.23.0"
   }
 }
