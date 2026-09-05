@@ -235,7 +235,7 @@ suite('synchronization engine', () => {
         fs.writeFileSync(
             configPath,
             JSON.stringify({
-                compatibilityVersion: 4,
+                compatibilityVersion: 6,
                 metadataRepo: { localPath: 'source' },
                 synchronization: { repoWideCopilotInstructions: true },
             }),

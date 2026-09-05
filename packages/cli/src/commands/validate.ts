@@ -1,12 +1,23 @@
 import { Command } from 'commander';
 import {
+    auditAgentMetadataConformance,
     checkAllDrift,
     loadManagedState,
     planSynchronization,
-    withRootSynchronizationAuthorization,
+    projectConfigForAgentMetadataAudit,
+    resolveLayers,
+    withReadOnlyRootSynchronizationAuthorization,
+    resolveAgentPluginDisposition,
 } from '@metaflow/engine';
 import type { RootSynchronizationAuthorization } from '@metaflow/engine';
-import { getWorkspaceRoot, loadConfigOrExit, resolveEffectiveFiles } from './common';
+import {
+    formatPiTargetDiagnostics,
+    getWorkspaceRoot,
+    loadConfigOrExit,
+    resolvePiTargetPlan,
+    resolveWorkspaceArtifacts,
+} from './common';
+import { formatAgentPluginDiagnostic } from './agentPlugins';
 
 export function registerValidateCommand(program: Command): void {
     program
@@ -25,16 +36,28 @@ export function registerValidateCommand(program: Command): void {
                 const validateWithConfig = (
                     config: typeof loaded.config,
                     authorization?: RootSynchronizationAuthorization,
+                    migrationRequired = loaded.migrationRequired,
                 ) => {
                     // Resolve expected overlay state
-                    const files = resolveEffectiveFiles(config, workspaceRoot);
+                    const resolved = resolveWorkspaceArtifacts(config, workspaceRoot);
+                    const files = resolved.effectiveFiles;
+                    const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
+                    const agentPlugins = auditAgentMetadataConformance(
+                        resolveLayers(projectConfigForAgentMetadataAudit(config), workspaceRoot),
+                        resolveAgentPluginDisposition(config),
+                    );
+                    const piDiagnostics = formatPiTargetDiagnostics(piPlan);
+                    const piValid =
+                        !piPlan.blocked &&
+                        piPlan.changes.length === 0 &&
+                        piPlan.stateAction === 'none';
                     const plan = planSynchronization({
                         workspaceRoot,
                         effectiveFiles: files,
                         fileNamingStrategy: config.fileNamingStrategy,
                         layerSources: config.layerSources,
                         synchronizationPolicy:
-                            !loaded.migrationRequired &&
+                            !migrationRequired &&
                             config.synchronization?.repoWideCopilotInstructions === true,
                         rootSynchronizationAuthorization: authorization,
                         rootSynchronizationConfigPath: loaded.configPath,
@@ -53,7 +76,7 @@ export function registerValidateCommand(program: Command): void {
                     const missing = drift.filter((d) => d.status === 'missing');
                     const retained = plan.retainedFiles;
                     const rootPolicyDisabled =
-                        loaded.migrationRequired ||
+                        migrationRequired ||
                         config.synchronization?.repoWideCopilotInstructions !== true;
                     const relevantDrift = rootPolicyDisabled
                         ? drift.filter((d) => d.relativePath !== 'copilot-instructions.md')
@@ -76,7 +99,8 @@ export function registerValidateCommand(program: Command): void {
                         relevantDrifted.length === 0 &&
                         relevantMissing.length === 0 &&
                         unmanaged.length === 0 &&
-                        stale.length === 0;
+                        stale.length === 0 &&
+                        piValid;
 
                     if (options.json) {
                         const data = {
@@ -89,12 +113,21 @@ export function registerValidateCommand(program: Command): void {
                                 retained: retained.length,
                                 unmanaged: unmanaged.length,
                                 stale: stale.length,
+                                piPending: piPlan.changes.length,
                             },
                             drifted: relevantDrifted.map((d) => d.relativePath),
                             missing: relevantMissing.map((d) => d.relativePath),
                             retained,
                             unmanaged,
                             stale,
+                            piTarget: {
+                                valid: piValid,
+                                blocked: piPlan.blocked,
+                                stateAction: piPlan.stateAction,
+                                pendingChanges: piPlan.changes,
+                                diagnostics: piPlan.diagnostics,
+                            },
+                            agentPlugins,
                         };
                         console.log(JSON.stringify(data, null, 2));
                     } else {
@@ -132,6 +165,25 @@ export function registerValidateCommand(program: Command): void {
                                     console.log(`    - ${f}`);
                                 }
                             }
+                            if (!piValid) {
+                                console.log(
+                                    `  Pi target requires reconciliation (${piPlan.changes.length} pending change(s), state ${piPlan.stateAction}):`,
+                                );
+                                for (const diagnostic of piDiagnostics) {
+                                    console.log(`    - ${diagnostic}`);
+                                }
+                                for (const change of piPlan.changes) {
+                                    console.log(`    - ${change.action} ${change.relativePath}`);
+                                }
+                            }
+                        }
+                        if (agentPlugins.disposition === 'audit-standard') {
+                            console.log(
+                                `Agent Plugins v1: ${agentPlugins.summary.standardConformancePercent}% conformant, ${agentPlugins.summary.portablePercent}% portable.`,
+                            );
+                            for (const diagnostic of agentPlugins.diagnostics) {
+                                console.log(`  ${formatAgentPluginDiagnostic(diagnostic)}`);
+                            }
                         }
                     }
 
@@ -141,12 +193,21 @@ export function registerValidateCommand(program: Command): void {
                 };
 
                 if (loaded.migrationRequired) {
+                    if (loaded.config.synchronization?.repoWideCopilotInstructions === true) {
+                        throw new Error(
+                            'Configuration migration is required before repository-wide Copilot instruction synchronization can be validated; run metaflow apply first.',
+                        );
+                    }
                     validateWithConfig(loaded.config);
                 } else {
-                    withRootSynchronizationAuthorization(
+                    withReadOnlyRootSynchronizationAuthorization(
                         loaded.configPath,
                         (authorization, attested) => {
-                            validateWithConfig(attested.config, authorization);
+                            validateWithConfig(
+                                attested.config,
+                                authorization,
+                                attested.migrationRequired === true,
+                            );
                         },
                     );
                 }

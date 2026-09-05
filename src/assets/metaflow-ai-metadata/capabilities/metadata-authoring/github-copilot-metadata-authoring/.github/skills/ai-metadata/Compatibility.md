@@ -3,7 +3,7 @@
 Use this file to check host differences before claiming that metadata is portable. Matching
 filenames do not guarantee matching behavior.
 
-Last reviewed: 2026-07-23
+Last reviewed: 2026-09-03
 
 ## Custom instructions
 
@@ -56,13 +56,18 @@ Sources: [GitHub about agent skills](https://docs.github.com/en/copilot/concepts
 Sources: [VS Code agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins), [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)
 
 - VS Code checks `.plugin/plugin.json`, root `plugin.json`, `.github/plugin/plugin.json`, then
-  `.claude-plugin/plugin.json`; the first match selects the format and its path semantics.
-- OpenPlugin supplies `${PLUGIN_ROOT}`, Claude format supplies `${CLAUDE_PLUGIN_ROOT}`, and VS Code
-  supplies no plugin-root token for root Copilot format.
-- OpenPlugin and Claude default to `hooks/hooks.json`; root Copilot format uses root `hooks.json`.
-  Honor an explicit `hooks` manifest field when present.
-- Copilot CLI's exported plugin-root environment variables are runtime and shell-specific. Do not
-  infer cross-host hook interpolation from `${PLUGIN_ROOT}` support in Copilot LSP fields.
+  `.claude-plugin/plugin.json`; the first match selects the format and its path semantics. A root
+  manifest with the canonical Agent Plugins 1.0 `$schema` selects strict v1; a root manifest
+  without it remains legacy Copilot.
+- Agent Plugins v1 and OpenPlugin use `${PLUGIN_ROOT}`; Claude uses
+  `${CLAUDE_PLUGIN_ROOT}`; legacy Copilot supports `${PLUGIN_ROOT}` or
+  `${CLAUDE_PLUGIN_ROOT}` in VS Code. Copilot CLI also exports plugin-root environment aliases,
+  whose direct shell syntax is host-specific.
+- Agent Plugins v1 Copilot hooks use `com.github.copilot/hooks/hooks.json`; OpenPlugin and Claude
+  use `hooks/hooks.json`; legacy Copilot uses root `hooks.json`. These paths are not
+  interchangeable.
+- Keep legacy Copilot/OpenPlugin packages and strict-v1 packages as independently validated
+  outputs. An `.plugin/plugin.json` shim in a strict-v1 output prevents VS Code from selecting v1.
 - Hook commands run from session/repository working directories unless `cwd` says otherwise.
   Resolve bundled plugin scripts from the selected format's root contract and validate the emitted
   package tree.

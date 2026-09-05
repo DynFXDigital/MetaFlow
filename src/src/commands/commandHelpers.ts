@@ -1,12 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+    CURRENT_CONFIG_COMPATIBILITY_VERSION,
     isMarketplaceRepositoryRoot,
     loadManagedState,
     saveManagedState,
     resolvePathFromWorkspace,
 } from '@metaflow/engine';
 import type {
+    AgentPluginDisposition,
     LayerSource,
     MetaFlowConfig,
     ProfileConfig,
@@ -52,6 +54,12 @@ export interface ManagedViewsState {
 }
 
 export const DEFAULT_PROFILE_ID = 'default';
+
+export const AGENT_PLUGIN_DISPOSITIONS: readonly AgentPluginDisposition[] = [
+    'compatibility',
+    'prefer-standard',
+    'audit-standard',
+];
 
 function toSlug(value: string): string {
     const trimmed = value.trim().replace(/\/$/, '').toLowerCase();
@@ -128,7 +136,10 @@ export function ensureMultiRepoConfig(config: MetaFlowConfig): {
             })),
             ...Array.from(references)
                 .filter((reference) => reference.startsWith(`${repo.id}:`))
-                .map((reference) => ({ repoId: repo.id, path: reference.slice(repo.id.length + 1) })),
+                .map((reference) => ({
+                    repoId: repo.id,
+                    path: reference.slice(repo.id.length + 1),
+                })),
         ]);
 
         return {
@@ -714,6 +725,25 @@ export function writeManagedViewsState(
 
 export function normalizeAiMetadataAutoApplyMode(value: unknown): AiMetadataAutoApplyMode {
     return value === true;
+}
+
+export function isAgentPluginDisposition(value: unknown): value is AgentPluginDisposition {
+    return AGENT_PLUGIN_DISPOSITIONS.includes(value as AgentPluginDisposition);
+}
+
+/** Return a current-contract config with an explicit repository conformance policy. */
+export function withAgentPluginDisposition(
+    config: MetaFlowConfig,
+    disposition: AgentPluginDisposition,
+): MetaFlowConfig {
+    return {
+        ...config,
+        compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
+        agentPlugins: {
+            targetVersion: '1.0.0',
+            disposition,
+        },
+    };
 }
 
 /**

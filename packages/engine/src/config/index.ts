@@ -1,7 +1,9 @@
 export { loadConfig, loadConfigFromPath, parseAndValidate, validateConfig } from './configLoader';
 export {
+    persistCurrentCompatibilityConfig,
     persistCompatibilityV4Config,
     withRootSynchronizationAuthorization,
+    withReadOnlyRootSynchronizationAuthorization,
     isRootSynchronizationAuthorizationActive,
 } from './configMigration';
 export {
@@ -20,7 +22,11 @@ export {
 } from './configPathUtils';
 export {
     CURRENT_CONFIG_COMPATIBILITY_VERSION,
+    DEFAULT_AGENT_PLUGIN_DISPOSITION,
+    isPiTargetEnabled,
     normalizeConfigShape,
+    prefersAgentPluginsStandard,
+    resolveAgentPluginDisposition,
     toAuthoredConfig,
 } from './configNormalization';
 export type {
@@ -37,6 +43,11 @@ export type {
     SettingsInjectionTarget,
     HooksConfig,
     SynchronizationConfig,
+    PiTargetConfig,
+    MetaFlowTargetsConfig,
+    AgentPluginDisposition,
+    AgentPluginStandardVersion,
+    AgentPluginsConfig,
     ConfigError,
     ConfigLoadResult,
 } from './configSchema';

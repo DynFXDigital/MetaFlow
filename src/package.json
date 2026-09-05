@@ -186,6 +186,11 @@
         "icon": "$(info)"
       },
       {
+        "command": "metaflow.setAgentPluginDisposition",
+        "title": "MetaFlow: Set Agent Plugins v1 Disposition",
+        "icon": "$(shield)"
+      },
+      {
         "command": "metaflow.switchProfile",
         "title": "MetaFlow: Switch Profile",
         "icon": "$(symbol-enum)"
@@ -582,14 +587,19 @@
           "group": "navigation@1"
         },
         {
+          "command": "metaflow.setAgentPluginDisposition",
+          "when": "view == metaflow-config && metaflow.hasConfig",
+          "group": "navigation@2"
+        },
+        {
           "command": "metaflow.refresh",
           "when": "view == metaflow-config",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "metaflow.initMetaFlowAiMetadata",
           "when": "view == metaflow-config && !metaflow.capabilityInstalled",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "metaflow.toggleFilesViewMode",

@@ -10,6 +10,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 import { BUILT_IN_CAPABILITY_REPO_ID } from '../../builtInCapability';
+import {
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+    CURRENT_CONFIG_COMPATIBILITY_VERSION,
+} from '@metaflow/engine';
 
 const INTEGRATION_STARTUP_TIMEOUT_MS = 90000;
 const COMPLEX_COMMAND_TEST_TIMEOUT_MS = process.env.CI ? 60000 : 30000;
@@ -42,6 +46,20 @@ suite('Command Execution', function () {
 
         removeDirectoryRecursive(path.join(workspaceRoot, '.ai', 'manifest-open-repo'));
         removeDirectoryRecursive(path.join(workspaceRoot, '.github', 'skills', 'naming-strategy'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'pi.smoke'));
+        removeDirectoryRecursive(path.join(workspaceRoot, '.pi', 'plugins', 'pi-test-neighbor'));
+        for (const relativePath of [
+            '.pi/mcp.json',
+            '.metaflow/pi-target-state.json',
+            '.metaflow/pi-target.lock',
+            '.metaflow/pi-target-transaction.json',
+        ]) {
+            const artifactPath = path.join(workspaceRoot, ...relativePath.split('/'));
+            if (fs.existsSync(artifactPath)) {
+                fs.unlinkSync(artifactPath);
+            }
+        }
     }
 
     async function restoreCommandTestWorkspace(): Promise<void> {
@@ -58,8 +76,17 @@ suite('Command Execution', function () {
     ): Promise<void> {
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-            if (await predicate()) {
-                return;
+            try {
+                if (await predicate()) {
+                    return;
+                }
+            } catch (error) {
+                // Config persistence can expose a transient truncated JSON snapshot on
+                // slower filesystems. A polling assertion should observe the completed
+                // write instead of treating that intermediate byte state as final.
+                if (!(error instanceof SyntaxError)) {
+                    throw error;
+                }
             }
             await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
@@ -1167,7 +1194,7 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(migratedConfig.compatibilityVersion, 4);
+            assert.strictEqual(migratedConfig.compatibilityVersion, 6);
             assert.ok(
                 migratedConfig.metadataRepos?.length,
                 'Legacy config should be migrated to metadataRepos',
@@ -1245,7 +1272,7 @@ suite('Command Execution', function () {
                 const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                 };
-                return migratedConfig.compatibilityVersion === 4;
+                return migratedConfig.compatibilityVersion === CURRENT_CONFIG_COMPATIBILITY_VERSION;
             }, 10000);
 
             const migratedConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
@@ -1256,7 +1283,7 @@ suite('Command Execution', function () {
 
             assert.strictEqual(
                 migratedConfig.compatibilityVersion,
-                4,
+                CURRENT_CONFIG_COMPATIBILITY_VERSION,
                 'Refresh should persist the current compatibilityVersion for released configs',
             );
             assert.strictEqual(migratedConfig.metadataRepos?.[0]?.capabilities, undefined);
@@ -1813,6 +1840,187 @@ suite('Command Execution', function () {
                 fs.unlinkSync(copilotSettingsPath);
             }
             removeDirectoryRecursive(repoRoot);
+            await vscode.commands.executeCommand('metaflow.refresh');
+        }
+    });
+
+    test('Pi target preview, apply, status, and clean share the active resolved capability view', async function () {
+        this.timeout(20000);
+
+        const configPath = getWorkspaceConfigPath();
+        const originalConfig = fs.readFileSync(configPath, 'utf-8');
+        const repoRoot = path.join(workspaceRoot, '.tmp-pi-agent-plugin-repo');
+        const capabilityPath = 'capabilities/pi-smoke';
+        const capabilityRoot = path.join(repoRoot, ...capabilityPath.split('/'));
+        const targetRoot = path.join(workspaceRoot, '.pi', 'plugins', 'pi.smoke');
+        const targetState = path.join(workspaceRoot, '.metaflow', 'pi-target-state.json');
+        const neighboringPlugin = path.join(
+            workspaceRoot,
+            '.pi',
+            'plugins',
+            'pi-test-neighbor',
+            'plugin.json',
+        );
+        const mcpPath = path.join(workspaceRoot, '.pi', 'mcp.json');
+        const wsFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(wsFolder, 'Workspace folder should be available');
+        const metaflowConfig = vscode.workspace.getConfiguration('metaflow', wsFolder!.uri);
+        const originalAutoApply = metaflowConfig.inspect<boolean>('autoApply')?.workspaceValue;
+        const windowAny = vscode.window as unknown as {
+            showWarningMessage: (...items: unknown[]) => Thenable<string | undefined>;
+            showErrorMessage: (...items: unknown[]) => Thenable<string | undefined>;
+        };
+        const originalWarning = windowAny.showWarningMessage;
+        const originalError = windowAny.showErrorMessage;
+        const errorMessages: string[] = [];
+
+        removeDirectoryRecursive(repoRoot);
+        fs.mkdirSync(path.join(capabilityRoot, 'skills', 'portable'), { recursive: true });
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'plugin.json'),
+            JSON.stringify(
+                {
+                    $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                    name: 'pi.smoke',
+                },
+                null,
+                2,
+            ) + '\n',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(capabilityRoot, 'skills', 'portable', 'SKILL.md'),
+            '---\nname: portable\ndescription: Portable Pi smoke skill\n---\n\n# Portable\n',
+            'utf-8',
+        );
+
+        try {
+            await updateConfigAndWait(
+                'metaflow.autoApply',
+                false,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            fs.writeFileSync(
+                configPath,
+                JSON.stringify(
+                    {
+                        compatibilityVersion: 6,
+                        metadataRepos: [
+                            {
+                                id: 'pi-test',
+                                localPath: '.tmp-pi-agent-plugin-repo',
+                                enabled: true,
+                            },
+                        ],
+                        layerSources: [{ repoId: 'pi-test', path: capabilityPath, enabled: true }],
+                        profiles: {
+                            default: {
+                                enabledCapabilities: [`pi-test:${capabilityPath}`],
+                            },
+                        },
+                        activeProfile: 'default',
+                        injection: {
+                            instructions: 'settings',
+                            prompts: 'settings',
+                            skills: 'synchronize',
+                            agents: 'settings',
+                        },
+                        targets: { pi: { enabled: true } },
+                    },
+                    null,
+                    2,
+                ),
+                'utf-8',
+            );
+
+            await vscode.commands.executeCommand('metaflow.refresh');
+            // Let the watcher refresh queued by the fixture write settle before
+            // exercising lifecycle commands against the loaded target state.
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            await vscode.commands.executeCommand('metaflow.refresh', { skipAutoApply: true });
+            assert.strictEqual(fs.existsSync(targetRoot), false, 'refresh should only plan');
+            await vscode.commands.executeCommand('metaflow.preview');
+            assert.strictEqual(fs.existsSync(targetRoot), false, 'preview should remain read-only');
+
+            const pendingStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(pendingStatus?.some((line) => line === 'Pi Target: enabled'));
+            assert.ok(
+                pendingStatus?.some((line) => line.includes('Pi Target Pending: 2 file change(s)')),
+            );
+
+            fs.mkdirSync(targetRoot, { recursive: true });
+            fs.writeFileSync(path.join(targetRoot, 'plugin.json'), 'user package\n', 'utf-8');
+            const blockedStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                blockedStatus?.some(
+                    (line) => line.includes('Pi Target Pending:') && line.includes('blocked'),
+                ),
+            );
+            assert.ok(blockedStatus?.some((line) => line.includes('PI_TARGET_ROOT_UNTRACKED')));
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(
+                fs.readFileSync(path.join(targetRoot, 'plugin.json'), 'utf-8'),
+                'user package\n',
+            );
+            assert.strictEqual(fs.existsSync(targetState), false);
+            removeDirectoryRecursive(targetRoot);
+
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.existsSync(path.join(targetRoot, 'plugin.json')), true);
+            const generatedSkill = path.join(targetRoot, 'skills', 'portable', 'SKILL.md');
+            assert.strictEqual(fs.existsSync(generatedSkill), true);
+            assert.strictEqual(fs.existsSync(targetState), true);
+            const generatedSkillContent = fs.readFileSync(generatedSkill, 'utf-8');
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.readFileSync(generatedSkill, 'utf-8'), generatedSkillContent);
+            const appliedStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                appliedStatus?.some((line) => line.includes('Pi Target Pending: 0 file change(s)')),
+            );
+
+            fs.writeFileSync(generatedSkill, 'user edit\n', 'utf-8');
+            const driftStatus = (await vscode.commands.executeCommand('metaflow.status')) as
+                string[] | undefined;
+            assert.ok(
+                driftStatus?.some(
+                    (line) => line.includes('Pi Target Pending:') && line.includes('blocked'),
+                ),
+            );
+            assert.ok(driftStatus?.some((line) => line.includes('PI_TARGET_DRIFT')));
+            await vscode.commands.executeCommand('metaflow.apply');
+            assert.strictEqual(fs.readFileSync(generatedSkill, 'utf-8'), 'user edit\n');
+            fs.writeFileSync(generatedSkill, generatedSkillContent, 'utf-8');
+
+            fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+            fs.writeFileSync(neighboringPlugin, 'neighbor\n', 'utf-8');
+            fs.writeFileSync(mcpPath, 'user mcp\n', 'utf-8');
+            windowAny.showWarningMessage = async () => 'Remove';
+            windowAny.showErrorMessage = async (message: unknown) => {
+                errorMessages.push(String(message));
+                return undefined;
+            };
+            await vscode.commands.executeCommand('metaflow.clean');
+
+            assert.deepStrictEqual(errorMessages, []);
+            assert.strictEqual(fs.existsSync(targetRoot), false);
+            assert.strictEqual(fs.existsSync(targetState), false);
+            assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf-8'), 'neighbor\n');
+            assert.strictEqual(fs.readFileSync(mcpPath, 'utf-8'), 'user mcp\n');
+        } finally {
+            windowAny.showWarningMessage = originalWarning;
+            windowAny.showErrorMessage = originalError;
+            fs.writeFileSync(configPath, originalConfig, 'utf-8');
+            await updateConfigAndWait(
+                'metaflow.autoApply',
+                originalAutoApply,
+                vscode.ConfigurationTarget.Workspace,
+                wsFolder!,
+            );
+            removeKnownCommandTestArtifacts();
             await vscode.commands.executeCommand('metaflow.refresh');
         }
     });
@@ -5285,7 +5493,15 @@ suite('Command Execution', function () {
                 profiles?: Record<string, { enabledCapabilities?: string[] }>;
             };
 
-            assert.strictEqual(updatedConfig.compatibilityVersion, 4);
+            assert.strictEqual(updatedConfig.compatibilityVersion, 6);
+            assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.id,
+                '.tmp-empty-existing-init-config',
+            );
+            assert.strictEqual(
+                updatedConfig.metadataRepos?.[0]?.name,
+                '.tmp-empty-existing-init-config',
+            );
             assert.strictEqual(
                 updatedConfig.metadataRepos?.[0]?.id,
                 '.tmp-empty-existing-init-config',
@@ -6099,20 +6315,32 @@ suite('Command Execution', function () {
                 wsFolder!,
             );
             fs.writeFileSync(configPath, JSON.stringify(legacyConfig, null, 2), 'utf-8');
+            // Inspect the just-authored legacy fixture before yielding to the
+            // config watcher. The setting transition below is the operation
+            // under test and is responsible for persisting the migrated policy.
+            assert.strictEqual(
+                (
+                    JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+                        compatibilityVersion?: number;
+                    }
+                ).compatibilityVersion,
+                undefined,
+                'The fixture should remain migration-required before the checkbox transition',
+            );
+
             await updateConfigAndWait(
                 'metaflow.synchronization.repoWideCopilotInstructions',
                 true,
                 vscode.ConfigurationTarget.Workspace,
                 wsFolder!,
             );
-            await vscode.commands.executeCommand('metaflow.refresh');
             await waitFor(() => {
                 const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
                     compatibilityVersion?: number;
                     synchronization?: { repoWideCopilotInstructions?: boolean };
                 };
                 return (
-                    parsed.compatibilityVersion === 4 &&
+                    parsed.compatibilityVersion === 6 &&
                     parsed.synchronization?.repoWideCopilotInstructions === true
                 );
             });

@@ -42,6 +42,7 @@ const PLUGIN_CAPABLE_ARTIFACT_TYPES = new Set([
 ]);
 const REPO_WIDE_COPILOT_INSTRUCTIONS_PATH = 'copilot-instructions.md';
 const ROOT_PLUGIN_HOOK_CONFIGURATION_PATH = 'hooks.json';
+const COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX = 'com.github.copilot/';
 const AGENT_PLUGIN_MANIFEST_PATHS = new Set([
     'plugin.json',
     '.plugin/plugin.json',
@@ -143,6 +144,13 @@ export function classifySingle(
     }
 
     if (AGENT_PLUGIN_MANIFEST_PATHS.has(effectivePath)) {
+        return 'plugin';
+    }
+
+    // Agent Plugins v1 keeps Copilot-specific components under its
+    // reverse-domain extension namespace. These files must stay inside the
+    // registered plugin root regardless of repository injection overrides.
+    if (effectivePath.startsWith(COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX)) {
         return 'plugin';
     }
 

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs\"",
+        "powershell": "node \"$env:PLUGIN_ROOT/scripts/prompt-injection-guard.mjs\"",
+        "timeoutSec": 2
+      }
+    ]
+  }
+}

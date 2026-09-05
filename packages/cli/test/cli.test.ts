@@ -13,6 +13,7 @@ import { createTestWorkspace, runCli, standardConfig, TestWorkspace } from './he
 import { startWatch, WatchCycleResult } from '../src/commands/watch';
 import { promoteAuto } from '../src/commands/promote';
 import { execSync } from 'child_process';
+import { AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID } from '@metaflow/engine';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -27,6 +28,39 @@ const STANDARD_LAYERS = {
         { relativePath: 'prompts/review.prompt.md', content: '# Review Prompt\nReview the PR.' },
     ],
 };
+
+const PI_PLUGIN_LAYERS = {
+    'company/core': [
+        {
+            relativePath: 'plugin.json',
+            content: JSON.stringify({
+                $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                name: 'company.core',
+            }),
+        },
+        {
+            relativePath: 'skills/testing/SKILL.md',
+            content:
+                '---\nname: testing\ndescription: Test the current workspace\n---\n\n# Testing\n',
+        },
+    ],
+};
+
+function piConfig(overrides?: Partial<Record<string, unknown>>): Record<string, unknown> {
+    return standardConfig({ targets: { pi: { enabled: true } }, ...overrides });
+}
+
+function piTargetPath(root: string, relativePath = ''): string {
+    return path.join(root, '.pi', 'plugins', 'company.core', ...relativePath.split('/'));
+}
+
+function namedPiTargetPath(root: string, pluginName: string, relativePath = ''): string {
+    return path.join(root, '.pi', 'plugins', pluginName, ...relativePath.split('/'));
+}
+
+function piStatePath(root: string): string {
+    return path.join(root, '.metaflow', 'pi-target-state.json');
+}
 
 function synchronizedPath(relativePath: string, layer = 'company/core', repo = 'default'): string {
     const normalized = relativePath.replace(/\\/g, '/');
@@ -59,6 +93,8 @@ describe('CLI: init', () => {
         assert.ok(fs.existsSync(configPath), '.metaflow/config.jsonc should exist');
 
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        assert.strictEqual(config.compatibilityVersion, 6);
+        assert.strictEqual(config.targets, undefined);
         assert.ok(config.metadataRepos, 'config should have metadataRepos');
         assert.strictEqual(config.metadataRepos[0].capabilities, undefined);
         assert.deepStrictEqual(config.profiles?.default?.enabledCapabilities, []);
@@ -239,6 +275,61 @@ describe('CLI: preview', () => {
         assert.ok(result.stdout.includes('No files in overlay'));
     });
 
+    it('previews an enabled current-version root instruction without writing config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.ok(
+            data.pendingChanges.some(
+                (change: { relativePath: string }) =>
+                    change.relativePath === 'copilot-instructions.md',
+            ),
+        );
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
+    });
+
+    it('fails a stale root-enabled preview clearly without migrating config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['preview', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('Configuration migration is required'));
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
+    });
+
     it('should preserve original relative paths when fileNamingStrategy is original-unless-conflict', async () => {
         ws = createTestWorkspace({
             config: standardConfig({ fileNamingStrategy: 'original-unless-conflict' }),
@@ -395,6 +486,33 @@ describe('CLI: apply', () => {
         assert.ok(!fs.existsSync(instrPath), 'settings file should not be synchronized');
     });
 
+    it('migrates v4 and applies an existing root opt-in on the first invocation', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(fs.existsSync(path.join(ws.root, '.github', 'copilot-instructions.md')));
+        const persisted = JSON.parse(
+            fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
+        );
+        assert.strictEqual(persisted.compatibilityVersion, 6);
+        assert.strictEqual(persisted.synchronization?.repoWideCopilotInstructions, true);
+    });
+
     it('should create managed state after apply', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
@@ -447,6 +565,230 @@ describe('CLI: apply', () => {
         // The file should still exist and contain the original body
         const contentAfterSecond = fs.readFileSync(skillPath, 'utf-8');
         assert.ok(contentAfterSecond.includes('# Testing Skill'));
+    });
+});
+
+describe('CLI: Pi Agent Plugin target', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    it('previews an enabled package without writing target output', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+
+        const result = await runCli(['preview', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.piTarget.enabled, true);
+        assert.strictEqual(data.piTarget.blocked, false);
+        assert.deepStrictEqual(
+            data.piTarget.pendingChanges.map(
+                (entry: { relativePath: string }) => entry.relativePath,
+            ),
+            [
+                '.pi/plugins/company.core/plugin.json',
+                '.pi/plugins/company.core/skills/testing/SKILL.md',
+            ],
+        );
+        assert.strictEqual(data.piTarget.stateAction, 'write');
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+    });
+
+    it('applies idempotently and validates the strict generated package', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+
+        const first = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(first.exitCode, 0);
+        assert.ok(first.stdout.includes('pi write'));
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'plugin.json')), true);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'skills/testing/SKILL.md')), true);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), true);
+        assert.deepStrictEqual(fs.readdirSync(piTargetPath(ws.root)).sort(), [
+            'plugin.json',
+            'skills',
+        ]);
+
+        const second = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(second.exitCode, 0);
+        assert.ok(second.stdout.includes('Pi 0 written, 0 removed'));
+
+        const validated = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(validated.exitCode, 0);
+        const data = JSON.parse(validated.stdout);
+        assert.strictEqual(data.piTarget.valid, true);
+        assert.strictEqual(data.piTarget.stateAction, 'none');
+        assert.deepStrictEqual(data.piTarget.pendingChanges, []);
+    });
+
+    it('projects only capabilities selected by the active profile', async () => {
+        const duplicateSkill = (label: string) =>
+            `---\nname: testing\ndescription: ${label}\n---\n\n# ${label}\n`;
+        ws = createTestWorkspace({
+            config: piConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/inactive' },
+                ],
+                profiles: {
+                    default: { enabledCapabilities: ['primary:company/core'] },
+                    inactive: { enabledCapabilities: ['primary:company/inactive'] },
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                            name: 'company.core',
+                        }),
+                    },
+                    {
+                        relativePath: 'skills/testing/SKILL.md',
+                        content: duplicateSkill('Active skill'),
+                    },
+                ],
+                'company/inactive': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+                            name: 'company.inactive',
+                        }),
+                    },
+                    {
+                        relativePath: 'skills/testing/SKILL.md',
+                        content: duplicateSkill('Inactive skill'),
+                    },
+                ],
+            },
+        });
+
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        assert.ok(
+            fs
+                .readFileSync(piTargetPath(ws.root, 'skills/testing/SKILL.md'), 'utf8')
+                .includes('# Active skill'),
+        );
+
+        assert.strictEqual(
+            (await runCli(['profile', 'set', 'inactive', '-w', ws.root])).exitCode,
+            0,
+        );
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        assert.ok(
+            fs
+                .readFileSync(
+                    namedPiTargetPath(ws.root, 'company.inactive', 'skills/testing/SKILL.md'),
+                    'utf8',
+                )
+                .includes('# Inactive skill'),
+        );
+        assert.strictEqual(fs.existsSync(namedPiTargetPath(ws.root, 'company.core')), false);
+    });
+
+    it('removes stale skills, then disables only the managed package and ledger', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const sourceSkill = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            'skills',
+            'testing',
+            'SKILL.md',
+        );
+        fs.rmSync(sourceSkill);
+
+        const staleApply = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(staleApply.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'skills/testing/SKILL.md')), false);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root, 'plugin.json')), true);
+
+        const neighboringPlugin = path.join(ws.root, '.pi', 'plugins', 'neighbor', 'plugin.json');
+        const mcpPath = path.join(ws.root, '.pi', 'mcp.json');
+        fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+        fs.writeFileSync(neighboringPlugin, 'neighbor\n');
+        fs.writeFileSync(mcpPath, 'user mcp\n');
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        config.targets.pi.enabled = false;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+        const disabled = await runCli(['apply', '-w', ws.root]);
+        assert.strictEqual(disabled.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+        assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf8'), 'neighbor\n');
+        assert.strictEqual(fs.readFileSync(mcpPath, 'utf8'), 'user mcp\n');
+    });
+
+    it('blocks an untracked package before writing ordinary overlay output', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        fs.mkdirSync(piTargetPath(ws.root), { recursive: true });
+        fs.writeFileSync(piTargetPath(ws.root, 'plugin.json'), 'user package\n');
+
+        const result = await runCli(['apply', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        assert.ok(result.stderr.includes('PI_TARGET_ROOT_UNTRACKED'));
+        assert.strictEqual(
+            fs.readFileSync(piTargetPath(ws.root, 'plugin.json'), 'utf8'),
+            'user package\n',
+        );
+        assert.strictEqual(fs.existsSync(path.join(ws.root, '.github')), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+    });
+
+    it('reports target drift and blocks apply and clean without force override', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const generatedSkill = piTargetPath(ws.root, 'skills/testing/SKILL.md');
+        fs.writeFileSync(generatedSkill, 'user edit\n');
+        const synchronizedSkill = path.join(
+            ws.root,
+            '.github',
+            synchronizedPath('skills/testing/SKILL.md'),
+        );
+
+        const validated = await runCli(['validate', '--json', '-w', ws.root]);
+        assert.strictEqual(validated.exitCode, 1);
+        const data = JSON.parse(validated.stdout);
+        assert.strictEqual(data.piTarget.blocked, true);
+        assert.ok(
+            data.piTarget.diagnostics.some(
+                (entry: { code: string }) => entry.code === 'PI_TARGET_DRIFT',
+            ),
+        );
+
+        const reapplied = await runCli(['apply', '--force', '-w', ws.root]);
+        assert.strictEqual(reapplied.exitCode, 1);
+        assert.strictEqual(fs.readFileSync(generatedSkill, 'utf8'), 'user edit\n');
+
+        const cleaned = await runCli(['clean', '-w', ws.root]);
+        assert.strictEqual(cleaned.exitCode, 1);
+        assert.strictEqual(fs.readFileSync(generatedSkill, 'utf8'), 'user edit\n');
+        assert.strictEqual(fs.existsSync(synchronizedSkill), true);
+    });
+
+    it('clean removes managed Pi output while preserving unrelated .pi content', async () => {
+        ws = createTestWorkspace({ config: piConfig(), layers: PI_PLUGIN_LAYERS });
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const neighboringPlugin = path.join(ws.root, '.pi', 'plugins', 'neighbor', 'plugin.json');
+        const mcpPath = path.join(ws.root, '.pi', 'mcp.json');
+        fs.mkdirSync(path.dirname(neighboringPlugin), { recursive: true });
+        fs.writeFileSync(neighboringPlugin, 'neighbor\n');
+        fs.writeFileSync(mcpPath, 'user mcp\n');
+
+        const result = await runCli(['clean', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.strictEqual(fs.existsSync(piTargetPath(ws.root)), false);
+        assert.strictEqual(fs.existsSync(piStatePath(ws.root)), false);
+        assert.strictEqual(fs.readFileSync(neighboringPlugin, 'utf8'), 'neighbor\n');
+        assert.strictEqual(fs.readFileSync(mcpPath, 'utf8'), 'user mcp\n');
     });
 });
 
@@ -623,7 +965,7 @@ describe('CLI: profile', () => {
 
     it('should set active profile', async () => {
         ws = createTestWorkspace({
-            config: standardConfig(),
+            config: standardConfig({ targets: { pi: { enabled: true } } }),
             layers: STANDARD_LAYERS,
         });
 
@@ -636,6 +978,7 @@ describe('CLI: profile', () => {
         const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         assert.strictEqual(config.activeProfile, 'lean');
+        assert.deepStrictEqual(config.targets, { pi: { enabled: true } });
     });
 
     it('should reject unknown profile name', async () => {
@@ -745,8 +1088,11 @@ describe('CLI: --json output', () => {
         assert.ok(Array.isArray(data.injection.settingsEntries));
         assert.ok(Array.isArray(data.sources));
         assert.strictEqual(data.synchronization.repoWideCopilotInstructions, false);
-        assert.strictEqual(data.synchronization.migrationRequired, true);
+        assert.strictEqual(data.synchronization.migrationRequired, false);
         assert.ok(Array.isArray(data.synchronization.retained));
+        assert.strictEqual(data.agentPlugins.disposition, 'compatibility');
+        assert.ok(typeof data.agentPlugins.summary.standardConformancePercent === 'number');
+        assert.ok(typeof data.agentPlugins.summary.portablePercent === 'number');
         assert.ok(typeof data.files.total === 'number');
         assert.ok(typeof data.files.settings === 'number');
         assert.ok(typeof data.files.synchronized === 'number');
@@ -771,6 +1117,448 @@ describe('CLI: --json output', () => {
         assert.ok(first.relativePath);
         assert.ok(first.classification);
         assert.ok(first.sourceLayer);
+    });
+});
+
+// ── Agent Plugins conformance ─────────────────────────────────────
+
+describe('CLI: Agent Plugins conformance', () => {
+    let ws: TestWorkspace;
+
+    afterEach(() => ws?.cleanup());
+
+    const conformanceLayers = {
+        'company/core': [
+            {
+                relativePath: 'skills/portable/SKILL.md',
+                content: '---\nname: portable\ndescription: Portable workflow\n---\n\n# Portable\n',
+            },
+            {
+                relativePath: '.github/skills/legacy/SKILL.md',
+                content:
+                    '---\nname: legacy\ndescription: Legacy packaged workflow\n---\n\n# Legacy\n',
+            },
+            {
+                relativePath: '.github/prompts/review.prompt.md',
+                content: '# Review prompt\n',
+            },
+        ],
+    };
+
+    it('reports audit diagnostics and conformance scores as JSON', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.disposition, 'audit-standard');
+        assert.deepStrictEqual(report.summary, {
+            total: 3,
+            portable: 1,
+            clientExtensions: 0,
+            legacyHost: 1,
+            noEquivalent: 1,
+            invalid: 0,
+            standardConformancePercent: 33,
+            portablePercent: 33,
+        });
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_SAFE_RELOCATION_AVAILABLE',
+            ),
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) => entry.code === 'AGENT_METADATA_NO_STANDARD_EQUIVALENT',
+            ),
+        );
+    });
+
+    it('audits strict package control files, client extensions, and invalid components', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'plugin.json',
+                        content: JSON.stringify({
+                            $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                            name: 'strict-audit',
+                            extensions: { 'com.github.copilot': {} },
+                        }),
+                    },
+                    {
+                        relativePath: 'mcp.json',
+                        content: JSON.stringify({
+                            $schema: 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json',
+                            mcpServers: {},
+                        }),
+                    },
+                    {
+                        relativePath: 'com.github.copilot/prompts/review.prompt.md',
+                        content: '# Copilot prompt\n',
+                    },
+                    {
+                        relativePath: 'skills/broken/SKILL.md',
+                        content: '# Missing required frontmatter\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        const report = JSON.parse(result.stdout);
+        assert.deepStrictEqual(report.summary, {
+            total: 5,
+            portable: 2,
+            clientExtensions: 2,
+            legacyHost: 0,
+            noEquivalent: 0,
+            invalid: 1,
+            standardConformancePercent: 80,
+            portablePercent: 40,
+        });
+        assert.deepStrictEqual(
+            report.classifications.find(
+                (entry: { artifactKind: string }) => entry.artifactKind === 'client-extension',
+            ),
+            {
+                layerId: 'primary/company/core',
+                sourcePath: 'plugin.json#/extensions/com.github.copilot',
+                absolutePath: path.join(ws.metadataRepo, 'company', 'core', 'plugin.json'),
+                artifactKind: 'client-extension',
+                activation: 'unknown',
+                scope: 'host-defined',
+                standardCoverage: 'client-extension',
+                vendorDependency: 'github-copilot',
+                migrationLoss: 'none',
+                extensionNamespace: 'com.github.copilot',
+            },
+        );
+        assert.strictEqual(
+            report.diagnostics.find(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID',
+            )?.severity,
+            'error',
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE',
+            ),
+        );
+        assert.ok(
+            report.diagnostics.some(
+                (entry: { code: string }) =>
+                    entry.code === 'AGENT_PLUGIN_VENDOR_EXTENSION_NONPORTABLE',
+            ),
+        );
+
+        const humanReport = await runCli(['agent-plugins', 'report', '-w', ws.root]);
+        assert.strictEqual(humanReport.exitCode, 0);
+        assert.match(humanReport.stdout, /\[ERROR\] AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID:/);
+        assert.match(humanReport.stdout, /\[WARNING\] AGENT_PLUGIN_CLIENT_EXTENSION_NONPORTABLE:/);
+
+        const humanStatus = await runCli(['status', '-w', ws.root]);
+        assert.strictEqual(humanStatus.exitCode, 0);
+        assert.ok(humanStatus.stdout.includes('Agent Plugins diagnostics:'));
+        assert.match(humanStatus.stdout, /\[ERROR\] AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID:/);
+    });
+
+    it('keeps prefer-standard quiet while retaining the same semantic report', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'prefer-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.disposition, 'prefer-standard');
+        assert.strictEqual(report.summary.standardConformancePercent, 33);
+        assert.deepStrictEqual(report.diagnostics, []);
+    });
+
+    it('audits every configured capability rather than only the active profile', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                layerSources: [
+                    { repoId: 'primary', path: 'company/core' },
+                    { repoId: 'primary', path: 'company/inactive' },
+                ],
+                profiles: {
+                    default: { enabledCapabilities: ['primary:company/core'] },
+                },
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: 'skills/portable/SKILL.md',
+                        content: '# Portable\n',
+                    },
+                ],
+                'company/inactive': [
+                    {
+                        relativePath: '.github/prompts/inactive.prompt.md',
+                        content: '# Inactive prompt\n',
+                    },
+                ],
+            },
+        });
+
+        const result = await runCli(['agent-plugins', 'report', '--json', '-w', ws.root]);
+        assert.strictEqual(result.exitCode, 0);
+        const report = JSON.parse(result.stdout);
+        assert.strictEqual(report.summary.total, 2);
+        assert.ok(
+            report.classifications.some(
+                (entry: { layerId: string; sourcePath: string }) =>
+                    entry.layerId.endsWith('company/inactive') &&
+                    entry.sourcePath === '.github/prompts/inactive.prompt.md',
+            ),
+        );
+    });
+
+    it('requires explicit migration decisions and never writes source metadata', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+        const promptPath = path.join(
+            ws.metadataRepo,
+            'company',
+            'core',
+            '.github',
+            'prompts',
+            'review.prompt.md',
+        );
+        const before = fs.readFileSync(promptPath, 'utf-8');
+
+        const pending = await runCli(['agent-plugins', 'plan-migration', '--json', '-w', ws.root]);
+        assert.strictEqual(pending.exitCode, 0);
+        const pendingPlan = JSON.parse(pending.stdout);
+        assert.strictEqual(pendingPlan.blocked, true);
+        assert.strictEqual(pendingPlan.candidates.length, 2);
+        assert.strictEqual(pendingPlan.unresolvedCandidateIds.length, 2);
+        assert.deepStrictEqual(pendingPlan.operations, []);
+
+        const promptCandidate = pendingPlan.candidates.find(
+            (candidate: { id: string; classification: { sourcePath: string } }) =>
+                candidate.classification.sourcePath === '.github/prompts/review.prompt.md',
+        );
+        assert.ok(promptCandidate);
+        const projectionDecisions = pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+            '--decision',
+            `${candidate.id}=${candidate.id === promptCandidate.id ? 'add-standard-alongside' : 'keep-vendor'}`,
+        ]);
+        const projected = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...projectionDecisions,
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(projected.exitCode, 0);
+        const projectedPlan = JSON.parse(projected.stdout);
+        const promptOperation = projectedPlan.operations.find(
+            (operation: { candidateId: string }) => operation.candidateId === promptCandidate.id,
+        );
+        assert.deepStrictEqual(promptOperation, {
+            candidateId: promptCandidate.id,
+            decision: 'add-standard-alongside',
+            action: 'project-copy',
+            sourcePath: '.github/prompts/review.prompt.md',
+            targetPath: 'com.github.copilot/prompts/review.prompt.md',
+            targetCoverage: 'client-extension',
+            disclosedLoss: 'none',
+        });
+        assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), before);
+        assert.strictEqual(fs.existsSync(path.join(ws.root, 'com.github.copilot')), false);
+
+        const decisionArgs = pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+            '--decision',
+            `${candidate.id}=keep-vendor`,
+        ]);
+        const decided = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...decisionArgs,
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(decided.exitCode, 0);
+        const decidedPlan = JSON.parse(decided.stdout);
+        assert.strictEqual(decidedPlan.blocked, false);
+        assert.strictEqual(decidedPlan.operations.length, 2);
+        assert.ok(
+            decidedPlan.operations.every(
+                (operation: { decision: string; action: string }) =>
+                    operation.decision === 'keep-vendor' && operation.action === 'keep',
+            ),
+        );
+        assert.strictEqual(fs.readFileSync(promptPath, 'utf-8'), before);
+        assert.strictEqual(fs.existsSync(path.join(ws.root, 'com.github.copilot')), false);
+    });
+
+    it('plans the complete legacy projection matrix without writing package output', async () => {
+        const projections = [
+            [
+                '.github/prompts/review.prompt.md',
+                'com.github.copilot/prompts/review.prompt.md',
+                'client-extension',
+            ],
+            [
+                '.github/commands/review.md',
+                'com.github.copilot/commands/review.md',
+                'client-extension',
+            ],
+            [
+                '.github/instructions/typescript.instructions.md',
+                'com.github.copilot/rules/typescript.instructions.md',
+                'client-extension',
+            ],
+            [
+                '.github/rules/typescript.md',
+                'com.github.copilot/rules/typescript.md',
+                'client-extension',
+            ],
+            [
+                '.github/copilot-instructions.md',
+                'com.github.copilot/rules/copilot-instructions.md',
+                'client-extension',
+            ],
+            [
+                '.github/agents/reviewer.agent.md',
+                'com.github.copilot/agents/reviewer.agent.md',
+                'client-extension',
+            ],
+            ['hooks.json', 'com.github.copilot/hooks/hooks.json', 'client-extension'],
+            [
+                '.github/hooks/scripts/check.js',
+                'com.github.copilot/hooks/scripts/check.js',
+                'client-extension',
+            ],
+            ['.github/skills/testing/SKILL.md', 'skills/testing/SKILL.md', 'portable'],
+        ] as const;
+        const contents = Object.fromEntries(
+            projections.map(([source]) => [source, `unchanged:${source}\n`]),
+        );
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: {
+                'company/core': Object.entries(contents).map(([relativePath, content]) => ({
+                    relativePath,
+                    content,
+                })),
+            },
+        });
+        const packageRoot = path.join(ws.metadataRepo, 'company', 'core');
+
+        const pending = await runCli(['agent-plugins', 'plan-migration', '--json', '-w', ws.root]);
+        assert.strictEqual(pending.exitCode, 0);
+        const pendingPlan = JSON.parse(pending.stdout);
+        assert.strictEqual(pendingPlan.blocked, true);
+        assert.deepStrictEqual(
+            pendingPlan.candidates.map(
+                (candidate: { classification: { sourcePath: string } }) =>
+                    candidate.classification.sourcePath,
+            ),
+            projections.map(([sourcePath]) => sourcePath).sort(),
+        );
+
+        const decided = await runCli([
+            'agent-plugins',
+            'plan-migration',
+            '--json',
+            ...pendingPlan.candidates.flatMap((candidate: { id: string }) => [
+                '--decision',
+                `${candidate.id}=add-standard-alongside`,
+            ]),
+            '-w',
+            ws.root,
+        ]);
+        assert.strictEqual(decided.exitCode, 0);
+        const decidedPlan = JSON.parse(decided.stdout);
+        assert.strictEqual(decidedPlan.blocked, false);
+
+        for (const [sourcePath, targetPath, targetCoverage] of projections) {
+            const operation = decidedPlan.operations.find(
+                (entry: { sourcePath: string }) => entry.sourcePath === sourcePath,
+            );
+            assert.ok(operation, sourcePath);
+            assert.strictEqual(operation.action, 'project-copy', sourcePath);
+            assert.strictEqual(operation.targetPath, targetPath, sourcePath);
+            assert.strictEqual(operation.targetCoverage, targetCoverage, sourcePath);
+            assert.strictEqual(operation.disclosedLoss, 'none', sourcePath);
+            assert.strictEqual(
+                fs.readFileSync(path.join(packageRoot, ...sourcePath.split('/')), 'utf-8'),
+                contents[sourcePath],
+                sourcePath,
+            );
+            assert.strictEqual(
+                fs.existsSync(path.join(packageRoot, ...targetPath.split('/'))),
+                false,
+                targetPath,
+            );
+        }
+    });
+
+    it('surfaces audit warnings during validate without failing an otherwise clean workspace', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                agentPlugins: {
+                    targetVersion: '1.0.0',
+                    disposition: 'audit-standard',
+                },
+            }),
+            layers: conformanceLayers,
+        });
+
+        assert.strictEqual((await runCli(['apply', '-w', ws.root])).exitCode, 0);
+        const result = await runCli(['validate', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 0);
+        assert.ok(result.stdout.includes('Agent Plugins v1:'));
+        assert.ok(result.stdout.includes('[WARNING] AGENT_METADATA_NO_STANDARD_EQUIVALENT:'));
     });
 });
 
@@ -810,6 +1598,7 @@ describe('CLI: error handling', () => {
         assert.ok(result.stdout.includes('apply'));
         assert.ok(result.stdout.includes('clean'));
         assert.ok(result.stdout.includes('validate'));
+        assert.ok(result.stdout.includes('agent-plugins'));
     });
 
     it('should show version', async () => {
@@ -889,6 +1678,8 @@ describe('CLI: validate', () => {
         assert.strictEqual(data.summary.missing, 0);
         assert.strictEqual(data.summary.unmanaged, 0);
         assert.strictEqual(data.summary.stale, 0);
+        assert.strictEqual(data.agentPlugins.disposition, 'compatibility');
+        assert.ok(Array.isArray(data.agentPlugins.classifications));
     });
 
     it('validate --json shows drift details', async () => {
@@ -919,7 +1710,7 @@ describe('CLI: validate', () => {
     it('validate includes repo-wide copilot instructions in expected synchronized files', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 4,
+                compatibilityVersion: 6,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {
@@ -944,6 +1735,33 @@ describe('CLI: validate', () => {
         assert.strictEqual(afterDrift.exitCode, 1);
         const afterData = JSON.parse(afterDrift.stdout);
         assert.ok(afterData.drifted.includes('copilot-instructions.md'));
+    });
+
+    it('fails stale root-enabled validation clearly without migrating config', async () => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+        const configPath = path.join(ws.root, '.metaflow', 'config.jsonc');
+        const before = fs.readFileSync(configPath, 'utf-8');
+
+        const result = await runCli(['validate', '--json', '-w', ws.root]);
+
+        assert.strictEqual(result.exitCode, 1);
+        const data = JSON.parse(result.stdout);
+        assert.strictEqual(data.valid, false);
+        assert.ok(data.error.includes('Configuration migration is required'));
+        assert.strictEqual(fs.readFileSync(configPath, 'utf-8'), before);
     });
 });
 
@@ -1600,6 +2418,52 @@ describe('CLI: watch', () => {
         });
     });
 
+    it('startWatch migrates v4 and applies an existing root opt-in in the first cycle', (done) => {
+        ws = createTestWorkspace({
+            config: standardConfig({
+                compatibilityVersion: 4,
+                synchronization: { repoWideCopilotInstructions: true },
+            }),
+            layers: {
+                'company/core': [
+                    {
+                        relativePath: '.github/copilot-instructions.md',
+                        content: '# Repo-wide Copilot Instructions',
+                    },
+                ],
+            },
+        });
+
+        let changeTimer: ReturnType<typeof setTimeout> | undefined;
+        const handle = startWatch(ws.root, {
+            debounceMs: 50,
+            onCycle(result) {
+                if (changeTimer) {
+                    clearTimeout(changeTimer);
+                    changeTimer = undefined;
+                }
+                handle.close();
+                try {
+                    assert.strictEqual(result.error, undefined);
+                    assert.ok(
+                        fs.existsSync(path.join(ws.root, '.github', 'copilot-instructions.md')),
+                    );
+                    const persisted = JSON.parse(
+                        fs.readFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), 'utf-8'),
+                    );
+                    assert.strictEqual(persisted.compatibilityVersion, 6);
+                    done();
+                } catch (error) {
+                    done(error);
+                }
+            },
+        });
+
+        changeTimer = setTimeout(() => {
+            fs.appendFileSync(path.join(ws.root, '.metaflow', 'config.jsonc'), ' ');
+        }, 30);
+    });
+
     it('close() stops the watcher', async () => {
         ws = createTestWorkspace({
             config: standardConfig(),
@@ -2026,7 +2890,7 @@ describe('CLI: promote --auto', () => {
     it('promotes repo-wide copilot instructions back under the authored .github root', async () => {
         ws = createTestWorkspace({
             config: standardConfig({
-                compatibilityVersion: 4,
+                compatibilityVersion: 6,
                 synchronization: { repoWideCopilotInstructions: true },
             }),
             layers: {

@@ -31,17 +31,32 @@ export interface AgentPluginManifestInventory {
     readonly repository?: string;
     readonly license?: string;
     readonly keywords?: readonly string[];
+    /** Standard Agent Plugins extension metadata preserved for portable projection. */
+    readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
-export interface AgentPluginSkillInventory {
+export interface AgentSkillMetadataInventory {
     readonly name: string;
     readonly description: string;
-    readonly skillPath: string;
     readonly license?: string;
     readonly compatibility?: string;
     readonly metadata?: Readonly<Record<string, string>>;
     readonly allowedTools?: string;
 }
+
+export interface AgentPluginSkillInventory extends AgentSkillMetadataInventory {
+    readonly skillPath: string;
+}
+
+export type AgentSkillContentValidation =
+    | {
+          readonly valid: true;
+          readonly metadata: AgentSkillMetadataInventory;
+      }
+    | {
+          readonly valid: false;
+          readonly reason: 'frontmatter' | 'metadata';
+      };
 
 export interface AgentPluginMcpServerInventory {
     readonly name: string;
@@ -111,6 +126,16 @@ const LEGACY_HOST_FIELDS = new Set([
     'prompts',
     'skills',
 ]);
+
+/** Return whether a value satisfies the Agent Plugins 1.0 manifest-name grammar. */
+export function isValidAgentPluginName(value: string): boolean {
+    return value.length >= 1 && value.length <= 64 && PLUGIN_NAME_PATTERN.test(value);
+}
+
+/** Return whether a name satisfies the Agent Skills directory/name contract. */
+export function isValidAgentSkillName(value: string): boolean {
+    return value.length >= 1 && value.length <= 64 && SKILL_NAME_PATTERN.test(value);
+}
 
 function diagnostic(
     code: string,
@@ -258,7 +283,7 @@ function validateManifest(
         typeof name !== 'string' ||
         name.length < 1 ||
         name.length > 64 ||
-        !PLUGIN_NAME_PATTERN.test(name)
+        !isValidAgentPluginName(name)
     ) {
         diagnostics.push(
             diagnostic(
@@ -336,6 +361,14 @@ function validateManifest(
         ...(typeof manifest.repository === 'string' ? { repository: manifest.repository } : {}),
         ...(typeof manifest.license === 'string' ? { license: manifest.license } : {}),
         ...(isStringArray(manifest.keywords) ? { keywords: manifest.keywords } : {}),
+        ...(isObject(manifest.extensions)
+            ? {
+                  extensions: JSON.parse(JSON.stringify(manifest.extensions)) as Record<
+                      string,
+                      unknown
+                  >,
+              }
+            : {}),
     };
 }
 
@@ -350,6 +383,52 @@ function skillFrontmatter(content: string): unknown {
         return undefined;
     }
     return document.toJS();
+}
+
+/** Validate Agent Skills frontmatter without reading from or writing to the filesystem. */
+export function validateAgentSkillContent(
+    skillDirectoryName: string,
+    content: string,
+): AgentSkillContentValidation {
+    const frontmatter = skillFrontmatter(content);
+    if (!isObject(frontmatter)) {
+        return { valid: false, reason: 'frontmatter' };
+    }
+    const name = frontmatter.name;
+    const description = frontmatter.description;
+    const license = frontmatter.license;
+    const compatibility = frontmatter.compatibility;
+    const metadata = frontmatter.metadata;
+    const allowedTools = frontmatter['allowed-tools'];
+    const valid =
+        Object.keys(frontmatter).every((field) => SKILL_FRONTMATTER_FIELDS.has(field)) &&
+        typeof name === 'string' &&
+        isValidAgentSkillName(name) &&
+        name === skillDirectoryName &&
+        typeof description === 'string' &&
+        description.length >= 1 &&
+        description.length <= 1024 &&
+        (license === undefined || typeof license === 'string') &&
+        (compatibility === undefined ||
+            (typeof compatibility === 'string' &&
+                compatibility.length >= 1 &&
+                compatibility.length <= 500)) &&
+        (metadata === undefined || isStringMap(metadata)) &&
+        (allowedTools === undefined || typeof allowedTools === 'string');
+    if (!valid) {
+        return { valid: false, reason: 'metadata' };
+    }
+    return {
+        valid: true,
+        metadata: {
+            name,
+            description,
+            ...(typeof license === 'string' ? { license } : {}),
+            ...(typeof compatibility === 'string' ? { compatibility } : {}),
+            ...(isStringMap(metadata) ? { metadata } : {}),
+            ...(typeof allowedTools === 'string' ? { allowedTools } : {}),
+        },
+    };
 }
 
 function inspectSkills(
@@ -445,9 +524,12 @@ function inspectSkills(
             continue;
         }
 
-        let frontmatter: unknown;
+        let validation: AgentSkillContentValidation;
         try {
-            frontmatter = skillFrontmatter(fs.readFileSync(realSkillPath, 'utf8'));
+            validation = validateAgentSkillContent(
+                entry.name,
+                fs.readFileSync(realSkillPath, 'utf8'),
+            );
         } catch (error) {
             diagnostics.push(
                 diagnostic(
@@ -458,7 +540,7 @@ function inspectSkills(
             );
             continue;
         }
-        if (!isObject(frontmatter)) {
+        if (!validation.valid && validation.reason === 'frontmatter') {
             diagnostics.push(
                 diagnostic(
                     'AGENT_PLUGIN_SKILL_FRONTMATTER_INVALID',
@@ -468,30 +550,7 @@ function inspectSkills(
             );
             continue;
         }
-        const name = frontmatter.name;
-        const description = frontmatter.description;
-        const license = frontmatter.license;
-        const compatibility = frontmatter.compatibility;
-        const metadata = frontmatter.metadata;
-        const allowedTools = frontmatter['allowed-tools'];
-        const valid =
-            Object.keys(frontmatter).every((field) => SKILL_FRONTMATTER_FIELDS.has(field)) &&
-            typeof name === 'string' &&
-            name.length >= 1 &&
-            name.length <= 64 &&
-            SKILL_NAME_PATTERN.test(name) &&
-            name === entry.name &&
-            typeof description === 'string' &&
-            description.length >= 1 &&
-            description.length <= 1024 &&
-            (license === undefined || typeof license === 'string') &&
-            (compatibility === undefined ||
-                (typeof compatibility === 'string' &&
-                    compatibility.length >= 1 &&
-                    compatibility.length <= 500)) &&
-            (metadata === undefined || isStringMap(metadata)) &&
-            (allowedTools === undefined || typeof allowedTools === 'string');
-        if (!valid) {
+        if (!validation.valid) {
             diagnostics.push(
                 diagnostic(
                     'AGENT_PLUGIN_SKILL_INVALID',
@@ -502,13 +561,8 @@ function inspectSkills(
             continue;
         }
         skills.push({
-            name,
-            description,
             skillPath: realSkillPath,
-            ...(typeof license === 'string' ? { license } : {}),
-            ...(typeof compatibility === 'string' ? { compatibility } : {}),
-            ...(isStringMap(metadata) ? { metadata } : {}),
-            ...(typeof allowedTools === 'string' ? { allowedTools } : {}),
+            ...validation.metadata,
         });
     }
     return skills.sort((left, right) => compareCodeUnits(left.name, right.name));
@@ -745,7 +799,10 @@ function sortedDiagnostics(diagnostics: CapabilityWarning[]): CapabilityWarning[
  * Reads a plugin package without mutating it and returns portable inventories
  * plus deterministic diagnostics suitable for host compatibility reporting.
  */
-export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompatibilityInspection {
+function inspectAgentPluginPackageInternal(
+    pluginRoot: string,
+    suppliedManifest?: Readonly<Record<string, unknown>>,
+): AgentPluginCompatibilityInspection {
     const diagnostics: CapabilityWarning[] = [];
     const requestedRoot = path.resolve(pluginRoot);
     let rootPath: string;
@@ -777,25 +834,29 @@ export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompat
     }
 
     const manifestPath = path.join(rootPath, 'plugin.json');
-    let manifest: Record<string, unknown> | undefined;
-    try {
-        if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
-            throw new Error('plugin.json is missing or is not a regular file');
+    let manifest: Record<string, unknown> | undefined = suppliedManifest
+        ? { ...suppliedManifest }
+        : undefined;
+    if (!suppliedManifest) {
+        try {
+            if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
+                throw new Error('plugin.json is missing or is not a regular file');
+            }
+            const realManifestPath = realPath(manifestPath);
+            if (!isInside(rootPath, realManifestPath)) {
+                throw new Error('plugin.json resolves outside the plugin root');
+            }
+            manifest = readJsonObject(realManifestPath, diagnostics, 'AGENT_PLUGIN_MANIFEST');
+        } catch (error) {
+            diagnostics.push(
+                diagnostic(
+                    'AGENT_PLUGIN_MANIFEST_PATH_INVALID',
+                    `plugin.json is unavailable: ${(error as Error).message}`,
+                    manifestPath,
+                    'error',
+                ),
+            );
         }
-        const realManifestPath = realPath(manifestPath);
-        if (!isInside(rootPath, realManifestPath)) {
-            throw new Error('plugin.json resolves outside the plugin root');
-        }
-        manifest = readJsonObject(realManifestPath, diagnostics, 'AGENT_PLUGIN_MANIFEST');
-    } catch (error) {
-        diagnostics.push(
-            diagnostic(
-                'AGENT_PLUGIN_MANIFEST_PATH_INVALID',
-                `plugin.json is unavailable: ${(error as Error).message}`,
-                manifestPath,
-                'error',
-            ),
-        );
     }
 
     if (!manifest) {
@@ -871,4 +932,17 @@ export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompat
         recognizedHostFields,
         diagnostics: sortedDiagnostics(diagnostics),
     };
+}
+
+/** Inspect an on-disk package against a proposed manifest without writing plugin.json. */
+export function inspectAgentPluginPackageCandidate(
+    pluginRoot: string,
+    manifest: Readonly<Record<string, unknown>>,
+): AgentPluginCompatibilityInspection {
+    return inspectAgentPluginPackageInternal(pluginRoot, manifest);
+}
+
+/** Read and inspect an existing package without mutating it. */
+export function inspectAgentPluginPackage(pluginRoot: string): AgentPluginCompatibilityInspection {
+    return inspectAgentPluginPackageInternal(pluginRoot);
 }

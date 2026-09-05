@@ -226,6 +226,7 @@ suite('bundled metadata assets', () => {
         for (const relativePath of [
             'plugin.json',
             '.plugin/plugin.json',
+            'hooks.json',
             'hooks/hooks.json',
             'scripts/prompt-injection-guard.mjs',
         ]) {
@@ -265,11 +266,35 @@ suite('bundled metadata assets', () => {
             pluginGuidanceCopies.push(pluginGuidance);
 
             assert.ok(pluginGuidance.includes('.plugin/plugin.json`, root `plugin.json`'));
-            assert.ok(
-                pluginGuidance.includes(
-                    'whether the user wants a GitHub Copilot agent plugin or a strict Agent Plugins v1',
-                ),
+            assert.match(
+                pluginGuidance,
+                /whether the user wants a GitHub Copilot agent\s+plugin or a strict Agent Plugins v1/,
             );
+            assert.ok(pluginGuidance.includes('agentPlugins.disposition'));
+            for (const disposition of [
+                '`compatibility`',
+                '`prefer-standard`',
+                '`audit-standard`',
+            ]) {
+                assert.ok(
+                    pluginGuidance.includes(disposition),
+                    `Expected plugin guidance to cover ${disposition}.`,
+                );
+                assert.ok(
+                    skillGuidance.includes(disposition),
+                    `Expected skill guidance to cover ${disposition}.`,
+                );
+            }
+            assert.match(pluginGuidance, /have no direct\s+portable v1 equivalent/);
+            assert.ok(pluginGuidance.includes('`keep-vendor`'));
+            assert.ok(pluginGuidance.includes('`add-standard-alongside`'));
+            assert.ok(pluginGuidance.includes('`replace-with-disclosed-loss`'));
+            assert.ok(pluginGuidance.includes('continue to author hooks'));
+            assert.ok(pluginGuidance.includes('conformant client-extension packaging'));
+            assert.ok(skillGuidance.includes('agentPlugins.disposition'));
+            assert.ok(skillGuidance.includes('`keep-vendor`'));
+            assert.ok(skillGuidance.includes('`add-standard-alongside`'));
+            assert.ok(skillGuidance.includes('`replace-with-disclosed-loss`'));
             assert.ok(pluginGuidance.includes('agent-plugins'));
             assert.ok(pluginGuidance.includes('agent-skills'));
             assert.ok(
@@ -279,11 +304,14 @@ suite('bundled metadata assets', () => {
             );
             assert.ok(
                 pluginGuidance.includes(
-                    'MUST ship `.plugin/plugin.json`, `hooks/hooks.json`, and a plugin-root script',
+                    'Adding the canonical marker is the explicit opt-in to Agent Plugins v1 packaging',
                 ),
             );
+            assert.ok(pluginGuidance.includes('legacy root Copilot pair'));
+            assert.ok(pluginGuidance.includes('com.github.copilot/hooks/hooks.json'));
             assert.ok(pluginGuidance.includes('PowerShell: `node "$env:PLUGIN_ROOT'));
             assert.ok(hookGuidance.includes('Do not copy them unchanged into an agent plugin'));
+            assert.ok(/strict Agent Plugins\s+v1 expects/.test(hookGuidance));
             assert.ok(skillGuidance.includes('ai-metadata-plugins.instructions.md'));
             assert.ok(skillGuidance.includes('agent-plugins'));
             assert.ok(
@@ -305,6 +333,7 @@ suite('bundled metadata assets', () => {
                 'capabilities/example/.github/plugin/plugin.json',
                 'capabilities/example/.claude-plugin/plugin.json',
                 'capabilities/example/hooks/hooks.json',
+                'capabilities/example/com.github.copilot/hooks/hooks.json',
                 'capabilities/example/.github/hooks/policy.json',
                 'capabilities/example/.mcp.json',
                 'capabilities/example/lsp-config/servers.json',
@@ -337,6 +366,43 @@ suite('bundled metadata assets', () => {
             !('rules' in openPluginManifest),
             'Copilot .instructions.md files must not be advertised as OpenPlugin .mdc rules.',
         );
+
+        const legacyManifest = JSON.parse(
+            fs.readFileSync(path.join(ASSET_ROOT, 'plugin.json'), 'utf-8'),
+        ) as Record<string, unknown>;
+        assert.ok(
+            !('$schema' in legacyManifest),
+            'The built-in package should remain on legacy Copilot packaging by default.',
+        );
+
+        const legacyHookConfig = JSON.parse(
+            fs.readFileSync(path.join(ASSET_ROOT, 'hooks.json'), 'utf-8'),
+        ) as {
+            version?: number;
+            hooks?: { preToolUse?: Array<Record<string, unknown>> };
+        };
+        const legacyPreToolUse = legacyHookConfig.hooks?.preToolUse?.[0];
+        assert.strictEqual(legacyHookConfig.version, 1);
+        assert.ok(
+            String(legacyPreToolUse?.command).includes(
+                '${PLUGIN_ROOT}/scripts/prompt-injection-guard.mjs',
+            ),
+        );
+        assert.ok(
+            String(legacyPreToolUse?.powershell).includes(
+                '$env:PLUGIN_ROOT/scripts/prompt-injection-guard.mjs',
+            ),
+        );
+
+        const v1SkillGuidance = fs.readFileSync(
+            path.join(
+                ASSET_ROOT,
+                'capabilities/metadata-authoring/agent-plugins/.github/skills/agent-plugins/SKILL.md',
+            ),
+            'utf-8',
+        );
+        assert.ok(v1SkillGuidance.includes('com.github.copilot/hooks/hooks.json'));
+        assert.ok(v1SkillGuidance.includes('Do not combine this strict-v1 output'));
 
         const nestedBestPractices = fs.readFileSync(
             path.join(githubRoots[1], 'skills/ai-metadata/BestPractices.md'),
@@ -461,10 +527,7 @@ suite('bundled metadata assets', () => {
         assert.ok(pluginSkill.includes('references/raw/specification-1.0.0.md'));
 
         const skillsSkill = fs.readFileSync(
-            path.join(
-                capabilityRoot,
-                'agent-skills/.github/skills/agent-skills/SKILL.md',
-            ),
+            path.join(capabilityRoot, 'agent-skills/.github/skills/agent-skills/SKILL.md'),
             'utf-8',
         );
         assert.ok(skillsSkill.includes('## Progressive disclosure and resources'));

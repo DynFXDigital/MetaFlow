@@ -43,6 +43,17 @@ suite('classifier', () => {
             assert.strictEqual(classifySingle('hooks/pre-apply.sh', undefined), 'plugin');
         });
 
+        test('Agent Plugins v1 Copilot extension files stay plugin-backed', () => {
+            assert.strictEqual(
+                classifySingle('com.github.copilot/hooks/hooks.json', { hooks: 'settings' }),
+                'plugin',
+            );
+            assert.strictEqual(
+                classifySingle('com.github.copilot/scripts/guard.mjs', undefined),
+                'plugin',
+            );
+        });
+
         test('chatmodes → synchronized (deprecated)', () => {
             assert.strictEqual(
                 classifySingle('chatmodes/legacy.chatmode.md', undefined),

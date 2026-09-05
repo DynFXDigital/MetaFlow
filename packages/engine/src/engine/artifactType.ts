@@ -8,13 +8,7 @@
  */
 
 export type ArtifactType =
-    | 'instructions'
-    | 'prompts'
-    | 'commands'
-    | 'agents'
-    | 'skills'
-    | 'hooks'
-    | 'other';
+    'instructions' | 'prompts' | 'commands' | 'agents' | 'skills' | 'hooks' | 'other';
 
 const KNOWN_TYPES = new Set<string>([
     'instructions',
@@ -24,6 +18,7 @@ const KNOWN_TYPES = new Set<string>([
     'skills',
     'hooks',
 ]);
+const COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX = 'com.github.copilot/';
 
 /**
  * Classify a relative file path into an artifact-type bucket.
@@ -34,7 +29,17 @@ const KNOWN_TYPES = new Set<string>([
  */
 export function getArtifactType(relativePath: string): ArtifactType {
     const posix = relativePath.replace(/\\/g, '/').replace(/^\.github\//, '');
-    const segments = posix.split('/').filter((segment) => segment.length > 0);
+    const clientExtensionPath = posix.startsWith(COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX)
+        ? posix.slice(COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX.length)
+        : posix;
+    const clientExtensionType = clientExtensionPath.split('/')[0] ?? '';
+    if (clientExtensionType === 'rules') {
+        return 'instructions';
+    }
+    if (KNOWN_TYPES.has(clientExtensionType)) {
+        return clientExtensionType as ArtifactType;
+    }
+    const segments = clientExtensionPath.split('/').filter((segment) => segment.length > 0);
     const commandSegmentIndex = segments.findIndex(
         (segment, index) =>
             segment === 'commands' &&
@@ -44,10 +49,13 @@ export function getArtifactType(relativePath: string): ArtifactType {
         return 'commands';
     }
 
-    if (posix === 'copilot-instructions.md') {
+    if (clientExtensionPath === 'copilot-instructions.md') {
         return 'instructions';
     }
 
-    const firstSegment = posix.split('/')[0] ?? '';
+    const firstSegment = clientExtensionPath.split('/')[0] ?? '';
+    if (firstSegment === 'rules') {
+        return 'instructions';
+    }
     return KNOWN_TYPES.has(firstSegment) ? (firstSegment as ArtifactType) : 'other';
 }

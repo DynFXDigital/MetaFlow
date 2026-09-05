@@ -94,7 +94,8 @@ suite('Init Config Helpers', () => {
             injection: Record<string, string>;
         };
 
-        assert.strictEqual(withUrl.compatibilityVersion, 4);
+        assert.strictEqual(withUrl.compatibilityVersion, 6);
+        assert.strictEqual((withUrl as { targets?: unknown }).targets, undefined);
         assert.strictEqual(withUrl.metadataRepos.length, 1);
         assert.strictEqual(withUrl.metadataRepos[0].id, 'meta');
         assert.strictEqual(withUrl.metadataRepos[0].name, 'Meta');
@@ -118,7 +119,7 @@ suite('Init Config Helpers', () => {
             compatibilityVersion: number;
             metadataRepos: Array<{ url?: string; capabilities?: Array<{ enabled?: boolean }> }>;
         };
-        assert.strictEqual(withoutUrl.compatibilityVersion, 4);
+        assert.strictEqual(withoutUrl.compatibilityVersion, 6);
         assert.strictEqual(withoutUrl.metadataRepos[0].url, undefined);
         assert.strictEqual(withoutUrl.metadataRepos[0].capabilities, undefined);
 

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Command } from 'commander';
+import { CURRENT_CONFIG_COMPATIBILITY_VERSION } from '@metaflow/engine';
 import { getWorkspaceRoot } from './common';
 
 export function registerInitCommand(program: Command): void {
@@ -20,7 +21,7 @@ export function registerInitCommand(program: Command): void {
             }
 
             const template = {
-                compatibilityVersion: 4,
+                compatibilityVersion: CURRENT_CONFIG_COMPATIBILITY_VERSION,
                 synchronization: { repoWideCopilotInstructions: false },
                 metadataRepos: [
                     {

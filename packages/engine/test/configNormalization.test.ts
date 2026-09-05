@@ -42,7 +42,7 @@ describe('config normalization: atomic capability selections', () => {
             },
         });
 
-        assert.strictEqual(authored.compatibilityVersion, 4);
+        assert.strictEqual(authored.compatibilityVersion, 6);
         assert.deepStrictEqual(authored.metadataRepos, [
             { id: 'primary', localPath: '.ai/metadata' },
         ]);

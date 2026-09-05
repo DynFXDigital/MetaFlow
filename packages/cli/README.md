@@ -52,7 +52,7 @@ The CLI accepts preview-era configs that still use `metadataRepo`, `layers`, or 
 
 #### `preview`
 
-List effective files and pending changes without writing anything.
+List effective files and pending overlay or project-target changes without writing anything.
 
 ```bash
 metaflow preview
@@ -63,16 +63,22 @@ If enabled capabilities surface the same effective path, `preview` reports warni
 
 #### `apply`
 
-Synchronize overlay outputs to `.github/` with provenance headers.
+Synchronize overlay outputs to `.github/` with provenance headers and reconcile any explicitly enabled project targets.
 
 ```bash
 metaflow apply                 # skip drifted files
 metaflow apply --force         # overwrite drifted files
 ```
 
+With compatibility version 6 and `targets.pi.enabled: true`, `apply` also
+reconciles one skills-only `.pi/plugins/<original-plugin-name>` package per
+active portable source plugin. Pi target drift and untracked content always
+fail closed; `--force` does not override that
+ownership boundary. See [Pi Agent Plugins v1 target](../../docs/pi-agent-plugins-v1.md).
+
 #### `clean`
 
-Remove all managed files (preserves drifted files).
+Remove all verified managed files and project targets (preserves drifted or untracked content).
 
 ```bash
 metaflow clean
@@ -103,7 +109,7 @@ metaflow promote --auto --json                 # machine-readable output
 
 #### `validate`
 
-Validate managed files match expected overlay state. Designed for CI pipelines.
+Validate managed files and enabled project targets match expected state. Designed for CI pipelines.
 
 ```bash
 metaflow validate              # human-readable output
@@ -111,6 +117,40 @@ metaflow validate --json       # machine-readable output
 # Exit code 0: valid
 # Exit code 1: validation failed (drifted, missing, unmanaged, or stale files)
 ```
+
+#### `agent-plugins report`
+
+Inspect Agent Plugins v1 conformance across all configured capability sources in enabled
+repositories, including sources outside the active profile.
+
+```bash
+metaflow agent-plugins report
+metaflow agent-plugins report --json
+```
+
+The report separates portable Skills/MCP, conformant client extensions, legacy host metadata,
+artifacts with no direct portable equivalent, and invalid packages or components. Standard
+conformance counts portable components plus client extensions; the portability score counts only
+Skills/MCP. Audit diagnostics are emitted only when `agentPlugins.disposition` is `audit-standard`:
+invalid strict-v1 metadata uses error severity and portability or migration findings use warning
+severity. These findings do not change the command, apply, or validation exit status. `status
+--json` and `validate --json` include the same report.
+
+#### `agent-plugins plan-migration`
+
+Build a read-only migration plan. Every legacy or no-equivalent candidate remains blocked until it
+has an explicit decision.
+
+```bash
+metaflow agent-plugins plan-migration --json
+metaflow agent-plugins plan-migration \
+  --decision "primary/company/core::.github/prompts/review.prompt.md=keep-vendor"
+```
+
+Repeat `--decision` with one of `keep-vendor`, `add-standard-alongside`, or
+`replace-with-disclosed-loss` for each candidate ID reported by the command. Lossless package
+relocations report their destination and whether it is portable or a client extension separately
+from any possible semantic alternative. Planning never writes or deletes source metadata.
 
 #### `watch`
 

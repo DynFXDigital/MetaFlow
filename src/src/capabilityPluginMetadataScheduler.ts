@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { createHash } from 'node:crypto';
-import { resolvePathFromWorkspace } from '@metaflow/engine';
+import { resolveAgentPluginDisposition, resolvePathFromWorkspace } from '@metaflow/engine';
 import {
     ExtensionState,
     collectCapabilityPluginMaintenanceWarningMessages,
@@ -123,7 +123,9 @@ export function createCapabilityPluginMetadataScheduler(
 
         const lock = tryAcquireRepoMaintenanceLock(target.repoRoot);
         if (!lock) {
-            logInfo(`Capability plugin metadata maintenance skipped for ${target.repoId}: another MetaFlow host owns the repository lock.`);
+            logInfo(
+                `Capability plugin metadata maintenance skipped for ${target.repoId}: another MetaFlow host owns the repository lock.`,
+            );
             return;
         }
 
@@ -132,6 +134,7 @@ export function createCapabilityPluginMetadataScheduler(
                 repoId: target.repoId,
                 excludePatterns: watched.excludePatterns,
                 capabilityDirectoryPaths: target.capabilityDirectoryPaths,
+                disposition: resolveAgentPluginDisposition(state.config ?? {}),
             });
 
             if (result.failureCount > 0 || result.warnings.length > 0) {
@@ -141,7 +144,9 @@ export function createCapabilityPluginMetadataScheduler(
                     );
                 }
                 for (const warning of result.warnings) {
-                    logWarn(`MetaFlow: Auto-maintain warning for ${target.repoId}: ${warning.message}`);
+                    logWarn(
+                        `MetaFlow: Auto-maintain warning for ${target.repoId}: ${warning.message}`,
+                    );
                 }
 
                 const warningsChanged = mergeCapabilityWarningMessages(

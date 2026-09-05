@@ -132,13 +132,23 @@ MetaFlow also builds a normalized internal plugin catalog from valid capability 
 
 ### Portable Agent Plugins 1.0 packages
 
-MetaFlow treats the published Agent Plugins 1.0 contract as a separate compatibility profile from the maintained host/Copilot manifest above. A portable package declares the canonical `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` identifier and follows the standard's closed root manifest, fixed `skills/*/SKILL.md` discovery, and optional root `mcp.json` contract.
+MetaFlow treats the published Agent Plugins 1.0 contract as a separate, explicit compatibility profile from the maintained host/Copilot manifest above. The default `compatibility` disposition keeps legacy Copilot scaffolding and maintenance unchanged. `prefer-standard` uses Skills, MCP, and strict-v1 scaffolding for new losslessly portable metadata without warnings. `audit-standard` adds advisory diagnostics for legacy, incompatible, no-equivalent, and vendor-specific metadata. A package opts into v1 by declaring the canonical `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json` identifier and following the standard's closed root manifest, fixed `skills/*/SKILL.md` discovery, and optional root `mcp.json` contract.
 
 - Portable names may contain lowercase periods as well as letters, numbers, and hyphens; `version` is optional and is not required to be SemVer.
 - Unknown root fields and a non-object `extensions` field are reported and ignored as required by the standard. Other manifest schema violations reject portable loading.
 - Invalid skills and MCP server entries are isolated from independently valid components, and filesystem-resolved package paths must remain inside the plugin root.
 - Client-specific manifest data belongs under reverse-domain keys in `extensions`; MetaFlow/Copilot fields are not added to the portable root schema.
+- VS Code-specific hook files in a strict-v1 package belong at `com.github.copilot/hooks/hooks.json` and resolve packaged scripts through `${PLUGIN_ROOT}`. They remain a Copilot client extension, not a portable component.
+- Keep strict-v1 and legacy Copilot/OpenPlugin outputs separate. Adding `.plugin/plugin.json` to a strict package causes VS Code to select the legacy format first.
 - Portable packages are not serialized through MetaFlow's existing Copilot marketplace projection. Classification and compatibility do not imply installation, enablement, trust, or host-effective activation.
+
+Existing metadata is preserved in every disposition. Prompt files, slash commands, scoped instructions/rules, custom agents, and hooks have no direct portable v1 equivalent; semantic migration requires an explicit keep-vendor, add-standard-alongside, or replace-with-disclosed-loss decision for every affected artifact. See [Agent Plugins v1 conformance disposition](docs/agent-plugins-conformance.md) for configuration, scoring, maintenance, diagnostics, and migration planning.
+
+### Pi project target
+
+Projects can explicitly enable a skills-only Pi target with compatibility version 6 and `targets.pi.enabled: true`. MetaFlow projects each valid active Agent Plugins v1 package 1:1 into `.pi/plugins/<original-plugin-name>`, preserves its portable identity and skill bytes, records ownership separately in `.metaflow/pi-target-state.json`, and leaves discovery to `pi-agent-plugins`. Duplicate roots or Pi-global skill commands, MCP-bearing packages, client extensions, unowned same-name roots, and managed drift block the complete reconciliation. Preview is read-only; apply, validate, watch, disable, and clean share the same fail-closed managed-set contract, preserve unrelated Pi content, and never mutate global Pi state.
+
+See [Pi Agent Plugins v1 target](docs/pi-agent-plugins-v1.md) for prerequisites, configuration, lifecycle, cleanup, and portability limits.
 
 Plugin-first is now the built-in default for plugin-capable artifact types. A fresh MetaFlow config defaults `instructions`, `skills`, `agents`, and Copilot hook artifacts to `plugin`; prompts remain settings-backed because Copilot plugin discovery does not consume MetaFlow prompt directories directly.
 
@@ -159,20 +169,22 @@ When `MetaFlow: Apply` runs, MetaFlow injects those capability roots into the us
 
 Current scope:
 
-- `plugin` is the default mode for `instructions`, `skills`, `agents`, and hook artifacts (`hooks.json`, `hooks/**`, or `.github/hooks/**`)
+- `plugin` is the default mode for `instructions`, `skills`, `agents`, and hook artifacts (`hooks.json`, `hooks/**`, `com.github.copilot/**`, or `.github/hooks/**`)
 - `prompts` remain `settings` or `synchronize` because Copilot plugin discovery does not consume MetaFlow prompt directories directly
 - legacy top-level `hooks.preApply` and `hooks.postApply` remain settings-backed script paths; they are distinct from Copilot plugin hook configuration
 - `plugin.json` must exist at the capability root and its shared `name` and `description` should agree with `README.md`.
 
 ## Where to go next
 
-| Topic                                                                         | Document                                           |
-| ----------------------------------------------------------------------------- | -------------------------------------------------- |
-| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                     |
-| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md)   |
-| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                           |
-| Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) |
-| Release process                                                               | [RELEASING.md](RELEASING.md)                       |
+| Topic                                                                         | Document                                                               |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Full extension reference: config schema, command surface, settings, manifests | [src/README.md](src/README.md)                                         |
+| CLI commands, automated promotion, validation, watch workflows                | [packages/cli/README.md](packages/cli/README.md)                       |
+| Pi Agent Plugins v1 target setup, lifecycle, and safety boundaries            | [docs/pi-agent-plugins-v1.md](docs/pi-agent-plugins-v1.md)             |
+| Agent Plugins v1 disposition, conformance audit, and migration planning       | [docs/agent-plugins-conformance.md](docs/agent-plugins-conformance.md) |
+| Troubleshooting and support                                                   | [SUPPORT.md](SUPPORT.md)                                               |
+| Contributor workflow and testing                                              | [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md)                     |
+| Release process                                                               | [RELEASING.md](RELEASING.md)                                           |
 
 ## Support
 

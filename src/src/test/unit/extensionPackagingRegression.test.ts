@@ -262,6 +262,35 @@ suite('Extension Packaging Regression Guards', () => {
         assert.deepStrictEqual(profileLayerOverride?.required, ['repoId', 'path']);
     });
 
+    test('config schema exposes the closed skills-only Pi target at v6', () => {
+        const schemaPath = path.join(EXTENSION_ROOT, 'schemas', 'metaflow-config.schema.json');
+        const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) as {
+            properties?: Record<string, { maximum?: number }>;
+            allOf?: Array<{
+                then?: {
+                    properties?: Record<string, { const?: number }>;
+                };
+            }>;
+            definitions?: Record<
+                string,
+                {
+                    additionalProperties?: boolean;
+                    properties?: Record<string, { default?: boolean }>;
+                }
+            >;
+        };
+
+        assert.strictEqual(schema.properties?.compatibilityVersion.maximum, 6);
+        assert.ok(schema.properties?.targets);
+        assert.strictEqual(schema.definitions?.targetsConfig?.additionalProperties, false);
+        assert.strictEqual(schema.definitions?.piTargetConfig?.additionalProperties, false);
+        assert.strictEqual(schema.allOf?.[0]?.then?.properties?.compatibilityVersion.const, 6);
+        assert.deepStrictEqual(Object.keys(schema.definitions?.piTargetConfig?.properties ?? {}), [
+            'enabled',
+        ]);
+        assert.strictEqual(schema.definitions?.piTargetConfig?.properties?.enabled.default, false);
+    });
+
     test('vscode prepublish uses bundle script', () => {
         const packageJsonPath = path.join(EXTENSION_ROOT, 'package.json');
         const packageJson = JSON.parse(
@@ -406,7 +435,6 @@ suite('Extension Packaging Regression Guards', () => {
         assert.ok(commands, 'Expected commands injection mode setting to be contributed');
         assert.deepStrictEqual(commands?.enum, ['synchronize', 'plugin']);
         assert.strictEqual(commands?.default, 'plugin');
-
         const injectionTarget =
             packageJson.contributes?.configuration?.properties?.['metaflow.injection.target'];
         assert.strictEqual(injectionTarget?.scope, 'resource');

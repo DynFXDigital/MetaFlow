@@ -67,6 +67,7 @@ const EXPECTED_COMMANDS = [
     'metaflow.removeRepoSource',
     'metaflow.rescanRepository',
     'metaflow.selectAllLayers',
+    'metaflow.setAgentPluginDisposition',
     'metaflow.showLayersFlatMode',
     'metaflow.showLayersTreeMode',
     'metaflow.status',

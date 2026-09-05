@@ -308,7 +308,7 @@ function loadSynchronizationPlan(options: PlanSynchronizationOptions): LoadedSyn
         )
     ) {
         throw new Error(
-            'Repository-wide Copilot instruction synchronization requires a fresh active v4 authorization.',
+            'Repository-wide Copilot instruction synchronization requires a fresh active current-version authorization.',
         );
     }
 

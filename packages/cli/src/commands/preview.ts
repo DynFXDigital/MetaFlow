@@ -1,11 +1,18 @@
 import { Command } from 'commander';
-import { computeSettingsEntries, preview } from '@metaflow/engine';
+import {
+    computeSettingsEntries,
+    preview,
+    withReadOnlyRootSynchronizationAuthorization,
+} from '@metaflow/engine';
+import type { RootSynchronizationAuthorization } from '@metaflow/engine';
 import {
     formatSurfacedConflictWarnings,
+    formatPiTargetDiagnostics,
     getWorkspaceRoot,
     loadConfigOrExit,
-    resolveEffectiveFiles,
+    resolvePiTargetPlan,
     resolveSurfacedFileConflicts,
+    resolveWorkspaceArtifacts,
 } from './common';
 
 function formatFileProvenance(sourceLayer: string, sourceRepo?: string): string {
@@ -55,26 +62,74 @@ export function registerPreviewCommand(program: Command): void {
                 return;
             }
             try {
-                const { config } = loaded;
-                const files = resolveEffectiveFiles(config, workspaceRoot);
-                const changes = preview(
-                    workspaceRoot,
-                    files,
-                    undefined,
-                    config.fileNamingStrategy,
-                    config.layerSources,
-                    !loaded.migrationRequired &&
+                const calculatePreview = (
+                    config: typeof loaded.config,
+                    authorization?: RootSynchronizationAuthorization,
+                ) => {
+                    const resolved = resolveWorkspaceArtifacts(config, workspaceRoot);
+                    const files = resolved.effectiveFiles;
+                    const piPlan = resolvePiTargetPlan(config, workspaceRoot, resolved.layers);
+                    const changes = preview(
+                        workspaceRoot,
+                        files,
+                        undefined,
+                        config.fileNamingStrategy,
+                        config.layerSources,
                         config.synchronization?.repoWideCopilotInstructions === true,
-                );
-                const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
-                const warnings = formatSurfacedConflictWarnings(conflicts);
-                const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
-                const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
-                const sourceSummary = summarizeSources(files);
-                const settingsCount = files.filter(
-                    (file) => file.classification === 'settings',
-                ).length;
-                const synchronizedCount = files.length - settingsCount;
+                        authorization,
+                        loaded.configPath,
+                    );
+                    const conflicts = resolveSurfacedFileConflicts(config, workspaceRoot);
+                    const warnings = formatSurfacedConflictWarnings(conflicts);
+                    const settingsEntries = computeSettingsEntries(files, workspaceRoot, config);
+                    const settingsEntrySummary = summarizeSettingsEntries(settingsEntries);
+                    const sourceSummary = summarizeSources(files);
+                    const settingsCount = files.filter(
+                        (file) => file.classification === 'settings',
+                    ).length;
+                    const synchronizedCount = files.length - settingsCount;
+                    return {
+                        files,
+                        changes,
+                        conflicts,
+                        warnings,
+                        settingsEntries,
+                        settingsEntrySummary,
+                        sourceSummary,
+                        settingsCount,
+                        synchronizedCount,
+                        piPlan,
+                    };
+                };
+
+                const rootPolicyEnabled =
+                    loaded.config.synchronization?.repoWideCopilotInstructions === true;
+                if (loaded.migrationRequired && rootPolicyEnabled) {
+                    throw new Error(
+                        'Configuration migration is required before repository-wide Copilot instruction synchronization can be previewed; run metaflow apply first.',
+                    );
+                }
+
+                const calculated = rootPolicyEnabled
+                    ? withReadOnlyRootSynchronizationAuthorization(
+                          loaded.configPath,
+                          (authorization, attested) =>
+                              calculatePreview(attested.config, authorization),
+                      )
+                    : calculatePreview(loaded.config);
+                const {
+                    files,
+                    changes,
+                    conflicts,
+                    warnings,
+                    settingsEntries,
+                    settingsEntrySummary,
+                    sourceSummary,
+                    settingsCount,
+                    synchronizedCount,
+                    piPlan,
+                } = calculated;
+                const piDiagnostics = formatPiTargetDiagnostics(piPlan);
 
                 if (options.json) {
                     const data = {
@@ -101,21 +156,37 @@ export function registerPreviewCommand(program: Command): void {
                         sources: sourceSummary,
                         surfacedFileConflicts: conflicts,
                         warnings,
+                        piTarget: {
+                            enabled: piPlan.enabled,
+                            blocked: piPlan.blocked,
+                            stateAction: piPlan.stateAction,
+                            pendingChanges: piPlan.changes,
+                            diagnostics: piPlan.diagnostics,
+                        },
                     };
                     console.log(JSON.stringify(data, null, 2));
+                    if (piPlan.blocked) {
+                        process.exitCode = 1;
+                    }
                     return;
                 }
 
-                if (files.length === 0) {
+                if (
+                    files.length === 0 &&
+                    piPlan.changes.length === 0 &&
+                    piDiagnostics.length === 0
+                ) {
                     console.log('No files in overlay.');
                     return;
                 }
 
-                console.log('Effective files:');
-                for (const f of files) {
-                    console.log(
-                        `  [${f.classification}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
-                    );
+                if (files.length > 0) {
+                    console.log('Effective files:');
+                    for (const f of files) {
+                        console.log(
+                            `  [${f.classification}] ${f.relativePath} @ ${formatFileProvenance(f.sourceLayer, f.sourceRepo)}`,
+                        );
+                    }
                 }
                 console.log(
                     `\nSummary: ${files.length} total (${settingsCount} settings, ${synchronizedCount} synchronized)`,
@@ -160,6 +231,21 @@ export function registerPreviewCommand(program: Command): void {
                     for (const warning of warnings) {
                         console.log(`  ! ${warning}`);
                     }
+                }
+                if (piPlan.changes.length > 0) {
+                    console.log(`\nPi target changes (${piPlan.changes.length}):`);
+                    for (const change of piPlan.changes) {
+                        console.log(`  ${change.action} ${change.relativePath}`);
+                    }
+                }
+                if (piDiagnostics.length > 0) {
+                    console.log(`\nPi target diagnostics (${piDiagnostics.length}):`);
+                    for (const diagnostic of piDiagnostics) {
+                        console.log(`  ! ${diagnostic}`);
+                    }
+                }
+                if (piPlan.blocked) {
+                    process.exitCode = 1;
                 }
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : String(err);

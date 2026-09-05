@@ -91,14 +91,88 @@ export {
     AGENT_PLUGINS_V1_MCP_SCHEMA_ID,
     AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
     inspectAgentPluginPackage,
+    inspectAgentPluginPackageCandidate,
+    isValidAgentPluginName,
+    isValidAgentSkillName,
+    validateAgentSkillContent,
 } from './agentPluginCompatibility';
+export {
+    auditAgentMetadataConformance,
+    classifyAgentMetadataPath,
+    planAgentMetadataMigration,
+    projectConfigForAgentMetadataAudit,
+    projectAgentPluginV1Path,
+} from './agentMetadataConformance';
+export type {
+    AgentMetadataActivation,
+    AgentMetadataArtifactKind,
+    AgentMetadataConformanceReport,
+    AgentMetadataConformanceSummary,
+    AgentMetadataMigrationCandidate,
+    AgentMetadataMigrationDecision,
+    AgentMetadataMigrationConflict,
+    AgentMetadataMigrationLoss,
+    AgentMetadataMigrationOperation,
+    AgentMetadataProjectionCoverage,
+    AgentMetadataMigrationPlan,
+    AgentMetadataScope,
+    AgentMetadataSemanticClassification,
+    AgentMetadataStandardConstruct,
+    AgentMetadataStandardCoverage,
+    AgentMetadataVendorDependency,
+} from './agentMetadataConformance';
 export type {
     AgentPluginCompatibilityInspection,
     AgentPluginCompatibilityProfile,
     AgentPluginManifestInventory,
     AgentPluginMcpServerInventory,
     AgentPluginSkillInventory,
+    AgentSkillContentValidation,
+    AgentSkillMetadataInventory,
 } from './agentPluginCompatibility';
+export {
+    PI_PROJECT_PLUGINS_RELATIVE_ROOT,
+    PI_SKILLS_PROJECTION_SCHEMA,
+    projectPiAgentPluginSkills,
+} from './piSkillsProjection';
+export {
+    collectPiSkillsProjectionInput,
+    projectResolvedPiAgentPluginSkills,
+} from './piSkillsProjectionCollector';
+export {
+    PI_TARGET_STATE_RELATIVE_PATH,
+    PI_TARGET_STATE_SCHEMA_VERSION,
+    applyPiProjectPluginSynchronization,
+    loadPiTargetState,
+    planPiProjectPluginSynchronization,
+} from './piProjectPluginSynchronizer';
+export type {
+    PiAgentPluginProjectionInput,
+    PiAgentPluginManifest,
+    PiProjectedFile,
+    PiProjectionOmission,
+    PiProjectionOmissionReason,
+    PiSkillProjectionInput,
+    PiSkillsProjectionConflict,
+    PiSkillsProjectionDiagnostic,
+    PiSkillsProjectionInput,
+    PiSkillsProjectionPackage,
+    PiSkillsProjectionResult,
+    PiSkillsProjectionSource,
+} from './piSkillsProjection';
+export type {
+    PiProjectPluginApplyResult,
+    PiProjectPluginPlanOptions,
+    PiProjectPluginSynchronizationPlan,
+    PiTargetChange,
+    PiTargetChangeAction,
+    PiTargetDiagnostic,
+    PiTargetManagedFileState,
+    PiTargetManagedPluginState,
+    PiTargetState,
+    PiTargetStateAction,
+    PiTargetStateLoadResult,
+} from './piProjectPluginSynchronizer';
 export type {
     LayerFile,
     LayerContent,

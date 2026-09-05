@@ -1,9 +1,12 @@
 import {
+    AgentPluginDisposition,
+    AgentPluginsConfig,
     CapabilitySource,
     HooksConfig,
     InjectionConfig,
     LayerSource,
     MetaFlowConfig,
+    MetaFlowTargetsConfig,
     NamedMetadataRepo,
     ProfileConfig,
     ProfileLayerOverride,
@@ -20,7 +23,8 @@ export interface NormalizedConfigShape {
     migrationMessages: string[];
 }
 
-export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 4;
+export const CURRENT_CONFIG_COMPATIBILITY_VERSION = 6;
+export const DEFAULT_AGENT_PLUGIN_DISPOSITION: AgentPluginDisposition = 'compatibility';
 const IMPLICIT_RELEASED_CONFIG_COMPATIBILITY_VERSION = 1;
 
 function cloneJson<T>(value: T): T {
@@ -126,6 +130,55 @@ function orderHooksConfig(config: HooksConfig | undefined): HooksConfig | undefi
         ...(config.preApply !== undefined ? { preApply: config.preApply } : {}),
         ...(config.postApply !== undefined ? { postApply: config.postApply } : {}),
     };
+}
+
+function orderTargetsConfig(
+    config: MetaFlowTargetsConfig | undefined,
+): MetaFlowTargetsConfig | undefined {
+    if (config === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(config.pi !== undefined
+            ? {
+                  pi: {
+                      ...(config.pi.enabled !== undefined ? { enabled: config.pi.enabled } : {}),
+                  },
+              }
+            : {}),
+    };
+}
+
+function orderAgentPluginsConfig(
+    config: AgentPluginsConfig | undefined,
+): AgentPluginsConfig | undefined {
+    if (config === undefined) {
+        return undefined;
+    }
+
+    return {
+        ...(config.targetVersion !== undefined ? { targetVersion: config.targetVersion } : {}),
+        ...(config.disposition !== undefined ? { disposition: config.disposition } : {}),
+    };
+}
+
+/** Resolve the repository policy without coupling it to auto-maintenance or injection. */
+export function resolveAgentPluginDisposition(config: MetaFlowConfig): AgentPluginDisposition {
+    return config.agentPlugins?.disposition ?? DEFAULT_AGENT_PLUGIN_DISPOSITION;
+}
+
+/** Return true for either standard-oriented posture. */
+export function prefersAgentPluginsStandard(config: MetaFlowConfig): boolean {
+    return resolveAgentPluginDisposition(config) !== 'compatibility';
+}
+
+/** Return true only for an explicitly enabled target persisted at the current contract version. */
+export function isPiTargetEnabled(config: MetaFlowConfig): boolean {
+    return (
+        config.compatibilityVersion === CURRENT_CONFIG_COMPATIBILITY_VERSION &&
+        config.targets?.pi?.enabled === true
+    );
 }
 
 function orderSynchronizationConfig(
@@ -546,6 +599,14 @@ export function canonicalizeAuthoredConfig(config: MetaFlowConfig): MetaFlowConf
         canonical.layers = canonicalizeLegacyLayers(config.layers);
     }
 
+    if (config.targets !== undefined) {
+        canonical.targets = orderTargetsConfig(config.targets);
+    }
+
+    if (config.agentPlugins !== undefined) {
+        canonical.agentPlugins = orderAgentPluginsConfig(config.agentPlugins);
+    }
+
     return canonical;
 }
 
@@ -560,6 +621,10 @@ function buildRestOfConfig(
         compatibilityVersion: compatibility.compatibilityVersion,
         profiles: orderProfiles(profiles) ?? {},
         ...(config.activeProfile !== undefined ? { activeProfile: config.activeProfile } : {}),
+        ...(config.targets !== undefined ? { targets: orderTargetsConfig(config.targets) } : {}),
+        ...(config.agentPlugins !== undefined
+            ? { agentPlugins: orderAgentPluginsConfig(config.agentPlugins) }
+            : {}),
         ...(config.capabilityOverrides !== undefined
             ? { capabilityOverrides: cloneJson(config.capabilityOverrides) }
             : {}),

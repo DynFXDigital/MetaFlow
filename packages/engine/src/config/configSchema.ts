@@ -141,6 +141,40 @@ export interface SynchronizationConfig {
     repoWideCopilotInstructions?: boolean;
 }
 
+/** Project-local Pi projection target. Omission and false are both disabled. */
+export interface PiTargetConfig {
+    /** Explicit opt-in to project the active capability profile for Pi. */
+    enabled?: boolean;
+}
+
+/** Optional project-local output targets. */
+export interface MetaFlowTargetsConfig {
+    /** Skills-only Agent Plugins v1 package consumed by Pi. */
+    pi?: PiTargetConfig;
+}
+
+/** Agent Plugins standard version supported by this MetaFlow release. */
+export type AgentPluginStandardVersion = '1.0.0';
+
+/**
+ * Repository policy for Agent Plugins standard adoption.
+ *
+ * This is intentionally independent from automatic maintenance, injection,
+ * and target enablement.
+ */
+export type AgentPluginDisposition =
+    | 'compatibility'
+    | 'prefer-standard'
+    | 'audit-standard';
+
+/** Repository-level Agent Plugins authoring and audit policy. */
+export interface AgentPluginsConfig {
+    /** Standard contract used for authoring, projection, and diagnostics. */
+    targetVersion?: AgentPluginStandardVersion;
+    /** Compatibility/defaulting and diagnostic posture. */
+    disposition?: AgentPluginDisposition;
+}
+
 // ── Top-level config ───────────────────────────────────────────────
 
 /**
@@ -189,6 +223,10 @@ export interface MetaFlowConfig {
     hooks?: HooksConfig;
     /** Workspace-wide synchronization policy. */
     synchronization?: SynchronizationConfig;
+    /** Explicitly enabled project-local output targets. */
+    targets?: MetaFlowTargetsConfig;
+    /** Agent Plugins standard adoption policy. */
+    agentPlugins?: AgentPluginsConfig;
 }
 
 // ── Validation result ──────────────────────────────────────────────
@@ -215,7 +253,7 @@ export type ConfigLoadResult =
           warnings?: ConfigError[];
           migrated?: boolean;
           migrationMessages?: string[];
-          /** True when the raw authored document is not persisted at v4. */
+          /** True when the raw authored document is not persisted at the current version. */
           migrationRequired?: boolean;
       }
     | { ok: false; errors: ConfigError[]; warnings?: ConfigError[]; configPath?: string };

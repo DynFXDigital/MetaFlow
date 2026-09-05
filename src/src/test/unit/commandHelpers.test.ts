@@ -6,6 +6,7 @@ import {
     DEFAULT_FILES_VIEW_MODE,
     DEFAULT_LAYERS_VIEW_MODE,
     DEFAULT_PROFILE_ID,
+    AGENT_PLUGIN_DISPOSITIONS,
     addProfileToConfig,
     cloneProfileConfig,
     deleteProfileFromConfig,
@@ -26,6 +27,8 @@ import {
     normalizeFilesViewMode,
     normalizeLayersViewMode,
     normalizeAiMetadataAutoApplyMode,
+    isAgentPluginDisposition,
+    withAgentPluginDisposition,
     projectConfigForProfile,
     normalizeLayerPath,
     normalizeAndDeduplicateLayerPaths,
@@ -509,6 +512,32 @@ suite('Command Helpers', () => {
         assert.strictEqual(normalizeAiMetadataAutoApplyMode('builtinLayer'), false);
         assert.strictEqual(normalizeAiMetadataAutoApplyMode('invalid'), false);
         assert.strictEqual(normalizeAiMetadataAutoApplyMode(undefined), false);
+    });
+
+    test('applies an Agent Plugins disposition independently from injection and auto-apply', () => {
+        const original = {
+            compatibilityVersion: 5,
+            metadataRepos: [{ id: 'primary', localPath: '.ai/metadata' }],
+            injection: { prompts: 'settings' as const },
+        };
+
+        assert.deepStrictEqual(AGENT_PLUGIN_DISPOSITIONS, [
+            'compatibility',
+            'prefer-standard',
+            'audit-standard',
+        ]);
+        assert.strictEqual(isAgentPluginDisposition('audit-standard'), true);
+        assert.strictEqual(isAgentPluginDisposition('strict'), false);
+
+        const updated = withAgentPluginDisposition(original, 'prefer-standard');
+        assert.strictEqual(updated.compatibilityVersion, 6);
+        assert.deepStrictEqual(updated.agentPlugins, {
+            targetVersion: '1.0.0',
+            disposition: 'prefer-standard',
+        });
+        assert.deepStrictEqual(updated.injection, original.injection);
+        assert.strictEqual(original.compatibilityVersion, 5);
+        assert.strictEqual('agentPlugins' in original, false);
     });
 
     test('normalizes and deduplicates layer paths', () => {

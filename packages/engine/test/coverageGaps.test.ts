@@ -636,6 +636,22 @@ describe('Engine gaps: settingsInjector plugin roots', () => {
         assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
     });
 
+    it('computePluginRootPaths resolves an Agent Plugins v1 Copilot extension root', () => {
+        const file = pluginFile(
+            'com.github.copilot/hooks/hooks.json',
+            path.join(
+                workspaceRoot,
+                'repo',
+                'cap',
+                'com.github.copilot',
+                'hooks',
+                'hooks.json',
+            ),
+        );
+        const roots = computePluginRootPaths([file]);
+        assert.deepStrictEqual(roots, [path.join(workspaceRoot, 'repo', 'cap')]);
+    });
+
     it('computePluginRootPaths discovers a command-only plugin artifact', () => {
         const file = pluginFile(
             '.github/commands/review-metadata.md',

@@ -18,6 +18,11 @@ describe('getArtifactType', () => {
         assert.strictEqual(getArtifactType('.github/instructions/foo.md'), 'instructions');
     });
 
+    it('ATF-01ba: rule paths use the instruction bucket', () => {
+        assert.strictEqual(getArtifactType('.github/rules/foo.md'), 'instructions');
+        assert.strictEqual(getArtifactType('com.github.copilot/rules/foo.md'), 'instructions');
+    });
+
     it('ATF-01c: prompts path returns prompts', () => {
         assert.strictEqual(getArtifactType('.github/prompts/p.prompt.md'), 'prompts');
     });
@@ -41,6 +46,22 @@ describe('getArtifactType', () => {
 
     it('ATF-01ea: hooks path returns hooks', () => {
         assert.strictEqual(getArtifactType('.github/hooks/prompt-injection-guard.json'), 'hooks');
+    });
+
+    it('ATF-01eb: Agent Plugins v1 Copilot extension hooks return hooks', () => {
+        assert.strictEqual(getArtifactType('com.github.copilot/hooks/hooks.json'), 'hooks');
+    });
+
+    it('ATF-01ec: Agent Plugins v1 Copilot extension artifacts retain their kinds', () => {
+        assert.strictEqual(
+            getArtifactType('com.github.copilot/prompts/review.prompt.md'),
+            'prompts',
+        );
+        assert.strictEqual(getArtifactType('com.github.copilot/commands/review.md'), 'commands');
+        assert.strictEqual(
+            getArtifactType('com.github.copilot/agents/reviewer.agent.md'),
+            'agents',
+        );
     });
 
     it('ATF-01f: unknown prefix returns other', () => {
