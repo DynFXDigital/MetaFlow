@@ -54,6 +54,11 @@ npm run test:integration
 For extension-only work, `src/package.json` provides `compile`, `test:unit`, `test:integration`, `gate:integration`, `lint`, and `package`.
 For workspace-wide gates, the root `package.json` provides `gate:quick`, `gate:integration`, and `gate:full`.
 
+## TypeScript compiler and tooling
+
+Build and type-check scripts invoke the native TypeScript 7 compiler through `@typescript/native`.
+The repository also keeps a TypeScript 6-compatible compiler under the `typescript` package name because the installed TypeScript ESLint parser and plugin consume the TypeScript compiler API. Keep these roles separate until the lint toolchain supports TypeScript 7, then re-evaluate whether the compatibility package can be removed.
+
 ## Development conventions
 
 - Keep engine modules free of `vscode` imports so they remain fast to test in Node.
