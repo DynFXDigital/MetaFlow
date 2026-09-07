@@ -4,6 +4,16 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.8
+
+### Added
+
+- Add three-state Agent Plugins v1 disposition, repository-wide conformance reporting, explicit migration planning, and standard-first lossless plugin scaffolding while preserving legacy GitHub Copilot metadata.
+
+### Changed
+
+- Gate repository-wide `.github/copilot-instructions.md` synchronization behind explicit workspace consent and expose migration and retained-ownership state through the engine, CLI, and extension.
+
 ## 0.4.7
 
 ### Added

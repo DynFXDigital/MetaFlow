@@ -1,5 +1,14 @@
 # @metaflow/cli
 
+## 0.4.8
+
+### Patch Changes
+
+- 89bf4bf: Add three-state Agent Plugins v1 disposition, repository-wide conformance reporting, explicit
+  migration planning, and standard-first lossless plugin scaffolding while preserving legacy GitHub
+  Copilot metadata.
+- 1d3e299: Gate repository-wide `.github/copilot-instructions.md` synchronization behind explicit workspace consent, preserve previously managed root files as retained ownership when disabled, and expose migration/retention state through the engine, CLI, and extension.
+
 ## 0.4.7
 
 ### Patch Changes
