@@ -5,7 +5,8 @@
 // interface exposes both, so this interface layers the BDD hook aliases on
 // top of the standard TDD interface.
 const Mocha = require('mocha');
-const tdd = require('mocha/lib/interfaces/tdd');
+const tddModule = require('mocha/lib/interfaces/tdd');
+const tdd = typeof tddModule === 'function' ? tddModule : tddModule.tddInterface;
 
 module.exports = function tddWithBddHooks(suite) {
     tdd(suite);
