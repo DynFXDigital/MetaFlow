@@ -22,7 +22,10 @@ import {
     normalizeInputPath,
 } from '../config/configPathUtils';
 import { LayerContent, LayerFile, EffectiveFile } from './types';
-import { inspectAgentPluginPackage } from './agentPluginCompatibility';
+import {
+    AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID,
+    inspectAgentPluginPackage,
+} from './agentPluginCompatibility';
 import { agentPluginExtensionNamespaceForPath } from './agentMetadataConformance';
 import { loadCapabilityManifestForLayer } from './capabilityManifest';
 import { isMarketplaceRepositoryRoot } from './repoManifest';
@@ -41,6 +44,8 @@ const KNOWN_ARTIFACT_ROOTS = new Set([
 const KNOWN_GITHUB_ROOT_FILES = new Set(['copilot-instructions.md', 'hooks.json']);
 const AGENT_PLUGIN_PACKAGE_ROOT_FILES = new Set(['plugin.json', 'mcp.json']);
 const COPILOT_AGENT_PLUGIN_EXTENSION_PREFIX = 'com.github.copilot/';
+const AGENT_PLUGIN_EXTENSION_NAMESPACE_PATTERN =
+    /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
 
 export interface ResolveLayersOptions {
     /** Enables runtime layer discovery for repos with discover.enabled=true. */
@@ -451,12 +456,19 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
         }
 
         const childNames = new Set(entries.map((entry) => entry.name));
+        const pluginManifest = readAgentPluginManifestAtRoot(currentDir, childNames);
+        const isAgentPluginsV1Package =
+            pluginManifest?.$schema === AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID;
         const hasArtifactAtRoot = Array.from(KNOWN_ARTIFACT_ROOTS).some((root) =>
             childNames.has(root),
         );
         const hasGithubArtifacts =
             childNames.has('.github') && hasAnyKnownArtifactDir(path.join(currentDir, '.github'));
-        const hasCapabilityManifest = hasCapabilityManifestAtRoot(childNames, currentDir);
+        const hasCapabilityManifest = hasCapabilityManifestAtRoot(
+            childNames,
+            currentDir,
+            isAgentPluginsV1Package,
+        );
 
         if (
             !isMarketplaceRepositoryRoot(currentDir) &&
@@ -477,6 +489,12 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
             if (isKnownArtifactRootDirectory(entry.name)) {
                 continue;
             }
+            if (
+                isAgentPluginsV1Package &&
+                AGENT_PLUGIN_EXTENSION_NAMESPACE_PATTERN.test(entry.name)
+            ) {
+                continue;
+            }
             if (entry.name.startsWith('.') && entry.name !== '.github') {
                 continue;
             }
@@ -491,7 +509,38 @@ export function discoverLayersInRepo(repoRoot: string, excludePatterns: string[]
     return Array.from(discovered).sort((a, b) => a.localeCompare(b));
 }
 
-function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string): boolean {
+function readAgentPluginManifestAtRoot(
+    currentDir: string,
+    childNames: Set<string>,
+): Record<string, unknown> | undefined {
+    if (!childNames.has('plugin.json')) {
+        return undefined;
+    }
+
+    try {
+        const pluginRootPath = fs.realpathSync(currentDir);
+        const manifestPath = fs.realpathSync(path.join(currentDir, 'plugin.json'));
+        if (
+            !isWithinBoundary(manifestPath, pluginRootPath) ||
+            !fs.statSync(manifestPath).isFile()
+        ) {
+            return undefined;
+        }
+        const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as unknown;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return undefined;
+        }
+        return parsed as Record<string, unknown>;
+    } catch {
+        return undefined;
+    }
+}
+
+function hasCapabilityManifestAtRoot(
+    childNames: Set<string>,
+    currentDir: string,
+    isAgentPluginsV1Package: boolean,
+): boolean {
     if (childNames.has('CAPABILITY.md')) {
         const manifestPath = path.join(currentDir, 'CAPABILITY.md');
         try {
@@ -503,14 +552,18 @@ function hasCapabilityManifestAtRoot(childNames: Set<string>, currentDir: string
         }
     }
 
-    if (!childNames.has('README.md')) {
-        return false;
-    }
-
     // A marketplace repository README documents the collection, not a
     // capability package. The generated marketplace manifest is the stable
     // marker for that repository-level boundary.
     if (isMarketplaceRepositoryRoot(currentDir)) {
+        return false;
+    }
+
+    if (isAgentPluginsV1Package) {
+        return true;
+    }
+
+    if (!childNames.has('README.md')) {
         return false;
     }
 
