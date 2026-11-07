@@ -616,6 +616,129 @@ describe('Engine package: overlay pipeline', () => {
         assert.deepStrictEqual(discovered, ['.', 'capabilities/real-capability']);
     });
 
+    it('keeps strict Agent Plugins v1 client extension directories inside the package layer', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'v1-client-extension-repo');
+        const packageRoot = path.join(repoRoot, 'plugins', 'demo');
+        const extensionRoot = path.join(packageRoot, 'com.github.copilot');
+        fs.mkdirSync(path.join(packageRoot, 'skills', 'demo'), { recursive: true });
+        fs.mkdirSync(path.join(extensionRoot, 'instructions'), { recursive: true });
+        fs.mkdirSync(path.join(extensionRoot, 'agents'), { recursive: true });
+        fs.mkdirSync(path.join(extensionRoot, 'prompts'), { recursive: true });
+        fs.mkdirSync(path.join(extensionRoot, 'hooks'), { recursive: true });
+        fs.writeFileSync(
+            path.join(packageRoot, 'plugin.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                name: 'demo',
+                extensions: { 'com.github.copilot': { hooks: './com.github.copilot/hooks' } },
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(path.join(packageRoot, 'README.md'), '# Demo', 'utf-8');
+        fs.writeFileSync(
+            path.join(packageRoot, 'skills', 'demo', 'SKILL.md'),
+            ['---', 'name: demo', 'description: A test skill.', '---', '# Demo'].join('\n'),
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(extensionRoot, 'instructions', 'coding.instructions.md'),
+            '# Coding',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(extensionRoot, 'agents', 'reviewer.agent.md'),
+            '# Reviewer',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(extensionRoot, 'prompts', 'review.prompt.md'),
+            '# Review',
+            'utf-8',
+        );
+        fs.writeFileSync(
+            path.join(extensionRoot, 'hooks', 'hooks.json'),
+            JSON.stringify({ version: 1, hooks: {} }),
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['plugins/demo']);
+
+        const layers = resolveLayers(
+            {
+                metadataRepo: { localPath: path.relative(tmpDir, repoRoot) },
+                layers: discovered,
+            },
+            tmpDir,
+        );
+        assert.strictEqual(layers.length, 1);
+        assert.deepStrictEqual(layers[0].files.map((file) => file.relativePath).sort(), [
+            'com.github.copilot/agents/reviewer.agent.md',
+            'com.github.copilot/hooks/hooks.json',
+            'com.github.copilot/instructions/coding.instructions.md',
+            'com.github.copilot/prompts/review.prompt.md',
+            'skills/demo/SKILL.md',
+        ]);
+        assert.ok(
+            layers[0].files.every((file) => file.absolutePath.startsWith(packageRoot + path.sep)),
+        );
+    });
+
+    it('discovers a strict Agent Plugins v1 package without README.md', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'v1-extension-only-repo');
+        const packageRoot = path.join(repoRoot, 'plugins', 'extension-only');
+        const extensionAgentPath = path.join(
+            packageRoot,
+            'com.github.copilot',
+            'agents',
+            'reviewer.agent.md',
+        );
+        fs.mkdirSync(path.dirname(extensionAgentPath), { recursive: true });
+        fs.writeFileSync(
+            path.join(packageRoot, 'plugin.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                name: 'extension-only',
+            }),
+            'utf-8',
+        );
+        fs.writeFileSync(extensionAgentPath, '# Reviewer', 'utf-8');
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['plugins/extension-only']);
+
+        const layers = resolveLayers(
+            {
+                metadataRepo: { localPath: path.relative(tmpDir, repoRoot) },
+                layers: discovered,
+            },
+            tmpDir,
+        );
+        assert.strictEqual(layers.length, 1);
+        assert.deepStrictEqual(
+            layers[0].files.map((file) => file.relativePath),
+            ['com.github.copilot/agents/reviewer.agent.md'],
+        );
+    });
+
+    it('does not treat namespaced directories as extensions for legacy plugin manifests', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'legacy-client-extension-repo');
+        const packageRoot = path.join(repoRoot, 'plugins', 'legacy');
+        fs.mkdirSync(path.join(packageRoot, 'com.github.copilot', 'agents'), {
+            recursive: true,
+        });
+        fs.writeFileSync(path.join(packageRoot, 'plugin.json'), '{}', 'utf-8');
+        fs.writeFileSync(path.join(packageRoot, 'README.md'), '# Legacy plugin', 'utf-8');
+        fs.writeFileSync(
+            path.join(packageRoot, 'com.github.copilot', 'agents', 'reviewer.agent.md'),
+            '# Reviewer',
+            'utf-8',
+        );
+
+        const discovered = discoverLayersInRepo(repoRoot);
+        assert.deepStrictEqual(discovered, ['plugins/legacy', 'plugins/legacy/com.github.copilot']);
+    });
+
     it('classifies deprecated chatmodes as Synchronized-only', () => {
         const repoDir = path.join(tmpDir, '.ai', 'ai-metadata');
         fs.mkdirSync(path.join(repoDir, 'core', '.github', 'chatmodes'), { recursive: true });
