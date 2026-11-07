@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.4.9
+
+### Patch Changes
+
+- 3f4ff87: Keep Agent Plugins v1 client-extension directories within their owning package during capability discovery, including packages without a README.
+
 ## 0.4.8
 
 ### Patch Changes

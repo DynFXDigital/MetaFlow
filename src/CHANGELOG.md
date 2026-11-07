@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9
+
+### Patch Changes
+
+- Agent Plugins v1 packages that include client-extension directories such as `com.github.copilot/` now appear as a single capability in the MetaFlow tree instead of showing each extension directory as a separate sub-tree. Strict v1 packages are also discovered when they have no `README.md`.
+
 ## 0.4.8
 
 ### Patch Changes
