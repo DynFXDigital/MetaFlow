@@ -176,10 +176,18 @@ function toDisplayRelativePath(relativePath: string): string {
     return displayParts.join('/');
 }
 
-function getArtifactPath(relativePath: string): string {
+function getArtifactTypeIndex(parts: string[]): number {
+    return parts.findIndex(
+        (part, index) =>
+            isKnownArtifactType(part) ||
+            (part === 'rules' && parts[index - 1] === 'com.github.copilot'),
+    );
+}
+
+export function getArtifactPath(relativePath: string): string {
     const displayPath = toDisplayRelativePath(relativePath);
     const parts = displayPath.split('/').filter(Boolean);
-    const typeIndex = parts.findIndex((part) => isKnownArtifactType(part));
+    const typeIndex = getArtifactTypeIndex(parts);
     if (typeIndex === -1) {
         return displayPath;
     }
@@ -190,8 +198,12 @@ function getArtifactPath(relativePath: string): string {
 function getSummaryArtifactType(relativePath: string): SummaryArtifactType | undefined {
     const displayPath = toDisplayRelativePath(relativePath);
     const parts = displayPath.split('/').filter(Boolean);
-    const typeSegment = parts.find(isKnownArtifactType);
-    return typeSegment;
+    const typeIndex = getArtifactTypeIndex(parts);
+    if (typeIndex === -1) {
+        return undefined;
+    }
+    const type = parts[typeIndex];
+    return type === 'rules' ? 'instructions' : isKnownArtifactType(type) ? type : undefined;
 }
 
 function getRecordKey(repoId: string, repoRelativePath: string): string {
@@ -336,6 +348,10 @@ function isLayerArtifactRemainder(segments: string[]): boolean {
 
     if (segments[0] === '.github') {
         return segments.length > 1 && isKnownArtifactType(segments[1]);
+    }
+
+    if (segments[0] === 'com.github.copilot') {
+        return getArtifactType(segments.join('/')) !== 'other';
     }
 
     return isKnownArtifactType(segments[0]);
@@ -1061,7 +1077,11 @@ export function getSummaryTooltipLines(summary: ArtifactSummary): string[] {
         // Keep existing tooltips compact for repositories that predate the
         // first-class command artifact while still surfacing commands when a
         // capability actually contains them.
-        return type !== 'commands' || summary.byType[type].active > 0 || summary.byType[type].available > 0;
+        return (
+            type !== 'commands' ||
+            summary.byType[type].active > 0 ||
+            summary.byType[type].available > 0
+        );
     }).map(
         (type) =>
             `${titleCaseArtifactType(type)}: ${summary.byType[type].active}/${summary.byType[type].available} active`,

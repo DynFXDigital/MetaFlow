@@ -35,6 +35,7 @@ import {
     ArtifactSummaryCounts,
     ArtifactSummary,
     formatSummaryDescription,
+    getArtifactPath,
     getInstructionScopeTooltipLines,
     getSummaryTooltipLines,
     InstructionScopeSummary,
@@ -230,24 +231,6 @@ function toDisplayTitleFromSlug(value: string): string {
 function extractFirstMarkdownHeading(content: string): string | undefined {
     const match = content.match(/^#\s+(.+)$/m);
     return match?.[1]?.trim();
-}
-
-function getPathAfterArtifactType(relativePath: string): string {
-    const parts = toPosixPath(relativePath).split('/').filter(Boolean);
-    const githubIndex = parts.indexOf('.github');
-    const displayParts =
-        githubIndex === -1
-            ? parts
-            : [...parts.slice(0, githubIndex), ...parts.slice(githubIndex + 1)];
-    const typeIndex = displayParts.findIndex((part): part is CapabilityArtifactType =>
-        KNOWN_ARTIFACT_TYPES.has(part as CapabilityArtifactType),
-    );
-
-    if (typeIndex === -1) {
-        return displayParts.join('/');
-    }
-
-    return displayParts.slice(typeIndex + 1).join('/');
 }
 
 function getSourcePath(file: EffectiveFile): string | undefined {
@@ -463,10 +446,7 @@ class LayerRepoItem extends vscode.TreeItem {
             governance?: RepoGovernanceProjection;
         },
     ) {
-        super(
-            label,
-            vscode.TreeItemCollapsibleState.Collapsed,
-        );
+        super(label, vscode.TreeItemCollapsibleState.Collapsed);
         this.id = buildLayerTreeItemId('repo', 'tree', repoId, '.');
         this.contextValue = 'layerRepo';
         this.iconPath = new vscode.ThemeIcon('repo');
@@ -1159,7 +1139,10 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return normalizeRelativePath(layerPath?.trim() || '.');
     }
 
-    private buildPendingLayerKey(repoId: string | undefined, layerPath: string | undefined): string {
+    private buildPendingLayerKey(
+        repoId: string | undefined,
+        layerPath: string | undefined,
+    ): string {
         return `${this.normalizePendingRepoId(repoId)}:${this.normalizePendingLayerPath(layerPath)}`;
     }
 
@@ -1310,7 +1293,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
                     getArtifactType(file.relativePath) === artifactType,
             )
             .map((file) => ({
-                artifactPath: normalizeRelativePath(getPathAfterArtifactType(file.relativePath)),
+                artifactPath: normalizeRelativePath(getArtifactPath(file.relativePath)),
                 absolutePath: getSourcePath(file),
             }));
     }
@@ -1815,10 +1798,7 @@ export class LayersTreeViewProvider implements vscode.TreeDataProvider<LayerTree
         return summarizeLayerPrefix(this.state.treeSummaryCache, repoId ?? 'primary', layerPath);
     }
 
-    private summarizeConcreteLayer(
-        repoId: string | undefined,
-        layerPath: string,
-    ): ArtifactSummary {
+    private summarizeConcreteLayer(repoId: string | undefined, layerPath: string): ArtifactSummary {
         return summarizeLayerContents(this.state.treeSummaryCache, repoId ?? 'primary', layerPath);
     }
 

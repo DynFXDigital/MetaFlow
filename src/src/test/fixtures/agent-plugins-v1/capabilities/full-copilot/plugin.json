@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "full-copilot",
+  "version": "1.0.0",
+  "description": "Inert fixture for Agent Plugins v1 and Copilot extension discovery.",
+  "extensions": {
+    "com.github.copilot": {}
+  }
+}

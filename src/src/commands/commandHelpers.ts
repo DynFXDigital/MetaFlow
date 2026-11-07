@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
     CURRENT_CONFIG_COMPATIBILITY_VERSION,
+    getAgentPluginExtensionOwner,
     isMarketplaceRepositoryRoot,
     loadManagedState,
     saveManagedState,
@@ -642,6 +643,76 @@ export function restoreCapabilityCatalog(
     }
 
     config.layerSources = Array.from(sources.values());
+}
+
+/**
+ * Fold accidentally discovered strict-v1 extension layers into their owning package.
+ * Profiles selecting an extension select the complete package instead.
+ */
+export function repairAgentPluginExtensionLayers(
+    config: MetaFlowConfig,
+    workspaceRoot: string,
+): { repaired: string[]; blocked: string[]; configChanged: boolean } {
+    const repaired: string[] = [];
+    const blocked: string[] = [];
+    let configChanged = false;
+    const sources = config.layerSources ?? [];
+    const replacements = new Map<string, { repoId: string; path: string }>();
+
+    for (const source of sources) {
+        const repo = config.metadataRepos?.find((candidate) => candidate.id === source.repoId);
+        if (!repo) {
+            continue;
+        }
+        const sourcePath = normalizeLayerPath(source.path);
+        const owner = getAgentPluginExtensionOwner(
+            resolvePathFromWorkspace(workspaceRoot, repo.localPath),
+            sourcePath,
+        );
+        if (owner === undefined) {
+            continue;
+        }
+        const reference = `${source.repoId}:${sourcePath}`;
+        if (config.capabilityOverrides?.[reference]) {
+            blocked.push(reference);
+            continue;
+        }
+        replacements.set(reference, { repoId: source.repoId, path: owner });
+        repaired.push(reference);
+    }
+
+    for (const profile of Object.values(config.profiles ?? {})) {
+        if (!profile.enabledCapabilities) {
+            continue;
+        }
+        const selected = new Set<string>();
+        for (const reference of profile.enabledCapabilities) {
+            const replacement = replacements.get(reference);
+            if (replacement) {
+                selected.add(`${replacement.repoId}:${replacement.path}`);
+                configChanged = true;
+            } else {
+                selected.add(reference);
+            }
+        }
+        profile.enabledCapabilities = Array.from(selected);
+    }
+
+    config.layerSources = sources.filter(
+        (source) => !replacements.has(`${source.repoId}:${normalizeLayerPath(source.path)}`),
+    );
+    for (const replacement of replacements.values()) {
+        if (
+            !config.layerSources.some(
+                (source) =>
+                    source.repoId === replacement.repoId &&
+                    normalizeLayerPath(source.path) === replacement.path,
+            )
+        ) {
+            config.layerSources.push({ ...replacement, enabled: false });
+        }
+    }
+    return { repaired, blocked, configChanged };
 }
 
 /** Return the runtime source identities suitable for persistence in state.json. */

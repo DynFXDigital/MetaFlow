@@ -1,4 +1,9 @@
-export { resolveLayers, buildEffectiveFileMap, discoverLayersInRepo } from './overlayEngine';
+export {
+    resolveLayers,
+    buildEffectiveFileMap,
+    discoverLayersInRepo,
+    getAgentPluginExtensionOwner,
+} from './overlayEngine';
 export type { ResolveLayersCache, ResolveLayersOptions } from './overlayEngine';
 export {
     applyCapabilityReferenceRepairs,
