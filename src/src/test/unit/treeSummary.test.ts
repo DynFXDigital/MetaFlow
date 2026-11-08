@@ -36,6 +36,37 @@ suite('treeSummary', () => {
         fs.rmSync(workspaceRoot, { recursive: true, force: true });
     });
 
+    test('counts rules in an extension-only v1 package under its owner', async () => {
+        const repoRoot = path.join(workspaceRoot, 'metadata');
+        const packageRoot = path.join(repoRoot, 'plugin');
+        const rulesRoot = path.join(packageRoot, 'com.github.copilot', 'rules');
+        fs.mkdirSync(rulesRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(packageRoot, 'plugin.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                name: 'plugin',
+            }),
+        );
+        fs.writeFileSync(path.join(rulesRoot, 'example.instructions.md'), '# Example\n');
+        const config = {
+            metadataRepos: [{ id: 'fixture', localPath: repoRoot }],
+            layerSources: [{ repoId: 'fixture', path: 'plugin', enabled: false }],
+        };
+        const cache = await buildTreeSummaryCache(config, workspaceRoot, [], [], {
+            enabled: false,
+            layerEnabled: true,
+            synchronizedFiles: [],
+            sourceRoot: undefined,
+            sourceId: 'fixture',
+            sourceDisplayName: 'Fixture',
+        });
+        const summary = summarizeLayerContents(cache, 'fixture', 'plugin');
+        assert.strictEqual(summary.totalAvailable, 1);
+        assert.strictEqual(summary.byType.instructions.available, 1);
+        assert.strictEqual(cache.availableRecords[0].artifactPath, 'example.instructions.md');
+    });
+
     test('buildTreeSummaryCache computes repo, folder, and profile summaries from active and available inventories', async () => {
         const repoRoot = path.join(workspaceRoot, '.ai', 'repo-meta');
         fs.mkdirSync(path.join(repoRoot, '.github', 'instructions'), { recursive: true });
@@ -166,9 +197,7 @@ suite('treeSummary', () => {
         fs.mkdirSync(nestedInstructions, { recursive: true });
         fs.writeFileSync(
             path.join(rootInstructions, 'root.instructions.md'),
-            ['---', 'name: Root policy', 'applyTo: "src/root/**"', '---', '', 'root'].join(
-                '\n',
-            ),
+            ['---', 'name: Root policy', 'applyTo: "src/root/**"', '---', '', 'root'].join('\n'),
         );
         fs.writeFileSync(
             path.join(nestedInstructions, 'nested.instructions.md'),

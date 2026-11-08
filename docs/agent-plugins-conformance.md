@@ -44,6 +44,13 @@ but doing so does not make it portable. For GitHub Copilot, MetaFlow recognizes
 `com.github.copilot/` as a conformant client extension and reports it separately from the portable
 core.
 
+Client-extension directories belong to their v1 package, not to independent capabilities. If an
+older MetaFlow version cached one as a capability, refresh removes the stale catalog entry. Profiles
+that selected the extension instead select its owning package; enabling the complete package can
+activate additional components. MetaFlow asks before saving profile changes according to the
+workspace's refresh-update policy. If the stale extension has capability-specific overrides,
+MetaFlow retains it and logs a warning for manual review rather than silently discarding them.
+
 | Existing GitHub Copilot surface                                                   | Strict-v1 package location                               | Classification                          |
 | --------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------- |
 | `.github/skills/<name>/SKILL.md`                                                  | `skills/<name>/SKILL.md`                                 | Portable after package-path relocation  |

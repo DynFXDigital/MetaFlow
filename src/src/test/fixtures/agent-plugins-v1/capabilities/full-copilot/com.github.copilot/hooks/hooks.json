@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/com.github.copilot/hooks/scripts/fixture.cjs\""
+      }
+    ]
+  }
+}

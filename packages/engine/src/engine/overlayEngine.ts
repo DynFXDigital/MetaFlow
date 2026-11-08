@@ -536,6 +536,41 @@ function readAgentPluginManifestAtRoot(
     }
 }
 
+/** Return the owning strict-v1 package path for a client-extension directory or descendant. */
+export function getAgentPluginExtensionOwner(
+    repoRoot: string,
+    layerPath: string,
+): string | undefined {
+    const normalized = normalizeInputPath(layerPath).replace(/^\.\//, '').replace(/\/+$/, '');
+    const segments = normalized.split('/');
+    if (segments.includes('..')) {
+        return undefined;
+    }
+
+    for (let index = 0; index < segments.length; index += 1) {
+        if (!AGENT_PLUGIN_EXTENSION_NAMESPACE_PATTERN.test(segments[index])) {
+            continue;
+        }
+        const owner = segments.slice(0, index).join('/') || '.';
+        const ownerPath = path.resolve(repoRoot, owner);
+        if (!isWithinBoundary(ownerPath, path.resolve(repoRoot))) {
+            continue;
+        }
+        try {
+            if (!isWithinBoundary(fs.realpathSync(ownerPath), fs.realpathSync(repoRoot))) {
+                continue;
+            }
+        } catch {
+            continue;
+        }
+        const manifest = readAgentPluginManifestAtRoot(ownerPath, new Set(['plugin.json']));
+        if (manifest?.$schema === AGENT_PLUGINS_V1_PLUGIN_SCHEMA_ID) {
+            return owner;
+        }
+    }
+    return undefined;
+}
+
 function hasCapabilityManifestAtRoot(
     childNames: Set<string>,
     currentDir: string,

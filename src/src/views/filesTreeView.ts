@@ -28,6 +28,7 @@ import {
     ArtifactSummaryCounts,
     ArtifactSummary,
     formatSummaryDescription,
+    getArtifactPath,
     getInstructionScopeTooltipLines,
     getSummaryTooltipLines,
     summarizeArtifactInstructionScope,
@@ -146,13 +147,7 @@ function getDisplayPathForRepoTree(file: EffectiveFile): string {
  * hierarchy paths (capabilities/devtools/instructions/foo.md → foo.md).
  */
 function getPathAfterArtifactType(file: EffectiveFile): string {
-    const displayPath = toDisplayRelativePath(file.relativePath);
-    const parts = displayPath.split('/').filter(Boolean);
-    const typeIndex = parts.findIndex((p) => KNOWN_TYPES.has(p));
-    if (typeIndex === -1) {
-        return displayPath;
-    }
-    return parts.slice(typeIndex + 1).join('/');
+    return getArtifactPath(file.relativePath);
 }
 
 function getLayerDisplayPath(file: EffectiveFile): string {

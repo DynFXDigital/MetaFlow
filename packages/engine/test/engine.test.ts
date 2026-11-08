@@ -23,6 +23,7 @@ import {
     // Engine
     resolveLayers,
     discoverLayersInRepo,
+    getAgentPluginExtensionOwner,
     buildEffectiveFileMap,
     applyProfile,
     classifyFiles,
@@ -737,6 +738,43 @@ describe('Engine package: overlay pipeline', () => {
 
         const discovered = discoverLayersInRepo(repoRoot);
         assert.deepStrictEqual(discovered, ['plugins/legacy', 'plugins/legacy/com.github.copilot']);
+    });
+
+    it('identifies extension directories and descendants only for strict v1 packages', () => {
+        const repoRoot = path.join(tmpDir, '.ai', 'extension-owner-repo');
+        const strictRoot = path.join(repoRoot, 'plugins', 'strict');
+        const legacyRoot = path.join(repoRoot, 'plugins', 'legacy');
+        fs.mkdirSync(strictRoot, { recursive: true });
+        fs.mkdirSync(legacyRoot, { recursive: true });
+        fs.writeFileSync(
+            path.join(strictRoot, 'plugin.json'),
+            JSON.stringify({
+                $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
+                name: 'strict',
+            }),
+        );
+        fs.writeFileSync(path.join(legacyRoot, 'plugin.json'), '{}');
+
+        assert.strictEqual(
+            getAgentPluginExtensionOwner(repoRoot, 'plugins/strict/com.github.copilot'),
+            'plugins/strict',
+        );
+        assert.strictEqual(
+            getAgentPluginExtensionOwner(repoRoot, 'plugins/strict/org.example'),
+            'plugins/strict',
+        );
+        assert.strictEqual(
+            getAgentPluginExtensionOwner(repoRoot, 'plugins/legacy/com.github.copilot'),
+            undefined,
+        );
+        assert.strictEqual(
+            getAgentPluginExtensionOwner(repoRoot, 'plugins/strict/com.github.copilot/nested'),
+            'plugins/strict',
+        );
+        assert.strictEqual(
+            getAgentPluginExtensionOwner(repoRoot, '../strict/com.github.copilot'),
+            undefined,
+        );
     });
 
     it('classifies deprecated chatmodes as Synchronized-only', () => {

@@ -127,6 +127,7 @@ import {
     normalizeAndDeduplicateLayerPaths,
     capabilityCatalogFromConfig,
     restoreCapabilityCatalog,
+    repairAgentPluginExtensionLayers,
     writeManagedViewsState,
     type RefreshCommandOptions,
 } from './commandHelpers';
@@ -3764,6 +3765,7 @@ function loadLatestConfigForMutation(
         const config = cloneConfig(loaded.config);
         const managedState = loadManagedState(workspaceRoot);
         restoreCapabilityCatalog(config, workspaceRoot, managedState.capabilityCatalog?.entries);
+        repairAgentPluginExtensionLayers(config, workspaceRoot);
         return config;
     }
 
@@ -6238,6 +6240,18 @@ export function registerCommands(
                 ws.uri.fsPath,
                 managedStateForCapabilityCatalog.capabilityCatalog?.entries,
             );
+            const extensionLayerRepair = repairAgentPluginExtensionLayers(
+                result.config,
+                ws.uri.fsPath,
+            );
+            for (const reference of extensionLayerRepair.repaired) {
+                logInfo(`Removed stale Agent Plugins v1 client-extension layer ${reference}.`);
+            }
+            for (const reference of extensionLayerRepair.blocked) {
+                logWarn(
+                    `Cannot merge stale client-extension layer ${reference}: it has capability-specific overrides that require manual review.`,
+                );
+            }
             const governanceResult = loadGovernanceContract(ws.uri.fsPath);
             publishGovernanceDiagnostics(diagnosticCollection, governanceResult);
             state.governanceContract = governanceResult.ok ? governanceResult.contract : undefined;
@@ -6268,6 +6282,7 @@ export function registerCommands(
                 if (
                     (legacyBuiltInConfigRemoved ||
                         result.migrated ||
+                        extensionLayerRepair.configChanged ||
                         discoveryResult.totalAdded > 0 ||
                         (capabilityRepairPreview?.repairResult.repaired.length ?? 0) > 0) &&
                     result.configPath
@@ -6281,6 +6296,11 @@ export function registerCommands(
                     if (result.migrated) {
                         pendingConfigUpdateReasons.push(
                             'Migrate existing config to the current MetaFlow format.',
+                        );
+                    }
+                    if (extensionLayerRepair.configChanged) {
+                        pendingConfigUpdateReasons.push(
+                            'Replace selected Agent Plugins v1 client-extension layers with their owning capabilities.',
                         );
                     }
                     if (discoveryResult.totalAdded > 0) {
