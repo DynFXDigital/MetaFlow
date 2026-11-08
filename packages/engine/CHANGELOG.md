@@ -1,5 +1,11 @@
 # @metaflow/engine
 
+## 0.4.10
+
+### Patch Changes
+
+- 2fdc0df: Remove incorrectly cached Agent Plugins v1 client-extension capabilities and migrate selected extensions to their owning packages.
+
 ## 0.4.9
 
 ### Patch Changes
