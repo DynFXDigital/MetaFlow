@@ -4,6 +4,12 @@ All notable repository-level changes are documented here.
 
 This project is currently in `v0.x` preview. Expect iterative changes while public APIs and workflows stabilize.
 
+## 0.4.10
+
+### Fixed
+
+- Remove previously cached Agent Plugins v1 client-extension directories from the capability tree and migrate selections to their owning packages. Extensions with capability-specific overrides remain for manual review.
+
 ## 0.4.9
 
 ### Fixed
